@@ -3,6 +3,7 @@ import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler 
 import { captureHandler, resignHandler } from './capture';
 import { researchHandler } from './tech';
 import { trainHandler } from './training';
+import { endTurnHandler } from './turn';
 import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
 import type { Action, GameEvent, Handler, MatchState, Result } from './types';
@@ -20,6 +21,7 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   train: trainHandler,
   capture: captureHandler,
   resign: resignHandler,
+  endTurn: endTurnHandler,
 };
 
 export function applyAction(state: MatchState, action: Action): Result {
