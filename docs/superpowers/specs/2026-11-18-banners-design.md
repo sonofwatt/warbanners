@@ -70,6 +70,8 @@ Goals
   such as map size and how far troops move. **[David]**
 - No server of David's own. It works like his earlier game Deutsch Dash.
   **[David]**
+- Playing alone against the AI works with no internet connection, once the game
+  has been installed. **[David: "Must work offline"]**
 
 Non-goals
 
@@ -95,7 +97,8 @@ summary.
 
 1. **First playable.** One generated small map, Spartans against Mongols, live
    turns against one other person or one AI, four AI settings (easy, normal,
-   hard, adaptive), the diorama look. **[David]**
+   hard, adaptive), the diorama look. Solo play against the AI works offline.
+   **[David]**
 2. Hero traits and expanded treasures.
 3. Remote play: first with a "text them it's their turn" button, then automatic
    notifications.
@@ -394,6 +397,18 @@ traps.
   runs off the main thread.
 - **Rendering:** separate from the rules, so the look can change without touching
   how the game plays.
+- **Offline solo play [David requires it; the how is Claude's call]:** the
+  installed game is cached on the phone so it opens with no connection. A solo
+  match never touches Firebase: its match record (the same shape as an online
+  one) is saved on the phone, survives closing the game, and resumes. The
+  adaptive AI's remembered level is also kept on the phone.
+- **Versions:** because every phone computes the rules itself, two phones on
+  different builds would disagree. Each build carries a rules version, each match
+  records the version it was started on, and the lobby refuses to start or join
+  a match across versions and offers to update instead. A cached game checks for
+  a new build whenever it has a connection and applies it between matches, never
+  in the middle of one. How a solo match in progress survives a rules update
+  (finish on the old rules, or migrate) is **[Builder]**.
 
 ### 8.4 Look **[David chose option B from three sketches]**
 
@@ -444,6 +459,8 @@ room code is the credential, as in Deutsch Dash.
   two factions, match length, and that the adaptive AI converges on close games
   against scripted opponents of different strengths.
 - Database rules: tested against the Firebase emulator.
+- Offline: a test that loads the built game with the network cut, plays solo
+  turns, reloads, and finds the match intact.
 - Screens: driven in a phone-sized browser, then on the real phones.
 
 ## 9. Stage 1 is done when
@@ -453,6 +470,8 @@ room code is the credential, as in Deutsch Dash.
   resignation, with a working turn clock.
 - Either player can instead play alone against the AI at easy, normal, hard or
   adaptive.
+- With the phone in airplane mode, the installed game opens, starts a solo match,
+  and resumes one that was left half played.
 - Closing the browser mid-match and reopening the link resumes the match.
 - It installs to the home screen on the Pixel 10 Pro and on David's iPhone.
 - Both factions feel different to play, as described in 5.7 (hero-related parts
@@ -474,22 +493,9 @@ site):
   create it on his say-so.
 - Whether the GitHub repo is public. Free GitHub Pages needs a public repo, as
   Deutsch Dash is.
-- Whether playing alone against the AI must work with no internet connection
-  (see 12).
 
 Later:
 
 - A real name for the game, whenever he likes.
 - At stage 3: which way to send notifications.
 - At stage 5: details of each new faction.
-
-## 12. Open question: solo play without internet
-
-Not yet answered by David. It changes stage 1:
-
-- If solo play must work offline, stage 1 needs the game cached on the phone, a
-  local store for solo matches beside the Firebase one, and a careful update
-  scheme, because two phones on different builds would disagree about the rules.
-- If solo play may need a connection, stage 1 runs solo matches through the same
-  Firebase match record as live ones, and the offline groundwork waits for stage 3,
-  which needs part of it anyway for notifications.
