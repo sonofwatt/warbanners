@@ -5,6 +5,7 @@ import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { generateMap } from './mapgen';
 import { RULES_VERSION } from './types';
+import { refreshExplored } from './vision';
 import type { City, MatchSettings, MatchState, PlayerId, Trait, Unit, UnitTypeId } from './types';
 
 const ABILITY_TRAITS: readonly Trait[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
@@ -107,5 +108,6 @@ export function createMatch(settings: MatchSettings): MatchState {
     u.mp = 2 * UNITS[type].move;
     u.attacks = freshAttacks(type);
   }
+  for (const p of s.players) refreshExplored(s, p.id);
   return s;
 }

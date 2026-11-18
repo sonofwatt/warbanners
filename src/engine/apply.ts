@@ -1,3 +1,4 @@
+import { refreshExplored } from './vision';
 import type { Action, GameEvent, Handler, MatchState, Result } from './types';
 
 // Later tasks register their action handlers here.
@@ -15,6 +16,7 @@ export function applyAction(state: MatchState, action: Action): Result {
   try {
     const reason = handler(draft, action, events);
     if (reason !== null) return { ok: false, reason };
+    for (const p of draft.players) if (p.alive) refreshExplored(draft, p.id);
   } catch {
     return { ok: false, reason: 'invalid action' };
   }
