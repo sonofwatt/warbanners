@@ -1,5 +1,7 @@
 import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
+import { researchHandler } from './tech';
+import { trainHandler } from './training';
 import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
 import type { Action, GameEvent, Handler, MatchState, Result } from './types';
@@ -13,6 +15,8 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   road: roadHandler,
   buildWalls: wallsHandler,
   chooseReward: rewardHandler,
+  research: researchHandler,
+  train: trainHandler,
 };
 
 export function applyAction(state: MatchState, action: Action): Result {

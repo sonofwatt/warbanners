@@ -5,7 +5,7 @@ import { distance, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { cityAt, hasTrait, removeUnit, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit } from './vision';
-import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
+import type { Action, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
 export function coverAt(s: MatchState, defender: Unit): number {
@@ -91,7 +91,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   if (hasTrait(attacker, 'splash')) {
     const splash = Math.max(1, Math.round(damage / CONFIG.splashDivisor));
     const centre = parseKey(tileKey);
-    for (const n of [...s.units]) {
+    for (const n of s.units) {
       if (n.owner === attacker.owner || distance(centre, parseKey(n.pos)) !== 1) continue;
       n.hp -= splash;
       ev.push({ type: 'splashed', target: n.id, damage: splash });
