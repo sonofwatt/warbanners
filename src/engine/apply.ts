@@ -3,7 +3,7 @@ import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
 import { captureHandler, resignHandler } from './capture';
 import { researchHandler } from './tech';
-import { trainHandler } from './training';
+import { campTrainHandler, trainHandler } from './training';
 import { endTurnHandler } from './turn';
 import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
@@ -21,6 +21,7 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   chooseReward: rewardHandler,
   research: researchHandler,
   train: trainHandler,
+  campTrain: campTrainHandler,
   capture: captureHandler,
   resign: resignHandler,
   endTurn: endTurnHandler,

@@ -3,6 +3,7 @@ import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
 import { distance, parseKey } from './hex';
 import type { HexKey } from './hex';
+import { isSteadied } from './abilities';
 import { cityAt, hasTrait, removeUnit, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
@@ -18,9 +19,14 @@ export function coverAt(s: MatchState, defender: Unit): number {
   return tile === undefined ? 1 : CONFIG.terrain[tile.terrain].cover;
 }
 
-// Base attack. Inspire is added by a later task.
-export function attackOf(_s: MatchState, u: Unit): number {
-  return UNITS[u.type].atk;
+// rules 11: base attack, plus inspire for a mounted unit beside a friendly inspire unit
+export function attackOf(s: MatchState, u: Unit): number {
+  const base = UNITS[u.type].atk;
+  if (!hasTrait(u, 'mounted')) return base;
+  const here = parseKey(u.pos);
+  const inspired = s.units.some((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'inspire')
+    && distance(here, parseKey(n.pos)) === 1);
+  return inspired ? base + CONFIG.inspireAtk : base;
 }
 
 // Base defence plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
@@ -73,6 +79,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   if (!attackTargets(s, attacker.id).includes(a.target)) return 'cannot attack that tile';
   const target = unitAt(s, a.target)!;
   const tileKey = target.pos;
+  const attackerFrom = attacker.pos;
 
   const effAtk = attackOf(s, attacker) * healthFactor(attacker);
   const damage = damageFor(effAtk, defenceOf(s, target), coverAt(s, target));
@@ -118,5 +125,12 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   attacker.attacks -= 1;
   attacker.acted = true;
   if (!hasTrait(attacker, 'retreat')) attacker.mp = 0;
+
+  // rules 13: a lure is recorded only for a surviving, unsteadied target outside any city
+  const survivor = unitById(s, target.id);
+  if (a.lure === true && FACTIONS[s.players[attacker.owner]!.faction].canLure && hasTrait(attacker, 'retreat')
+    && survivor !== undefined && !targetDied && !isSteadied(s, survivor) && cityAt(s, survivor.pos) === undefined) {
+    attacker.lure = { target: survivor.id, from: attackerFrom };
+  }
   return null;
 };

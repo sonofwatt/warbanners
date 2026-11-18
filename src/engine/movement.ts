@@ -1,10 +1,10 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
-import { DIRS, add, key, parseKey, range } from './hex';
+import { DIRS, add, distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { rngInt } from './rng';
-import { cityAt, cityById, firstFreeNeighbor, hasOwn, hasTrait, spawnUnit, tileAt, unitAt, unitById } from './state';
+import { cityAt, cityById, firstFreeNeighbor, hasOwn, hasTrait, isEnterable, spawnUnit, tileAt, unitAt, unitById } from './state';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 13: half-points of movement a unit starts its turn with
@@ -107,6 +107,26 @@ export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
   ev.push({ type: 'treasure', at: u.pos, outcome });
 }
 
+// rules 13: the lured unit follows the rider by one tile if the tile is free
+function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): void {
+  const target = unitById(s, mover.lure!.target);
+  if (target === undefined) return;
+  const at = parseKey(target.pos);
+  const gap = distance(parseKey(from), at);
+  let dest: HexKey | null = null;
+  if (gap === 1) dest = from;
+  else if (gap === 2) {
+    for (const d of DIRS) {
+      const n = key(add(at, d));
+      if (distance(parseKey(from), parseKey(n)) === 1) { dest = n; break; }
+    }
+  }
+  if (dest === null || !isEnterable(s, dest) || unitAt(s, dest) !== undefined) return;
+  const old = target.pos;
+  target.pos = dest; target.enteredTurn = s.stamp;
+  ev.push({ type: 'lured', unit: target.id, from: old, to: dest });
+}
+
 export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev) => {
   if (typeof a.unit !== 'number' || typeof a.to !== 'string') return 'bad move';
   const u = unitById(s, a.unit);
@@ -119,6 +139,7 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });
   collectTreasure(s, u, ev);
-  u.lure = null;                                            // a pending lure is resolved in a later task
+  if (u.lure !== null) pullLured(s, u, from, ev);
+  u.lure = null;
   return null;
 };

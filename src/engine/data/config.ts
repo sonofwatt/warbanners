@@ -22,7 +22,7 @@ export const CONFIG = {
   },
   techBase: [4, 6, 8],
   counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2, splashDivisor: 2,
-  restHeal: { home: 4, away: 2 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1,
+  restHeal: { home: 4, away: 2 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
   treasure: { gold: 5, exploreRadius: 4, unit: 'warrior' },
   rewards: {
     2: ['gold', 'scout'],
@@ -49,7 +49,7 @@ export const CONFIG = {
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
-  restHeal: { home: number; away: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number;
+  restHeal: { home: number; away: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
   treasure: { gold: number; exploreRadius: number; unit: string };
   rewards: Record<2 | 3 | 4 | 5, readonly [RewardId, RewardId]>;
   rewardGold: number; rewardScoutRadius: number; rewardBorderRadius: number; rewardCapacity: number;
