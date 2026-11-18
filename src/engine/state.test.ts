@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { createMatch } from './state';
+import { createMatch, isEnterable, tileAt } from './state';
+import { blankMatch } from './testkit';
 import { RULES_VERSION } from './types';
 
 test('createMatch sets up rules 4', () => {
@@ -21,4 +22,13 @@ test('starting units can act on the first turn', () => {
 test('a Mongol starting horseman begins with its movement bonus', () => {
   const s = createMatch({ seed: 42, factions: ['mongols', 'spartans'] });
   expect(s.units[0]).toMatchObject({ type: 'horseman', mp: 6 });
+});
+test('inherited property names are not tiles', () => {
+  const s = blankMatch();
+  for (const k of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    expect(isEnterable(s, k)).toBe(false);
+    expect(tileAt(s, k)).toBeUndefined();
+  }
+  expect(tileAt(s, '0,0')).toBe(s.tiles['0,0']);
+  expect(tileAt(s, '9,9')).toBeUndefined();
 });

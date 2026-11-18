@@ -7,7 +7,7 @@ import { generateMap } from './mapgen';
 import { RULES_VERSION } from './types';
 import { maxMp } from './movement';
 import { refreshExplored } from './vision';
-import type { City, MatchSettings, MatchState, PlayerId, Trait, Unit, UnitTypeId } from './types';
+import type { City, MatchSettings, MatchState, PlayerId, Tile, Trait, Unit, UnitTypeId } from './types';
 
 const ABILITY_TRAITS: readonly Trait[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
 
@@ -31,8 +31,17 @@ export function cityAt(s: MatchState, k: HexKey): City | undefined {
   return s.cities.find((c) => c.pos === k);
 }
 
+export function hasOwn(obj: object, k: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, k);
+}
+
+// A tile by key. Inherited names such as 'constructor' are not tiles.
+export function tileAt(s: MatchState, k: HexKey): Tile | undefined {
+  return typeof k === 'string' && hasOwn(s.tiles, k) ? s.tiles[k] : undefined;
+}
+
 export function isEnterable(s: MatchState, k: HexKey): boolean {
-  const t = s.tiles[k];
+  const t = tileAt(s, k);
   return t !== undefined && t.terrain !== 'water';
 }
 
@@ -74,7 +83,7 @@ export function removeUnit(s: MatchState, id: number): void {
 
 export function claimTerritory(s: MatchState, city: City): void {
   for (const h of range(parseKey(city.pos), city.radius)) {
-    const t = s.tiles[key(h)];
+    const t = tileAt(s, key(h));
     if (t !== undefined && t.cityId === null) t.cityId = city.id;
   }
 }

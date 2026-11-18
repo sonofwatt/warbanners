@@ -4,7 +4,7 @@ import { UNITS } from './data/units';
 import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { rngInt } from './rng';
-import { cityAt, cityById, firstFreeNeighbor, hasTrait, spawnUnit, unitAt, unitById } from './state';
+import { cityAt, cityById, firstFreeNeighbor, hasOwn, hasTrait, spawnUnit, tileAt, unitAt, unitById } from './state';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 13: half-points of movement a unit starts its turn with
@@ -25,7 +25,7 @@ function nextToEnemy(s: MatchState, owner: number, k: HexKey): boolean {
 }
 
 function hasRoadOrCity(s: MatchState, k: HexKey): boolean {
-  return s.tiles[k]?.road === true || cityAt(s, k) !== undefined;
+  return tileAt(s, k)?.road === true || cityAt(s, k) !== undefined;
 }
 
 // rules 2 and 9: tile it may stop on -> half-points left on arrival
@@ -48,7 +48,7 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
     const firstStep = from === u.pos && !u.moved;
     for (const d of DIRS) {
       const to = key(add(parseKey(from), d));
-      const tile = s.tiles[to];
+      const tile = tileAt(s, to);
       if (tile === undefined || tile.terrain === 'water' || isEnemyAt(s, u.owner, to)) continue;
       let cost: number;
       let forced = false;                                   // costs everything that is left
@@ -83,7 +83,7 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
 
 // rules 12: called when a unit ends a move on a tile
 export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
-  const tile = s.tiles[u.pos];
+  const tile = tileAt(s, u.pos);
   if (tile === undefined || !tile.treasure) return;
   const player = s.players[u.owner]!;
   const [roll, next] = rngInt(s.rng, 3);
@@ -93,7 +93,7 @@ export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
     outcome = 'explore';
     const seen = new Set<HexKey>(player.explored);
     for (const h of range(parseKey(u.pos), CONFIG.treasure.exploreRadius)) {
-      if (s.tiles[key(h)] !== undefined) seen.add(key(h));
+      if (tileAt(s, key(h)) !== undefined) seen.add(key(h));
     }
     player.explored = [...seen].sort();
   } else if (roll === 2) {
@@ -112,8 +112,9 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const u = unitById(s, a.unit);
   if (u === undefined) return 'no such unit';
   if (u.owner !== s.current) return 'not your unit';
-  const left = reachable(s, u.id)[a.to];
-  if (left === undefined) return 'cannot reach that tile';
+  const options = reachable(s, u.id);
+  if (!hasOwn(options, a.to)) return 'cannot reach that tile';
+  const left = options[a.to]!;
   const from = u.pos;
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { applyAction } from './apply';
+import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
 import { rngInt } from './rng';
 import { claimTerritory, unitAt, unitById } from './state';
@@ -160,4 +161,11 @@ test('move refuses malformed arguments and unknown units', () => {
 test('a move clears a pending lure', () => {
   const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0, { lure: { target: 9, from: '0,0' } });
   expect(unitById(must(applyAction(s, { type: 'move', unit: u.id, to: '1,0' })), u.id)!.lure).toBeNull();
+});
+test('inherited property names are refused as move targets', () => {
+  const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0); const before = hashState(s);
+  for (const to of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    expect(applyAction(s, { type: 'move', unit: u.id, to }).ok).toBe(false);
+  }
+  expect(hashState(s)).toBe(before);
 });

@@ -2,18 +2,18 @@ import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
-import { hasTrait } from './state';
+import { hasTrait, tileAt } from './state';
 import type { City, MatchState, PlayerId, Tile, Unit } from './types';
 
 function addAround(s: MatchState, out: Set<HexKey>, center: HexKey, radius: number): void {
   for (const h of range(parseKey(center), radius)) {
     const k = key(h);
-    if (s.tiles[k] !== undefined) out.add(k);
+    if (tileAt(s, k) !== undefined) out.add(k);
   }
 }
 
 function unitSight(s: MatchState, u: Unit): number {
-  const bonus = s.tiles[u.pos]?.terrain === 'mountain' ? CONFIG.mountainSightBonus : 0;
+  const bonus = tileAt(s, u.pos)?.terrain === 'mountain' ? CONFIG.mountainSightBonus : 0;
   return UNITS[u.type].sight + bonus;
 }
 
@@ -63,7 +63,7 @@ export function playerView(s: MatchState, player: PlayerId): PlayerView {
   const explored = s.players[player]?.explored ?? [];
   const tiles: Record<HexKey, Tile> = {};
   for (const k of explored) {
-    const t = s.tiles[k];
+    const t = tileAt(s, k);
     if (t !== undefined) tiles[k] = structuredClone(t);
   }
   const visible = visibleTiles(s, player);
