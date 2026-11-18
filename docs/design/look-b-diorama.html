@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banners look reference: B, the diorama</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f4f1ea; color: #2b2b2a; margin: 0; padding: 16px; }
+  main { max-width: 640px; margin: 0 auto; }
+  svg { width: 100%; height: auto; background: #ffffff; border-radius: 12px; }
+  h1 { font-size: 20px; }
+  li { margin: 4px 0; line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+<h1>Look reference: B, the diorama</h1>
+<p>This is the direction sketch David picked on 2026-11-18 from three options. It is a
+rough sketch of the feel, not final art. The scene: a Spartan city in the middle, a
+hoplite on the left, a Mongol horse archer on the right, mountain and fruit field
+behind, water and forest in front.</p>
+<svg id="mB" viewBox="0 0 210 190" role="img" aria-label="Tilted board with thick hex tiles and chunky standing figures"></svg>
+<h2>What the sketch fixes</h2>
+<ul>
+  <li>Pointy-top hexes seen from a tilt: vertical scale about 0.62 of horizontal.</li>
+  <li>Thick tiles: a visible side wall about 0.3 of the tile radius, in two darker shades of the top colour (left face lighter than right).</li>
+  <li>Features and figures stand up from the tile and overlap the tile behind. Drawn back to front.</li>
+  <li>Figures are chunky and about one tile tall: big head, simple body, one or two readable props (shield and spear, horse and bow).</li>
+  <li>Flat fills, no outlines, no gradients. A soft shadow blob under each figure.</li>
+  <li>Bright, friendly palette: fresh green fields, sky-blue water, warm sand for cities, stone grey mountains with white caps.</li>
+  <li>Faction colour carried by clothing and roofs: Spartans crimson with bronze, Mongols blue with gold.</li>
+</ul>
+<h2>The options not chosen</h2>
+<ul>
+  <li>A, tabletop: flat tiles from above with round unit counters and a health bar.</li>
+  <li>C, campaign map: inked parchment with banners for armies.</li>
+</ul>
+<p>David picked B without giving a reason. Claude's reading is that it comes closest to
+the toy-like feel he said he would miss.</p>
+</main>
+<script>
+const NS='http://www.w3.org/2000/svg';
+function el(s,t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);s.appendChild(e);return e;}
+function hex(cx,cy,r,sq){const p=[];for(let i=0;i<6;i++){const a=Math.PI/180*(30+60*i);p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)*sq]);}return p;}
+const pts=p=>p.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+const poly=(s,p,f,st,sw)=>el(s,'polygon',{points:pts(p),fill:f,stroke:st||'none','stroke-width':sw||0,'stroke-linejoin':'round'});
+const tri=(s,x,y,w,h,f)=>poly(s,[[x-w/2,y],[x+w/2,y],[x,y-h]],f);
+const rect=(s,x,y,w,h,f,rx)=>el(s,'rect',{x:x,y:y,width:w,height:h,fill:f,rx:rx||0});
+const circ=(s,x,y,r,f,st,sw)=>el(s,'circle',{cx:x,cy:y,r:r,fill:f,stroke:st||'none','stroke-width':sw||0});
+const line=(s,x1,y1,x2,y2,st,sw)=>el(s,'line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:st,'stroke-width':sw,'stroke-linecap':'round'});
+const path=(s,d,st,sw,f)=>el(s,'path',{d:d,stroke:st,'stroke-width':sw,fill:f||'none','stroke-linecap':'round','stroke-linejoin':'round'});
+const R=30,D=R*Math.sqrt(3),K=['mongol','forest','water','spartan','mountain','field'];
+function cells(cx,cy,sq){const c=[{x:cx,y:cy,k:'city'}];for(let i=0;i<6;i++){const a=Math.PI/3*i;c.push({x:cx+D*Math.cos(a),y:cy+D*Math.sin(a)*sq,k:K[i]});}return c.sort((a,b)=>a.y-b.y);}
+const RED='#B3261E',BLUE='#2D6DB5',SKIN='#E8B88A',BRONZE='#C8963E';
+function drawB(s){
+  const C={grass:['#A9D975','#86B957','#74A54A'],water:['#7CC8EE','#57A6CF','#4792BB'],rock:['#CFC8B6','#ABA493','#989181'],sand:['#EAD7A0','#C9B47A','#B5A069']};
+  const T={city:'sand',mongol:'grass',spartan:'grass',field:'grass',forest:'grass',water:'water',mountain:'rock'};
+  const d=9,dn=p=>[p[0],p[1]+d];
+  const tree=(x,y)=>{rect(s,x-1.5,y-4,3,5,'#7A5230');tri(s,x,y-3,14,12,'#3F8F46');tri(s,x,y-10,11,10,'#4FA556');};
+  const block=(x,y,w,h)=>{rect(s,x-w/2,y-h,w,h,'#F6ECD2');poly(s,[[x+w/2,y-h],[x+w/2+4,y-h-3],[x+w/2+4,y-3],[x+w/2,y]],'#D9CCAA');tri(s,x,y-h,w+4,8,RED);poly(s,[[x,y-h-8],[x+4,y-h-10],[x+w/2+5,y-h-3],[x+w/2+2,y-h]],'#8E1D17');};
+  cells(105,86,0.62).forEach(c=>{const x=c.x,y=c.y,h=hex(x,y,R,0.62),k=C[T[c.k]];
+    poly(s,[h[0],h[1],dn(h[1]),dn(h[0])],k[2]);poly(s,[h[1],h[2],dn(h[2]),dn(h[1])],k[1]);poly(s,h,k[0],k[1],0.6);
+    if(c.k=='forest'){tree(x,y-5);tree(x-9,y+3);tree(x+9,y+4);}
+    if(c.k=='mountain'){poly(s,[[x-17,y+6],[x,y-26],[x+3,y+8]],'#9A9486');poly(s,[[x,y-26],[x+18,y+5],[x+3,y+8]],'#7E786B');poly(s,[[x-5.3,y-16],[x,y-26],[x+5.6,y-16.3],[x+1,y-13.5]],'#FFFFFF');}
+    if(c.k=='water'){path(s,`M ${x-12} ${y-2} q 3.5 -4 7 0 t 7 0`,'#FFFFFF',1.5);path(s,`M ${x-2} ${y+6} q 3.5 -4 7 0 t 7 0`,'#FFFFFF',1.5);}
+    if(c.k=='field'){circ(s,x-6,y+2,2.6,'#E0563F');circ(s,x+4,y-3,2.6,'#E0563F');circ(s,x+8,y+4,2.6,'#E0563F');}
+    if(c.k=='city'){block(x-8,y+5,12,11);block(x+6,y+2,13,17);}
+    if(c.k=='spartan'){el(s,'ellipse',{cx:x,cy:y+7,rx:9,ry:3.5,fill:'#000000','fill-opacity':0.18});
+      line(s,x+7,y-24,x+7,y+6,'#6B4A2B',1.5);tri(s,x+7,y-24,4,6,'#E4E4E4');
+      rect(s,x-4,y+3,3,4,SKIN);rect(s,x+1,y+3,3,4,SKIN);rect(s,x-5,y-10,10,14,RED,3);
+      circ(s,x,y-14,5,SKIN);path(s,`M ${x-5.5} ${y-14} A 5.5 5.5 0 0 1 ${x+5.5} ${y-14} Z`,'none',0,BRONZE);rect(s,x-1.5,y-24,3,6,RED,1.5);
+      circ(s,x-6,y-3,6.5,BRONZE,'#8A6420',1);path(s,`M ${x-9} ${y} L ${x-6} ${y-7} L ${x-3} ${y}`,'#8E1D17',1.5);}
+    if(c.k=='mongol'){el(s,'ellipse',{cx:x,cy:y+7,rx:12,ry:4,fill:'#000000','fill-opacity':0.18});
+      [-7,-3,4,8].forEach(o=>line(s,x+o,y-1,x+o,y+6,'#6B4226',2));line(s,x-11,y-5,x-15,y+1,'#4A2E1A',2);
+      el(s,'ellipse',{cx:x,cy:y-4,rx:11,ry:6,fill:'#8B5A33'});poly(s,[[x+7,y-7],[x+13,y-16],[x+18,y-13],[x+12,y-3]],'#8B5A33');
+      rect(s,x-4,y-17,8,10,BLUE,2.5);circ(s,x,y-21,4.5,SKIN);path(s,`M ${x-5} ${y-21} A 5 5 0 0 1 ${x+5} ${y-21} Z`,'none',0,'#5B3A22');tri(s,x,y-25.5,4,4,'#D4A72C');
+      path(s,`M ${x-6} ${y-20} Q ${x-14} ${y-13} ${x-6} ${y-6}`,'#D4A72C',1.8);}
+  });
+}
+drawB(document.getElementById('mB'));
+</script>
+</body>
+</html>

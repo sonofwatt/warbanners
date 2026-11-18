@@ -218,7 +218,10 @@ names. **[David]**
   stronger beside another hoplite.
 - Champion, the King's Guard: fights at full strength however wounded it is.
 - Support, the Piper: heals, steadies nearby allies so they cannot be pushed back
-  or stunned, and can taunt an enemy into attacking the line.
+  or stunned, and can taunt an enemy into attacking the line. In stage 1 the only
+  forced movement is the Mongol feigned retreat, so "steadied" means immune to
+  that lure. Stuns and knockbacks are not part of shared combat; they may arrive
+  with later factions, and the same immunity will cover them. **[Claude's call]**
 - Oddity, the Krypteia scout: cheap, weak, unseen by enemies unless adjacent.
 - Myth touch: two heroes fighting side by side strengthen each other (stage 2).
 - Weaknesses: costly units, poor ships, little ranged power.
@@ -271,7 +274,8 @@ A unit becomes a hero through how it has lived, so two veterans differ.
 ### 5.9 Treasures (stage 2) **[David; expansions suggested by Claude and accepted]**
 
 Treasure sites on the map, found by exploring. The classics: a free unit, fog
-lifted, gold. Expanded: a relic that grants a hero trait, a one-use ability, a
+lifted, gold. Stage 1 already has treasure sites with these three, so exploring
+is rewarded from the start. **[Claude's call]** Stage 2 adds the rest. Expanded: a relic that grants a hero trait, a one-use ability, a
 map to another treasure, a wandering mercenary who joins you.
 
 ### 5.10 Exalted Heroes (stage 6) **[David]**
@@ -397,8 +401,18 @@ traps.
 on them, bright and toy-like, in an original style. Trees, mountains, houses and
 units stand up from the tiles and overlap the tiles behind them.
 
+The sketch David picked is kept at `docs/design/look-b-diorama.html` (open it in a
+browser). It is the reference for the look, along with the list in that file of
+what it fixes: the tilt, tile thickness, figure size against the tile, flat fills
+with no outlines, the palette. It is a rough direction sketch, not final art. David
+picked B without giving a reason. Claude's reading is that it comes closest to the
+toy-like feel he said he would miss. The two options he passed over were flat
+top-down counters and an inked parchment map.
+
 - Faction colours and silhouettes must read at phone size. Spartans: crimson and
   bronze. Mongols: blue and gold. **[Claude's call]**
+- Player colour is kept separate from faction colour in the data and the art, so
+  that from stage 4 two players can field the same faction. **[Claude's call]**
 - Every unit, building and terrain feature needs its own original art. Art is
   authored in the repo as vector or generated assets. How (hand-written SVG,
   procedural drawing, or a 3D scene) is **[Builder]**. Claude's leaning is 2D
@@ -450,12 +464,32 @@ Numbers and formulas; the tech tree's contents; the building list; map generatio
 method; rendering technique and art pipeline; file layout; AI technique; the exact
 database layout and rules; lobby and in-match screen layout.
 
-## 11. Needs David, later
+## 11. Needs David
 
-- A Firebase project for this game (created in the Firebase console with his
-  Google account, about ten minutes, as for Deutsch Dash).
+Before stage 1 can be finished (its done list needs two real phones on a deployed
+site):
+
+- A Firebase project for this game on the free plan. The Firebase command-line
+  tool on ClaudeComputer is already signed in to his account, so Claude can
+  create it on his say-so.
 - Whether the GitHub repo is public. Free GitHub Pages needs a public repo, as
   Deutsch Dash is.
+- Whether playing alone against the AI must work with no internet connection
+  (see 12).
+
+Later:
+
 - A real name for the game, whenever he likes.
 - At stage 3: which way to send notifications.
 - At stage 5: details of each new faction.
+
+## 12. Open question: solo play without internet
+
+Not yet answered by David. It changes stage 1:
+
+- If solo play must work offline, stage 1 needs the game cached on the phone, a
+  local store for solo matches beside the Firebase one, and a careful update
+  scheme, because two phones on different builds would disagree about the rules.
+- If solo play may need a connection, stage 1 runs solo matches through the same
+  Firebase match record as live ones, and the offline groundwork waits for stage 3,
+  which needs part of it anyway for notifications.
