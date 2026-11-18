@@ -18,6 +18,7 @@ export const CONFIG = {
     field: 50, forest: 72, mountain: 86,
     orchard: 20, cropland: 40, game: 30, ore: 40,
     villagesPerHalf: 3, treasuresPerHalf: 2, maxAttempts: 50,
+    rollRange: 100, villageMinDistance: 3, treasureMinCapitalDistance: 3, treasureMinFeatureDistance: 2,
   },
   techBase: [4, 6, 8],
   counterFactor: 0.75, steadfastFactor: 1.25,
