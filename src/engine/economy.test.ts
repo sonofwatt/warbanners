@@ -106,6 +106,7 @@ test('no tech, no gold, no deal', () => {
 });
 test('roads and walls', () => {
   const s = blankMatch({ factions: ['mongols', 'spartans'] }); const c = addCity(s, 0, 0, 0); give(s, 0, 'roads', 'shieldwork');
+  s.players[0]!.explored = Object.keys(s.tiles).sort();
   let t = must(applyAction(s, { type: 'road', at: '3,0' }));                    // unclaimed tile is allowed
   expect(t.tiles['3,0']!.road).toBe(true); expect(t.players[0]!.gold).toBe(19);
   expect(applyAction(t, { type: 'road', at: '3,0' }).ok).toBe(false);
@@ -118,6 +119,15 @@ test('roads and walls', () => {
   expect(applyAction(s, { type: 'buildWalls', city: e.id }).ok).toBe(false);     // not yours
   const sp = blankMatch(); const sc = addCity(sp, 0, 0, 0); give(sp, 0, 'shieldwork');
   expect(applyAction(sp, { type: 'buildWalls', city: sc.id }).ok).toBe(false);  // Spartans cannot
+});
+test('a road needs an explored tile, so a refusal never reveals terrain', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 0); give(s, 0, 'roads');
+  s.players[0]!.explored = ['0,0'];
+  const before = hashState(s);
+  expect(applyAction(s, { type: 'road', at: '3,0' })).toEqual({ ok: false, reason: 'cannot build a road there' });
+  expect(hashState(s)).toBe(before);
+  s.players[0]!.explored = ['0,0', '3,0'];
+  expect(applyAction(s, { type: 'road', at: '3,0' }).ok).toBe(true);
 });
 test('hostile keys, ids and buildings are refused with the state untouched', () => {
   const s = blankMatch({ factions: ['mongols', 'spartans'] }); const c = addCity(s, 0, 0, 0);

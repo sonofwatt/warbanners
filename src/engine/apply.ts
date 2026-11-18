@@ -1,13 +1,29 @@
 import { abilityHandler } from './abilities';
 import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
-import { captureHandler, resignHandler } from './capture';
+import { canCapture, captureHandler, resignHandler } from './capture';
 import { researchHandler } from './tech';
 import { campTrainHandler, trainHandler } from './training';
 import { endTurnHandler } from './turn';
 import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
-import type { Action, GameEvent, Handler, MatchState, Result } from './types';
+import { CONFIG } from './data/config';
+import { FACTIONS } from './data/factions';
+import { TECHS } from './data/techs';
+import { UNITS } from './data/units';
+import { key, neighbors, parseKey } from './hex';
+import { abilityTargets, isSteadied } from './abilities';
+import { attackTargets } from './combat';
+import { reachable } from './movement';
+import { cityAt, createMatch, hasTrait, tileAt, unitAt } from './state';
+import { canResearch } from './tech';
+import { buildRefusal, harvestRefusal, rewardRefusal, roadRefusal, wallsRefusal } from './economy';
+import { campTrainRefusal, trainRefusal } from './training';
+import type {
+  AbilityId, Action, BuildingId, GameEvent, Handler, MatchSettings, MatchState, Result, TechId, UnitTypeId,
+} from './types';
+
+const ABILITY_ORDER: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
 
 // Later tasks register their action handlers here.
 export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
@@ -29,19 +45,95 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
 
 export function applyAction(state: MatchState, action: Action): Result {
   if (state.winner !== null) return { ok: false, reason: 'match over' };
-  const type = typeof action === 'object' && action !== null ? (action as { type?: unknown }).type : undefined;
-  if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(HANDLERS, type)) {
-    return { ok: false, reason: 'unknown action' };
-  }
-  const handler = HANDLERS[type as Action['type']]!;
-  const draft = structuredClone(state);
-  const events: GameEvent[] = [];
+  // The action is untrusted: every read of it happens inside the try, and the handlers only ever see a
+  // plain copy taken once, so a throwing getter or Proxy trap, or a getter that answers differently
+  // each time it is read, cannot throw out of here or slip past a check.
   try {
-    const reason = handler(draft, action, events);
+    const copy: unknown = JSON.parse(JSON.stringify(action));
+    const type = typeof copy === 'object' && copy !== null ? (copy as { type?: unknown }).type : undefined;
+    if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(HANDLERS, type)) {
+      return { ok: false, reason: 'unknown action' };
+    }
+    const handler = HANDLERS[type as Action['type']]!;
+    const draft = structuredClone(state);
+    const events: GameEvent[] = [];
+    const reason = handler(draft, copy as Action, events);
     if (reason !== null) return { ok: false, reason };
     for (const p of draft.players) if (p.alive) refreshExplored(draft, p.id);
+    return { ok: true, state: draft, events };
   } catch {
     return { ok: false, reason: 'invalid action' };
   }
-  return { ok: true, state: draft, events };
+}
+
+// Every action applyAction would accept for the current player, in a fixed order. Built from the query
+// and refusal functions the handlers themselves use, never by trying each candidate.
+export function legalActions(s: MatchState): Action[] {
+  if (s.winner !== null) return [];
+  const out: Action[] = [];
+  const me = s.current;
+  const faction = FACTIONS[s.players[me]!.faction];
+  const unitTypes = Object.keys(UNITS) as UnitTypeId[];
+  const tileKeys = Object.keys(s.tiles).sort();
+
+  for (const u of [...s.units].sort((x, y) => x.id - y.id)) {
+    if (u.owner !== me) continue;
+    for (const to of Object.keys(reachable(s, u.id)).sort()) out.push({ type: 'move', unit: u.id, to });
+    for (const target of attackTargets(s, u.id)) {
+      out.push({ type: 'attack', unit: u.id, target });
+      const victim = unitAt(s, target);
+      if (faction.canLure && hasTrait(u, 'retreat') && victim !== undefined && !isSteadied(s, victim)
+        && cityAt(s, target) === undefined) {
+        out.push({ type: 'attack', unit: u.id, target, lure: true });
+      }
+    }
+    for (const ability of ABILITY_ORDER) {
+      for (const target of abilityTargets(s, u.id, ability)) out.push({ type: 'ability', unit: u.id, ability, target });
+    }
+    if (canCapture(s, u.id)) out.push({ type: 'capture', unit: u.id });
+    if (hasTrait(u, 'camp')) {
+      const around = neighbors(parseKey(u.pos)).map(key).filter((k) => tileAt(s, k) !== undefined).sort();
+      for (const unitType of unitTypes) {
+        for (const to of around) {
+          if (campTrainRefusal(s, u.id, unitType, to) === null) out.push({ type: 'campTrain', unit: u.id, unitType, to });
+        }
+      }
+    }
+  }
+
+  for (const c of [...s.cities].sort((x, y) => x.id - y.id)) {
+    if (c.owner !== me) continue;
+    for (const unitType of unitTypes) {
+      if (trainRefusal(s, c.id, unitType) === null) out.push({ type: 'train', city: c.id, unitType });
+    }
+    if (wallsRefusal(s, c.id) === null) out.push({ type: 'buildWalls', city: c.id });
+    for (const choice of [0, 1] as const) {
+      if (rewardRefusal(s, c.id, choice) === null) out.push({ type: 'chooseReward', city: c.id, choice });
+    }
+  }
+
+  for (const at of tileKeys) {
+    if (harvestRefusal(s, at) === null) out.push({ type: 'harvest', at });
+    for (const building of Object.keys(CONFIG.buildings) as BuildingId[]) {
+      if (buildRefusal(s, at, building) === null) out.push({ type: 'build', at, building });
+    }
+    if (roadRefusal(s, at) === null) out.push({ type: 'road', at });
+  }
+
+  for (const tech of Object.keys(TECHS) as TechId[]) {
+    if (canResearch(s, me, tech)) out.push({ type: 'research', tech });
+  }
+  out.push({ type: 'endTurn' }, { type: 'resign' });
+  return out;
+}
+
+// Plays the actions from a fresh match. A refused action throws, naming its index.
+export function replay(settings: MatchSettings, actions: Action[]): MatchState {
+  let s = createMatch(settings);
+  for (let i = 0; i < actions.length; i++) {
+    const r = applyAction(s, actions[i]!);
+    if (!r.ok) throw new Error(`action ${i} refused: ${r.reason}`);
+    s = r.state;
+  }
+  return s;
 }

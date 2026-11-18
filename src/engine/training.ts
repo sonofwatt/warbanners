@@ -26,19 +26,25 @@ export function unitsOf(s: MatchState, cityId: number): number {
   return s.units.filter((u) => u.home === cityId).length;
 }
 
-export const trainHandler: Handler<Extract<Action, { type: 'train' }>> = (s, a, ev) => {
-  if (typeof a.city !== 'number' || typeof a.unitType !== 'string' || !hasOwn(UNITS, a.unitType)) {
+// Why the current player cannot train `unitType` in city `cityId`, or null when they can.
+export function trainRefusal(s: MatchState, cityId: unknown, unitType: unknown): string | null {
+  if (typeof cityId !== 'number' || typeof unitType !== 'string' || !hasOwn(UNITS, unitType)) {
     return 'bad training';
   }
-  const city = cityById(s, a.city);
+  const city = cityById(s, cityId);
   if (city === undefined || city.owner !== s.current) return 'not your city';
-  if (!trainable(s, s.current).includes(a.unitType)) return 'cannot train that';
+  if (!trainable(s, s.current).includes(unitType as UnitTypeId)) return 'cannot train that';
   if (unitAt(s, city.pos) !== undefined) return 'city tile is occupied';
   if (unitsOf(s, city.id) >= unitCapacity(city)) return 'city is at capacity';
-  const player = s.players[s.current]!;
-  const cost = unitCost(s, s.current, a.unitType)!;
-  if (player.gold < cost) return 'not enough gold';
-  player.gold -= cost;
+  if (s.players[s.current]!.gold < unitCost(s, s.current, unitType as UnitTypeId)!) return 'not enough gold';
+  return null;
+}
+
+export const trainHandler: Handler<Extract<Action, { type: 'train' }>> = (s, a, ev) => {
+  const refusal = trainRefusal(s, a.city, a.unitType);
+  if (refusal !== null) return refusal;
+  const city = cityById(s, a.city)!;
+  s.players[s.current]!.gold -= unitCost(s, s.current, a.unitType)!;
   const u = spawnUnit(s, a.unitType, city.owner, city.pos, city.id);
   ev.push({ type: 'trained', unit: u.id, at: u.pos });
   return null;
@@ -56,21 +62,27 @@ export function campCity(s: MatchState, p: PlayerId): City | null {
   return best;
 }
 
-export const campTrainHandler: Handler<Extract<Action, { type: 'campTrain' }>> = (s, a, ev) => {
-  if (typeof a.unit !== 'number' || typeof a.unitType !== 'string' || !hasOwn(UNITS, a.unitType)
-    || typeof a.to !== 'string' || tileAt(s, a.to) === undefined) return 'bad training';
-  const camp = unitById(s, a.unit);
+// Why the current player cannot have camp `unitId` train `unitType` onto tile `to`, or null when they can.
+export function campTrainRefusal(s: MatchState, unitId: unknown, unitType: unknown, to: unknown): string | null {
+  if (typeof unitId !== 'number' || typeof unitType !== 'string' || !hasOwn(UNITS, unitType)
+    || typeof to !== 'string' || tileAt(s, to) === undefined) return 'bad training';
+  const camp = unitById(s, unitId);
   if (camp === undefined || camp.owner !== s.current || !hasTrait(camp, 'camp')) return 'not your camp';
   if (camp.moved || camp.acted) return 'camp already used this turn';
-  if (distance(parseKey(camp.pos), parseKey(a.to)) !== 1) return 'tile is not next to the camp';
-  if (!isEnterable(s, a.to) || unitAt(s, a.to) !== undefined) return 'tile is not free';
-  if (!trainable(s, s.current).includes(a.unitType)) return 'cannot train that';
-  const city = campCity(s, s.current);
-  if (city === null) return 'no city has room';
-  const player = s.players[s.current]!;
-  const cost = unitCost(s, s.current, a.unitType)!;
-  if (player.gold < cost) return 'not enough gold';
-  player.gold -= cost;
+  if (distance(parseKey(camp.pos), parseKey(to)) !== 1) return 'tile is not next to the camp';
+  if (!isEnterable(s, to) || unitAt(s, to) !== undefined) return 'tile is not free';
+  if (!trainable(s, s.current).includes(unitType as UnitTypeId)) return 'cannot train that';
+  if (campCity(s, s.current) === null) return 'no city has room';
+  if (s.players[s.current]!.gold < unitCost(s, s.current, unitType as UnitTypeId)!) return 'not enough gold';
+  return null;
+}
+
+export const campTrainHandler: Handler<Extract<Action, { type: 'campTrain' }>> = (s, a, ev) => {
+  const refusal = campTrainRefusal(s, a.unit, a.unitType, a.to);
+  if (refusal !== null) return refusal;
+  const camp = unitById(s, a.unit)!;
+  const city = campCity(s, s.current)!;
+  s.players[s.current]!.gold -= unitCost(s, s.current, a.unitType)!;
   const u = spawnUnit(s, a.unitType, camp.owner, a.to, city.id);
   camp.acted = true;
   camp.mp = 0;

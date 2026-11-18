@@ -15,3 +15,18 @@ test('nothing is accepted once there is a winner', () => {
   const s = blankMatch(); s.winner = 1;
   expect(applyAction(s, { type: 'endTurn' })).toEqual({ ok: false, reason: 'match over' });
 });
+test('an action whose reads throw is refused quietly, never thrown', () => {
+  const s = blankMatch(); const before = hashState(s);
+  const getter = { get type(): string { throw new Error('boom'); } } as unknown as Action;
+  const proxy = new Proxy({}, {
+    get() { throw new Error('boom'); }, has() { throw new Error('boom'); },
+    ownKeys() { throw new Error('boom'); }, getOwnPropertyDescriptor() { throw new Error('boom'); },
+  }) as unknown as Action;
+  const sneaky = { type: 'move', unit: 0, get to(): string { throw new Error('late'); } } as unknown as Action;
+  const frozen = Object.freeze({ type: 'endTurn' }) as Action;
+  for (const a of [getter, proxy, sneaky]) {
+    expect(applyAction(s, a)).toEqual({ ok: false, reason: 'invalid action' });
+  }
+  expect(applyAction(s, frozen).ok).toBe(true);
+  expect(hashState(s)).toBe(before);
+});

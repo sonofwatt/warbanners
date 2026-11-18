@@ -1,0 +1,18 @@
+// The public face of the engine. Nothing inside the engine imports from here.
+export { createMatch } from './state';
+export { applyAction, legalActions, replay } from './apply';
+export { hashState } from './hash';
+export { playerView, visibleTiles } from './vision';
+export { reachable } from './movement';
+export { attackTargets } from './combat';
+export { abilityTargets } from './abilities';
+export { canCapture } from './capture';
+export { trainable, unitCost } from './training';
+export { techPrice, canResearch } from './tech';
+export { cityIncome, playerIncome, growthNeeded, unitCapacity } from './economy';
+export { UNITS } from './data/units';
+export { TECHS } from './data/techs';
+export { FACTIONS } from './data/factions';
+export { CONFIG } from './data/config';
+export { RULES_VERSION } from './types';
+export type * from './types';

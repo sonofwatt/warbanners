@@ -5,7 +5,7 @@ import {
   cityAt, cityById, claimTerritory, firstFreeNeighbor, hasOwn, spawnUnit, tileAt, unitAt,
 } from './state';
 import type {
-  Action, City, GameEvent, Handler, MatchState, PlayerId, RewardId, Tile,
+  Action, BuildingId, City, GameEvent, Handler, MatchState, PlayerId, RewardId, Tile,
 } from './types';
 
 // rules 6
@@ -93,35 +93,53 @@ function ownTile(s: MatchState, at: unknown): { tile: Tile; city: City } | null 
   return city !== undefined && city.owner === s.current ? { tile, city } : null;
 }
 
-export const harvestHandler: Handler<Extract<Action, { type: 'harvest' }>> = (s, a, ev) => {
-  const own = ownTile(s, a.at);
+// Why the current player cannot harvest the resource at `at`, or null when they can.
+export function harvestRefusal(s: MatchState, at: unknown): string | null {
+  const own = ownTile(s, at);
   if (own === null) return 'not your territory';
-  const { tile, city } = own;
+  const { tile } = own;
   if (tile.resource === null || !hasOwn(CONFIG.harvest, tile.resource)) return 'nothing to harvest';
   const rule = CONFIG.harvest[tile.resource as keyof typeof CONFIG.harvest];
   const player = s.players[s.current]!;
   if (!player.techs.includes(rule.tech)) return 'missing tech';
   if (player.gold < rule.cost) return 'not enough gold';
-  player.gold -= rule.cost;
+  return null;
+}
+
+export const harvestHandler: Handler<Extract<Action, { type: 'harvest' }>> = (s, a, ev) => {
+  const refusal = harvestRefusal(s, a.at);
+  if (refusal !== null) return refusal;
+  const { tile, city } = ownTile(s, a.at)!;
+  const rule = CONFIG.harvest[tile.resource as keyof typeof CONFIG.harvest];
+  s.players[s.current]!.gold -= rule.cost;
   tile.resource = null;
   addGrowth(s, city, rule.growth, ev);
   ev.push({ type: 'built', at: a.at, what: 'harvest' });
   return null;
 };
 
-export const buildHandler: Handler<Extract<Action, { type: 'build' }>> = (s, a, ev) => {
-  if (typeof a.building !== 'string' || !hasOwn(CONFIG.buildings, a.building)) return 'unknown building';
-  const own = ownTile(s, a.at);
+// Why the current player cannot build `building` at `at`, or null when they can.
+export function buildRefusal(s: MatchState, at: unknown, building: unknown): string | null {
+  if (typeof building !== 'string' || !hasOwn(CONFIG.buildings, building)) return 'unknown building';
+  const own = ownTile(s, at);
   if (own === null) return 'not your territory';
   const { tile, city } = own;
-  const rule = CONFIG.buildings[a.building];
+  const rule = CONFIG.buildings[building as BuildingId];
   if (tile.building !== null) return 'already built';
   if (tile.terrain !== rule.on || tile.resource !== rule.resource) return 'wrong tile';
-  if (a.building === 'market' && city.market) return 'city already has a market';
+  if (building === 'market' && city.market) return 'city already has a market';
   const player = s.players[s.current]!;
   if (!player.techs.includes(rule.tech)) return 'missing tech';
   if (player.gold < rule.cost) return 'not enough gold';
-  player.gold -= rule.cost;
+  return null;
+}
+
+export const buildHandler: Handler<Extract<Action, { type: 'build' }>> = (s, a, ev) => {
+  const refusal = buildRefusal(s, a.at, a.building);
+  if (refusal !== null) return refusal;
+  const { tile, city } = ownTile(s, a.at)!;
+  const rule = CONFIG.buildings[a.building];
+  s.players[s.current]!.gold -= rule.cost;
   tile.building = a.building;
   if (a.building === 'market') city.market = true;
   addGrowth(s, city, rule.growth, ev);
@@ -129,42 +147,66 @@ export const buildHandler: Handler<Extract<Action, { type: 'build' }>> = (s, a, 
   return null;
 };
 
-export const roadHandler: Handler<Extract<Action, { type: 'road' }>> = (s, a, ev) => {
-  if (typeof a.at !== 'string') return 'bad road';
-  const tile = tileAt(s, a.at);
-  if (tile === undefined || cityAt(s, a.at) !== undefined) return 'cannot build a road there';
+// Why the current player cannot lay a road at `at`, or null when they can. The tile must be explored,
+// otherwise accepting or refusing the road would reveal its terrain.
+export function roadRefusal(s: MatchState, at: unknown): string | null {
+  if (typeof at !== 'string') return 'bad road';
+  const player = s.players[s.current]!;
+  if (!player.explored.includes(at)) return 'cannot build a road there';
+  const tile = tileAt(s, at);
+  if (tile === undefined || cityAt(s, at) !== undefined) return 'cannot build a road there';
   if (tile.terrain !== 'field' && tile.terrain !== 'forest') return 'cannot build a road there';
   if (tile.road) return 'already a road';
   if (tile.cityId !== null && cityById(s, tile.cityId)?.owner !== s.current) return 'not your territory';
-  const player = s.players[s.current]!;
   if (!player.techs.includes(CONFIG.road.tech)) return 'missing tech';
   if (player.gold < CONFIG.road.cost) return 'not enough gold';
-  player.gold -= CONFIG.road.cost;
-  tile.road = true;
+  return null;
+}
+
+export const roadHandler: Handler<Extract<Action, { type: 'road' }>> = (s, a, ev) => {
+  const refusal = roadRefusal(s, a.at);
+  if (refusal !== null) return refusal;
+  s.players[s.current]!.gold -= CONFIG.road.cost;
+  tileAt(s, a.at)!.road = true;
   ev.push({ type: 'built', at: a.at, what: 'road' });
   return null;
 };
 
-export const wallsHandler: Handler<Extract<Action, { type: 'buildWalls' }>> = (s, a, ev) => {
-  if (typeof a.city !== 'number') return 'bad walls';
-  const city = cityById(s, a.city);
+// Why the current player cannot wall city `cityId`, or null when they can.
+export function wallsRefusal(s: MatchState, cityId: unknown): string | null {
+  if (typeof cityId !== 'number') return 'bad walls';
+  const city = cityById(s, cityId);
   if (city === undefined || city.owner !== s.current) return 'not your city';
   if (city.walls) return 'already walled';
   const player = s.players[s.current]!;
   if (!FACTIONS[player.faction].canBuildWalls) return 'your faction cannot build walls';
   if (!player.techs.includes(CONFIG.walls.tech)) return 'missing tech';
   if (player.gold < CONFIG.walls.cost) return 'not enough gold';
-  player.gold -= CONFIG.walls.cost;
+  return null;
+}
+
+export const wallsHandler: Handler<Extract<Action, { type: 'buildWalls' }>> = (s, a, ev) => {
+  const refusal = wallsRefusal(s, a.city);
+  if (refusal !== null) return refusal;
+  const city = cityById(s, a.city)!;
+  s.players[s.current]!.gold -= CONFIG.walls.cost;
   city.walls = true;
   ev.push({ type: 'built', at: city.pos, what: 'walls' });
   return null;
 };
 
-export const rewardHandler: Handler<Extract<Action, { type: 'chooseReward' }>> = (s, a, ev) => {
-  if (typeof a.city !== 'number' || (a.choice !== 0 && a.choice !== 1)) return 'bad reward';
-  const city = cityById(s, a.city);
+// Why the current player cannot take reward `choice` in city `cityId`, or null when they can.
+export function rewardRefusal(s: MatchState, cityId: unknown, choice: unknown): string | null {
+  if (typeof cityId !== 'number' || (choice !== 0 && choice !== 1)) return 'bad reward';
+  const city = cityById(s, cityId);
   if (city === undefined || city.owner !== s.current) return 'not your city';
   if (city.pendingRewards.length === 0) return 'no reward pending';
-  applyReward(s, city, a.choice, ev);
+  return null;
+}
+
+export const rewardHandler: Handler<Extract<Action, { type: 'chooseReward' }>> = (s, a, ev) => {
+  const refusal = rewardRefusal(s, a.city, a.choice);
+  if (refusal !== null) return refusal;
+  applyReward(s, cityById(s, a.city)!, a.choice, ev);
   return null;
 };
