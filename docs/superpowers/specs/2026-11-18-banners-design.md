@@ -1,7 +1,7 @@
 # Banners: design
 
 Date: 2026-11-18
-Status: draft for David's approval
+Status: approved by David on 2026-11-18
 Working title: "Banners" (a placeholder; David has said names do not matter to him)
 
 ## How to read this
