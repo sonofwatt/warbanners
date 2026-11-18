@@ -21,7 +21,7 @@ export const CONFIG = {
     rollRange: 100, villageMinDistance: 3, treasureMinCapitalDistance: 3, treasureMinFeatureDistance: 2,
   },
   techBase: [4, 6, 8],
-  counterFactor: 0.75, steadfastFactor: 1.25,
+  counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2, splashDivisor: 2,
   restHeal: { home: 4, away: 2 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, inspireAtk: 1,
   treasure: { gold: 5, exploreRadius: 4, unit: 'warrior' },
   rewards: {
@@ -48,7 +48,7 @@ export const CONFIG = {
   roadCost: number; relayCost: number; cityCover: number; wallsCover: number; mountainSightBonus: number;
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
-  counterFactor: number; steadfastFactor: number;
+  counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
   restHeal: { home: number; away: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; inspireAtk: number;
   treasure: { gold: number; exploreRadius: number; unit: string };
   rewards: Record<2 | 3 | 4 | 5, readonly [RewardId, RewardId]>;

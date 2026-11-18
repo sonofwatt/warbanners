@@ -1,3 +1,4 @@
+import { attackHandler } from './combat';
 import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
 import type { Action, GameEvent, Handler, MatchState, Result } from './types';
@@ -5,6 +6,7 @@ import type { Action, GameEvent, Handler, MatchState, Result } from './types';
 // Later tasks register their action handlers here.
 export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   move: moveHandler,
+  attack: attackHandler,
 };
 
 export function applyAction(state: MatchState, action: Action): Result {
