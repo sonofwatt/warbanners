@@ -30,7 +30,7 @@ export const CONFIG = {
     4: ['income', 'growth'],
     5: ['champion', 'support'],
   },
-  rewardGold: 6, rewardScoutRadius: 3, rewardCapacity: 2, rewardGrowth: 2,
+  rewardGold: 6, rewardScoutRadius: 3, rewardBorderRadius: 2, rewardCapacity: 2, rewardIncome: 1, rewardGrowth: 2,
   harvest: {
     orchard: { tech: 'foraging', cost: 2, growth: 1 },
     game: { tech: 'hunting', cost: 2, growth: 1 },
@@ -52,7 +52,8 @@ export const CONFIG = {
   restHeal: { home: number; away: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; inspireAtk: number;
   treasure: { gold: number; exploreRadius: number; unit: string };
   rewards: Record<2 | 3 | 4 | 5, readonly [RewardId, RewardId]>;
-  rewardGold: number; rewardScoutRadius: number; rewardCapacity: number; rewardGrowth: number;
+  rewardGold: number; rewardScoutRadius: number; rewardBorderRadius: number; rewardCapacity: number;
+  rewardIncome: number; rewardGrowth: number;
   harvest: Record<'orchard' | 'game', { tech: TechId; cost: number; growth: number }>;
   buildings: Record<BuildingId, { tech: TechId; cost: number; growth: number; on: Terrain; resource: Resource | null; income: number }>;
   walls: { tech: 'shieldwork'; cost: number }; road: { tech: 'roads'; cost: number }; marketIncome: number;

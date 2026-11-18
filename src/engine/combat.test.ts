@@ -116,3 +116,11 @@ test('a unit with no attacks left is refused', () => {
   expect(attackTargets(s, a.id)).toEqual([]);
   expect(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' }).ok).toBe(false);
 });
+test('walls raise a Mongol city cover: a Mongol warrior takes 3 from a full Warrior', () => {
+  const s = blankMatch(); const a = addUnit(s, 'warrior', 0, 0, 0);
+  s.players[1]!.faction = 'mongols';
+  const c = addCity(s, 1, 1, 0); const d = addUnit(s, 'warrior', 1, 1, 0);
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), d.id)!.hp).toBe(6);
+  c.walls = true;
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), d.id)!.hp).toBe(7);
+});
