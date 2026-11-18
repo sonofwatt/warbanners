@@ -1,8 +1,11 @@
+import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
 import type { Action, GameEvent, Handler, MatchState, Result } from './types';
 
 // Later tasks register their action handlers here.
-export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {};
+export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
+  move: moveHandler,
+};
 
 export function applyAction(state: MatchState, action: Action): Result {
   if (state.winner !== null) return { ok: false, reason: 'match over' };

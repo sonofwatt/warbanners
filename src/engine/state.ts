@@ -5,6 +5,7 @@ import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { generateMap } from './mapgen';
 import { RULES_VERSION } from './types';
+import { maxMp } from './movement';
 import { refreshExplored } from './vision';
 import type { City, MatchSettings, MatchState, PlayerId, Trait, Unit, UnitTypeId } from './types';
 
@@ -105,7 +106,7 @@ export function createMatch(settings: MatchSettings): MatchState {
     const city = s.cities[p.id]!;
     const type = FACTIONS[p.faction].startUnit;
     const u = spawnUnit(s, type, p.id, city.pos, city.id);
-    u.mp = 2 * UNITS[type].move;
+    u.mp = maxMp(s, u);
     u.attacks = freshAttacks(type);
   }
   for (const p of s.players) refreshExplored(s, p.id);

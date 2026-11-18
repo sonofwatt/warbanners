@@ -18,3 +18,7 @@ test('starting units can act on the first turn', () => {
   const s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
   expect(s.units[0]).toMatchObject({ mp: 2, attacks: 1 });
 });
+test('a Mongol starting horseman begins with its movement bonus', () => {
+  const s = createMatch({ seed: 42, factions: ['mongols', 'spartans'] });
+  expect(s.units[0]).toMatchObject({ type: 'horseman', mp: 6 });
+});
