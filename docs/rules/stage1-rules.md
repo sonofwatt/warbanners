@@ -1,0 +1,285 @@
+# Banners: stage 1 rules (draft numbers)
+
+This is the builder's draft of the rules the design leaves open. Every number here
+is a first guess, written fresh for this game, to be tuned by simulated matches in
+plan 3. The engine reads all of it from data files, so tuning never touches code.
+
+If this file and the engine's data files disagree, the data files are wrong.
+
+## 1. Board
+
+- Pointy-top hexes in axial coordinates `(q, r)`. A tile's key is the string `"q,r"`.
+- The six directions, in this order everywhere: `(1,0) (1,-1) (0,-1) (-1,0) (-1,1) (0,1)`.
+- Distance between two tiles: `(|dq| + |dr| + |dq + dr|) / 2`.
+- Stage 1 map: every tile within distance 6 of `(0,0)`. That is 127 tiles.
+- The map is point-symmetric: whatever is on `(q, r)` is also on `(-q, -r)`.
+- Capitals: player 0 at `(-2, 5)`, player 1 at `(2, -5)`. They are 10 tiles apart.
+
+## 2. Terrain
+
+| Terrain | Enter cost (half-points) | Cover | Notes |
+|---|---|---|---|
+| Field | 2 | 1 | |
+| Forest | 4 | 1.25 | |
+| Mountain | all remaining, needs full movement | 1.5 | A unit standing here sees 1 tile farther |
+| Water | cannot enter | | Ships arrive in stage 4 |
+| Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
+| City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
+
+A unit with movement `M` has `2M` half-points each turn. A unit that has not moved
+yet this turn may always enter one adjacent enterable tile, whatever it costs.
+
+## 3. Map generation
+
+Seeded and deterministic. Work on the half `H` = tiles with `r > 0`, or `r = 0` and
+`q < 0`. Everything placed on a tile in `H` is copied to its mirror `(-q, -r)`. The
+centre `(0,0)` is always a plain field.
+
+1. Terrain for each tile of `H`, in `range` order, from `rngInt(100)`:
+   under 50 field, under 72 forest, under 86 mountain, otherwise water.
+2. The capital tile is a field. Water next to a capital becomes field.
+3. Resource for each tile of `H` from `rngInt(100)`: field under 20 orchard, under 40
+   cropland; forest under 30 game; mountain under 40 ore; otherwise none.
+4. Villages: 3 in `H` (6 on the map). Candidates are field or forest tiles of `H` at
+   least 3 from both capitals. Shuffle them, then take each one that is at least 3
+   from every village already chosen and from every mirrored village. A village
+   tile becomes a field with no resource.
+5. Treasures: 2 in `H` (4 on the map), chosen the same way from tiles at least 3
+   from both capitals and at least 2 from every village and treasure.
+6. Check: from capital 0, walking over non-water tiles, capital 1 and every village
+   and treasure must be reachable. If not, try again with attempt number + 1. The
+   seed for attempt `n` is `(seed + n * 0x9E3779B9) >>> 0`. After 50 failed attempts
+   use a map of plain fields with villages and treasures placed by the same steps.
+
+## 4. Start of a match
+
+- Each player: their capital (level 1, territory radius 1), one starting unit on
+  the capital tile, their faction's starting tech.
+- Player 0 starts with 8 gold, player 1 with 10 (for moving second).
+- Each player has explored whatever their capital and starting unit can see.
+
+## 5. Turn
+
+Players alternate. On your turn, in any order and any number of times while legal:
+move, attack, use an ability, capture, train, harvest, build, lay a road, build
+walls, research, choose a city reward. Then end the turn.
+
+At the start of each of your turns except your first: you are paid income, and your
+units that did nothing at all on your previous turn heal. Then every unit of yours
+gets its movement and attacks back.
+
+At the end of your turn: any city reward you have not chosen takes its first
+option, and statuses on your units (taunted, blinded) wear off.
+
+## 6. Gold, cities and growth
+
+- Income per city each turn: its level, +1 if it is a capital, +1 per "income"
+  reward taken, +2 if it has a Market.
+- A city's territory is every tile within its radius (1, or 2 after the "borders"
+  reward) that no other city already claims.
+- Growth points come from harvesting and buildings in the city's territory.
+- To go from level `L` to `L+1` a city needs `L+1` growth points (`L+2` for a
+  Mongol city). Spare points carry over.
+- Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
+  city (or by a Camp on its behalf) count, plus the starting unit for the
+  capital. Champions and supports from rewards, and units from treasures, do not
+  count.
+
+Rewards (pick one of two at each new level):
+
+| New level | Option 0 | Option 1 |
+|---|---|---|
+| 2 | `gold`: +6 gold | `scout`: explore every tile within 3 of the city |
+| 3 | `borders`: territory radius becomes 2 | `barracks`: +2 unit capacity |
+| 4 | `income`: +1 income for this city | `growth`: +2 growth points now |
+| 5 and every level after | `champion`: the faction's champion appears | `support`: the faction's support appears |
+
+A reward unit appears on the city tile, or if that is occupied on the first free
+enterable neighbour in direction order. If there is nowhere, the reward becomes
++6 gold.
+
+Things you can do on a tile in your territory (one building per tile):
+
+| Action | Needs | Cost | Growth |
+|---|---|---|---|
+| Harvest orchard | tech `foraging` | 2 | +1, the orchard is used up |
+| Harvest game | tech `hunting` | 2 | +1, the game is used up |
+| Build Farm on cropland | tech `farming` | 5 | +2 |
+| Build Lumber camp on a forest tile with no resource | tech `forestry` | 3 | +1 |
+| Build Mine on ore | tech `bronze` | 5 | +2 |
+| Build Market on a field with no resource, one per city | tech `markets` | 6 | +1, and +2 income |
+| Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
+| Road, on any field or forest tile that is yours or unclaimed | tech `roads` | 1 | none |
+
+## 7. Tech
+
+Price: base + (number of cities you hold - 1) * tier. Base is 4, 6, 8 for tiers 1, 2, 3.
+A tech needs the one before it in its branch.
+
+| Branch | Tier 1 | Tier 2 | Tier 3 |
+|---|---|---|---|
+| Fields | `foraging`: harvest orchards | `farming`: Farm | `markets`: Market |
+| Riding | `riding`: Horseman, Horse Archer | `roads`: roads, the Camp | `chivalry`: Knight |
+| Forest | `hunting`: harvest game, Archer | `forestry`: Lumber camp | `engineering`: Catapult |
+| Mountain | `bronze`: Mine, Spearman, Hoplite | `shieldwork`: Defender, Walls | `smithing`: Swordsman |
+
+## 8. Units
+
+`Mv` is movement in tiles. Cost in gold. A dash in the cost column means the unit
+only comes from a city reward.
+
+| Unit | Faction | Atk | Def | Range | Mv | HP | Sight | Cost | Needs | Traits |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Warrior | any | 4 | 3 | 1 | 1 | 10 | 1 | 2 | | |
+| Spearman | any | 4 | 4 | 1 | 1 | 10 | 1 | 3 | bronze | steadfast |
+| Swordsman | any | 5 | 4 | 1 | 1 | 15 | 1 | 5 | smithing | doubleStrike |
+| Defender | any | 2 | 7 | 1 | 1 | 15 | 1 | 3 | shieldwork | |
+| Archer | any | 4 | 2 | 2 | 1 | 10 | 2 | 3 | hunting | |
+| Horseman | any | 4 | 2 | 1 | 2 | 10 | 2 | 3 | riding | retreat, mounted |
+| Knight | any | 6 | 3 | 1 | 3 | 15 | 2 | 6 | chivalry | chain, mounted |
+| Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | engineering | splash, siege |
+| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 4 | bronze | steadfast, phalanx |
+| King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
+| Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden |
+| Horse Archer | Mongols | 4 | 2 | 2 | 2 | 10 | 2 | 4 | riding | retreat, mounted |
+| Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
+| Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
+| Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
+
+Starting unit: Spartans a Warrior, Mongols a Horseman.
+
+## 9. Movement
+
+- One unit per tile. You may pass through your own units but not stop on them. You
+  may not enter a tile holding an enemy unit.
+- Engagement: entering a tile next to an enemy unit uses up the rest of the move.
+- After attacking, a unit cannot move, unless it has `retreat`, which keeps
+  whatever movement it had left.
+- A unit trained or spawned this turn cannot move or attack until its owner's
+  next turn.
+- Stepping onto a treasure collects it at once (see 12).
+
+## 10. Combat
+
+Only `+ - * /`, `Math.round`, `Math.min` and `Math.max` are used, so every phone
+gets the same answer.
+
+```
+effAtk  = atk * (hp + maxHp) / (2 * maxHp)        (unbowed: effAtk = atk)
+damage  = max(1, round(2 * effAtk * effAtk / (effAtk + def * cover)))
+```
+
+`cover` is the defender's terrain cover from section 2. `atk` and `def` include any
+bonuses (phalanx, inspire).
+
+If the defender survives, has attack above 0, has no `siege` trait, and the
+attacker is within the defender's range, it strikes back:
+
+```
+cAtk    = atk * f * (hp + maxHp) / (2 * maxHp)    (hp after the hit; f = 0.75, or 1.25 with steadfast)
+counter = max(1, round(2 * cAtk * cAtk / (cAtk + attackerDef)))   (the attacker gets no cover)
+```
+
+A unit at 0 health is removed. An attacker does not move into the tile.
+
+Worked examples (all at full health on a field unless said):
+
+| Attack | Damage | Counter |
+|---|---|---|
+| Warrior on Warrior | 5 | 2 |
+| Warrior on Warrior in forest | 4 | |
+| Warrior on Warrior in a city | 4 | |
+| Warrior on Warrior in a Spartan city | 3 | |
+| Warrior on Defender | 3 | 1 |
+| Warrior on Spearman | 4 | 5 |
+| Warrior at 5 health on Warrior | 3 | |
+| Knight on Warrior | 8 | |
+| Catapult on Warrior | 8 | none; neighbours take 4 |
+| Warrior on Hoplite with two Hoplites beside it, in a Spartan city | 2 | |
+| King's Guard at 5 health on Warrior | 8 | |
+
+## 11. Traits and abilities
+
+| Trait | Effect |
+|---|---|
+| steadfast | Counter-attack factor 1.25 in place of 0.75 |
+| doubleStrike | Two attacks per turn |
+| retreat | Keeps its remaining movement after attacking |
+| chain | Each kill gives one more attack this turn |
+| splash | Enemy units next to the target take half the damage dealt to the target, rounded, at least 1. No counter from them |
+| siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
+| mounted | A tag other rules refer to |
+| phalanx | +1 defence for each friendly Hoplite next to it, at most +2 |
+| unbowed | Attack is not reduced by lost health |
+| hidden | Enemies see it only from a tile next to it (their unit or their city) |
+| steady | Friendly units next to it cannot be lured |
+| inspire | Friendly mounted units next to it have +1 attack |
+| camp | Cannot attack. May train units (see 13) |
+
+Abilities are actions that use up the unit's attack for the turn (and its movement,
+as an attack would):
+
+| Ability | Unit | Target | Effect |
+|---|---|---|---|
+| heal | Piper, Sky Caller | a friendly unit next to it | +4 health, up to its maximum |
+| taunt | Piper | an enemy unit within 2 | Taunted until the end of its owner's next turn. While taunted, if any enemy Hoplite is within its range it may attack only Hoplites |
+| hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
+| dustStorm | Sky Caller | a tile within 2 | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
+
+Resting: a unit that did nothing at all on its owner's previous turn heals 4 at the
+start of the next turn if it stands in its owner's territory, otherwise 2.
+
+## 12. Treasures, capture, winning
+
+- Treasure: the tile's treasure is removed and `rngInt(3)` decides: 0 gives +5 gold;
+  1 explores every tile within 4; 2 gives a Warrior on the first free enterable
+  neighbour in direction order (or +5 gold if there is none).
+- Capture: a unit standing on a village or an enemy city may capture it if it
+  entered that tile on an earlier turn and has not moved or attacked this turn. It
+  uses the unit's whole turn. A village becomes a level 1 city of the captor. An
+  enemy city changes owner and keeps its level, buildings and territory; units it
+  had trained no longer count against it.
+- A player with no cities is eliminated and their units are removed. The last
+  player left wins. A player may resign at any time on their turn, which
+  eliminates them.
+
+## 13. Faction rules
+
+Spartans
+
+- Start with `bronze`.
+- A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
+- Units: Hoplite, King's Guard (champion), Piper (support), Krypteia Scout.
+
+Mongols
+
+- Start with `riding`.
+- Horseman and Knight cost 1 less.
+- Mounted Mongol units have +1 movement, but entering a forest uses up the rest of
+  their move.
+- Relay riders: for Mongol units, entering any tile inside Mongol territory costs
+  1 half-point.
+- Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
+- Mongol cities need `L+2` growth points to leave level `L`.
+- Feigned retreat (lure): when a Mongol unit with `retreat` attacks, the player may
+  ask for a lure. If the target survives, is not steadied, and is not in a city,
+  then when the attacker next moves this turn the target is pulled one tile toward
+  the tile the attacker left: onto that tile itself for an attack from distance 1,
+  or onto the tile between them for distance 2 (the first shared neighbour in
+  direction order that is free and enterable). If no such tile is free, nothing
+  happens.
+- The Camp: on its turn, if it has not moved, it may train one unit per turn onto a
+  free enterable tile next to it. The unit counts against the Mongol city with the
+  most free capacity (lowest id on a tie). If no city has room it cannot train.
+- Units: Horse Archer, Khan's Guard (champion), Sky Caller (support), Camp.
+
+## 14. Vision
+
+- A player sees every tile within `sight` of each of their units (one more from a
+  mountain) and every tile within their cities' territory radius + 1.
+- Seen tiles stay explored for the rest of the match.
+- Enemy units are known only while on a tile the player currently sees, and
+  `hidden` ones only from next to them.
+- You can only attack or target a unit you currently see. A unit whose range is
+  longer than its sight (the Catapult) needs another unit to spot for it.
