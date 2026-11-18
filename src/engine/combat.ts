@@ -23,9 +23,14 @@ export function attackOf(_s: MatchState, u: Unit): number {
   return UNITS[u.type].atk;
 }
 
-// Base defence. Phalanx is added by a later task.
-export function defenceOf(_s: MatchState, u: Unit): number {
-  return UNITS[u.type].def;
+// Base defence plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
+export function defenceOf(s: MatchState, u: Unit): number {
+  const base = UNITS[u.type].def;
+  if (!hasTrait(u, 'phalanx')) return base;
+  const here = parseKey(u.pos);
+  const mates = s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
+    && distance(here, parseKey(n.pos)) === 1).length;
+  return base + Math.min(CONFIG.phalanxMax, mates * CONFIG.phalanxBonus);
 }
 
 // rules 10
@@ -34,6 +39,7 @@ export function damageFor(effAtk: number, def: number, cover: number): number {
 }
 
 function healthFactor(u: Unit): number {
+  if (hasTrait(u, 'unbowed')) return 1;
   const maxHp = UNITS[u.type].hp;
   return (u.hp + maxHp) / (2 * maxHp);
 }
@@ -51,10 +57,11 @@ export function attackTargets(s: MatchState, unitId: number): HexKey[] {
   if (hasTrait(u, 'siege') && u.moved) return [];
   const reach = reachOf(u);
   const from = parseKey(u.pos);
-  return s.units
-    .filter((t) => t.owner !== u.owner && canSeeUnit(s, u.owner, t) && distance(from, parseKey(t.pos)) <= reach)
-    .map((t) => t.pos)
-    .sort();
+  const legal = s.units
+    .filter((t) => t.owner !== u.owner && canSeeUnit(s, u.owner, t) && distance(from, parseKey(t.pos)) <= reach);
+  // A taunted unit must pick a phalanx unit when one is in reach.
+  const phalanx = u.taunted ? legal.filter((t) => hasTrait(t, 'phalanx')) : [];
+  return (phalanx.length > 0 ? phalanx : legal).map((t) => t.pos).sort();
 }
 
 export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a, ev) => {

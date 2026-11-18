@@ -1,3 +1,4 @@
+import { abilityHandler } from './abilities';
 import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
 import { captureHandler, resignHandler } from './capture';
@@ -12,6 +13,7 @@ import type { Action, GameEvent, Handler, MatchState, Result } from './types';
 export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   move: moveHandler,
   attack: attackHandler,
+  ability: abilityHandler,
   harvest: harvestHandler,
   build: buildHandler,
   road: roadHandler,
