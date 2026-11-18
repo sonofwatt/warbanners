@@ -87,3 +87,7 @@ export type GameEvent =
   | { type: 'matchOver'; winner: PlayerId };
 
 export type Result = { ok: true; state: MatchState; events: GameEvent[] } | { ok: false; reason: string };
+
+// A handler gets a draft that applyAction already cloned. It mutates the draft, pushes events,
+// and returns null on success or a short refusal reason.
+export type Handler<A> = (s: MatchState, a: A, ev: GameEvent[]) => string | null;
