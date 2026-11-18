@@ -145,7 +145,7 @@ export function generateMap(seed: number, radius: number): GeneratedMap {
     let s = attemptSeed(seed, n);
     const half = new Map<HexKey, Tile>();
     const terrains: Terrain[] = [];
-    for (const h of halfOrder) {
+    for (const _h of halfOrder) {
       let roll: number;
       [roll, s] = rngInt(s, CONFIG.mapgen.rollRange);
       terrains.push(terrainFor(roll));
@@ -164,6 +164,8 @@ export function generateMap(seed: number, radius: number): GeneratedMap {
       const t = half.get(key(h))!;
       t.resource = resourceFor(t.terrain, roll);
     }
+    // The capital is a plain field: the draw above is kept so the stream is unchanged.
+    half.get(key(capital))!.resource = null;
     const placed = placeFeatures(half, halfOrder, s, capitals);
     if (!placed) continue;
     const out = assemble(radius, half, placed.villages, placed.treasures);

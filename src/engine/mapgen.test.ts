@@ -12,7 +12,7 @@ test.each(seeds)('seed %i: symmetric, complete, connected', (seed) => {
   }
   expect(m.villages).toHaveLength(6);
   expect(m.treasures).toHaveLength(4);
-  expect(m.tiles['-2,5']!.terrain).toBe('field');
+  for (const c of ['-2,5', '2,-5']) expect(m.tiles[c]).toMatchObject({ terrain: 'field', resource: null, village: false, treasure: false });
   expect(m.tiles['0,0']).toMatchObject({ terrain: 'field', resource: null, village: false, treasure: false });
   for (const n of neighbors({ q: -2, r: 5 })) { const t = m.tiles[key(n)]; if (t) expect(t.terrain).not.toBe('water'); }
   for (const v of m.villages) {
@@ -30,6 +30,12 @@ test('isConnected sees water as a wall', () => {
   const m = generateMap(1, 6);
   for (const n of neighbors({ q: 2, r: -5 })) { const t = m.tiles[key(n)]; if (t) t.terrain = 'water'; }
   expect(isConnected(m.tiles, '-2,5', ['2,-5'])).toBe(false);
+});
+test('capital tiles are plain fields across many seeds', () => {
+  for (let seed = 1; seed <= 200; seed++) {
+    const m = generateMap(seed, 6);
+    for (const c of ['-2,5', '2,-5']) expect(m.tiles[c], `seed ${seed}`).toMatchObject({ terrain: 'field', resource: null, village: false, treasure: false });
+  }
 });
 describe('spacing and shape', () => {
   test.each(seeds)('seed %i: spacing, treasures, cityId', (seed) => {
