@@ -133,6 +133,11 @@ h1, h2, p { overflow-wrap: anywhere; }
 .board { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 /* A unit's slide from tile to tile is played by Board.tsx on the unit's node, and skipped when less motion is asked for. */
 
+/* The veil (art/tiles.tsx): a veiled tile's art drawn again as one dark silhouette. Every shape in it takes
+   the veil colour; what had no fill or no stroke keeps none, so the silhouette is the art's own outline. */
+.veil, .veil :not([fill="none"]) { fill: #1E2833; }
+.veil [stroke]:not([stroke="none"]) { stroke: #1E2833; }
+
 /* Battle effects (Effects.tsx). Each waits out its delay unseen, plays once and is then removed.
    Effects.tsx skips falls and bursts, and holds numbers still, when less motion is asked for. */
 .fx-number, .fx-fall, .fx-burst { opacity: 0; animation-fill-mode: forwards; animation-timing-function: ease-out; }

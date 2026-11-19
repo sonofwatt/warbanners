@@ -25,7 +25,7 @@ function Cell(p: { label: string; ground: Ground; children?: ReactNode; veil?: b
       <svg width={v.w * PX} height={v.h * PX} viewBox={`${v.x} ${v.y} ${v.w} ${v.h}`} style={{ display: 'block' }}>
         <TileBase ground={p.ground} />
         {p.children}
-        {p.veil ? <Veil /> : null}
+        {p.veil ? <Veil><TileBase ground={p.ground} />{p.children}</Veil> : null}
       </svg>
       <figcaption style={{ fontSize: 13, color: '#5B574E', marginTop: -4 }}>{p.label}</figcaption>
     </figure>

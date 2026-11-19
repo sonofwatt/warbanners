@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import type { Tile } from '../../engine';
 import { edgeDirs, THICK, tileCorners } from '../board/layout';
 import type { Pt } from '../board/layout';
@@ -78,9 +78,18 @@ export function TileBase(p: { ground: Ground }): ReactElement {
   );
 }
 
-/** Dims the top face of an explored tile that no unit can see now. */
-export function Veil(): ReactElement {
-  return <polygon points={pts(topCorners())} fill="#1E2833" fillOpacity={0.22} />;
+/**
+ * Dims an explored tile that no unit can see now, all of it: its ground and whatever stands on it.
+ * Give it the same art the tile draws; it draws that art again on top as one dark silhouette
+ * (theme.css paints every shape in it the veil colour) at a low group opacity. No filter, so it is
+ * cheap on phones, and units, drawn after the tile, stay bright.
+ */
+export function Veil(p: { children: ReactNode }): ReactElement {
+  return (
+    <g className="veil" opacity={0.3} pointerEvents="none">
+      {p.children}
+    </g>
+  );
 }
 
 const RING = { rx: 17, ry: 17 * 0.62 };

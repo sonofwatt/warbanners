@@ -144,12 +144,17 @@ function TileView(p: { t: SceneTile; factions: readonly FactionId[]; viewer: Pla
     );
   }
   const ownerFaction = t.owner === null ? undefined : p.factions[t.owner];
-  return (
-    <g data-hex={t.key} transform={at}>
+  const body = (
+    <>
       <TileBase ground={groundFor(t.tile, t.city !== null)} />
       {t.tile.road && t.city === null ? <Road links={t.roadLinks} /> : null}
       {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} />}
-      {t.veiled ? <Veil /> : null}
+    </>
+  );
+  return (
+    <g data-hex={t.key} transform={at}>
+      {body}
+      {t.veiled ? <Veil>{body}</Veil> : null}
       {ownerFaction !== undefined && t.borderEdges.length > 0 ? (
         <Border edges={t.borderEdges} colour={playerColour(ownerFaction).main} />
       ) : null}

@@ -61,7 +61,7 @@ test('art stays inside its tile footprint', () => {
   const factions: FactionId[] = ['spartans', 'mongols'];
   const all: ReactElement[] = [
     ...(['grass', 'water', 'rock', 'sand', 'fog'] as const).map((g) => <TileBase ground={g} />),
-    <Veil />,
+    <Veil><TileBase ground="grass" /></Veil>,
     ...marks.map((m) => <Highlight mark={m} />),
     <Border edges={[0, 1, 2, 3, 4, 5]} colour="#B3261E" />,
     ...terrains.flatMap((t) => [0, 1, 2].map((v) => <TerrainFeature terrain={t} variant={v} />)),

@@ -78,3 +78,20 @@ test('the capital is drawn as a city in the owner\'s colour, with a closed borde
   const html = draw();
   expect((html.match(/<line[^>]*stroke="#B3261E"[^>]*stroke-width="2.4"/g) ?? []).length).toBeGreaterThanOrEqual(18);
 });
+
+test('a veiled tile is dimmed whole: its ground and everything standing on it, but not a unit on it', () => {
+  const view = playerView(s, 0);
+  const me = view.units[0]!;
+  const html = draw({ view: { ...view, visible: [] } });
+  const k = Object.keys(view.tiles).find((x) => view.tiles[x]!.terrain === 'forest' || view.tiles[x]!.terrain === 'mountain')!;
+  const tile = tileMarkup(html, k);
+  const shade = tile.indexOf('<g class="veil"');
+  expect(shade).toBeGreaterThan(0);
+  // The shade repeats the tile's ground and its feature, drawn over them.
+  const art = tile.slice(tile.indexOf('>') + 1, shade);
+  expect(art.length).toBeGreaterThan(200);
+  expect(tile.slice(shade)).toContain(art);
+  expect(tileMarkup(html, me.pos)).toContain('<g class="veil"');
+  const unit = html.slice(html.indexOf(`data-unit="${me.id}"`));
+  expect(unit.slice(0, unit.search(/data-hex=|$/))).not.toContain('class="veil"');
+});
