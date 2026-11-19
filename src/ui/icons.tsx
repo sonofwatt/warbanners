@@ -8,7 +8,8 @@ import { ACCENT, GROUND, PLAYER_COLOURS, SKIN } from './art/palette';
 // Every colour the icons paint, in one place. Where a colour is the board's own it comes from the board's palette;
 // the chrome's paper comes from theme.css through a CSS variable.
 const PAPER = 'var(--paper)';
-const COIN = { face: '#FFCB3D', rim: '#C98B0B', mark: '#E8A912' } as const;
+// The coin is the banner gold of theme.css (--gold over its side, --gold-side), with a deeper mark of its own.
+const COIN = { face: 'var(--gold)', rim: 'var(--gold-side)', mark: '#E8A912' } as const;
 const C = {
   white: '#FFFFFF', red: '#E0563F', star: '#FFC21A',
   leaf: '#5FA83A', leafLight: '#86C25A', stem: '#4C8A2E',

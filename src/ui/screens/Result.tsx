@@ -1,10 +1,9 @@
 import type { CSSProperties, ReactElement } from 'react';
 import { roundOf } from '../../app/record';
 import { useApp } from '../../app/useApp';
-import { ACCENT } from '../art/palette';
+import { ACCENT, playerColour } from '../art/palette';
 import { BannerTile, HomeIcon } from '../icons';
 import { T, fill } from '../text';
-import { FACTION_COLOUR } from './colour';
 
 // Flat confetti around the winner's banner: [x %, y %, turn in degrees, which colour]. Fixed, so every win looks the same.
 const CONFETTI: readonly [number, number, number, 'main' | 'gold' | 'grass' | 'sky'][] = [
@@ -20,7 +19,7 @@ export function Result(): ReactElement | null {
   const resigned = record.actions[record.actions.length - 1]?.type === 'resign';
   const winner = record.players[state.winner]?.name ?? '';
   const faction = state.players[state.winner]!.faction;
-  const colour = FACTION_COLOUR[faction];
+  const colour = playerColour(faction);
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
     <div className="screen result" style={style}>
