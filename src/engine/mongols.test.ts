@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { abilityTargets } from './abilities';
 import { applyAction } from './apply';
-import { attackOf, attackTargets } from './combat';
+import { attackOf, attackTargets, lureApplies } from './combat';
 import { growthNeeded } from './economy';
 import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
@@ -179,4 +179,22 @@ test('campTrain refuses hostile input and leaves the state untouched', () => {
   ];
   for (const a of bad) expect(applyAction(s, a as Action).ok).toBe(false);
   expect(hashState(s)).toBe(before);
+});
+test('lureApplies: Mongol retreat attacker, unsteadied target outside any city, attacker not fresh', () => {
+  const s = mongols(); const a = addUnit(s, 'horseArcher', 0, 0, 0); const d = addUnit(s, 'warrior', 1, 2, 0);
+  expect(lureApplies(s, a, d)).toBe(true);
+  expect(lureApplies(s, addUnit(s, 'warrior', 0, 0, 1), d)).toBe(false);          // no retreat
+  expect(lureApplies(s, { ...a, fresh: true }, d)).toBe(false);
+  const steadied = mongols(); const a2 = addUnit(steadied, 'horseArcher', 0, 0, 0); const d2 = addUnit(steadied, 'warrior', 1, 2, 0);
+  addUnit(steadied, 'piper', 1, 3, 0);
+  expect(lureApplies(steadied, a2, d2)).toBe(false);
+  const inCity = mongols(); const a3 = addUnit(inCity, 'horseArcher', 0, 0, 0); addCity(inCity, 0, 2, 0);
+  expect(lureApplies(inCity, a3, addUnit(inCity, 'warrior', 1, 2, 0))).toBe(false);   // any city, even the rider's own
+  const sp = blankMatch(); const h = addUnit(sp, 'horseman', 0, 0, 0);
+  expect(lureApplies(sp, h, addUnit(sp, 'warrior', 1, 1, 0))).toBe(false);
+});
+test('an attack asking for a lure that cannot apply is accepted with the lure ignored', () => {
+  const s = mongols(); const a = addUnit(s, 'horseArcher', 0, 0, 0, { mp: 6 }); addUnit(s, 'warrior', 1, 2, 0); addUnit(s, 'piper', 1, 3, 0);
+  const r = applyAction(s, { type: 'attack', unit: a.id, target: '2,0', lure: true });
+  expect(unitById(must(r), a.id)).toMatchObject({ attacks: 0, lure: null });
 });

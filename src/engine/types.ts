@@ -13,6 +13,8 @@ export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'ar
 export type Trait = 'steadfast' | 'doubleStrike' | 'retreat' | 'chain' | 'splash' | 'siege' | 'mounted'
   | 'phalanx' | 'unbowed' | 'hidden' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm';
 export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm';
+// Every ability, in the order legalActions lists them.
+export const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
 export type RewardId = 'gold' | 'scout' | 'borders' | 'barracks' | 'income' | 'growth' | 'champion' | 'support';
 
 export interface Tile {

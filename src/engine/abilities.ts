@@ -4,9 +4,8 @@ import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit } from './vision';
+import { ABILITIES } from './types';
 import type { AbilityId, Action, Handler, MatchState, Unit } from './types';
-
-const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
 
 function isAbility(v: unknown): v is AbilityId {
   return typeof v === 'string' && ABILITIES.includes(v as AbilityId);

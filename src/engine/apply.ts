@@ -8,22 +8,20 @@ import { endTurnHandler } from './turn';
 import { moveHandler } from './movement';
 import { refreshExplored } from './vision';
 import { CONFIG } from './data/config';
-import { FACTIONS } from './data/factions';
 import { TECHS } from './data/techs';
 import { UNITS } from './data/units';
 import { key, neighbors, parseKey } from './hex';
-import { abilityTargets, isSteadied } from './abilities';
-import { attackTargets } from './combat';
+import { abilityTargets } from './abilities';
+import { attackTargets, lureApplies } from './combat';
 import { reachable } from './movement';
-import { cityAt, createMatch, hasTrait, tileAt, unitAt } from './state';
+import { createMatch, hasTrait, tileAt, unitAt } from './state';
 import { canResearch } from './tech';
 import { buildRefusal, harvestRefusal, rewardRefusal, roadRefusal, wallsRefusal } from './economy';
 import { campTrainRefusal, trainRefusal } from './training';
+import { ABILITIES } from './types';
 import type {
-  AbilityId, Action, BuildingId, GameEvent, Handler, MatchSettings, MatchState, Result, TechId, UnitTypeId,
+  Action, BuildingId, GameEvent, Handler, MatchSettings, MatchState, Result, TechId, UnitTypeId,
 } from './types';
-
-const ABILITY_ORDER: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
 
 // Later tasks register their action handlers here.
 export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
@@ -44,11 +42,14 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
 };
 
 export function applyAction(state: MatchState, action: Action): Result {
-  if (state.winner !== null) return { ok: false, reason: 'match over' };
   // The action is untrusted: every read of it happens inside the try, and the handlers only ever see a
   // plain copy taken once, so a throwing getter or Proxy trap, or a getter that answers differently
-  // each time it is read, cannot throw out of here or slip past a check.
+  // each time it is read, cannot throw out of here or slip past a check. Every read of the state is
+  // inside the try as well, so a missing or malformed state is refused rather than thrown.
   try {
+    const winner: unknown = state.winner;
+    if (typeof winner === 'number') return { ok: false, reason: 'match over' };
+    if (winner !== null) return { ok: false, reason: 'invalid action' };
     const copy: unknown = JSON.parse(JSON.stringify(action));
     const type = typeof copy === 'object' && copy !== null ? (copy as { type?: unknown }).type : undefined;
     if (typeof type !== 'string' || !Object.prototype.hasOwnProperty.call(HANDLERS, type)) {
@@ -72,7 +73,6 @@ export function legalActions(s: MatchState): Action[] {
   if (s.winner !== null) return [];
   const out: Action[] = [];
   const me = s.current;
-  const faction = FACTIONS[s.players[me]!.faction];
   const unitTypes = Object.keys(UNITS) as UnitTypeId[];
   const tileKeys = Object.keys(s.tiles).sort();
 
@@ -81,13 +81,14 @@ export function legalActions(s: MatchState): Action[] {
     for (const to of Object.keys(reachable(s, u.id)).sort()) out.push({ type: 'move', unit: u.id, to });
     for (const target of attackTargets(s, u.id)) {
       out.push({ type: 'attack', unit: u.id, target });
+      // An attack asking for a lure where none can apply is also accepted (the lure is ignored), but it is
+      // the same move as the plain attack, so the lure variant is listed only where lureApplies.
       const victim = unitAt(s, target);
-      if (faction.canLure && hasTrait(u, 'retreat') && victim !== undefined && !isSteadied(s, victim)
-        && cityAt(s, target) === undefined) {
+      if (victim !== undefined && lureApplies(s, u, victim)) {
         out.push({ type: 'attack', unit: u.id, target, lure: true });
       }
     }
-    for (const ability of ABILITY_ORDER) {
+    for (const ability of ABILITIES) {
       for (const target of abilityTargets(s, u.id, ability)) out.push({ type: 'ability', unit: u.id, ability, target });
     }
     if (canCapture(s, u.id)) out.push({ type: 'capture', unit: u.id });

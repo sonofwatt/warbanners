@@ -54,6 +54,12 @@ function reachOf(u: Unit): number {
   return u.blinded ? 1 : UNITS[u.type].range;
 }
 
+// rules 13: a lure may be recorded when this attacker hits this target (the target must also survive)
+export function lureApplies(s: MatchState, attacker: Unit, target: Unit): boolean {
+  return FACTIONS[s.players[attacker.owner]!.faction].canLure && hasTrait(attacker, 'retreat') && !attacker.fresh
+    && !isSteadied(s, target) && cityAt(s, target.pos) === undefined;
+}
+
 // rules 10: tiles holding an enemy this unit may attack now
 export function attackTargets(s: MatchState, unitId: number): HexKey[] {
   const u = unitById(s, unitId);
@@ -126,10 +132,9 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   attacker.acted = true;
   if (!hasTrait(attacker, 'retreat')) attacker.mp = 0;
 
-  // rules 13: a lure is recorded only for a surviving, unsteadied target outside any city
+  // rules 13: a lure is recorded only when both survive and lureApplies; otherwise the request is ignored
   const survivor = unitById(s, target.id);
-  if (a.lure === true && FACTIONS[s.players[attacker.owner]!.faction].canLure && hasTrait(attacker, 'retreat')
-    && survivor !== undefined && !targetDied && !isSteadied(s, survivor) && cityAt(s, survivor.pos) === undefined) {
+  if (a.lure === true && survivor !== undefined && !targetDied && lureApplies(s, attacker, survivor)) {
     attacker.lure = { target: survivor.id, from: attackerFrom };
   }
   return null;

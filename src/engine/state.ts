@@ -4,12 +4,10 @@ import { UNITS } from './data/units';
 import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { generateMap } from './mapgen';
-import { RULES_VERSION } from './types';
+import { ABILITIES, RULES_VERSION } from './types';
 import { maxMp } from './movement';
 import { refreshExplored } from './vision';
 import type { City, MatchSettings, MatchState, PlayerId, Tile, Trait, Unit, UnitTypeId } from './types';
-
-const ABILITY_TRAITS: readonly Trait[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
 
 export function hasTrait(u: Unit, t: Trait): boolean {
   return UNITS[u.type].traits.includes(t);
@@ -57,7 +55,7 @@ export function firstFreeNeighbor(s: MatchState, k: HexKey): HexKey | null {
 export function freshAttacks(type: UnitTypeId): number {
   const def = UNITS[type];
   if (def.traits.includes('doubleStrike')) return 2;
-  if (def.atk === 0 && !def.traits.some((t) => ABILITY_TRAITS.includes(t))) return 0;
+  if (def.atk === 0 && !def.traits.some((t) => (ABILITIES as readonly Trait[]).includes(t))) return 0;
   return 1;
 }
 
@@ -100,9 +98,10 @@ export function foundCity(s: MatchState, owner: PlayerId, pos: HexKey, capital: 
 }
 
 export function createMatch(settings: MatchSettings): MatchState {
-  const map = generateMap(settings.seed, CONFIG.mapRadius);
+  const seed = settings.seed >>> 0;                    // -1 and 4294967295 are the same match
+  const map = generateMap(seed, CONFIG.mapRadius);
   const s: MatchState = {
-    rulesVersion: RULES_VERSION, seed: settings.seed, rng: map.rng, radius: CONFIG.mapRadius,
+    rulesVersion: RULES_VERSION, seed, rng: map.rng, radius: CONFIG.mapRadius,
     tiles: map.tiles, cities: [], units: [],
     players: settings.factions.map((faction, i) => ({
       id: i, faction, gold: CONFIG.startGold[i]!, techs: [FACTIONS[faction].startTech],

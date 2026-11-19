@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { hashState } from './hash';
 import { createMatch, isEnterable, tileAt } from './state';
 import { blankMatch } from './testkit';
 import { RULES_VERSION } from './types';
@@ -31,4 +32,10 @@ test('inherited property names are not tiles', () => {
   }
   expect(tileAt(s, '0,0')).toBe(s.tiles['0,0']);
   expect(tileAt(s, '9,9')).toBeUndefined();
+});
+test('the seed is stored as an unsigned 32-bit number, so -1 and 4294967295 are the same match', () => {
+  const a = createMatch({ seed: -1, factions: ['spartans', 'mongols'] });
+  const b = createMatch({ seed: 4294967295, factions: ['spartans', 'mongols'] });
+  expect(a.seed).toBe(4294967295);
+  expect(hashState(a)).toBe(hashState(b));
 });

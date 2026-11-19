@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction } from './apply';
 import { hashState } from './hash';
 import { blankMatch } from './testkit';
-import type { Action } from './types';
+import type { Action, MatchState } from './types';
 
 test('garbage is refused without throwing or touching the state', () => {
   const s = blankMatch(); const before = hashState(s);
@@ -29,4 +29,10 @@ test('an action whose reads throw is refused quietly, never thrown', () => {
   }
   expect(applyAction(s, frozen).ok).toBe(true);
   expect(hashState(s)).toBe(before);
+});
+test('a bad state is refused quietly, never thrown', () => {
+  for (const bad of [null, undefined, {}, 7, 'state', { winner: 'x' }]) {
+    expect(applyAction(bad as unknown as MatchState, { type: 'endTurn' })).toEqual({ ok: false, reason: 'invalid action' });
+    expect(applyAction(bad as unknown as MatchState, { type: 'move', unit: 0, to: '0,0' })).toEqual({ ok: false, reason: 'invalid action' });
+  }
 });
