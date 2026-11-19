@@ -117,7 +117,7 @@ const ui = {
   offlineReady: 'Ready to play offline.',
   updateReady: 'A new version is ready.', updateButton: 'Update',
   installButton: 'Install', installIphone: 'Tap Share, then Add to Home Screen.',
-  saveFailed: 'This match could not be saved. Free some space on your phone.',
+  saveFailed: 'This match could not be saved. Deleting old matches on the home screen makes room.',
   saveRepaired: 'A damaged save was repaired from the last good copy.',
   saveDropped: 'Your oldest unfinished match was removed to make room for a new one.',
   saveUnreadable: 'A saved match could not be read.',

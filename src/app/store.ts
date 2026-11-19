@@ -8,7 +8,7 @@ import { digestFor } from './digest';
 import type { DigestLine, TurnStep } from './digest';
 import { append, newRecord, restore } from './record';
 import type { MatchRecord } from './record';
-import { deleteSave, listSaves, readSave, writeSave } from './saves';
+import { deleteSave, listSaves, readSave, withSave, writeSave } from './saves';
 import type { KeyValue, SaveSummary } from './saves';
 import type { UpdateState, Updater } from './update';
 
@@ -57,10 +57,10 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       if (!res.ok) return;
       const next = append(record, action, res.state, deps.now());
       const saved = writeSave(kv, next, res.state);
-      turnLog.push({ before: state, events: res.events });
+      turnLog.push({ before: state, after: res.state, events: res.events });
       seq += 1;
       const patch: Partial<AppState> = {
-        record: next, state: res.state, saves: listSaves(kv), last: { seq, events: res.events, before: state },
+        record: next, state: res.state, saves: withSave(get().saves, saved), last: { seq, events: res.events, before: state },
       };
       // A failure is reported at once; a later save that works makes the report out of date, so it goes.
       if (!saved.saved) patch.notice = 'saveFailed';

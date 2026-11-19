@@ -65,7 +65,16 @@ export function listSaves(kv: KeyValue): SaveSummary[] {
 
 // What became of a write. `saved` is false when the phone refused, and then the previous list stays in place.
 // `droppedUnfinished` is true when making room cost an unfinished match, which the player is told about.
-export interface SaveOutcome { saved: boolean; droppedUnfinished: boolean }
+// `summary` is the written match's entry and `dropped` the ids that went, so a caller can keep its list without
+// reading every saved match back.
+export interface SaveOutcome { saved: boolean; droppedUnfinished: boolean; summary: SaveSummary | null; dropped: string[] }
+
+// The list a caller already has, brought up to date with a write, as listSaves would now give it.
+export function withSave(list: readonly SaveSummary[], out: SaveOutcome): SaveSummary[] {
+  if (!out.saved || out.summary === null) return [...list];
+  const gone = new Set([out.summary.id, ...out.dropped]);
+  return [...list.filter(e => !gone.has(e.id)), out.summary].sort(newestFirst);
+}
 
 // Which others to drop so that they and the record being written fit in MAX_SAVES. The record being written is
 // never one of them. Finished matches go first, then unfinished ones, oldest first within each.
@@ -96,9 +105,9 @@ export function writeSave(kv: KeyValue, rec: MatchRecord, state: MatchState): Sa
     for (const d of dropped) {
       try { kv.removeItem(bodyKey(d.id)); } catch { /* the list no longer names it */ }
     }
-    return { saved: true, droppedUnfinished: dropped.some(d => !d.over) };
+    return { saved: true, droppedUnfinished: dropped.some(d => !d.over), summary, dropped: dropped.map(d => d.id) };
   } catch {
-    return { saved: false, droppedUnfinished: false };
+    return { saved: false, droppedUnfinished: false, summary: null, dropped: [] };
   }
 }
 

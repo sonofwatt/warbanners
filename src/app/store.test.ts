@@ -165,3 +165,14 @@ test('recovering from a broken screen goes home and keeps every save, a finished
   expect(map.has('banners.save.m1')).toBe(true);
   expect(get().saves.map(s => s.id)).toEqual(['m1']);
 });
+test('an accepted action keeps the save list without reading any saved match back', () => {
+  const x = deps(); let bodyReads = 0;
+  const kv: KeyValue = { ...x.d.kv, getItem: k => { if (k.startsWith('banners.save.')) bodyReads++; return x.d.kv.getItem(k); } };
+  let at = 1000; const store = createAppStore({ ...x.d, kv, now: () => at++ }); const get = store.getState;
+  get().startMatch(SETUP); get().ready();
+  bodyReads = 0;
+  get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' }); get().run({ type: 'endTurn' });
+  expect(bodyReads).toBe(0);
+  expect(get().saves).toEqual(listSaves(kv));
+  expect(get().saves[0]).toMatchObject({ id: 'm1', current: 1 });
+});
