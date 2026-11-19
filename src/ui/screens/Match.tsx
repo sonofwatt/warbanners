@@ -25,6 +25,7 @@ import { Effects } from '../board/Effects';
 import { effectsFor } from '../board/effects';
 import { buildScene } from '../board/scene';
 import { FACTION_COLOUR } from './colour';
+import { NoticeLine } from './NoticeLine';
 
 export const END_TURN_LOCK_MS = 600;
 
@@ -47,6 +48,14 @@ export function matchData(state: MatchState, viewer: PlayerId, selection: Select
   };
 }
 
+// The focus the camera aims at, held for the whole of a turn (`key` names the turn and the player). Without a
+// capital the focus is a unit's tile, which moves with it; re-aiming on each move would throw away the player's
+// pan and zoom.
+export interface TurnFocus { key: string; focus: HexKey }
+export function turnFocus(held: TurnFocus | null, key: string, focus: HexKey): TurnFocus {
+  return held !== null && held.key === key ? held : { key, focus };
+}
+
 type Sheet = 'none' | 'tech' | 'menu';
 
 export function Match(): ReactElement | null {
@@ -61,6 +70,8 @@ export function Match(): ReactElement | null {
   const arm = useApp((s) => s.arm);
   const goHome = useApp((s) => s.goHome);
   const dismissDigest = useApp((s) => s.dismissDigest);
+  const notice = useApp((s) => s.notice);
+  const dismissNotice = useApp((s) => s.dismissNotice);
 
   const [sheet, setSheet] = useState<Sheet>('none');
   const [locked, setLocked] = useState(true);
@@ -101,6 +112,10 @@ export function Match(): ReactElement | null {
     heard.current = fx.seq;
     if (fx.sound !== null) play(fx.sound);
   }, [fx]);
+  const focusHeld = useRef<TurnFocus | null>(null);
+  if (data !== null && state !== null && viewer !== null) {
+    focusHeld.current = turnFocus(focusHeld.current, `${roundOf(state)}:${viewer}`, data.focus ?? '0,0');
+  }
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
   const items = useMemo(
     () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, selectedUnit, spentUnits: data.spent })),
@@ -165,10 +180,13 @@ export function Match(): ReactElement | null {
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
       <div className="board-slot" data-testid="board-slot">
-        <Board items={items} radius={data.radius} factions={data.factions} focus={data.focus ?? '0,0'} viewer={viewer} onTap={tap}>
+        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}>
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
       </div>
+      {notice === 'saveFailed' ? (
+        <div className="match-notice" data-testid="match-notice"><NoticeLine notice={notice} onDismiss={dismissNotice} /></div>
+      ) : null}
       {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
       {sheet === 'tech' ? (
         <TechSheet rows={techRows(state, ix)} onResearch={(t: TechId) => run({ type: 'research', tech: t })} onClose={() => setSheet('none')} />

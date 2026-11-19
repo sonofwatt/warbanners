@@ -1,8 +1,12 @@
+import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import type { AppState } from '../../app/store';
 import { roundOf } from '../../app/record';
 import { useApp } from '../../app/useApp';
 import { ACCENT, playerColour } from '../art/palette';
 import { BannerTile, HomeIcon } from '../icons';
+import { play } from '../sound';
+import type { SoundName } from '../sound';
 import { T, fill } from '../text';
 
 // Flat confetti around the winner's banner: [x %, y %, turn in degrees, which colour]. Fixed, so every win looks the same.
@@ -11,10 +15,24 @@ const CONFETTI: readonly [number, number, number, 'main' | 'gold' | 'grass' | 's
   [4, 40, -20, 'main'], [14, 62, 40, 'grass'], [88, 36, 25, 'gold'], [96, 58, -35, 'sky'], [30, 30, 70, 'grass'], [72, 32, -60, 'sky'],
 ];
 
+// The winning action switches straight to this screen, so the match screen never plays its sound: it is played
+// here. A finished match opened from Home has no last action and stays quiet.
+export function resultSound(last: AppState['last']): SoundName | null {
+  return last !== null && last.events.some((e) => e.type === 'matchOver') ? 'win' : null;
+}
+
 export function Result(): ReactElement | null {
   const record = useApp((s) => s.record);
   const state = useApp((s) => s.state);
+  const last = useApp((s) => s.last);
   const goHome = useApp((s) => s.goHome);
+  const played = useRef<number | null>(null);
+  useEffect(() => {
+    const name = resultSound(last);
+    if (last === null || name === null || played.current === last.seq) return;
+    played.current = last.seq;
+    play(name);
+  }, [last]);
   if (record === null || state === null || state.winner === null) return null;
   const resigned = record.actions[record.actions.length - 1]?.type === 'resign';
   const winner = record.players[state.winner]?.name ?? '';

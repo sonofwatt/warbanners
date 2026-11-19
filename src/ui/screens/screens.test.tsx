@@ -9,9 +9,9 @@ import { StoreContext } from '../../app/useApp';
 import { App } from '../App';
 import { T } from '../text';
 import { Home } from './Home';
-import { Match } from './Match';
+import { Match, turnFocus } from './Match';
 import { Pass } from './Pass';
-import { Result } from './Result';
+import { Result, resultSound } from './Result';
 
 function fakeStore(id = 'm1') {
   const map = new Map<string, string>();
@@ -107,4 +107,62 @@ test('the result names the winner', () => {
   expect(html).toContain('Ben wins');
   expect(html).toContain(T.ui.byResignation);
   expect(html).toContain(T.ui.homeButton);
+});
+
+test('the match screen says when the match could not be saved, and the line can be dismissed', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  store.getState().ready();
+  expect(render(store, <Match />)).not.toContain(T.ui.saveFailed);
+  store.setState({ notice: 'saveFailed' });
+  const html = render(store, <Match />);
+  expect(html).toContain(T.ui.saveFailed);
+  expect(html).toContain('data-testid="match-notice"');
+  expect(html).toContain('data-testid="dismiss-notice"');
+  // Notices about other things wait for Home.
+  store.setState({ notice: 'saveUnreadable' });
+  expect(render(store, <Match />)).not.toContain(T.ui.saveUnreadable);
+});
+
+test('the curtain says when a save was repaired or an old match was dropped', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  expect(render(store, <Pass />)).not.toContain('data-testid="notice"');
+  store.setState({ notice: 'saveRepaired' });
+  let html = render(store, <Pass />);
+  expect(html).toContain(T.ui.saveRepaired); expect(html).toContain('data-testid="dismiss-notice"');
+  store.setState({ notice: 'saveDropped' });
+  html = render(store, <Pass />);
+  expect(html).toContain(T.ui.saveDropped);
+  expect(html).not.toContain('data-hex');
+});
+
+test('home says when an old unfinished match was removed', () => {
+  const { store } = fakeStore();
+  store.setState({ notice: 'saveDropped' });
+  expect(render(store, <Home />)).toContain(T.ui.saveDropped);
+});
+
+test('the curtain button waits a moment, like End turn', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  expect(render(store, <Pass />)).toMatch(/<button[^>]*disabled=""[^>]*data-testid="ready"|<button[^>]*data-testid="ready"[^>]*disabled=""/);
+});
+
+test('the result plays the win once, and only for a match that has just been won', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  store.getState().ready();
+  store.getState().run({ type: 'resign' });
+  expect(resultSound(store.getState().last)).toBe('win');
+  expect(resultSound(null)).toBeNull();
+  expect(resultSound({ seq: 1, events: [{ type: 'moved', unit: 1, from: '0,0', to: '1,0' }], before: store.getState().state! })).toBeNull();
+});
+
+test('the camera aims at the focus once a turn, so moving the focus unit keeps the pan and zoom', () => {
+  const start = turnFocus(null, '1:0', '0,0');
+  expect(start).toEqual({ key: '1:0', focus: '0,0' });
+  // The lowest-id unit (the focus of a player with no capital) moved: same turn, same focus object.
+  expect(turnFocus(start, '1:0', '1,0')).toBe(start);
+  expect(turnFocus(start, '2:0', '1,0')).toEqual({ key: '2:0', focus: '1,0' });
 });
