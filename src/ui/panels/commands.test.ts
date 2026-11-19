@@ -1,0 +1,87 @@
+import { expect, test } from 'vitest';
+import { applyAction, createMatch, legalActions, playerView, techPrice } from '../../engine';
+import type { MatchState } from '../../engine';
+import { addCity, addUnit, blankMatch, give, must } from '../../engine/testkit';
+import { indexActions } from '../interaction';
+import type { Selection } from '../interaction';
+import { T } from '../text';
+import { cityCommands, techRows, tileCommands, unitCommands } from './commands';
+import type { Command } from './commands';
+
+const open = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
+const ixOf = (s: MatchState) => indexActions(legalActions(s));
+const byId = (cs: Command[]) => Object.fromEntries(cs.map(c => [c.id, c]));
+const unitSel = (id: number, o: Partial<Extract<Selection, { kind: 'unit' }>> = {}): Extract<Selection, { kind: 'unit' }> => ({ kind: 'unit', id, armed: null, askLure: null, ...o });
+const seeAll = (s: MatchState) => { for (const p of s.players) p.explored = Object.keys(s.tiles).sort(); return s; };
+
+test('the opening city offers what Spartans can ever train, and says why not yet', () => {
+  const c = byId(cityCommands(0, open, ixOf(open)));
+  expect(Object.keys(c).sort()).toEqual(['train-archer', 'train-catapult', 'train-defender', 'train-hoplite', 'train-horseman', 'train-knight', 'train-scout', 'train-spearman', 'train-swordsman', 'train-warrior']);
+  expect(c['train-warrior']).toMatchObject({ enabled: false, cost: 2, why: T.reason['city tile is occupied'] });
+  expect(c['train-horseman']).toMatchObject({ enabled: false, why: `Needs ${T.tech.riding}` });
+});
+test('once the tile is free a warrior can be trained', () => {
+  const moved = must(applyAction(open, { type: 'move', unit: 0, to: '-1,4' }));
+  const c = byId(cityCommands(0, moved, ixOf(moved)));
+  expect(c['train-warrior']).toMatchObject({ enabled: true, why: null, action: { type: 'train', city: 0, unitType: 'warrior' } });
+});
+test('tile commands: legal ones, blocked ones with a reason, and nothing irrelevant', () => {
+  expect(byId(tileCommands('-2,4', open, ixOf(open)))['build-mine']).toMatchObject({ enabled: true, cost: 5, action: { type: 'build', at: '-2,4', building: 'mine' } });
+  const s42 = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
+  expect(tileCommands('-1,5', s42, ixOf(s42))).toEqual([expect.objectContaining({ id: 'harvest', enabled: false, why: `Needs ${T.tech.foraging}` })]);
+  expect(tileCommands('-1,4', s42, ixOf(s42))).toEqual([expect.objectContaining({ id: 'build-market', enabled: false, why: `Needs ${T.tech.markets}` })]);
+  expect(tileCommands('-2,3', s42, ixOf(s42))).toEqual([]);
+});
+test('walls: hidden for Spartans, disabled for Mongols without Shieldwork, a reward pair when one is pending', () => {
+  expect(cityCommands(0, open, ixOf(open)).some(c => c.id === 'walls')).toBe(false);
+  const m = createMatch({ seed: 7, factions: ['mongols', 'spartans'] });
+  expect(byId(cityCommands(0, m, ixOf(m)))['walls']).toMatchObject({ enabled: false, cost: 6, why: `Needs ${T.tech.shieldwork}` });
+  const r = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
+  r.cities[0]!.pendingRewards = [2];
+  const c = byId(cityCommands(0, r, ixOf(r)));
+  expect(c['reward-0']).toMatchObject({ label: T.reward.gold.name, action: { type: 'chooseReward', city: 0, choice: 0 } });
+  expect(c['reward-1']).toMatchObject({ label: T.reward.scout.name, action: { type: 'chooseReward', city: 0, choice: 1 } });
+});
+test('tech rows', () => {
+  const rows = techRows(open, ixOf(open));
+  expect(rows).toHaveLength(12);
+  const st = Object.fromEntries(rows.map(r => [r.tech, r.status]));
+  expect(st).toMatchObject({ bronze: 'owned', foraging: 'ready', riding: 'ready', hunting: 'ready', shieldwork: 'ready', farming: 'locked', smithing: 'locked' });
+  expect(rows.find(r => r.tech === 'foraging')!.price).toBe(techPrice(open, 0, 'foraging'));
+  expect(rows.map(r => r.branch)).toEqual([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3]);
+});
+test('unit commands: abilities arm, a camp lists what it can train, a lure asks, a capture is offered', () => {
+  const ps = seeAll(blankMatch());
+  addCity(ps, 0, 0, 3); addCity(ps, 1, 0, -3);
+  const piper = addUnit(ps, 'piper', 0, 0, 0); addUnit(ps, 'hoplite', 0, 1, 0, { hp: 7 }); addUnit(ps, 'warrior', 1, -1, 0);
+  const pix = ixOf(ps);
+  const pc = unitCommands(unitSel(piper.id), ps, pix);
+  expect(pc.map(c => c.id)).toEqual(['ability-heal', 'ability-taunt']);
+  expect(pc.every(c => c.arm !== null && c.action === null)).toBe(true);
+  const armed = byId(unitCommands(unitSel(piper.id, { armed: { kind: 'ability', ability: 'heal' } }), ps, pix));
+  expect(armed['ability-heal']!.label).toBe(T.ui.cancel);
+  expect(armed['ability-taunt']!.label).toBe(T.ability.taunt.name);
+
+  const cs = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
+  addCity(cs, 0, 0, 3); addCity(cs, 1, 0, -3); give(cs, 0, 'riding', 'roads');
+  const camp = addUnit(cs, 'camp', 0, 0, 0);
+  cs.tiles['2,0']!.village = true; const taker = addUnit(cs, 'warrior', 0, 2, 0);
+  const cix = ixOf(cs);
+  const cc = unitCommands(unitSel(camp.id), cs, cix);
+  expect(cc.every(c => c.id.startsWith('camp-'))).toBe(true);
+  expect(byId(cc)['camp-warrior']).toMatchObject({ cost: 2, arm: { kind: 'campTrain', unitType: 'warrior' } });
+  expect(unitCommands(unitSel(taker.id), cs, cix)).toEqual([expect.objectContaining({ id: 'capture', action: { type: 'capture', unit: taker.id } })]);
+
+  const ls = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
+  addCity(ls, 0, 0, 3); addCity(ls, 1, 0, -3);
+  const rider = addUnit(ls, 'horseArcher', 0, 0, 0); addUnit(ls, 'warrior', 1, 1, 0);
+  const lc = unitCommands(unitSel(rider.id, { askLure: '1,0' }), ls, ixOf(ls));
+  expect(lc.map(c => c.id)).toEqual(['attack', 'attack-lure']);
+  expect(lc[0]!.action).toEqual({ type: 'attack', unit: rider.id, target: '1,0' });
+  expect(lc[1]!.action).toEqual({ type: 'attack', unit: rider.id, target: '1,0', lure: true });
+
+  const es = seeAll(blankMatch()); addCity(es, 0, 0, 3); addCity(es, 1, 0, -3);
+  addUnit(es, 'warrior', 0, 0, 0); const foe = addUnit(es, 'warrior', 1, 1, -1);
+  expect(playerView(es, 0).units.some(u => u.id === foe.id)).toBe(true);
+  expect(unitCommands(unitSel(foe.id), es, ixOf(es))).toEqual([]);
+});

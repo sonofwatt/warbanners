@@ -7,3 +7,21 @@ body {
   min-height: 100dvh;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+
+button {
+  min-width: 44px;
+  min-height: 44px;
+  font: inherit;
+}
+
+.commands { display: flex; flex-direction: column; gap: 8px; }
+.command { display: flex; flex-direction: column; }
+.command button { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.cost { opacity: 0.8; }
+.why { opacity: 0.7; }
+.chip { display: inline-block; width: 16px; height: 16px; border-radius: 50%; margin-right: 6px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e33; margin-left: 6px; }
+.panel dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
+.panel dd { margin: 0; }
+.tech.locked { opacity: 0.5; }
+.tech.owned { opacity: 0.8; }

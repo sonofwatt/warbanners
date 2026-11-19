@@ -1,0 +1,159 @@
+// Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
+import { CONFIG, UNITS } from '../engine';
+import type {
+  AbilityId, BuildingId, FactionId, Resource, RewardId, TechId, Terrain, Trait, UnitTypeId,
+} from '../engine';
+import type { DigestLine } from '../app/digest';
+
+type Entry = { name: string; blurb: string };
+
+const unit: Record<UnitTypeId, Entry> = {
+  warrior: { name: 'Warrior', blurb: 'A cheap foot soldier with no special talents.' },
+  spearman: { name: 'Spearman', blurb: 'A foot soldier who strikes back harder when attacked.' },
+  swordsman: { name: 'Swordsman', blurb: 'A sturdy fighter who can attack twice each turn.' },
+  defender: { name: 'Defender', blurb: 'A shield-bearer with a very high defence and a weak attack.' },
+  archer: { name: 'Archer', blurb: 'Shoots enemies up to two tiles away and sees two tiles around.' },
+  horseman: { name: 'Horseman', blurb: 'A fast rider who keeps their remaining movement after attacking.' },
+  knight: { name: 'Knight', blurb: 'A strong, fast rider who gets another attack after every kill.' },
+  catapult: { name: 'Catapult', blurb: 'Throws rocks three tiles, hurting the target and the units beside it, but cannot attack after moving.' },
+  hoplite: { name: 'Hoplite', blurb: 'A Spartan spear fighter whose defence grows with every other Hoplite beside it.' },
+  kingsGuard: { name: "King's Guard", blurb: 'The Spartan champion, a mighty fighter whose attack does not weaken as it is hurt.' },
+  piper: { name: 'Piper', blurb: 'A Spartan helper who heals friends, taunts enemies and cannot be lured away from friends beside them.' },
+  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees far and is seen by enemies only from the next tile.' },
+  horseArcher: { name: 'Horse Archer', blurb: 'A Mongol rider who shoots two tiles away and keeps moving after attacking.' },
+  khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
+  skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },
+  camp: { name: 'Camp', blurb: 'A Mongol camp that cannot attack but can train one unit each turn onto a free tile beside it.' },
+};
+
+const trait: Record<Trait, Entry> = {
+  steadfast: { name: 'Steadfast', blurb: 'Strikes back harder than usual when attacked.' },
+  doubleStrike: { name: 'Double strike', blurb: 'Can attack twice each turn.' },
+  retreat: { name: 'Retreat', blurb: 'Keeps its remaining movement after attacking.' },
+  chain: { name: 'Chain', blurb: 'Gets one more attack this turn for every kill.' },
+  splash: { name: 'Splash', blurb: 'Enemy units beside the target take half the damage the target takes.' },
+  siege: { name: 'Siege', blurb: 'Cannot attack after moving or move after attacking, and never strikes back.' },
+  mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders.' },
+  phalanx: { name: 'Phalanx', blurb: 'Gains 1 defence for each friendly Hoplite beside it, up to 2.' },
+  unbowed: { name: 'Unbowed', blurb: 'Its attack is not weakened by lost health.' },
+  hidden: { name: 'Hidden', blurb: 'Enemies see it only from the tile next to it.' },
+  steady: { name: 'Steady', blurb: 'Friendly units beside it cannot be lured away.' },
+  inspire: { name: 'Inspire', blurb: 'Friendly riders beside it have 1 more attack.' },
+  camp: { name: 'Camp', blurb: 'Cannot attack, but can train units.' },
+  heal: { name: 'Heal', blurb: 'Can heal a hurt friendly unit beside it.' },
+  taunt: { name: 'Taunt', blurb: 'Can force an enemy within 2 tiles to attack only Hoplites in its reach.' },
+  hasten: { name: 'Hasten', blurb: 'Can give a friendly rider beside it one extra tile of movement.' },
+  dustStorm: { name: 'Dust storm', blurb: 'Can blind enemies near a tile within 2, so they see nothing and attack only from next door.' },
+};
+
+const ability: Record<AbilityId, Entry> = {
+  heal: { name: 'Heal', blurb: `Restores ${CONFIG.abilityHeal} health to a hurt friendly unit beside it.` },
+  taunt: { name: 'Taunt', blurb: 'Forces an enemy within 2 tiles to attack only Hoplites in its reach until its owner next turn ends.' },
+  hasten: { name: 'Hasten', blurb: 'Gives a friendly rider beside it one extra tile of movement this turn.' },
+  dustStorm: { name: 'Dust storm', blurb: 'Blinds the enemies on and around a tile within 2 until their owner next turn ends.' },
+};
+
+const reward: Record<RewardId, Entry> = {
+  gold: { name: 'Gold', blurb: `Take ${CONFIG.rewardGold} gold now.` },
+  scout: { name: 'Scouting', blurb: `Explore every tile within ${CONFIG.rewardScoutRadius} of this city.` },
+  borders: { name: 'Wider borders', blurb: `This city's territory grows to ${CONFIG.rewardBorderRadius} tiles around it.` },
+  barracks: { name: 'Barracks', blurb: `This city can support ${CONFIG.rewardCapacity} more units.` },
+  income: { name: 'Income', blurb: `This city earns ${CONFIG.rewardIncome} more gold every turn.` },
+  growth: { name: 'Growth', blurb: `This city gains ${CONFIG.rewardGrowth} growth points now.` },
+  champion: { name: 'Champion', blurb: "Your faction's champion unit appears in this city." },
+  support: { name: 'Support', blurb: "Your faction's support unit appears in this city." },
+};
+
+const tech: Record<TechId, string> = {
+  foraging: 'Foraging', farming: 'Farming', markets: 'Markets', riding: 'Riding', roads: 'Roads', chivalry: 'Chivalry',
+  hunting: 'Hunting', forestry: 'Forestry', engineering: 'Engineering', bronze: 'Bronze', shieldwork: 'Shieldwork', smithing: 'Smithing',
+};
+const building: Record<BuildingId, string> = { farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market' };
+const resource: Record<Resource, string> = { orchard: 'Orchard', cropland: 'Cropland', game: 'Game', ore: 'Ore' };
+const terrain: Record<Terrain, string> = { field: 'Field', forest: 'Forest', mountain: 'Mountain', water: 'Water' };
+const faction: Record<FactionId, string> = { spartans: 'Spartans', mongols: 'Mongols' };
+
+const reason: Record<string, string> = {
+  'not enough gold': 'Not enough gold',
+  'missing tech': 'You have not researched what this needs',
+  'city is at capacity': 'This city cannot support another unit',
+  'city tile is occupied': 'A unit is standing on the city',
+  'cannot train that': 'Your people cannot train that',
+  'not your territory': 'Not in your territory',
+  'nothing to harvest': 'Nothing here to harvest',
+  'already built': 'Something is already built here',
+  'wrong tile': 'This does not fit on this tile',
+  'city already has a market': 'This city already has a market',
+  'already a road': 'There is already a road here',
+  'cannot build a road there': 'A road cannot go there',
+  'already walled': 'This city already has walls',
+  'your faction cannot build walls': 'Your people do not build walls',
+  'no city has room': 'No city has room for another unit',
+  'not your city': 'This is not your city',
+  'no reward pending': 'No reward is waiting',
+  'tile is not free': 'That tile is not free',
+  'tile is not next to the camp': 'That tile is not next to the camp',
+  'camp was trained this turn': 'The camp is too new to train',
+  'camp already used this turn': 'The camp has already acted this turn',
+};
+
+const ui = {
+  appName: 'Banners', rulesWord: 'rules',
+  walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture',
+  attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
+  turn: 'Turn', endTurn: 'End turn', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'income',
+  unitsCanAct: '{n} units can still act', oneUnitCanAct: '1 unit can still act', noUnitsCanAct: 'No units can still act',
+  health: 'Health', attackStat: 'Attack', defence: 'Defence', movement: 'Movement', range: 'Range', traits: 'Traits',
+  level: 'Level', growth: 'Growth', unitsHeld: 'Units', walled: 'Walled', notWalled: 'No walls', yes: 'Yes', no: 'No',
+  terrain: 'Terrain', resourceWord: 'Resource', buildingWord: 'Building', roadWord: 'Road', none: 'None',
+  statusOwned: 'Known', statusReady: 'Ready', statusCostly: 'Too costly now', statusLocked: 'Locked',
+  research: 'Research', unlocks: 'Opens', close: 'Close', later: 'Later', chooseReward: 'Choose a reward',
+  soundOn: 'Sound on', soundOff: 'Sound off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
+  home: 'Back to home', andMore: 'and {n} more',
+  digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
+  digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',
+  digestCity: 'You lost a city.',
+  offlineReady: 'Ready to play offline.',
+  updateReady: 'A new version is ready.',
+  saveFailed: 'This match could not be saved. Free some space on your phone.',
+  saveRepaired: 'A damaged save was repaired from the last good copy.',
+  saveUnreadable: 'A saved match could not be read.',
+  saveOldVersion: 'A saved match was made with older rules and cannot be continued.',
+  oldVersion: 'This match was made with older rules. You can look at it but not continue it.',
+} as const;
+
+export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui } as {
+  unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; ability: Record<AbilityId, Entry>;
+  reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
+  resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
+  reason: Record<string, string>; ui: typeof ui;
+};
+
+export function fill(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => String(values[k] ?? m));
+}
+
+export function reasonText(why: string): string {
+  return T.reason[why] ?? (why.charAt(0).toUpperCase() + why.slice(1));
+}
+
+// Names of what a tech opens, read from the unit table and the config.
+export function unlocks(id: TechId): string[] {
+  const out: string[] = [];
+  for (const [type, def] of Object.entries(UNITS)) if (def.tech === id) out.push(T.unit[type as UnitTypeId].name);
+  for (const [b, rule] of Object.entries(CONFIG.buildings)) if (rule.tech === id) out.push(T.building[b as BuildingId]);
+  for (const [res, rule] of Object.entries(CONFIG.harvest)) {
+    if (rule.tech === id) out.push(`${T.ui.harvest} ${T.resource[res as Resource].toLowerCase()}`);
+  }
+  if (CONFIG.walls.tech === id) out.push(T.ui.walls);
+  if (CONFIG.road.tech === id) out.push(T.ui.road);
+  return out;
+}
+
+export function digestText(line: DigestLine): string {
+  if (line.kind === 'cityLost') return T.ui.digestCity;
+  const name = T.unit[line.unitType].name;
+  const by = line.by === null ? null : T.unit[line.by].name;
+  if (line.kind === 'unitLost') return by === null ? fill(T.ui.digestLost, { unit: name }) : fill(T.ui.digestLostBy, { unit: name, by });
+  return by === null ? fill(T.ui.digestHurt, { unit: name, n: line.damage }) : fill(T.ui.digestHurtBy, { unit: name, n: line.damage, by });
+}
