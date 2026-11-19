@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="A crimson banner on a pole, standing on a grass hex tile">
+  <rect id="tile" width="512" height="512" fill="#7CC8EE"/>
+  <g transform="translate(256 256) scale(0.9) translate(-256 -289.5)">
+  <!-- thick hex tile: two side walls and a front wall under the top face -->
+  <polygon points="66,380 151,465 151,525 66,440" fill="#86B957"/>
+  <polygon points="151,465 361,465 361,525 151,525" fill="#74A54A"/>
+  <polygon points="361,465 446,380 446,440 361,525" fill="#5F8A3A"/>
+  <polygon points="66,380 151,295 361,295 446,380 361,465 151,465" fill="#A9D975"/>
+  <ellipse cx="256" cy="392" rx="62" ry="20" fill="#86B957"/>
+  <!-- pole -->
+  <rect x="244" y="86" width="22" height="316" rx="6" fill="#C8963E"/>
+  <circle cx="255" cy="76" r="22" fill="#C8963E"/>
+  <!-- banner with a swallowtail and a darker underside -->
+  <polygon points="266,104 432,104 384,168 432,232 266,232" fill="#B3261E"/>
+  <polygon points="266,196 410,196 384,232 266,232" fill="#8E1D17"/>
+  <circle cx="330" cy="150" r="26" fill="#C8963E"/>
+  </g>
+</svg>

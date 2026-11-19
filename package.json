@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "sim": "tsx scripts/sim.ts",
-    "icons": "tsx scripts/icons.ts"
+    "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@types/node": "^24",

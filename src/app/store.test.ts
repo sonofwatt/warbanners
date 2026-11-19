@@ -3,6 +3,7 @@ import { hashState } from '../engine';
 import { NONE } from '../ui/interaction';
 import { browserDeps, createAppStore } from './store';
 import type { Deps, Setup } from './store';
+import type { Updater } from './update';
 import { restore } from './record';
 import { listSaves, readSave } from './saves';
 import type { KeyValue } from './saves';
@@ -104,4 +105,13 @@ test('browserDeps works without a DOM and keeps nothing', () => {
   d.kv.setItem('a', 'b'); expect(d.kv.getItem('a')).toBeNull(); d.kv.removeItem('a');
   expect(Number.isInteger(d.newSeed())).toBe(true); expect(d.newId()).not.toBe(d.newId());
   expect(createAppStore(d).getState().screen).toBe('home');
+});
+test('a new build is applied from home and never during a match', () => {
+  let applied = 0; const updater: Updater = { apply: async () => { applied++; }, check: () => {} };
+  const { get } = started({ updater });
+  get().setUpdate({ offlineReady: true, updateReady: true });
+  get().applyUpdate(); expect(applied).toBe(0);            // behind the curtain
+  get().ready(); get().applyUpdate(); expect(applied).toBe(0);   // in the match
+  get().run({ type: 'resign' }); get().applyUpdate(); expect(applied).toBe(0);   // on the result
+  get().goHome(); get().applyUpdate(); expect(applied).toBe(1);
 });

@@ -10,8 +10,9 @@ import { append, newRecord, restore } from './record';
 import type { MatchRecord } from './record';
 import { deleteSave, listSaves, readSave, writeSave } from './saves';
 import type { KeyValue, SaveSummary } from './saves';
+import type { UpdateState, Updater } from './update';
 
-export interface Deps { kv: KeyValue; now(): number; newSeed(): number; newId(): string }
+export interface Deps { kv: KeyValue; now(): number; newSeed(): number; newId(): string; updater?: Updater }
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId] }
 export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result';
 export type Notice = 'saveFailed' | 'saveRepaired' | 'saveUnreadable' | 'saveOldVersion';
@@ -25,9 +26,11 @@ export interface AppState {
   digest: DigestLine[];
   notice: Notice | null;
   saves: SaveSummary[];
+  update: UpdateState;              // what the service worker has reported
   openSetup(): void; startMatch(setup: Setup): void; resume(id: string): void; removeSave(id: string): void;
   ready(): void;                    // the player named on the curtain now has the phone
   tap(hit: Hit): void; run(action: Action): void; arm(armed: Armed | null): void; select(sel: Selection): void;
+  setUpdate(s: UpdateState): void; applyUpdate(): void;   // a new build is applied only from home
   goHome(): void; dismissNotice(): void; dismissDigest(): void;
 }
 
@@ -71,7 +74,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
 
     return {
       screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [],
-      notice: null, saves: listSaves(kv),
+      notice: null, saves: listSaves(kv), update: { offlineReady: false, updateReady: false },
 
       openSetup: () => set({ screen: 'setup' }),
 
@@ -127,6 +130,9 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         turnLog = [];
         set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
       },
+
+      setUpdate: update => set({ update }),
+      applyUpdate: () => { if (get().screen === 'home' && get().update.updateReady) void deps.updater?.apply(); },
 
       dismissNotice: () => set({ notice: null }),
       dismissDigest: () => set({ digest: [] }),
