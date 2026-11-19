@@ -124,14 +124,15 @@ export function Match(): ReactElement | null {
     const city = view.cities.find((c) => c.id === selection.id);
     if (city !== undefined) {
       const mine = city.owner === viewer;
+      const owner = state.players[city.owner]!.faction;
       panel = mine ? (
         <CityPanel
-          level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
+          faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
           units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)}
           walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
       ) : (
-        <CityPanel level={city.level} capital={city.capital} walls={city.walls} commands={[]} onCommand={onCommand} />
+        <CityPanel faction={owner} level={city.level} capital={city.capital} walls={city.walls} commands={[]} onCommand={onCommand} />
       );
     }
   } else if (selection.kind === 'tile') {
@@ -178,7 +179,7 @@ export function Match(): ReactElement | null {
       {digest.length > 0 ? (
         <div className="overlay" data-testid="digest">
           <DigestCard lines={digest} />
-          <button type="button" data-testid="digest-ok" onClick={dismissDigest}>{T.ui.gotIt}</button>
+          <button type="button" className="primary" data-testid="digest-ok" onClick={dismissDigest}>{T.ui.gotIt}</button>
         </div>
       ) : null}
       {rewardCity !== undefined ? (

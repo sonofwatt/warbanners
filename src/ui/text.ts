@@ -133,6 +133,10 @@ const ui = {
   turnOf: "{name}'s turn", passTo: 'Pass the phone to {name}', imName: "I'm {name}",
   wins: '{name} wins', endedOn: 'The match ended on turn {n}.',
   byResignation: 'The other player resigned.', byLastCity: 'The last city was taken.', homeButton: 'Home',
+  tagline: 'Two rival peoples, one phone, a board of little hills.',
+  installHint: 'Keep {name} on your home screen.',
+  movesFirst: 'Moves first',
+  digestTitle: 'While you were away',
 } as const;
 
 export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui } as {

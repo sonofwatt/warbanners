@@ -3,7 +3,10 @@ import type { ReactElement } from 'react';
 import { installAdvice } from '../../app/platform';
 import type { SaveSummary } from '../../app/saves';
 import { useApp } from '../../app/useApp';
+import { ACCENT, playerColour } from '../art/palette';
+import { BannerMark, BannerTile, InfoIcon } from '../icons';
 import { T, fill } from '../text';
+import { HomeScene } from './HomeScene';
 
 export interface HomeProps {
   // Wired by main.tsx; Home asks for a check each time it appears and offers the saved install prompt.
@@ -19,21 +22,27 @@ function SaveRow({ save }: { save: SaveSummary }): ReactElement {
   const names = save.current === 0 ? a : b;
   return (
     <li className="save" data-testid="save">
-      <p className="save-names">{fill(T.ui.versusLine, { a, fa: T.faction[fa], b, fb: T.faction[fb] })}</p>
-      <p className="save-turn">{save.over ? '' : fill(T.ui.turnLine, { n: save.round, name: names })}</p>
-      {!save.resumable ? <p className="save-old">{T.ui.fromOlder}</p> : null}
+      <div className="save-banners" aria-hidden="true">
+        <BannerMark colour={playerColour(fa)} accent={ACCENT[fa]} />
+        <BannerMark colour={playerColour(fb)} accent={ACCENT[fb]} />
+      </div>
+      <div className="save-text">
+        <p className="save-names">{fill(T.ui.versusLine, { a, fa: T.faction[fa], b, fb: T.faction[fb] })}</p>
+        {save.over ? null : <p className="save-turn">{fill(T.ui.turnLine, { n: save.round, name: names })}</p>}
+        {!save.resumable ? <p className="save-old">{T.ui.fromOlder}</p> : null}
+      </div>
       <div className="save-buttons">
         {save.resumable ? (
-          <button type="button" data-testid="continue" onClick={() => resume(save.id)}>{save.over ? T.ui.seeResult : T.ui.continueButton}</button>
+          <button type="button" className="primary" data-testid="continue" onClick={() => resume(save.id)}>{save.over ? T.ui.seeResult : T.ui.continueButton}</button>
         ) : null}
         {asking ? (
           <span className="confirm">
             <span>{T.ui.deleteAsk}</span>
-            <button type="button" data-testid="delete-yes" onClick={() => removeSave(save.id)}>{T.ui.deleteYes}</button>
+            <button type="button" className="danger" data-testid="delete-yes" onClick={() => removeSave(save.id)}>{T.ui.deleteYes}</button>
             <button type="button" data-testid="delete-no" onClick={() => setAsking(false)}>{T.ui.deleteNo}</button>
           </span>
         ) : (
-          <button type="button" data-testid="delete" onClick={() => setAsking(true)}>{T.ui.deleteButton}</button>
+          <button type="button" className="quiet danger-text" data-testid="delete" onClick={() => setAsking(true)}>{T.ui.deleteButton}</button>
         )}
       </div>
     </li>
@@ -54,28 +63,37 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
   const sorted = [...saves].sort((x, y) => y.updatedAt - x.updatedAt);
   return (
     <div className="screen home">
-      <h1>{T.ui.appName}</h1>
+      <header className="home-hero">
+        <BannerTile colour={playerColour('spartans')} accent={ACCENT.spartans} />
+        <div>
+          <h1>{T.ui.appName}</h1>
+          <p className="tagline">{T.ui.tagline}</p>
+        </div>
+      </header>
       {notice !== null ? (
         <p className="notice" data-testid="notice" role="status">
+          <InfoIcon />
           <span>{T.ui[notice]}</span>
-          <button type="button" data-testid="dismiss-notice" onClick={dismissNotice}>{T.ui.dismiss}</button>
+          <button type="button" className="quiet" data-testid="dismiss-notice" onClick={dismissNotice}>{T.ui.dismiss}</button>
         </p>
       ) : null}
-      <button type="button" className="primary" data-testid="new-match" onClick={openSetup}>{T.ui.newMatch}</button>
+      <button type="button" className="primary big" data-testid="new-match" onClick={openSetup}>{T.ui.newMatch}</button>
       <h2>{T.ui.savedMatches}</h2>
-      {sorted.length === 0 ? <p className="muted">{T.ui.noSaves}</p> : <ul className="saves">{sorted.map((s) => <SaveRow key={s.id} save={s} />)}</ul>}
+      {sorted.length === 0 ? <p className="empty">{T.ui.noSaves}</p> : <ul className="saves">{sorted.map((s) => <SaveRow key={s.id} save={s} />)}</ul>}
+      <HomeScene />
       <div className="home-status">
         {update.updateReady ? (
-          <p data-testid="update-ready">
+          <p className="notice" data-testid="update-ready">
+            <InfoIcon />
             <span>{T.ui.updateReady}</span>
-            <button type="button" data-testid="update" onClick={applyUpdate}>{T.ui.updateButton}</button>
+            <button type="button" className="primary" data-testid="update" onClick={applyUpdate}>{T.ui.updateButton}</button>
           </p>
         ) : null}
-        {update.offlineReady ? <p data-testid="offline-ready" className="muted">{T.ui.offlineReady}</p> : null}
+        {update.offlineReady ? <p data-testid="offline-ready" className="hint">{T.ui.offlineReady}</p> : null}
         {advice === 'prompt' ? (
-          <p data-testid="install"><button type="button" onClick={install?.prompt}>{T.ui.installButton}</button></p>
+          <p className="notice" data-testid="install"><InfoIcon /><span>{fill(T.ui.installHint, { name: T.ui.appName })}</span><button type="button" onClick={install?.prompt}>{T.ui.installButton}</button></p>
         ) : null}
-        {advice === 'iosShare' ? <p data-testid="install-ios" className="muted">{T.ui.installIphone}</p> : null}
+        {advice === 'iosShare' ? <p data-testid="install-ios" className="hint">{T.ui.installIphone}</p> : null}
       </div>
     </div>
   );
