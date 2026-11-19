@@ -65,3 +65,8 @@ test('the digest card shows six lines and counts the rest', () => {
   const html = renderToStaticMarkup(<DigestCard lines={lines} />);
   expect(html.match(/<li>/g)).toHaveLength(6); expect(html).toContain('and 2 more');
 });
+test('a city panel without own-city figures shows only level and walls', () => {
+  const html = renderToStaticMarkup(<CityPanel level={3} walls commands={[]} onCommand={noop} />);
+  expect(html).toContain(`${T.ui.level}</dt><dd>3`); expect(html).toContain(T.ui.walls);
+  for (const word of [T.ui.growth, T.ui.unitsHeld, T.ui.incomeWord]) expect(html).not.toContain(word);
+});

@@ -85,7 +85,8 @@ h1, h2, p { overflow-wrap: anywhere; }
   .hud { grid-column: 1 / 3; }
   .board-slot { grid-column: 1; grid-row: 2; }
   .selection { grid-column: 2; grid-row: 2; max-height: none; border-top: 0; border-left: 1px solid rgba(0, 0, 0, 0.2); }
-  .screen.match > .sheet { left: auto; width: 300px; top: 0; max-height: none; border-radius: 12px 0 0 12px; }
+  /* The sheets take the side column under the Hud, so End turn is never covered. */
+  .screen.match > .sheet { position: static; grid-column: 2; grid-row: 2; width: auto; max-height: none; border-radius: 0; z-index: 3; }
 }
 
 .commands { display: flex; flex-direction: column; gap: 8px; }

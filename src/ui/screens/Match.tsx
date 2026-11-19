@@ -102,12 +102,14 @@ export function Match(): ReactElement | null {
     const city = view.cities.find((c) => c.id === selection.id);
     if (city !== undefined) {
       const mine = city.owner === viewer;
-      panel = (
+      panel = mine ? (
         <CityPanel
           level={city.level} growth={city.growth} growthNeeded={growthNeeded(state, city)}
           units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)}
-          walls={city.walls} commands={mine ? cityCommands(city.id, state, ix) : []} onCommand={onCommand}
+          walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
+      ) : (
+        <CityPanel level={city.level} walls={city.walls} commands={[]} onCommand={onCommand} />
       );
     }
   } else if (selection.kind === 'tile') {
