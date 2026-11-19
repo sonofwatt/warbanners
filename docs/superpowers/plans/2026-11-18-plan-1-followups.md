@@ -1,6 +1,6 @@
 # Plan 1 (rules engine): outcome and follow-ups
 
-Date: 2026-11-18. Branch `plan-1-rules-engine`, commits 771bd44..8dd209f.
+Date: 2026-11-18. Built on branch `plan-1-rules-engine`, now merged into `main` (commits a1cbebc..e622b91).
 
 ## Outcome
 
