@@ -29,7 +29,41 @@ test('the board draws every tile and visible unit, and no fog tile leaks terrain
   expect((html.match(/data-hex=/g) ?? []).length).toBe(127);
   expect((html.match(/data-unit=/g) ?? []).length).toBe(1);
   expect((html.match(/data-fog="true"/g) ?? []).length).toBe(127 - s.players[0]!.explored.length);
+  // Apart from where it is and an optional mark, a fog tile's markup is the same for every fog tile.
+  expectFogTilesAlike();
 });
+
+/** The balanced `<g ...>...</g>` element that starts at `from` in the markup. */
+function groupAt(html: string, from: number): string {
+  const tag = /<g[\s>]|<\/g>/g;
+  tag.lastIndex = from;
+  let depth = 0;
+  for (let m = tag.exec(html); m !== null; m = tag.exec(html)) {
+    depth += m[0] === '</g>' ? -1 : 1;
+    if (depth === 0) return html.slice(from, m.index + 4);
+  }
+  throw new Error('unbalanced markup');
+}
+
+/** Every fog tile is drawn the same as every other, whatever lies under it. */
+function expectFogTilesAlike(): void {
+  const fog = buildScene(input()).filter((it) => it.kind === 'tile' && it.fog).map((it) => (it.kind === 'tile' ? it.key : ''));
+  expect(fog.length).toBeGreaterThan(50);
+  // Marks on a few fog tiles, so the mark overlay is the one thing allowed to differ.
+  const html = draw({ marks: { [fog[0]!]: 'move', [fog[1]!]: 'attack' } });
+  const bare = (k: string): string => {
+    let g = groupAt(html, html.indexOf(`<g data-hex="${k}"`));
+    const mark = g.indexOf('<g data-mark=');
+    if (mark >= 0) g = g.slice(0, mark) + g.slice(mark + groupAt(g, mark).length);
+    return g
+      .replace(` data-hex="${k}"`, '')
+      .replace(` data-centre="${k}"`, '')
+      .replace(/^<g([^>]*?) transform="translate\([-\d.]+ [-\d.]+\)"/, '<g$1');
+  };
+  const first = bare(fog[0]!);
+  expect(first).toContain('data-fog="true"');
+  for (const k of fog) expect(bare(k), k).toBe(first);
+}
 
 test('every tile has a tap target at its centre, and the svg is touch-action none', () => {
   const html = draw();

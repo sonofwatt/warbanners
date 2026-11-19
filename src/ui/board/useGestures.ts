@@ -36,7 +36,11 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
     const down = (e: Event): void => {
       const p = e as PointerEvent;
       if (p.pointerType === 'mouse' && p.button !== 0) return;
-      el.setPointerCapture?.(p.pointerId);
+      try {
+        el.setPointerCapture?.(p.pointerId);
+      } catch {
+        // The pointer is no longer active (it lifted before this ran): there is nothing to capture.
+      }
       feed('down', p);
     };
     const move = (e: Event): void => feed('move', e as PointerEvent);
