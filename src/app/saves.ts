@@ -20,7 +20,7 @@ export interface SaveSummary {
   updatedAt: number;
 }
 
-export const MAX_SAVES = 5;
+export const MAX_SAVES = 20;
 const LIST_KEY = 'banners.saves.v1';
 const bodyKey = (id: string) => `banners.save.${id}`;
 
@@ -63,8 +63,20 @@ export function listSaves(kv: KeyValue): SaveSummary[] {
   }
 }
 
-// False when the phone refused; the previous list stays in place.
-export function writeSave(kv: KeyValue, rec: MatchRecord, state: MatchState): boolean {
+// What became of a write. `saved` is false when the phone refused, and then the previous list stays in place.
+// `droppedUnfinished` is true when making room cost an unfinished match, which the player is told about.
+export interface SaveOutcome { saved: boolean; droppedUnfinished: boolean }
+
+// Which others to drop so that they and the record being written fit in MAX_SAVES. The record being written is
+// never one of them. Finished matches go first, then unfinished ones, oldest first within each.
+function toDrop(others: readonly SaveSummary[]): SaveSummary[] {
+  const excess = others.length + 1 - MAX_SAVES;
+  if (excess <= 0) return [];
+  const oldestFirst = [...others].sort((a, b) => a.updatedAt - b.updatedAt);
+  return [...oldestFirst.filter(e => e.over), ...oldestFirst.filter(e => !e.over)].slice(0, excess);
+}
+
+export function writeSave(kv: KeyValue, rec: MatchRecord, state: MatchState): SaveOutcome {
   try {
     const summary: SaveSummary = {
       id: rec.id,
@@ -76,16 +88,17 @@ export function writeSave(kv: KeyValue, rec: MatchRecord, state: MatchState): bo
       resumable: true,
       updatedAt: rec.updatedAt,
     };
-    const list = [...readList(kv).filter(e => e.id !== rec.id), summary].sort(newestFirst);
-    const dropped = list.splice(MAX_SAVES);
+    const others = readList(kv).filter(e => e.id !== rec.id);
+    const dropped = toDrop(others);
+    const list = [...others.filter(e => !dropped.includes(e)), summary].sort(newestFirst);
     kv.setItem(bodyKey(rec.id), JSON.stringify(rec));
     kv.setItem(LIST_KEY, JSON.stringify(list));
     for (const d of dropped) {
       try { kv.removeItem(bodyKey(d.id)); } catch { /* the list no longer names it */ }
     }
-    return true;
+    return { saved: true, droppedUnfinished: dropped.some(d => !d.over) };
   } catch {
-    return false;
+    return { saved: false, droppedUnfinished: false };
   }
 }
 

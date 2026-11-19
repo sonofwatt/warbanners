@@ -7,6 +7,7 @@ import { ACCENT, playerColour } from '../art/palette';
 import { BannerMark, BannerTile, InfoIcon } from '../icons';
 import { T, fill } from '../text';
 import { HomeScene } from './HomeScene';
+import { NoticeLine } from './NoticeLine';
 
 export interface HomeProps {
   // Wired by main.tsx; Home asks for a check each time it appears and offers the saved install prompt.
@@ -70,13 +71,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
           <p className="tagline">{T.ui.tagline}</p>
         </div>
       </header>
-      {notice !== null ? (
-        <p className="notice" data-testid="notice" role="status">
-          <InfoIcon />
-          <span>{T.ui[notice]}</span>
-          <button type="button" className="quiet" data-testid="dismiss-notice" onClick={dismissNotice}>{T.ui.dismiss}</button>
-        </p>
-      ) : null}
+      {notice !== null ? <NoticeLine notice={notice} onDismiss={dismissNotice} /> : null}
       <button type="button" className="primary big" data-testid="new-match" onClick={openSetup}>{T.ui.newMatch}</button>
       <h2>{T.ui.savedMatches}</h2>
       {sorted.length === 0 ? <p className="empty">{T.ui.noSaves}</p> : <ul className="saves">{sorted.map((s) => <SaveRow key={s.id} save={s} />)}</ul>}

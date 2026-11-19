@@ -119,6 +119,7 @@ const ui = {
   installButton: 'Install', installIphone: 'Tap Share, then Add to Home Screen.',
   saveFailed: 'This match could not be saved. Free some space on your phone.',
   saveRepaired: 'A damaged save was repaired from the last good copy.',
+  saveDropped: 'Your oldest unfinished match was removed to make room for a new one.',
   saveUnreadable: 'A saved match could not be read.',
   saveOldVersion: 'A saved match was made with older rules and cannot be continued.',
   oldVersion: 'This match was made with older rules. You can look at it but not continue it.',

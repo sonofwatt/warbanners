@@ -148,7 +148,7 @@ input:focus { border-color: var(--blue); }
 .notice {
   display: flex; gap: var(--s2) var(--s3); align-items: center; flex-wrap: wrap;
   background: var(--paper); border-radius: var(--r); padding: var(--s2) var(--s2) var(--s2) var(--s3);
-  font-size: var(--t-ml); font-weight: 600; box-shadow: var(--lift);
+  font-size: var(--t-ml); font-weight: 600; box-shadow: var(--lift); color: var(--ink); text-align: left;
   --icon-cut: var(--paper);
 }
 .notice > .icon { color: var(--sea); width: 22px; height: 22px; }
@@ -294,6 +294,9 @@ input:focus { border-color: var(--blue); }
   .hud-who { min-width: 100px; }
 }
 
+/* A notice about saving floats over the top of the board, in the board's cell. */
+.match-notice { grid-row: 2; grid-column: 1; align-self: start; position: relative; z-index: 4; margin: var(--s2); min-width: 0; }
+.screen.pass .notice { width: min(100%, 420px); }
 .board-slot { grid-row: 2; grid-column: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; background: var(--sea); }
 
 /* The selection: a paper card rising from the sea under the board. */

@@ -90,6 +90,34 @@ test('when the phone refuses to save, play carries on and says so', () => {
   get().ready(); get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
   expect(get().record!.actions).toHaveLength(1);
 });
+test('a passing failure to save is cleared by the next save that works', () => {
+  const x = deps(); let refuse = true;
+  const kv: KeyValue = { ...x.d.kv, setItem: (k, v) => { if (refuse) throw new Error('QuotaExceededError'); x.d.kv.setItem(k, v); } };
+  const store = createAppStore({ ...x.d, kv }); const get = store.getState;
+  get().startMatch(SETUP); expect(get().notice).toBe('saveFailed');
+  get().ready(); get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
+  expect(get().notice).toBe('saveFailed');
+  refuse = false; get().run({ type: 'endTurn' });
+  expect(get().notice).toBeNull();
+  expect(listSaves(kv).map(s => s.id)).toEqual(['m1']);
+});
+test('a working save leaves other notices alone', () => {
+  const { get } = started(); get().ready();
+  get().dismissNotice(); expect(get().notice).toBeNull();
+  const store = started(); store.store.setState({ notice: 'saveRepaired' }); store.get().ready();
+  store.get().tap({ unit: 0, hex: '-2,5' }); store.get().tap({ unit: null, hex: '-1,4' });
+  expect(store.get().notice).toBe('saveRepaired');
+});
+test('starting a match when twenty unfinished ones are kept drops the oldest other one and says so', () => {
+  let id = 0; let at = 100;
+  const x = deps({ newId: () => `m${id++}`, now: () => at++ });
+  const store = createAppStore(x.d);
+  for (let i = 0; i < 20; i++) { store.getState().startMatch(SETUP); expect(store.getState().notice).toBeNull(); store.getState().goHome(); }
+  store.getState().startMatch(SETUP);
+  expect(store.getState().notice).toBe('saveDropped');
+  const ids = listSaves(x.d.kv).map(s => s.id);
+  expect(ids).toHaveLength(20); expect(ids).toContain('m20'); expect(ids).not.toContain('m0');
+});
 test('ready does nothing off the curtain, and a resumed game cannot act until ready', () => {
   const first = started(); first.get().ready(); first.get().run({ type: 'endTurn' });
   const again = createAppStore(first.d);

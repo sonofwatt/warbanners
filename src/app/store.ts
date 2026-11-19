@@ -15,7 +15,7 @@ import type { UpdateState, Updater } from './update';
 export interface Deps { kv: KeyValue; now(): number; newSeed(): number; newId(): string; updater?: Updater }
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId] }
 export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result';
-export type Notice = 'saveFailed' | 'saveRepaired' | 'saveUnreadable' | 'saveOldVersion';
+export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion';
 
 export interface AppState {
   screen: Screen;
@@ -61,7 +61,10 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       const patch: Partial<AppState> = {
         record: next, state: res.state, saves: listSaves(kv), last: { seq, events: res.events, before: state },
       };
-      if (!saved) patch.notice = 'saveFailed';
+      // A failure is reported at once; a later save that works makes the report out of date, so it goes.
+      if (!saved.saved) patch.notice = 'saveFailed';
+      else if (saved.droppedUnfinished) patch.notice = 'saveDropped';
+      else if (get().notice === 'saveFailed') patch.notice = null;
       if (res.state.winner !== null) {
         set({ ...patch, screen: 'result', viewer: null, selection: NONE });
       } else if (action.type === 'endTurn') {
@@ -84,7 +87,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         const base = newRecord(deps.newId(), settings, setup.names, deps.now());
         const fresh: MatchRecord = { ...base, snapshot: { count: 0, hash: hashState(state), state } };
         const saved = writeSave(kv, fresh, state);
-        openMatch(fresh, state, { notice: saved ? null : 'saveFailed' });
+        openMatch(fresh, state, { notice: !saved.saved ? 'saveFailed' : saved.droppedUnfinished ? 'saveDropped' : null });
       },
 
       resume: id => {
