@@ -22,6 +22,7 @@ export function Setup(): ReactElement {
   return (
     <div className="screen setup">
       <h1>{T.ui.setupTitle}</h1>
+      <div className="setup-names">
       <label>
         <span>{fill(T.ui.nameLabel, { n: 1 })}</span>
         <input data-testid="name-0" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerOne} value={first} onChange={(e) => setFirst(e.target.value)} />
@@ -30,11 +31,16 @@ export function Setup(): ReactElement {
         <span>{fill(T.ui.nameLabel, { n: 2 })}</span>
         <input data-testid="name-1" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={second} onChange={(e) => setSecond(e.target.value)} />
       </label>
-      <p data-testid="spartans-line">{fill(T.ui.spartansPlay, { name: spartanName })}</p>
-      <button type="button" data-testid="swap" onClick={() => setSwapped(!swapped)}>{T.ui.swapFactions}</button>
+      </div>
+      <div className="setup-row">
+        <p data-testid="spartans-line">{fill(T.ui.spartansPlay, { name: spartanName })}</p>
+        <button type="button" data-testid="swap" onClick={() => setSwapped(!swapped)}>{T.ui.swapFactions}</button>
+      </div>
       <p className="muted">{fill(T.ui.setupLine, { first: a, second: b, n: extra })}</p>
-      <button type="button" className="primary" data-testid="start" onClick={() => startMatch({ names: [a, b], factions })}>{T.ui.start}</button>
-      <button type="button" data-testid="setup-back" onClick={goHome}>{T.ui.home}</button>
+      <div className="setup-row">
+        <button type="button" className="primary" data-testid="start" onClick={() => startMatch({ names: [a, b], factions })}>{T.ui.start}</button>
+        <button type="button" data-testid="setup-back" onClick={goHome}>{T.ui.home}</button>
+      </div>
     </div>
   );
 }

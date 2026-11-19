@@ -12,6 +12,7 @@ export interface TilePanelProps {
 export function TilePanel(p: TilePanelProps): ReactElement {
   return (
     <section className="panel tile-panel">
+      <h2>{T.terrain[p.terrain]}</h2>
       <dl>
         <dt>{T.ui.terrain}</dt><dd>{T.terrain[p.terrain]}</dd>
         <dt>{T.ui.resourceWord}</dt><dd>{p.resource === null ? T.ui.none : T.resource[p.resource]}</dd>

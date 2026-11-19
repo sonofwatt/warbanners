@@ -4,7 +4,7 @@ import { CommandList } from './CommandList';
 import type { Command } from './commands';
 
 export interface CityPanelProps {
-  level: number; walls: boolean;
+  level: number; walls: boolean; capital?: boolean;
   // Only for the viewer's own city: an enemy city shows just what the board shows (level, walls).
   growth?: number; growthNeeded?: number; units?: number; capacity?: number; income?: number;
   commands: Command[]; onCommand: (c: Command) => void;
@@ -13,6 +13,7 @@ export interface CityPanelProps {
 export function CityPanel(p: CityPanelProps): ReactElement {
   return (
     <section className="panel city-panel">
+      <h2>{p.capital === true ? T.ui.capitalTitle : T.ui.cityTitle}</h2>
       <dl>
         <dt>{T.ui.level}</dt><dd>{p.level}</dd>
         {p.growth !== undefined && p.growthNeeded !== undefined ? <><dt>{T.ui.growth}</dt><dd>{`${p.growth}/${p.growthNeeded}`}</dd></> : null}

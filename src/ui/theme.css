@@ -39,6 +39,7 @@ h1, h2, p { overflow-wrap: anywhere; }
 }
 .screen h1 { margin: 0; }
 .screen h2 { margin: 8px 0 0; }
+.screen.result p { margin: 0; }
 .screen label { display: flex; flex-direction: column; gap: 4px; }
 .primary { background: var(--ink); color: #fff; border: 0; border-radius: 10px; padding: 0 16px; }
 .notice { background: var(--paper); border-radius: 10px; padding: 8px 12px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
@@ -54,39 +55,65 @@ h1, h2, p { overflow-wrap: anywhere; }
 
 /* The match fills the screen: Hud on top, the board in the middle, the selection below (portrait) or beside (landscape). */
 .screen.match {
-  position: relative; flex: 1; height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  /* A fixed height, not flex: 1, or a long side panel would stretch the app column past the screen. */
+  position: relative; flex: none; height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden;
   background: var(--sky);
 }
-.hud { grid-row: 1; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 6px 10px; background: var(--paper); }
+.hud { grid-row: 1; grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 6px 10px; background: var(--paper); }
 .hud-who, .hud-numbers, .hud-buttons, .hud-end { display: flex; gap: 8px; align-items: center; }
 .hud-end { margin-left: auto; }
 .hud-end small { max-width: 40vw; }
-.board-slot { grid-row: 2; position: relative; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
+.board-slot { grid-row: 2; grid-column: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; }
 .selection {
-  grid-row: 3; max-height: 40%; max-height: 40dvh; overflow-y: auto; background: var(--paper); padding: 8px 12px;
+  grid-row: 3; grid-column: 1; max-height: 40%; max-height: 40dvh; overflow-y: auto; background: var(--paper); padding: 8px 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.2);
 }
 .sheet, .overlay > .digest, .overlay > .sheet {
   background: var(--paper); border-radius: 12px 12px 0 0; padding: 12px; max-height: 80dvh; overflow-y: auto;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.25);
 }
-.screen.match > .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; max-height: 85%; }
+.menu h2 { margin: 0 0 4px; }
+/* Resign asks on its own line, then the two answers side by side. */
+.menu .confirm p { flex-basis: 100%; margin: 4px 0 0; font-weight: 600; }
+.menu .confirm button { flex: 1 1 0; }
+.setup-names, .setup-row { display: flex; flex-direction: column; gap: var(--gap); }
+.setup-row p { margin: 0; }
+/* A sheet rises from the bottom over the board but never over the Hud, however tall the Hud wraps. */
+.screen.match > .sheet { grid-column: 1; grid-row: 2 / 4; align-self: end; position: relative; z-index: 3; max-height: 100%; min-height: 0; }
 .overlay { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; justify-content: flex-end; background: rgba(0, 0, 0, 0.35); gap: 8px; }
 .overlay > .digest { margin: 0 8px; border-radius: 12px; }
 .overlay > button { margin: 0 8px 8px; }
 .digest ul { margin: 0; padding-left: 20px; }
-.tech-sheet .branch { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.tech-sheet li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.sheet-head h2 { margin: 0; }
+.tech-sheet .branch { list-style: none; margin: 0 0 12px; padding: 0 0 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid rgba(0, 0, 0, 0.12); }
+.tech-sheet .branch:last-child { border-bottom: 0; margin-bottom: 0; }
+.tech-sheet li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; }
+.tech-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.tech-info small { opacity: 0.75; }
 .menu { display: flex; flex-direction: column; gap: 8px; }
 .reward { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 
-@media (orientation: landscape) and (min-width: 600px) {
-  .screen.match { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); }
+/* Landscape from 560 wide (a 568 by 320 phone included): the side column, never narrower than 240. */
+@media (orientation: landscape) and (min-width: 560px) {
+  .screen.match { grid-template-columns: minmax(0, 1fr) clamp(240px, 40vw, 300px); grid-template-rows: auto minmax(0, 1fr); }
   .hud { grid-column: 1 / 3; }
   .board-slot { grid-column: 1; grid-row: 2; }
+  .screen.match:not(.has-side) > .board-slot { grid-column: 1 / 3; }
   .selection { grid-column: 2; grid-row: 2; max-height: none; border-top: 0; border-left: 1px solid rgba(0, 0, 0, 0.2); }
   /* The sheets take the side column under the Hud, so End turn is never covered. */
-  .screen.match > .sheet { position: static; grid-column: 2; grid-row: 2; width: auto; max-height: none; border-radius: 0; z-index: 3; }
+  .screen.match > .sheet { position: static; grid-column: 2; grid-row: 2; align-self: stretch; width: auto; max-height: none; border-radius: 0; z-index: 3; box-shadow: none; border-left: 1px solid rgba(0, 0, 0, 0.2); }
+  /* Short screens: the names sit side by side and the column tightens, so Setup fits without scrolling. */
+  .setup-names { flex-direction: row; }
+  .setup-names label { flex: 1; min-width: 0; }
+  .setup-row { flex-direction: row; align-items: center; }
+  .setup-row > * { flex: 1 1 0; min-width: 0; }
+  .screen:not(.match) { max-width: 640px; }
+}
+@media (max-height: 500px) {
+  .screen:not(.match) { gap: 8px; padding: 12px 16px; }
+  .screen:not(.match) h1 { font-size: 1.6em; }
 }
 
 .commands { display: flex; flex-direction: column; gap: 8px; }

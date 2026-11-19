@@ -9,15 +9,19 @@ export function TechSheet({ rows, onResearch, onClose }: { rows: TechRow[]; onRe
   const branches = [0, 1, 2, 3].map((b) => rows.filter((r) => r.branch === b));
   return (
     <section className="sheet tech-sheet">
-      <button type="button" data-testid="close-sheet" onClick={onClose}>{T.ui.close}</button>
+      <div className="sheet-head">
+        <h2>{T.ui.techTitle}</h2>
+        <button type="button" data-testid="close-sheet" onClick={onClose}>{T.ui.close}</button>
+      </div>
       {branches.map((branch, b) => (
         <ol className="branch" key={b}>
           {branch.map((r) => (
             <li key={r.tech} className={`tech ${r.status}`} data-testid={`tech-${r.tech}`}>
-              <strong>{T.tech[r.tech]}</strong>
-              <span>{`${r.price} ${T.ui.gold.toLowerCase()}`}</span>
-              <span>{STATUS[r.status]}</span>
-              <small>{`${T.ui.unlocks}: ${r.unlocks.join(', ')}`}</small>
+              <div className="tech-info">
+                <strong>{T.tech[r.tech]}</strong>
+                <span>{`${r.price} ${T.ui.gold.toLowerCase()}, ${STATUS[r.status].toLowerCase()}`}</span>
+                <small>{`${T.ui.unlocks}: ${r.unlocks.join(', ')}`}</small>
+              </div>
               {r.status === 'ready' ? <button type="button" data-testid={`research-${r.tech}`} onClick={() => onResearch(r.tech)}>{T.ui.research}</button> : null}
             </li>
           ))}

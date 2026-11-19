@@ -8,6 +8,7 @@ export function Menu(p: MenuProps): ReactElement {
   const [asking, setAsking] = useState(false);
   return (
     <section className="sheet menu">
+      <h2>{T.ui.menu}</h2>
       <button type="button" data-testid="toggle-sound" onClick={p.onToggleSound}>{p.soundOn ? T.ui.soundOn : T.ui.soundOff}</button>
       {asking ? (
         <div className="confirm">

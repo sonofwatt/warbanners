@@ -35,17 +35,16 @@ test('the curtain shows who is next and draws no board', () => {
   expect(html).not.toContain('data-unit');
 });
 
-test('the match screen draws the chrome for the viewer and no board', () => {
+test('the match screen draws the viewer\'s view only', () => {
   const { store } = fakeStore();
   store.getState().startMatch(SETUP);
   store.getState().ready();
   const html = render(store, <Match />);
+  expect(html.match(/data-hex=/g)?.length).toBe(127);
+  expect(html.match(/data-unit=/g)?.length).toBe(1);
   expect(html).toContain('data-testid="gold">8<');
   expect(html).toContain('Turn 1');
   expect(html).toContain('data-testid="end-turn"');
-  expect(html).toContain('data-testid="board-slot"');
-  expect(html).not.toContain('data-unit');
-  expect(html).not.toContain('data-hex');
 });
 
 test('while the curtain is up the app draws no Hud, no digest and no board slot', () => {
@@ -62,6 +61,8 @@ test('while the curtain is up the app draws no Hud, no digest and no board slot'
   expect(html).not.toContain('data-testid="end-turn"');
   expect(html).not.toContain('data-testid="gold"');
   expect(html).not.toContain('data-testid="board-slot"');
+  expect(html).not.toContain('data-hex');
+  expect(html).not.toContain('data-unit');
   expect(html).not.toContain(T.ui.digestCity);
 });
 

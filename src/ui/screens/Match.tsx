@@ -20,6 +20,8 @@ import { RewardSheet } from '../panels/RewardSheet';
 import { TechSheet } from '../panels/TechSheet';
 import { TilePanel } from '../panels/TilePanel';
 import { UnitPanel } from '../panels/UnitPanel';
+import { Board } from '../board/Board';
+import { buildScene } from '../board/scene';
 import { FACTION_COLOUR } from './colour';
 
 export const END_TURN_LOCK_MS = 600;
@@ -53,6 +55,7 @@ export function Match(): ReactElement | null {
   const digest = useApp((s) => s.digest);
   const last = useApp((s) => s.last);
   const run = useApp((s) => s.run);
+  const tap = useApp((s) => s.tap);
   const arm = useApp((s) => s.arm);
   const goHome = useApp((s) => s.goHome);
   const dismissDigest = useApp((s) => s.dismissDigest);
@@ -81,7 +84,12 @@ export function Match(): ReactElement | null {
     () => (state === null || viewer === null ? null : matchData(state, viewer, selection)),
     [state, viewer, selection],
   );
-  if (state === null || record === null || viewer === null || data === null) return null;
+  const selectedUnit = selection.kind === 'unit' ? selection.id : null;
+  const items = useMemo(
+    () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, selectedUnit, spentUnits: data.spent })),
+    [data, selectedUnit],
+  );
+  if (state === null || record === null || viewer === null || data === null || items === null) return null;
 
   const { view, ix } = data;
   const player = state.players[viewer]!;
@@ -104,12 +112,12 @@ export function Match(): ReactElement | null {
       const mine = city.owner === viewer;
       panel = mine ? (
         <CityPanel
-          level={city.level} growth={city.growth} growthNeeded={growthNeeded(state, city)}
+          level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
           units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)}
           walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
       ) : (
-        <CityPanel level={city.level} walls={city.walls} commands={[]} onCommand={onCommand} />
+        <CityPanel level={city.level} capital={city.capital} walls={city.walls} commands={[]} onCommand={onCommand} />
       );
     }
   } else if (selection.kind === 'tile') {
@@ -126,18 +134,22 @@ export function Match(): ReactElement | null {
 
   const rewardCity = digest.length > 0 || sheet !== 'none' ? undefined
     : view.cities.find((c) => c.owner === viewer && ix.rewards.includes(c.id) && c.pendingRewards[0] !== undefined && !later.includes(c.id));
+  // In landscape the board takes the side column too while nothing is shown there.
+  const side = sheet !== 'none' || panel !== null;
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
 
   return (
-    <div className="screen match" data-testid="match">
+    <div className={side ? 'screen match has-side' : 'screen match'} data-testid="match">
       <Hud
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
         unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked}
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
-      <div className="board-slot" data-testid="board-slot" />
-      {panel !== null ? <aside className="selection">{panel}</aside> : null}
+      <div className="board-slot" data-testid="board-slot">
+        <Board items={items} radius={data.radius} factions={data.factions} focus={data.focus ?? '0,0'} viewer={viewer} onTap={tap} />
+      </div>
+      {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
       {sheet === 'tech' ? (
         <TechSheet rows={techRows(state, ix)} onResearch={(t: TechId) => run({ type: 'research', tech: t })} onClose={() => setSheet('none')} />
       ) : null}
