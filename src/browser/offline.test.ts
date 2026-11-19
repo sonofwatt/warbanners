@@ -202,4 +202,59 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
       await rm(work, { recursive: true, force: true });
     }
   });
+
+  test('Update tapped in one window never reloads another that is in a match; that one waits for Home', async () => {
+    const work = await mkdtemp(join(tmpdir(), 'banners-update2-'));
+    const served = join(work, 'served');
+    const next = join(work, 'next');
+    await cp('dist', served, { recursive: true });
+    await build({
+      logLevel: 'silent',
+      define: { __BUILD__: JSON.stringify('nextbld') },
+      build: { outDir: next, emptyOutDir: true },
+    });
+    const { page, context, url, close } = await openApp(SEED, { serviceWorkers: 'allow', outDir: served });
+    try {
+      await installed(page);
+      await page.reload();
+      await page.getByTestId('new-match').waitFor();
+
+      // A second window of the same game, in a match.
+      const other = await context.newPage();
+      await other.goto(url);
+      await other.getByTestId('new-match').tap();
+      await other.getByTestId('start').tap();
+      await throughCurtain(other, 'Player 1');
+      await other.evaluate(() => { (window as Window & { loadMarker?: string }).loadMarker = 'still the same page'; });
+      const otherSame = (): Promise<boolean> => other.evaluate(() => (window as Window & { loadMarker?: string }).loadMarker === 'still the same page');
+
+      await cp(next, served, { recursive: true, force: true });
+      await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())?.update(); });
+      await page.getByTestId('update').waitFor();
+
+      // The first window, on Home, takes the new version.
+      await page.getByTestId('update').tap();
+      await expect.poll(() => page.locator('footer.version').textContent().catch(() => '')).toContain('nextbld');
+
+      // The other window plays on, untouched, for as long as its match is open.
+      await other.waitForTimeout(1500);
+      expect(await otherSame()).toBe(true);
+      await firstMove(other);
+      await throughCurtain(other, 'Player 2');
+      expect(await otherSame()).toBe(true);
+
+      // Leaving the match for Home lets it take the new version.
+      await other.getByTestId('open-menu').tap();
+      await other.getByTestId('resign').tap();
+      await other.getByTestId('resign-yes').tap();
+      await other.getByTestId('winner').waitFor();
+      expect(await otherSame()).toBe(true);
+      await other.getByTestId('result-home').tap();
+      await expect.poll(() => other.locator('footer.version').textContent().catch(() => '')).toContain('nextbld');
+      expect(await otherSame().catch(() => false)).toBe(false);
+    } finally {
+      await close();
+      await rm(work, { recursive: true, force: true });
+    }
+  });
 }, 180_000);

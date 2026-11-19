@@ -133,11 +133,13 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         if (record !== null && state !== null && state.winner !== null) deleteSave(kv, record.id);
         turnLog = [];
         set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
+        deps.updater?.homeReached();
       },
 
       recover: () => {
         turnLog = [];
         set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
+        deps.updater?.homeReached();
       },
 
       setUpdate: update => set({ update }),

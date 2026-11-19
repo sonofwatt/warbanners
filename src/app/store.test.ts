@@ -135,13 +135,16 @@ test('browserDeps works without a DOM and keeps nothing', () => {
   expect(createAppStore(d).getState().screen).toBe('home');
 });
 test('a new build is applied from home and never during a match', () => {
-  let applied = 0; const updater: Updater = { apply: async () => { applied++; }, check: () => {} };
+  let applied = 0; let home = 0;
+  const updater: Updater = { apply: async () => { applied++; }, check: () => {}, homeReached: () => { home++; } };
   const { get } = started({ updater });
   get().setUpdate({ offlineReady: true, updateReady: true });
   get().applyUpdate(); expect(applied).toBe(0);            // behind the curtain
   get().ready(); get().applyUpdate(); expect(applied).toBe(0);   // in the match
   get().run({ type: 'resign' }); get().applyUpdate(); expect(applied).toBe(0);   // on the result
-  get().goHome(); get().applyUpdate(); expect(applied).toBe(1);
+  expect(home).toBe(0);
+  get().goHome(); expect(home).toBe(1); get().applyUpdate(); expect(applied).toBe(1);
+  get().recover(); expect(home).toBe(2);
 });
 test('a save whose snapshot this build cannot play resumes by replaying its moves', () => {
   const first = started(); first.get().ready(); first.get().tap({ unit: 0, hex: '-2,5' }); first.get().tap({ unit: null, hex: '-1,4' });

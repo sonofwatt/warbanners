@@ -12,7 +12,7 @@ const rootEl = document.getElementById('root');
 if (rootEl) {
   const root = createRoot(rootEl);
   const store = appStore();
-  const updater = startUpdates((s) => store.getState().setUpdate(s));
+  const updater = startUpdates((s) => store.getState().setUpdate(s), () => store.getState().screen === 'home');
   setUpdater(updater);
 
   let saved: InstallPromptEvent | null = null;
