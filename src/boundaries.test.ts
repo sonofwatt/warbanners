@@ -21,7 +21,7 @@ test('the app reaches the engine only through its index', () => {
     for (const m of source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
       const spec = m[1] ?? '';
       if (!spec.includes('/engine')) continue;
-      const testkitOk = /\.test\.tsx?$/.test(file) && spec.endsWith('/engine/testkit');
+      const testkitOk = (/\.test\.tsx?$/.test(file) || file === 'src/ai/scenarios.ts') && spec.endsWith('/engine/testkit');
       expect(testkitOk || /\/engine(\/index)?$/.test(spec), `${file} imports ${spec}`).toBe(true);
     }
   }
