@@ -1,0 +1,504 @@
+// The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
+import {
+  CONFIG, FACTIONS, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
+  canCapture, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, neighbors, parseKey,
+  reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+} from '../engine';
+import type { AbilityId, Action, BuildingId, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
+import { dangerMap, moveScore, objectives, unitWorth, valueOf } from './assess';
+import type { Ctx } from './assess';
+import { aiInputFor, believedState, viewKey } from './input';
+import { PERSONAS } from './persona';
+import { skillFor } from './skill';
+import type { AiInput } from './types';
+
+export interface PlanOpts {
+  dial: number; seed: number;
+  refused: readonly Action[];      // actions the real match refused earlier this turn; never planned again
+  now?: () => number; deadlineMs?: number;   // safety net only; both absent in tests and simulations
+}
+export interface Plan {
+  actions: Action[];               // always ends with { type: 'endTurn' }; never contains resign
+  expect: string[];                // expect[i] = viewKey of the believed state after actions[i]
+  evals: number; cutShort: boolean;
+}
+
+const ABILITY_IDS: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
+const BUILDINGS = Object.keys(CONFIG.buildings) as BuildingId[];
+const WEIGHT_SCALE = 1_000_000;      // softmax weights are rounded to integers so every machine picks alike
+const MAX_STEPS_PER_UNIT = 8;        // a unit acts a few times at most (move, attack, move); a guard, not a rule
+const ECONOMY_THRESHOLD = 0.5;       // value per gold an economy action must reach, divided by skill.economy
+const GOLD_WEIGHT = 0.25;            // valueOf's weight on gold, added back when an action's gain is measured per gold
+
+type Applied = { state: MatchState; events: GameEvent[] };
+interface Cand {
+  action: Action;
+  base: number;                      // the action's own score
+  score: number;                     // with what the unit would do after it
+  result?: Applied;                  // the probe of this exact action on the state it was listed for
+  enemyCity?: boolean;
+}
+
+class OutOfTime extends Error {}
+
+const has = (u: Unit, t: string): boolean => (UNITS[u.type].traits as readonly string[]).includes(t);
+const unitIn = (s: MatchState, id: number): Unit | undefined => s.units.find((u) => u.id === id);
+
+// The same action whatever order its fields were written in.
+function actionKey(a: Action): string {
+  const rec = a as unknown as Record<string, unknown>;
+  return JSON.stringify(Object.keys(rec).filter((k) => rec[k] !== undefined).sort().map((k) => [k, rec[k]]));
+}
+
+function healthFactor(u: Unit): number {
+  if (has(u, 'unbowed')) return 1;
+  const max = UNITS[u.type].hp;
+  return (u.hp + max) / (2 * max);
+}
+
+// A unit can still move this turn (the same early checks reachable makes, so no budget is spent on it).
+function canMove(u: Unit): boolean {
+  return !u.fresh && u.mp > 0 && (!u.acted || has(u, 'retreat'));
+}
+
+// Could this unit kill a seen enemy this turn, judged by the damage formula alone (no probe)?
+function canKillThisTurn(b: MatchState, u: Unit): boolean {
+  if (u.fresh || u.attacks <= 0 || UNITS[u.type].atk === 0 || UNITS[u.type].range === 0) return false;
+  const reach = (canMove(u) ? u.mp / 2 : 0) + UNITS[u.type].range;
+  const at = parseKey(u.pos);
+  const atk = attackOf(b, u) * healthFactor(u);
+  return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
+    && damageFor(atk, defenceOf(b, e), coverAt(b, e)) >= e.hp);
+}
+
+// Units are taken killers first, then ranged, melee, supports, the Camp, the rest.
+function unitRank(b: MatchState, u: Unit): number {
+  if (canKillThisTurn(b, u)) return 0;
+  const def = UNITS[u.type];
+  if (has(u, 'heal')) return 3;
+  if (has(u, 'camp')) return 4;
+  if (def.atk > 0 && def.range >= 2) return 1;
+  if (def.atk > 0 && def.range === 1) return 2;
+  return 5;
+}
+
+// Tiles a lure could pull the target onto when the attacker next moves (every candidate, to be safe).
+function lureDestinations(attackerAt: HexKey, targetAt: HexKey): HexKey[] {
+  const a = parseKey(attackerAt);
+  const t = parseKey(targetAt);
+  if (distance(a, t) === 1) return [attackerAt];
+  return neighbors(t).filter((n) => distance(a, n) === 1).map(key);
+}
+
+class TurnPlanner {
+  private b: MatchState;
+  private readonly ctx: Ctx;
+  private readonly me: number;
+  private readonly work: number;     // budget for everything except the final endTurn
+  private readonly refused: Set<string>;
+  private readonly start: number;
+  private rng: number;
+  private evals = 0;
+  private cutShort = false;
+  private readonly actions: Action[] = [];
+  private readonly expect: string[] = [];
+
+  constructor(input: AiInput, private readonly opts: PlanOpts) {
+    this.b = believedState(input);
+    this.me = input.me;
+    const persona = PERSONAS[input.self.faction];
+    this.ctx = {
+      me: this.me, skill: skillFor(opts.dial), persona,
+      danger: dangerMap(this.b, this.me), goals: objectives(this.b, this.me, persona), hurt: new Set(),
+    };
+    this.work = this.ctx.skill.evals - 1;
+    this.refused = new Set(opts.refused.map(actionKey));
+    this.rng = opts.seed >>> 0;
+    this.start = opts.now?.() ?? 0;
+  }
+
+  run(): Plan {
+    try {
+      this.rewards();
+      this.research();
+      this.units();
+      this.training();
+      this.economy();
+    } catch (e) {
+      if (!(e instanceof OutOfTime)) throw e;
+      this.cutShort = true;
+    }
+    this.endTurn();
+    return { actions: this.actions, expect: this.expect, evals: this.evals, cutShort: this.cutShort };
+  }
+
+  // ---- budget and bookkeeping ----
+
+  private checkClock(): void {
+    const { now, deadlineMs } = this.opts;
+    if (now !== undefined && deadlineMs !== undefined && now() - this.start > deadlineMs) throw new OutOfTime();
+  }
+
+  private spend(): void {
+    if (this.evals + 1 > this.work) throw new OutOfTime();
+    this.evals += 1;
+  }
+
+  private allowed(a: Action): boolean {
+    return !this.refused.has(actionKey(a));
+  }
+
+  // One engine probe of a listed action. A refusal means the planner listed something illegal: a bug.
+  private probe(s: MatchState, a: Action): Applied {
+    this.spend();
+    const r = applyAction(s, a);
+    if (!r.ok) throw new Error(`the believed engine refused a planned action ${JSON.stringify(a)}: ${r.reason}`);
+    return r;
+  }
+
+  private commit(a: Action, done?: Applied): void {
+    const r = done ?? this.probe(this.b, a);
+    const exploredBefore = this.b.players[this.me]!.explored.length;
+    this.b = r.state;
+    this.actions.push(a);
+    this.expect.push(viewKey(aiInputFor(this.b, this.me)));
+    if (a.type === 'attack') {
+      const victim = r.events.find((e) => e.type === 'attacked');
+      if (victim?.type === 'attacked' && unitIn(this.b, victim.target) !== undefined) this.ctx.hurt.add(victim.target);
+    }
+    const changed = r.events.some((e) => e.type === 'died' || e.type === 'captured' || e.type === 'treasure')
+      || this.b.players[this.me]!.explored.length !== exploredBefore;
+    if (changed) {
+      this.ctx.danger = dangerMap(this.b, this.me);
+      this.ctx.goals = objectives(this.b, this.me, this.ctx.persona);
+    }
+  }
+
+  private endTurn(): void {
+    const a: Action = { type: 'endTurn' };
+    if (this.b.winner !== null) {
+      // The believed state thinks the match is won (only seen cities count there); the real match decides.
+      this.actions.push(a);
+      this.expect.push(viewKey(aiInputFor(this.b, this.me)));
+      return;
+    }
+    this.evals += 1;                 // reserved by `work`
+    const r = applyAction(this.b, a);
+    if (!r.ok) throw new Error(`the believed engine refused endTurn: ${r.reason}`);
+    this.b = r.state;
+    this.actions.push(a);
+    this.expect.push(viewKey(aiInputFor(this.b, this.me)));
+  }
+
+  private live(): boolean {
+    return this.b.winner === null;
+  }
+
+  // ---- phases ----
+
+  private rewards(): void {
+    for (const c of [...this.b.cities].sort((x, y) => x.id - y.id)) {
+      for (;;) {
+        const city = this.b.cities.find((x) => x.id === c.id);
+        const level = city?.pendingRewards[0];
+        if (city === undefined || city.owner !== this.me || level === undefined || !this.live()) break;
+        const pick = this.ctx.persona.rewardPick[level] ?? 0;
+        const choice = ([pick, 1 - pick] as const).find((ch) => this.allowed({ type: 'chooseReward', city: c.id, choice: ch as 0 | 1 }));
+        if (choice === undefined) break;
+        this.checkClock();
+        this.commit({ type: 'chooseReward', city: c.id, choice: choice as 0 | 1 });
+      }
+    }
+  }
+
+  private trainableOrder(): UnitTypeId[] {
+    const techs = this.b.players[this.me]!.techs;
+    return this.ctx.persona.trainOrder.filter((t) => {
+      const def = UNITS[t];
+      return def.cost !== null && (def.tech === null || techs.includes(def.tech));
+    });
+  }
+
+  private cheapestUnit(): number {
+    const costs = this.trainableOrder().map((t) => unitCost(this.b, this.me, t) ?? Infinity);
+    return costs.length === 0 ? 0 : Math.min(...costs);
+  }
+
+  private anyCityHasRoom(): boolean {
+    return this.b.cities.some((c) => c.owner === this.me && unitsOf(this.b, c.id) < unitCapacity(c));
+  }
+
+  private research(): void {
+    const tech = this.ctx.persona.techOrder.find((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t }));
+    if (tech === undefined || !this.live()) return;
+    const left = this.b.players[this.me]!.gold - techPrice(this.b, this.me, tech);
+    if (left < this.cheapestUnit() && this.anyCityHasRoom()) return;
+    this.checkClock();
+    this.commit({ type: 'research', tech });
+  }
+
+  private units(): void {
+    const taken = new Set<number>();
+    for (;;) {
+      if (!this.live()) return;
+      let next: Unit | undefined;
+      let nextRank = Infinity;
+      for (const u of this.b.units) {
+        if (u.owner !== this.me || taken.has(u.id)) continue;
+        const r = unitRank(this.b, u);
+        if (next === undefined || r < nextRank || (r === nextRank && u.id < next.id)) { next = u; nextRank = r; }
+      }
+      if (next === undefined) return;
+      taken.add(next.id);
+      if (has(next, 'camp') && this.campCanTrain(next)) continue;   // it trains in the training phase instead
+      for (let step = 0; step < MAX_STEPS_PER_UNIT; step++) {
+        this.checkClock();
+        const c = this.decide(next.id);
+        if (c === null) break;
+        this.commit(c.action, c.result);
+        if (unitIn(this.b, next.id) === undefined || !this.live()) break;
+      }
+    }
+  }
+
+  private training(): void {
+    if (!this.live()) return;
+    for (const c of [...this.b.cities].sort((x, y) => x.id - y.id)) {
+      if (c.owner !== this.me) continue;
+      const type = this.trainableOrder().find((t) => trainRefusal(this.b, c.id, t) === null
+        && this.allowed({ type: 'train', city: c.id, unitType: t }));
+      if (type === undefined) continue;
+      this.checkClock();
+      this.commit({ type: 'train', city: c.id, unitType: type });
+    }
+    for (const camp of [...this.b.units].sort((x, y) => x.id - y.id)) {
+      if (camp.owner !== this.me || !has(camp, 'camp')) continue;
+      const a = this.campTraining(camp);
+      if (a === null) continue;
+      this.checkClock();
+      this.commit(a);
+    }
+  }
+
+  // The first affordable type a Camp can train, onto the free neighbour nearest the top objective.
+  private campTraining(camp: Unit): Action | null {
+    const goal = this.ctx.goals[0];
+    const spots = neighbors(parseKey(camp.pos)).map(key).sort((x, y) => {
+      const dx = goal === undefined ? 0 : distance(parseKey(x), parseKey(goal.at));
+      const dy = goal === undefined ? 0 : distance(parseKey(y), parseKey(goal.at));
+      return dx - dy || (x < y ? -1 : x > y ? 1 : 0);
+    });
+    for (const unitType of this.trainableOrder()) {
+      if (unitType === 'camp') continue;
+      for (const to of spots) {
+        const a: Action = { type: 'campTrain', unit: camp.id, unitType, to };
+        if (campTrainRefusal(this.b, camp.id, unitType, to) === null && this.allowed(a)) return a;
+      }
+    }
+    return null;
+  }
+
+  private campCanTrain(camp: Unit): boolean {
+    return this.campTraining(camp) !== null;
+  }
+
+  // Harvest, build and walls while the best one's value gain per gold reaches the threshold. Roads are
+  // left out: valueOf has no term a road changes, so a road can never reach a positive threshold.
+  private economy(): void {
+    const need = ECONOMY_THRESHOLD / this.ctx.skill.economy;
+    for (;;) {
+      if (!this.live()) return;
+      this.checkClock();
+      const list: Action[] = [];
+      for (const at of Object.keys(this.b.tiles).sort()) {
+        if (harvestRefusal(this.b, at) === null) list.push({ type: 'harvest', at });
+        for (const building of BUILDINGS) if (buildRefusal(this.b, at, building) === null) list.push({ type: 'build', at, building });
+      }
+      for (const c of [...this.b.cities].sort((x, y) => x.id - y.id)) {
+        if (c.owner === this.me && wallsRefusal(this.b, c.id) === null) list.push({ type: 'buildWalls', city: c.id });
+      }
+      const fresh = (s: MatchState): Ctx => ({ ...this.ctx, danger: dangerMap(s, this.me) });
+      const before = valueOf(this.b, fresh(this.b));
+      const gold = this.b.players[this.me]!.gold;
+      let best: { a: Action; r: Applied; ratio: number } | null = null;
+      for (const a of list) {
+        if (!this.allowed(a)) continue;
+        const r = this.probe(this.b, a);
+        const cost = gold - r.state.players[this.me]!.gold;
+        if (cost <= 0) continue;
+        const gain = valueOf(r.state, fresh(r.state)) - before + GOLD_WEIGHT * this.ctx.skill.economy * cost;
+        const ratio = gain / cost;
+        if (best === null || ratio > best.ratio) best = { a, r, ratio };
+      }
+      if (best === null || best.ratio < need) return;
+      this.commit(best.a, best.r);
+    }
+  }
+
+  // ---- one unit ----
+
+  // What stepping off this tile is worth when the unit stands on an own city tile that could train this
+  // turn, in a city nobody threatens: the value the trained unit would add (its worth less the gold term).
+  private vacateBonus(u: Unit): number {
+    const city = this.b.cities.find((c) => c.pos === u.pos && c.owner === this.me);
+    if (city === undefined || unitsOf(this.b, city.id) >= unitCapacity(city)) return 0;
+    if (this.ctx.goals.some((g) => g.kind === 'defend' && g.at === city.pos)) return 0;
+    const gold = this.b.players[this.me]!.gold;
+    for (const t of this.trainableOrder()) {
+      const cost = unitCost(this.b, this.me, t);
+      if (cost !== null && cost <= gold) return unitWorth(t) - GOLD_WEIGHT * this.ctx.skill.economy * cost;
+    }
+    return 0;
+  }
+
+  private scoreAfter(s: MatchState, base: number, r: Applied, targetId: number | null): number {
+    const killed = r.events.some((e) => e.type === 'died' && unitIn(s, e.unit)?.owner !== this.me);
+    const ctx = killed ? { ...this.ctx, danger: dangerMap(r.state, this.me) } : this.ctx;
+    const focus = targetId !== null && this.ctx.hurt.has(targetId) ? this.ctx.skill.focus * 2 : 0;
+    return valueOf(r.state, ctx) - base + focus;
+  }
+
+  // Best follow-up move score for the unit on state s, or 0 when staying is better.
+  private bestMove(s: MatchState, id: number): number {
+    const u = unitIn(s, id);
+    if (u === undefined || !canMove(u)) return 0;
+    this.spend();
+    let best = 0;
+    for (const [to, left] of Object.entries(reachable(s, id))) {
+      if (this.allowed({ type: 'move', unit: id, to })) best = Math.max(best, moveScore(s, this.ctx, id, to, left));
+    }
+    return best;
+  }
+
+  // Everything the unit could do next on state s, each scored as the change it makes. Filtered by the
+  // two safety rules and the refused list. `retreatMove` scores a retreat unit's attack with its best move after.
+  private candidates(s: MatchState, id: number, retreatMove: boolean): Cand[] {
+    const u = unitIn(s, id);
+    if (u === undefined) return [];
+    const out: Cand[] = [];
+    const base = valueOf(s, this.ctx);
+    const push = (c: Cand): void => { if (this.allowed(c.action)) out.push(c); };
+
+    if (canCapture(s, id)) {
+      const a: Action = { type: 'capture', unit: id };
+      if (this.allowed(a)) {
+        const r = this.probe(s, a);
+        const score = this.scoreAfter(s, base, r, null);
+        const city = s.cities.find((c) => c.pos === u.pos);
+        push({ action: a, base: score, score, result: r, enemyCity: city !== undefined && city.owner !== this.me });
+      }
+    }
+
+    const canLure = FACTIONS[s.players[this.me]!.faction].canLure && has(u, 'retreat') && !u.fresh;
+    for (const target of attackTargets(s, id)) {
+      const plain: Action = { type: 'attack', unit: id, target };
+      const victim = s.units.find((t) => t.pos === target)!;
+      const lure: Action = { type: 'attack', unit: id, target, lure: true };
+      const lureListed = canLure && !s.cities.some((c) => c.pos === target)
+        && !s.units.some((n) => n.owner === victim.owner && n.id !== victim.id && has(n, 'steady')
+          && distance(parseKey(n.pos), parseKey(victim.pos)) === 1);
+      if (!this.allowed(plain) && !(lureListed && this.allowed(lure))) continue;
+      const r = this.probe(s, plain);
+      const died = new Set(r.events.flatMap((e) => (e.type === 'died' ? [e.unit] : [])));
+      if (died.has(id) && !died.has(victim.id)) continue;            // a hopeless charge
+      let score = this.scoreAfter(s, base, r, victim.id);
+      const own = score;
+      if (retreatMove && has(u, 'retreat') && !died.has(id)) score += this.bestMove(r.state, id);
+      push({ action: plain, base: own, score, result: r });
+      // A lure pulls only when the attacker moves on afterwards, and never onto a village or a city tile.
+      const movesOn = (unitIn(r.state, id)?.mp ?? 0) > 0;
+      const safePull = lureDestinations(u.pos, target).every((k) => !s.tiles[k]?.village && !s.cities.some((c) => c.pos === k));
+      if (lureListed && movesOn && !died.has(victim.id) && safePull) push({ action: lure, base: own, score });
+    }
+
+    for (const ability of ABILITY_IDS) {
+      if (!has(u, ability)) continue;
+      for (const target of abilityTargets(s, id, ability)) {
+        const a: Action = { type: 'ability', unit: id, ability, target };
+        if (!this.allowed(a)) continue;
+        const r = this.probe(s, a);
+        const targetId = s.units.find((t) => t.pos === target && t.owner !== this.me)?.id ?? null;
+        const score = this.scoreAfter(s, base, r, targetId);
+        push({ action: a, base: score, score, result: r });
+      }
+    }
+
+    if (canMove(u)) {
+      this.spend();
+      const bonus = s === this.b ? this.vacateBonus(u) : 0;
+      const reach = reachable(s, id);
+      for (const to of Object.keys(reach).sort()) {
+        const score = moveScore(s, this.ctx, id, to, reach[to]!) + bonus;
+        push({ action: { type: 'move', unit: id, to }, base: score, score });
+      }
+    }
+    return out;
+  }
+
+  // The total of up to `steps` greedy best actions for the unit, starting on state s.
+  private followUps(s: MatchState, id: number, steps: number): number {
+    let total = 0;
+    for (let i = 0; i < steps; i++) {
+      const cands = this.candidates(s, id, false);
+      let best: Cand | undefined;
+      for (const c of cands) if (best === undefined || c.base > best.base) best = c;
+      if (best === undefined || best.base <= 0) break;
+      total += best.base;
+      if (i + 1 < steps) s = (best.result ?? this.probe(s, best.action)).state;
+      if (unitIn(s, id) === undefined) break;
+    }
+    return total;
+  }
+
+  private decide(id: number): Cand | null {
+    const cands = this.candidates(this.b, id, true);
+    const city = cands.find((c) => c.enemyCity === true);
+    if (city !== undefined) return city;                       // an enemy city is always taken
+    const { lookahead, topK } = this.ctx.skill;
+    if (lookahead > 0) {
+      const top = cands.map((c, i) => ({ c, i })).sort((x, y) => y.c.score - x.c.score || x.i - y.i).slice(0, topK + 1);
+      for (const { c } of top) {
+        if (c.action.type === 'attack' && c.action.lure === true) continue;   // scored as its plain twin
+        c.result ??= this.probe(this.b, c.action);
+        c.score = c.base + (unitIn(c.result.state, id) === undefined ? 0 : this.followUps(c.result.state, id, lookahead));
+      }
+      for (const { c } of top) {
+        if (c.action.type === 'attack' && c.action.lure === true) {
+          const twin = cands.find((t) => t.action.type === 'attack' && t.action.target === (c.action as { target: HexKey }).target && t.action.lure !== true);
+          if (twin !== undefined) c.score = twin.score;
+        }
+      }
+    }
+    return this.choose(cands);
+  }
+
+  // Among positive candidates within `margin` of the best, the best `topK`, drawn with softmax weights.
+  private choose(cands: Cand[]): Cand | null {
+    const pool = cands.map((c, i) => ({ c, i })).filter((x) => x.c.score > 0)
+      .sort((x, y) => y.c.score - x.c.score || x.i - y.i);
+    const first = pool[0];
+    if (first === undefined) return null;
+    const { margin, topK, temperature } = this.ctx.skill;
+    const near = pool.filter((x) => x.c.score >= first.c.score - margin).slice(0, topK);
+    if (near.length === 1) return first.c;
+    const weights = near.map((x) => Math.round(WEIGHT_SCALE * Math.exp((x.c.score - first.c.score) / temperature)));
+    const total = weights.reduce((a, w) => a + w, 0);
+    const [roll, next] = rngInt(this.rng, total);
+    this.rng = next;
+    let acc = 0;
+    for (let i = 0; i < near.length; i++) {
+      acc += weights[i]!;
+      if (roll < acc) {
+        const picked = near[i]!.c;
+        // a lure's probe is of its plain twin, so it is applied afresh
+        return picked.action.type === 'attack' && picked.action.lure === true ? { ...picked, result: undefined } : picked;
+      }
+    }
+    return first.c;
+  }
+}
+
+// The ordered actions for one whole turn. Same input and options give the same plan.
+export function planTurn(input: AiInput, opts: PlanOpts): Plan {
+  return new TurnPlanner(input, opts).run();
+}
