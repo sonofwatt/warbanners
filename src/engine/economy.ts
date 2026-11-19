@@ -10,7 +10,7 @@ import type {
 
 // rules 6
 export function cityIncome(_s: MatchState, c: City): number {
-  return c.level + (c.capital ? 1 : 0) + c.incomeBonus + (c.market ? CONFIG.marketIncome : 0);
+  return c.level + (c.capital ? CONFIG.capitalIncome : 0) + c.incomeBonus + (c.market ? CONFIG.buildings.market.income : 0);
 }
 
 export function playerIncome(s: MatchState, p: PlayerId): number {
@@ -20,7 +20,7 @@ export function playerIncome(s: MatchState, p: PlayerId): number {
 }
 
 export function growthNeeded(s: MatchState, c: City): number {
-  return c.level + 1 + FACTIONS[s.players[c.owner]!.faction].growthExtra;
+  return c.level + CONFIG.growthBase + FACTIONS[s.players[c.owner]!.faction].growthExtra;
 }
 
 export function addGrowth(s: MatchState, c: City, n: number, ev: GameEvent[]): void {
@@ -34,7 +34,7 @@ export function addGrowth(s: MatchState, c: City, n: number, ev: GameEvent[]): v
 }
 
 export function unitCapacity(c: City): number {
-  return c.level + 1 + c.capacityBonus;
+  return c.level + CONFIG.capacityBase + c.capacityBonus;
 }
 
 // Levels above the last row of the table use the last row.

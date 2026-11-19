@@ -86,7 +86,7 @@ export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
   const tile = tileAt(s, u.pos);
   if (tile === undefined || !tile.treasure) return;
   const player = s.players[u.owner]!;
-  const [roll, next] = rngInt(s.rng, 3);
+  const [roll, next] = rngInt(s.rng, CONFIG.treasure.outcomes);
   s.rng = next;
   let outcome: 'gold' | 'explore' | 'unit' = 'gold';
   if (roll === 1) {

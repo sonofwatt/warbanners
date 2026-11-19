@@ -24,7 +24,7 @@ export function visibleTiles(s: MatchState, player: PlayerId): Set<HexKey> {
     addAround(s, out, u.pos, unitSight(s, u));
   }
   for (const c of s.cities) {
-    if (c.owner === player) addAround(s, out, c.pos, c.radius + 1);
+    if (c.owner === player) addAround(s, out, c.pos, c.radius + CONFIG.citySightExtra);
   }
   return out;
 }
@@ -41,7 +41,7 @@ export function refreshExplored(s: MatchState, player: PlayerId): void {
 function hasSpotterNextTo(s: MatchState, player: PlayerId, pos: HexKey): boolean {
   const at = parseKey(pos);
   for (const u of s.units) {
-    if (u.owner === player && !u.blinded && distance(parseKey(u.pos), at) === 1) return true;
+    if (u.owner === player && !u.blinded && distance(parseKey(u.pos), at) <= CONFIG.hiddenRevealRange) return true;
   }
   for (const c of s.cities) {
     if (c.owner === player && distance(parseKey(c.pos), at) <= CONFIG.hiddenRevealRange) return true;

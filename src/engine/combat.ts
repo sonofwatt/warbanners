@@ -51,7 +51,7 @@ function healthFactor(u: Unit): number {
 }
 
 function reachOf(u: Unit): number {
-  return u.blinded ? 1 : UNITS[u.type].range;
+  return u.blinded ? CONFIG.blindedReach : UNITS[u.type].range;
 }
 
 // rules 13: a lure may be recorded when this attacker hits this target (the target must also survive)

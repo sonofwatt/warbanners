@@ -54,9 +54,9 @@ export function firstFreeNeighbor(s: MatchState, k: HexKey): HexKey | null {
 
 export function freshAttacks(type: UnitTypeId): number {
   const def = UNITS[type];
-  if (def.traits.includes('doubleStrike')) return 2;
+  if (def.traits.includes('doubleStrike')) return CONFIG.attacksPerTurn.doubleStrike;
   if (def.atk === 0 && !def.traits.some((t) => (ABILITIES as readonly Trait[]).includes(t))) return 0;
-  return 1;
+  return CONFIG.attacksPerTurn.base;
 }
 
 export function spawnUnit(
@@ -88,7 +88,8 @@ export function claimTerritory(s: MatchState, city: City): void {
 
 export function foundCity(s: MatchState, owner: PlayerId, pos: HexKey, capital: boolean): City {
   const c: City = {
-    id: s.nextCityId, pos, owner, capital, level: 1, growth: 0, radius: 1, walls: false, market: false,
+    id: s.nextCityId, pos, owner, capital, level: CONFIG.newCity.level, growth: CONFIG.newCity.growth,
+    radius: CONFIG.newCity.radius, walls: false, market: false,
     incomeBonus: 0, capacityBonus: 0, pendingRewards: [],
   };
   s.nextCityId += 1;
