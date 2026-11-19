@@ -21,7 +21,7 @@ If this file and the engine's data files disagree, the data files are wrong.
 |---|---|---|---|
 | Field | 2 | 1 | |
 | Forest | 4 | 1.25 | |
-| Mountain | all remaining, needs full movement | 1.5 | A unit standing here sees 1 tile farther |
+| Mountain | all remaining, only as the first step of a unit that has not moved this turn | 1.5 | A unit standing here sees 1 tile farther |
 | Water | cannot enter | | Ships arrive in stage 4 |
 | Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
 | City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
@@ -111,6 +111,9 @@ Things you can do on a tile in your territory (one building per tile):
 | Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
 | Road, on any field or forest tile that is yours or unclaimed | tech `roads` | 1 | none |
 
+A tile with a city standing on it takes no harvest, no building and no road.
+A road can only be laid on a tile you have explored.
+
 ## 7. Tech
 
 Price: base + (number of cities you hold - 1) * tier. Base is 4, 6, 8 for tiers 1, 2, 3.
@@ -156,8 +159,8 @@ Starting unit: Spartans a Warrior, Mongols a Horseman.
 - Engagement: entering a tile next to an enemy unit uses up the rest of the move.
 - After attacking, a unit cannot move, unless it has `retreat`, which keeps
   whatever movement it had left.
-- A unit trained or spawned this turn cannot move or attack until its owner's
-  next turn.
+- A unit trained or spawned this turn is fresh until its owner's next turn starts:
+  it cannot move, attack, use an ability, capture, be hastened, or (a Camp) train.
 - Stepping onto a treasure collects it at once (see 12).
 
 ## 10. Combat
@@ -211,7 +214,7 @@ Worked examples (all at full health on a field unless said):
 | siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
 | mounted | A tag other rules refer to |
 | phalanx | +1 defence for each friendly Hoplite next to it, at most +2 |
-| unbowed | Attack is not reduced by lost health |
+| unbowed | Attack is not reduced by lost health, when attacking and when striking back |
 | hidden | Enemies see it only from a tile next to it (their unit or their city) |
 | steady | Friendly units next to it cannot be lured |
 | inspire | Friendly mounted units next to it have +1 attack |
@@ -222,10 +225,10 @@ as an attack would):
 
 | Ability | Unit | Target | Effect |
 |---|---|---|---|
-| heal | Piper, Sky Caller | a friendly unit next to it | +4 health, up to its maximum |
-| taunt | Piper | an enemy unit within 2 | Taunted until the end of its owner's next turn. While taunted, if any enemy Hoplite is within its range it may attack only Hoplites |
+| heal | Piper, Sky Caller | a friendly unit next to it that is below full health | +4 health, up to its maximum |
+| taunt | Piper | an enemy unit within 2 | Taunted until the end of its owner's next turn. While taunted, if any enemy unit with the phalanx trait (the Hoplite) is within its range it may attack only such units |
 | hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
-| dustStorm | Sky Caller | a tile within 2 | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
+| dustStorm | Sky Caller | a tile within 2 with at least one enemy unit you can see on it or next to it | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
 
 Resting: a unit that did nothing at all on its owner's previous turn heals 4 at the
 start of the next turn if it stands in its owner's territory, otherwise 2.
@@ -239,7 +242,9 @@ start of the next turn if it stands in its owner's territory, otherwise 2.
   entered that tile on an earlier turn and has not moved or attacked this turn. It
   uses the unit's whole turn. A village becomes a level 1 city of the captor. An
   enemy city changes owner and keeps its level, buildings and territory; units it
-  had trained no longer count against it.
+  had trained no longer count against it. Any city reward its previous owner had
+  not yet chosen is dropped. City tribute is paid only by factions that have a
+  tribute rule.
 - A player with no cities is eliminated and their units are removed. The last
   player left wins. A player may resign at any time on their turn, which
   eliminates them.
@@ -255,7 +260,7 @@ Spartans
 Mongols
 
 - Start with `riding`.
-- Horseman and Knight cost 1 less.
+- Mounted units shared by all factions (Horseman and Knight) cost 1 less.
 - Mounted Mongol units have +1 movement, but entering a forest uses up the rest of
   their move.
 - Relay riders: for Mongol units, entering any tile inside Mongol territory costs
@@ -268,7 +273,8 @@ Mongols
   the tile the attacker left: onto that tile itself for an attack from distance 1,
   or onto the tile between them for distance 2 (the first shared neighbour in
   direction order that is free and enterable). If no such tile is free, nothing
-  happens.
+  happens. Asking for a lure where none can apply is allowed and simply has no
+  effect.
 - The Camp: on its turn, if it has not moved, it may train one unit per turn onto a
   free enterable tile next to it. The unit counts against the Mongol city with the
   most free capacity (lowest id on a tie). If no city has room it cannot train.
@@ -280,6 +286,7 @@ Mongols
   mountain) and every tile within their cities' territory radius + 1.
 - Seen tiles stay explored for the rest of the match.
 - Enemy units are known only while on a tile the player currently sees, and
-  `hidden` ones only from next to them.
+  `hidden` ones only from next to them, or from a city they are standing on or
+  next to.
 - You can only attack or target a unit you currently see. A unit whose range is
   longer than its sight (the Catapult) needs another unit to spot for it.
