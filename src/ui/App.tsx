@@ -3,6 +3,7 @@ import { RULES_VERSION } from '../engine';
 import { useApp } from '../app/useApp';
 import { APP_VERSION, BUILD } from '../version';
 import { T } from './text';
+import { ArtSheet } from './art/ArtSheet';
 import { Home } from './screens/Home';
 import type { HomeProps } from './screens/Home';
 import { Match } from './screens/Match';
@@ -10,8 +11,19 @@ import { Pass } from './screens/Pass';
 import { Result } from './screens/Result';
 import { Setup } from './screens/Setup';
 
-// Shows the screen the store names. Home's updater and install hooks come from main.tsx.
+/** True when the page URL asks for the art sheet (?sheet=1). False in Node, where there is no location. */
+function wantsArtSheet(): boolean {
+  return typeof location !== 'undefined' && new URLSearchParams(location.search).has('sheet');
+}
+
+// The art sheet is a developer page; everything else is the game.
 export function App(home: HomeProps = {}): ReactElement {
+  if (wantsArtSheet()) return <ArtSheet />;
+  return <Screens {...home} />;
+}
+
+// Shows the screen the store names. Home's updater and install hooks come from main.tsx.
+function Screens(home: HomeProps): ReactElement {
   const screen = useApp((s) => s.screen);
   const version = <footer className="version">v{APP_VERSION} ({BUILD}) {T.ui.rulesWord} {RULES_VERSION}</footer>;
   if (screen === 'home') return <main className="app"><Home {...home} />{version}</main>;
