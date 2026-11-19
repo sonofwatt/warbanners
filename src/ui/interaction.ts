@@ -1,0 +1,161 @@
+// Pure selection and tap logic. Every order comes from the engine's legal actions: nothing here decides what is allowed.
+import type { AbilityId, Action, BuildingId, HexKey, PlayerView, TechId, UnitTypeId } from '../engine';
+import type { Mark } from './board/mark';
+
+export type Hit = { unit: number | null; hex: HexKey | null };
+export type Armed = { kind: 'ability'; ability: AbilityId } | { kind: 'campTrain'; unitType: UnitTypeId };
+export type Selection =
+  | { kind: 'none' }
+  | { kind: 'unit'; id: number; armed: Armed | null; askLure: HexKey | null }
+  | { kind: 'city'; id: number }
+  | { kind: 'tile'; at: HexKey };
+export const NONE: Selection = { kind: 'none' };
+
+export interface ActionIndex {
+  moves: Record<number, HexKey[]>; attacks: Record<number, HexKey[]>; lures: Record<number, HexKey[]>;
+  abilities: Record<number, Partial<Record<AbilityId, HexKey[]>>>;
+  captures: number[]; campTrain: Record<number, Partial<Record<UnitTypeId, HexKey[]>>>;
+  train: Record<number, UnitTypeId[]>; walls: number[]; rewards: number[];
+  harvest: HexKey[]; build: Record<HexKey, BuildingId[]>; road: HexKey[]; research: TechId[];
+  activeUnits: number[];   // own units with a move, attack, ability, capture or camp training left
+}
+
+function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): void {
+  const list = map[k] ?? (map[k] = []);
+  if (!list.includes(v)) list.push(v);
+}
+
+export function indexActions(actions: readonly Action[]): ActionIndex {
+  const ix: ActionIndex = {
+    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], campTrain: {}, train: {},
+    walls: [], rewards: [], harvest: [], build: {}, road: [], research: [], activeUnits: [],
+  };
+  const active = new Set<number>();
+  for (const a of actions) {
+    switch (a.type) {
+      case 'move': push(ix.moves, a.unit, a.to); active.add(a.unit); break;
+      case 'attack':
+        push(ix.attacks, a.unit, a.target);
+        if (a.lure === true) push(ix.lures, a.unit, a.target);
+        active.add(a.unit); break;
+      case 'ability': {
+        const per = ix.abilities[a.unit] ?? (ix.abilities[a.unit] = {});
+        const list = per[a.ability] ?? (per[a.ability] = []);
+        if (!list.includes(a.target)) list.push(a.target);
+        active.add(a.unit); break;
+      }
+      case 'capture': if (!ix.captures.includes(a.unit)) ix.captures.push(a.unit); active.add(a.unit); break;
+      case 'campTrain': {
+        const per = ix.campTrain[a.unit] ?? (ix.campTrain[a.unit] = {});
+        const list = per[a.unitType] ?? (per[a.unitType] = []);
+        if (!list.includes(a.to)) list.push(a.to);
+        active.add(a.unit); break;
+      }
+      case 'train': push(ix.train, a.city, a.unitType); break;
+      case 'buildWalls': if (!ix.walls.includes(a.city)) ix.walls.push(a.city); break;
+      case 'chooseReward': if (!ix.rewards.includes(a.city)) ix.rewards.push(a.city); break;
+      case 'harvest': if (!ix.harvest.includes(a.at)) ix.harvest.push(a.at); break;
+      case 'build': push(ix.build, a.at, a.building); break;
+      case 'road': if (!ix.road.includes(a.at)) ix.road.push(a.at); break;
+      case 'research': if (!ix.research.includes(a.tech)) ix.research.push(a.tech); break;
+      default: break;
+    }
+  }
+  ix.activeUnits = [...active].sort((x, y) => x - y);
+  return ix;
+}
+
+const unitById = (view: PlayerView, id: number) => view.units.find((u) => u.id === id);
+const isMine = (view: PlayerView, u: { owner: number } | undefined) => u !== undefined && u.owner === view.player;
+
+function armedTargets(sel: Extract<Selection, { kind: 'unit' }>, ix: ActionIndex): HexKey[] {
+  const a = sel.armed;
+  if (a === null) return [];
+  return (a.kind === 'ability' ? ix.abilities[sel.id]?.[a.ability] : ix.campTrain[sel.id]?.[a.unitType]) ?? [];
+}
+
+export function marksFor(sel: Selection, view: PlayerView, ix: ActionIndex): Record<HexKey, Mark> {
+  const marks: Record<HexKey, Mark> = {};
+  if (sel.kind === 'none') {
+    for (const id of ix.captures) {
+      const u = unitById(view, id);
+      if (isMine(view, u) && u !== undefined) marks[u.pos] = 'capture';
+    }
+  } else if (sel.kind === 'unit') {
+    const u = unitById(view, sel.id);
+    if (u === undefined) return marks;
+    marks[u.pos] = 'selected';
+    if (!isMine(view, u)) return marks;
+    if (sel.armed !== null) {
+      for (const h of armedTargets(sel, ix)) marks[h] = 'ability';
+    } else if (sel.askLure !== null) {
+      marks[sel.askLure] = 'attack';
+    } else {
+      for (const h of ix.moves[sel.id] ?? []) marks[h] = 'move';
+      for (const h of ix.attacks[sel.id] ?? []) marks[h] = 'attack';
+    }
+  } else if (sel.kind === 'city') {
+    const c = view.cities.find((x) => x.id === sel.id);
+    if (c !== undefined) marks[c.pos] = 'selected';
+  } else {
+    marks[sel.at] = 'selected';
+  }
+  return marks;
+}
+
+export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex): { selection: Selection; action: Action | null } {
+  const hex = hit.hex;
+  if (hex === null) return { selection: NONE, action: null };
+
+  if (sel.kind === 'unit' && isMine(view, unitById(view, sel.id))) {
+    const id = sel.id;
+    const keep = (): Selection => ({ kind: 'unit', id, armed: null, askLure: null });
+    if (sel.armed !== null) {
+      if (armedTargets(sel, ix).includes(hex)) {
+        const a = sel.armed;
+        const action: Action = a.kind === 'ability'
+          ? { type: 'ability', unit: id, ability: a.ability, target: hex }
+          : { type: 'campTrain', unit: id, unitType: a.unitType, to: hex };
+        return { selection: keep(), action };
+      }
+      return { selection: keep(), action: null };
+    }
+    if ((ix.attacks[id] ?? []).includes(hex)) {
+      if ((ix.lures[id] ?? []).includes(hex)) return { selection: { kind: 'unit', id, armed: null, askLure: hex }, action: null };
+      return { selection: sel, action: { type: 'attack', unit: id, target: hex } };
+    }
+    if ((ix.moves[id] ?? []).includes(hex)) return { selection: sel, action: { type: 'move', unit: id, to: hex } };
+  }
+
+  const city = view.cities.find((c) => c.pos === hex);
+  const hitUnit = hit.unit === null ? undefined : unitById(view, hit.unit);
+  const mine = isMine(view, hitUnit) ? hitUnit : view.units.find((u) => u.pos === hex && u.owner === view.player);
+  if (mine !== undefined) {
+    if (sel.kind === 'unit' && sel.id === mine.id) {
+      return { selection: city !== undefined && city.owner === view.player ? { kind: 'city', id: city.id } : NONE, action: null };
+    }
+    // The city on this tile was selected from the unit stacked on it: another tap closes it.
+    if (sel.kind === 'city' && city !== undefined && sel.id === city.id) return { selection: NONE, action: null };
+    return { selection: { kind: 'unit', id: mine.id, armed: null, askLure: null }, action: null };
+  }
+  if (hitUnit !== undefined) return { selection: { kind: 'unit', id: hitUnit.id, armed: null, askLure: null }, action: null };
+  if (city !== undefined) {
+    return { selection: sel.kind === 'city' && sel.id === city.id ? NONE : { kind: 'city', id: city.id }, action: null };
+  }
+  if (view.tiles[hex] !== undefined) {
+    return { selection: sel.kind === 'tile' && sel.at === hex ? NONE : { kind: 'tile', at: hex }, action: null };
+  }
+  return { selection: NONE, action: null };
+}
+
+export function afterAction(sel: Selection, view: PlayerView, ix: ActionIndex): Selection {
+  if (sel.kind === 'unit') {
+    return isMine(view, unitById(view, sel.id)) && ix.activeUnits.includes(sel.id)
+      ? { kind: 'unit', id: sel.id, armed: null, askLure: null } : NONE;
+  }
+  return sel;
+}
+
+export function spentUnits(view: PlayerView, ix: ActionIndex): Set<number> {
+  return new Set(view.units.filter((u) => u.owner === view.player && !ix.activeUnits.includes(u.id)).map((u) => u.id));
+}
