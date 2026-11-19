@@ -1,0 +1,107 @@
+import { expect, test } from 'vitest';
+import { hashState } from '../engine';
+import { NONE } from '../ui/interaction';
+import { browserDeps, createAppStore } from './store';
+import type { Deps, Setup } from './store';
+import { restore } from './record';
+import { listSaves, readSave } from './saves';
+import type { KeyValue } from './saves';
+
+function deps(over: Partial<Deps> = {}) {
+  const map = new Map<string, string>();
+  const kv: KeyValue = { getItem: k => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, removeItem: k => { map.delete(k); } };
+  return { map, d: { kv, now: () => 1000, newSeed: () => 7, newId: () => 'm1', ...over } as Deps };
+}
+const SETUP: Setup = { names: ['Ann', 'Ben'], factions: ['spartans', 'mongols'] };
+const started = (over: Partial<Deps> = {}) => { const x = deps(over); const store = createAppStore(x.d); store.getState().startMatch(SETUP); return { ...x, store, get: store.getState }; };
+
+test('a new match starts behind the curtain and is saved at once', () => {
+  const { get, d } = started();
+  expect(get()).toMatchObject({ screen: 'pass', viewer: null, notice: null });
+  expect(get().state!.current).toBe(0);
+  expect(listSaves(d.kv).map(s => s.id)).toEqual(['m1']);
+  get().ready();
+  expect(get()).toMatchObject({ screen: 'match', viewer: 0 });
+});
+test('tap to select, tap to move, and the move is on the phone', () => {
+  const { get, d } = started(); get().ready();
+  get().tap({ unit: 0, hex: '-2,5' });
+  expect(get().selection).toMatchObject({ kind: 'unit', id: 0 });
+  get().tap({ unit: null, hex: '-1,4' });
+  expect(get().state!.units.find(u => u.id === 0)!.pos).toBe('-1,4');
+  expect(get().record!.actions).toEqual([{ type: 'move', unit: 0, to: '-1,4' }]);
+  expect(get().last).toMatchObject({ seq: 1 }); expect(get().last!.events[0]!.type).toBe('moved');
+  const saved = restore(readSave(d.kv, 'm1')); expect(saved.ok && saved.record.actions.length).toBe(1);
+});
+test('End turn raises the curtain, and a second End turn does nothing', () => {
+  const { get } = started(); get().ready();
+  get().run({ type: 'endTurn' });
+  expect(get()).toMatchObject({ screen: 'pass', viewer: null, selection: NONE });
+  expect(get().state!.current).toBe(1);
+  get().run({ type: 'endTurn' });
+  expect(get().state!.current).toBe(1); expect(get().record!.actions).toHaveLength(1);
+});
+test('nothing can be done while the curtain is up', () => {
+  const { get } = started(); const before = get().state;
+  get().tap({ unit: 0, hex: '-2,5' }); get().run({ type: 'move', unit: 0, to: '-1,4' }); get().arm({ kind: 'ability', ability: 'heal' });
+  expect(get().state).toBe(before); expect(get().selection).toEqual(NONE); expect(get().record!.actions).toEqual([]);
+});
+test('a refused action changes nothing', () => {
+  const { get } = started(); get().ready(); const before = get().state;
+  get().run({ type: 'move', unit: 99, to: '0,0' });
+  expect(get().state).toBe(before); expect(get().record!.actions).toEqual([]); expect(get().last).toBeNull();
+});
+test('resigning ends the match and going home clears its save', () => {
+  const { get, d } = started(); get().ready();
+  get().run({ type: 'resign' });
+  expect(get()).toMatchObject({ screen: 'result', viewer: null }); expect(get().state!.winner).toBe(1);
+  get().goHome();
+  expect(get()).toMatchObject({ screen: 'home', record: null, state: null, saves: [] }); expect(listSaves(d.kv)).toEqual([]);
+});
+test('a reopened game starts at home and resumes through the curtain', () => {
+  const first = started(); first.get().ready(); first.get().tap({ unit: 0, hex: '-2,5' }); first.get().tap({ unit: null, hex: '-1,4' });
+  const again = createAppStore(first.d);
+  expect(again.getState()).toMatchObject({ screen: 'home', viewer: null, state: null });
+  expect(again.getState().saves).toHaveLength(1);
+  again.getState().resume('m1');
+  expect(again.getState()).toMatchObject({ screen: 'pass', viewer: null });
+  expect(hashState(again.getState().state!)).toBe(hashState(first.get().state!));
+});
+test('damaged, unreadable and old saves are handled in plain terms', () => {
+  const a = started(); const body = JSON.parse(a.map.get('banners.save.m1')!);
+  body.snapshot = { count: 0, hash: 'wrong', state: body.snapshot?.state ?? {} };
+  a.map.set('banners.save.m1', JSON.stringify(body));
+  const s1 = createAppStore(a.d); s1.getState().resume('m1');
+  expect(s1.getState()).toMatchObject({ screen: 'pass', notice: 'saveRepaired' });
+  a.map.set('banners.save.m1', '{');
+  const s2 = createAppStore(a.d); s2.getState().resume('m1');
+  expect(s2.getState()).toMatchObject({ screen: 'home', notice: 'saveUnreadable', state: null });
+  const b = started(); const old = JSON.parse(b.map.get('banners.save.m1')!); old.rulesVersion = 999;
+  b.map.set('banners.save.m1', JSON.stringify(old));
+  const s3 = createAppStore(b.d); s3.getState().resume('m1');
+  expect(s3.getState()).toMatchObject({ screen: 'home', notice: 'saveOldVersion' });
+  s3.getState().resume('no-such-id'); expect(s3.getState().notice).toBe('saveUnreadable');
+});
+test('when the phone refuses to save, play carries on and says so', () => {
+  const kv: KeyValue = { getItem: () => null, setItem: () => { throw new Error('QuotaExceededError'); }, removeItem: () => {} };
+  const { get } = started({ kv });
+  expect(get()).toMatchObject({ screen: 'pass', notice: 'saveFailed' });
+  get().ready(); get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
+  expect(get().record!.actions).toHaveLength(1);
+});
+test('ready does nothing off the curtain, and a resumed game cannot act until ready', () => {
+  const first = started(); first.get().ready(); first.get().run({ type: 'endTurn' });
+  const again = createAppStore(first.d);
+  again.getState().ready(); expect(again.getState().screen).toBe('home');
+  again.getState().resume('m1');
+  again.getState().run({ type: 'endTurn' }); again.getState().tap({ unit: null, hex: '0,0' });
+  expect(again.getState().record!.actions).toHaveLength(1); expect(again.getState().viewer).toBeNull();
+  again.getState().ready(); again.getState().ready();
+  expect(again.getState()).toMatchObject({ screen: 'match', viewer: 1 });
+});
+test('browserDeps works without a DOM and keeps nothing', () => {
+  const d = browserDeps();
+  d.kv.setItem('a', 'b'); expect(d.kv.getItem('a')).toBeNull(); d.kv.removeItem('a');
+  expect(Number.isInteger(d.newSeed())).toBe(true); expect(d.newId()).not.toBe(d.newId());
+  expect(createAppStore(d).getState().screen).toBe('home');
+});
