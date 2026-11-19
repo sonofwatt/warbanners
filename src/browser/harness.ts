@@ -1,13 +1,15 @@
 /// <reference types="node" />
 import { createServer } from 'node:net';
 import { chromium } from 'playwright';
-import type { Browser, Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import { preview } from 'vite';
 import type { PreviewServer } from 'vite';
 
 // Browser tests drive the built app (run `vite build` first; `npm run test:browser` does).
 // openApp serves dist with Vite's preview server on a free port, opens Chromium on a phone-sized
 // touch screen, and returns the page. close() always stops both, so call it in a finally block.
+// Service workers are blocked unless a test asks for them; `outDir` serves another built folder than dist,
+// and `beforeOpen` sees the browser context before the first page load (to record requests, say).
 
 const PHONE = { width: 412, height: 915 };
 const SCALE = 2.6;
@@ -27,8 +29,13 @@ function freePort(): Promise<number> {
 
 export async function openApp(
   query = '',
-  opts: { width?: number; height?: number } = {},
-): Promise<{ page: Page; close(): Promise<void> }> {
+  opts: {
+    width?: number; height?: number;
+    serviceWorkers?: 'allow' | 'block';
+    outDir?: string;
+    beforeOpen?: (context: BrowserContext) => void;
+  } = {},
+): Promise<{ page: Page; context: BrowserContext; origin: string; url: string; close(): Promise<void> }> {
   let server: PreviewServer | null = null;
   let browser: Browser | null = null;
   const close = async (): Promise<void> => {
@@ -41,19 +48,26 @@ export async function openApp(
   };
   try {
     const port = await freePort();
-    server = await preview({ logLevel: 'silent', preview: { host: '127.0.0.1', port, strictPort: true, open: false } });
+    server = await preview({
+      logLevel: 'silent',
+      preview: { host: '127.0.0.1', port, strictPort: true, open: false },
+      ...(opts.outDir !== undefined ? { build: { outDir: opts.outDir } } : {}),
+    });
     browser = await chromium.launch();
     const context = await browser.newContext({
       viewport: { width: opts.width ?? PHONE.width, height: opts.height ?? PHONE.height },
       deviceScaleFactor: SCALE,
       hasTouch: true,
       isMobile: true,
-      serviceWorkers: 'block',
+      serviceWorkers: opts.serviceWorkers ?? 'block',
     });
+    opts.beforeOpen?.(context);
     const page = await context.newPage();
     const base = process.env.GITHUB_PAGES_BASE ?? '/';
-    await page.goto(`http://127.0.0.1:${port}${base}${query}`);
-    return { page, close };
+    const origin = `http://127.0.0.1:${port}`;
+    const url = `${origin}${base}${query}`;
+    await page.goto(url);
+    return { page, context, origin, url, close };
   } catch (e) {
     await close();
     throw e;
