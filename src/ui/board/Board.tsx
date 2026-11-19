@@ -25,6 +25,7 @@ export interface BoardProps {
   onTap(hit: { unit: number | null; hex: HexKey | null }): void;
   children?: ReactNode; // effects, drawn inside the camera transform
   viewer?: PlayerId; // whose board this is: only their own cities show a reward waiting
+  reveal?: { n: number; at: HexKey } | null; // each new n pans, the least it must, to bring the tile at `at` into view
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -236,10 +237,10 @@ export function Board(p: BoardProps): ReactElement {
   if (cam.current === null) cam.current = startCamera(hexToBoard(p.focus), bounds, vp.current);
 
   // The latest props for the event handlers, which are attached once.
-  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds });
+  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null });
   // A layout effect, so a resize observed in the same frame as a new selection already sees it.
   useLayoutEffect(() => {
-    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds };
+    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null };
   });
 
   const frame = useRef(0);
@@ -310,6 +311,19 @@ export function Board(p: BoardProps): ReactElement {
     cam.current = refit(cam.current!, bounds, vp.current);
     schedule();
   }, [bounds, schedule]);
+
+  // A request to show a tile (Next unit): the least pan that brings it into the slot, none when it is already
+  // there. Keyed on n alone, so a request is served once and a later move of the same unit does not pan again.
+  const revealN = p.reveal?.n ?? 0;
+  useEffect(() => {
+    const { reveal, bounds: b } = latest.current;
+    if (revealN === 0 || reveal === null || cam.current === null || !measured.current) return;
+    const next = keepInView(cam.current, vp.current, tileBox(reveal.at), b);
+    if (next === cam.current) return;
+    cam.current = next;
+    touched.current = true;
+    schedule();
+  }, [revealN, schedule]);
 
   useGestures(svgRef, (out) => {
     const c = cam.current;

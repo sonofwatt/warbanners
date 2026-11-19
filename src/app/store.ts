@@ -10,7 +10,7 @@ import { aiInputFor } from '../ai/input';
 import { LEVEL_DIAL } from '../ai/types';
 import type { AiLevel } from '../ai/types';
 import { watchMs } from '../ui/board/effects';
-import { afterAction, isOffered, NONE, offered, tap as tapLogic } from '../ui/interaction';
+import { afterAction, isOffered, NONE, nextUnit as nextUnitOf, offered, tap as tapLogic } from '../ui/interaction';
 import type { Armed, Hit, Selection } from '../ui/interaction';
 import { T } from '../ui/text';
 import { createAiClient, isSuperseded } from './aiClient';
@@ -53,6 +53,7 @@ export interface AppState {
   openSetup(): void; startMatch(setup: Setup): void; resume(id: string): void; removeSave(id: string): void;
   ready(): void;                    // the player named on the curtain now has the phone
   tap(hit: Hit): void; run(action: Action): void; arm(armed: Armed | null): void; select(sel: Selection): void;
+  nextUnit(): void;                 // selects the next of the viewer's units that can still act
   setUpdate(s: UpdateState): void; applyUpdate(): void;   // a new build is applied only from home
   goHome(): void; dismissNotice(): void; dismissDigest(): void;
   recover(): void;                  // back to home after a screen failed to draw, keeping every save
@@ -299,6 +300,13 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       },
 
       run: action => accept(action),
+
+      nextUnit: () => {
+        const { screen, state, viewer, selection, aiBusy } = get();
+        if (screen !== 'match' || state === null || viewer === null || viewer !== state.current || aiBusy) return;
+        const next = nextUnitOf(selection, offered(state, viewer));
+        if (next !== null) set({ selection: next });
+      },
 
       arm: armed => {
         const { screen, state, viewer, selection, aiBusy } = get();

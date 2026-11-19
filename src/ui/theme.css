@@ -276,6 +276,13 @@ input:focus { border-color: var(--blue); }
 .can-act { font-size: var(--t-xs); line-height: 1.2; text-wrap: balance; font-weight: 650; color: var(--ink-soft); text-align: right; min-width: 0; }
 .can-act.some { color: var(--ink); }
 .end-turn { min-width: 116px; min-height: 48px; font-size: var(--t-l); font-weight: 850; flex: none; }
+.next-unit { flex: none; }
+.next-unit .tool-label { white-space: nowrap; }
+/* Next unit keeps only its picture below 1000 wide, so a wide landscape phone still has room for the player's name. */
+@media (max-width: 1000px) {
+  .next-unit { padding: 0 0 var(--thick); width: 46px; }
+  .next-unit .tool-label { display: none; }
+}
 /* Narrow phones, and short landscape ones: the tool buttons keep their pictures, the words go to the reader only. */
 @media (max-width: 460px), (orientation: landscape) and (max-width: 780px) {
   .tool { padding: 0 0 var(--thick); width: 46px; }
@@ -291,9 +298,11 @@ input:focus { border-color: var(--blue); }
   .pill.turn { padding-left: 8px; font-size: var(--t-s); }
   .pill.turn .icon { display: none; }
   .hud-name strong { max-width: 7em; font-size: var(--t-ml); }
-  .end-turn { min-width: 100px; font-size: var(--t-base); padding: 0 var(--s3) var(--thick); }
-  .can-act { font-size: var(--t-2xs); max-width: 70px; }
+  .end-turn { min-width: 92px; font-size: var(--t-base); padding: 0 var(--s2) var(--thick); }
+  .can-act { font-size: var(--t-2xs); max-width: 64px; }
+  .hud-end { gap: 4px; }
   .hud-who { min-width: 100px; }
+  .hud > .hud-status { flex-shrink: 0; }
 }
 
 /* A notice about saving floats over the top of the board, in the board's cell. */

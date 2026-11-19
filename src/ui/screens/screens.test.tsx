@@ -11,7 +11,7 @@ import { StoreContext } from '../../app/useApp';
 import { App } from '../App';
 import { T } from '../text';
 import { Home } from './Home';
-import { Match, turnFocus } from './Match';
+import { Match, nextUnitDisabled, turnFocus } from './Match';
 import { Pass } from './Pass';
 import { Result, resultSound } from './Result';
 import { Setup } from './Setup';
@@ -184,10 +184,27 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
 });
 
+test('Next unit is greyed when no unit can act, while the AI plays, during the End turn lock, and under a sheet', () => {
+  const free = { canAct: 2, aiBusy: false, locked: false, covered: false };
+  expect(nextUnitDisabled(free)).toBe(false);
+  expect(nextUnitDisabled({ ...free, canAct: 0 })).toBe(true);
+  expect(nextUnitDisabled({ ...free, aiBusy: true })).toBe(true);
+  expect(nextUnitDisabled({ ...free, locked: true })).toBe(true);
+  expect(nextUnitDisabled({ ...free, covered: true })).toBe(true);
+});
+
+test('the match screen draws Next unit, greyed while End turn is locked', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  store.getState().ready();
+  const html = render(store, <Match />);
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="next-unit"/);   // the lock is on when the screen first draws
+});
+
 test('the Hud says the AI is thinking', () => {
   const props = {
     name: 'Ann', colour: '#f00', faction: 'spartans' as const, gold: 8, income: 2, round: 1, unitsToAct: 1, techReady: false,
-    onOpenTech: () => {}, onOpenMenu: () => {}, onEndTurn: () => {},
+    onOpenTech: () => {}, onOpenMenu: () => {}, onEndTurn: () => {}, onNextUnit: () => {},
   };
   expect(renderToStaticMarkup(<Hud {...props} />)).not.toContain(T.ai.thinking);
   const html = renderToStaticMarkup(<Hud {...props} thinking endDisabled />);

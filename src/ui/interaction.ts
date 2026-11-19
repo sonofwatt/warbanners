@@ -150,11 +150,13 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
   const hitUnit = hit.unit === null ? undefined : unitById(view, hit.unit);
   const mine = isMine(view, hitUnit) ? hitUnit : view.units.find((u) => u.pos === hex && u.owner === view.player);
   if (mine !== undefined) {
+    // A tile holding my own unit cycles: the unit, then the ground under it (my city there, else the tile), then
+    // nothing. My city takes no harvest, building or road, so its panel is the tile's panel there.
     if (sel.kind === 'unit' && sel.id === mine.id) {
-      return { selection: city !== undefined && city.owner === view.player ? { kind: 'city', id: city.id } : NONE, action: null };
+      return { selection: city !== undefined && city.owner === view.player ? { kind: 'city', id: city.id } : { kind: 'tile', at: hex }, action: null };
     }
-    // The city on this tile was selected from the unit stacked on it: another tap closes it.
     if (sel.kind === 'city' && city !== undefined && sel.id === city.id) return { selection: NONE, action: null };
+    if (sel.kind === 'tile' && sel.at === hex) return { selection: NONE, action: null };
     return { selection: { kind: 'unit', id: mine.id, armed: null, askLure: null }, action: null };
   }
   if (hitUnit !== undefined) return { selection: { kind: 'unit', id: hitUnit.id, armed: null, askLure: null }, action: null };
@@ -165,6 +167,15 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
     return { selection: sel.kind === 'tile' && sel.at === hex ? NONE : { kind: 'tile', at: hex }, action: null };
   }
   return { selection: NONE, action: null };
+}
+
+// Next unit: the viewer's units that can still act, in id order. The one after the selected unit, wrapping round;
+// the first when the selection is anything else. Null when none can act.
+export function nextUnit(sel: Selection, ix: ActionIndex): Selection | null {
+  const list = ix.activeUnits;
+  if (list.length === 0) return null;
+  const at = sel.kind === 'unit' ? list.indexOf(sel.id) : -1;
+  return { kind: 'unit', id: list[(at + 1) % list.length]!, armed: null, askLure: null };
 }
 
 export function afterAction(sel: Selection, view: PlayerView, ix: ActionIndex): Selection {

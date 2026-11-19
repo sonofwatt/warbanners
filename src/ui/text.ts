@@ -102,7 +102,7 @@ const ui = {
   appName: 'Warbanners', rulesWord: 'rules',
   walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture',
   attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
-  turn: 'Turn', endTurn: 'End turn', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
+  turn: 'Turn', endTurn: 'End turn', nextUnit: 'Next unit', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
   unitsCanAct: '{n} units can still act', oneUnitCanAct: '1 unit can still act', noUnitsCanAct: 'No units can still act',
   health: 'Health', attackStat: 'Attack', defence: 'Defence', movement: 'Movement', range: 'Range', traits: 'Traits',
   cityTitle: 'City', capitalTitle: 'Capital', techTitle: 'Technologies',

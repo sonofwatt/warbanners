@@ -20,10 +20,23 @@ const ix = indexActions(legalActions(open));
 const noop = vi.fn();
 
 test('the Hud shows who, gold, turn and an end turn button', () => {
-  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} />);
+  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
   expect(html).toContain('Ann'); expect(html).toContain('>8<'); expect(html).toContain('Turn 1'); expect(html).toContain('+2');
   expect(html).toContain('data-testid="end-turn"'); expect(html).toContain('data-testid="open-tech"'); expect(html).toContain('data-testid="tech-dot"');
   expect(html).toContain('1 unit can still act');
+});
+test('the Hud has a Next unit button beside End turn, greyed when asked', () => {
+  const hud = (nextDisabled?: boolean) => renderToStaticMarkup(
+    <Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={1} unitsToAct={1} techReady={false}
+      nextDisabled={nextDisabled} onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
+  const button = (html: string) => /<button[^>]*data-testid="next-unit"[^>]*>/.exec(html)?.[0] ?? '';
+  const html = hud();
+  expect(button(html)).toContain(`aria-label="${T.ui.nextUnit}"`);
+  expect(button(html)).not.toContain('disabled');
+  expect(html).toContain(`>${T.ui.nextUnit}<`);
+  expect(html.indexOf('data-testid="next-unit"')).toBeLessThan(html.indexOf('data-testid="end-turn"'));
+  expect(html.slice(html.indexOf('class="hud-end"')).indexOf('data-testid="next-unit"')).toBeGreaterThan(0);   // in End turn's group
+  expect(button(hud(true))).toContain('disabled=""');
 });
 test('the unit panel shows the card and its commands', () => {
   const u = open.units[0]!;

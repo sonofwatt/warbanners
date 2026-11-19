@@ -62,6 +62,22 @@ test('nothing can be done while the curtain is up', () => {
   get().tap({ unit: 0, hex: '-2,5' }); get().run({ type: 'move', unit: 0, to: '-1,4' }); get().arm({ kind: 'ability', ability: 'heal' });
   expect(get().state).toBe(before); expect(get().selection).toEqual(NONE); expect(get().record!.actions).toEqual([]);
 });
+test('Next unit selects a unit that can still act, and does nothing when none can or off the match', () => {
+  const { get } = started();
+  get().nextUnit();
+  expect(get().selection).toEqual(NONE);                                     // the curtain is up
+  get().ready();
+  get().nextUnit();
+  expect(get().selection).toEqual({ kind: 'unit', id: 0, armed: null, askLure: null });
+  get().nextUnit();                                                           // the only one: it stays selected
+  expect(get().selection).toEqual({ kind: 'unit', id: 0, armed: null, askLure: null });
+  get().run({ type: 'move', unit: 0, to: '-1,4' });
+  expect(offered(get().state!, 0).activeUnits).toEqual([]);
+  get().select({ kind: 'tile', at: '-2,4' });
+  get().nextUnit();
+  expect(get().selection).toEqual({ kind: 'tile', at: '-2,4' });              // none can act: nothing changes
+  expect(get().record!.actions).toHaveLength(1);
+});
 test('a refused action changes nothing', () => {
   const { get } = started(); get().ready(); const before = get().state;
   get().run({ type: 'move', unit: 99, to: '0,0' });
@@ -267,7 +283,7 @@ test('taps, runs and resign do nothing while the AI plays', async () => {
   const before = get().record; get().select({ kind: 'unit', id: 0, armed: null, askLure: null });
   get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
   get().run({ type: 'move', unit: 0, to: '-1,4' }); get().run({ type: 'resign' }); get().run({ type: 'endTurn' });
-  get().arm({ kind: 'ability', ability: 'heal' });
+  get().arm({ kind: 'ability', ability: 'heal' }); get().nextUnit();
   expect(get().record).toBe(before);
   expect(get().selection).toEqual(NONE);
   expect(get().aiBusy).toBe(true);

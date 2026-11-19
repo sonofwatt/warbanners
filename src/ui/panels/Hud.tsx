@@ -1,17 +1,17 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { FactionId } from '../../engine';
 import { ACCENT, playerColour } from '../art/palette';
-import { BannerMark, CoinIcon, FlaskIcon, HourglassIcon, MenuIcon } from '../icons';
+import { BannerMark, CoinIcon, FlaskIcon, HourglassIcon, MenuIcon, NextUnitIcon } from '../icons';
 import { T, fill } from '../text';
 
 export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
-  unitsToAct: number; techReady: boolean; endDisabled?: boolean; thinking?: boolean;
-  onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void;
+  unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean; thinking?: boolean;
+  onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void; onNextUnit: () => void;
 }
 
 // One strip: who is playing (their banner, name and people), their purse and the turn, then the buttons, with
-// End turn the boldest thing on it. Wraps to two rows at most on a narrow phone.
+// Next unit beside End turn and End turn the boldest thing on it. Wraps to two rows at most on a narrow phone.
 export function Hud(p: HudProps): ReactElement {
   const act = p.unitsToAct === 0 ? T.ui.noUnitsCanAct : p.unitsToAct === 1 ? T.ui.oneUnitCanAct : fill(T.ui.unitsCanAct, { n: p.unitsToAct });
   // The player's colour comes from the caller; its shade for the button's edge, from the palette.
@@ -56,6 +56,13 @@ export function Hud(p: HudProps): ReactElement {
           {p.thinking === true
             ? <small data-testid="thinking" className="can-act some" role="status">{T.ai.thinking}</small>
             : <small data-testid="can-act" className={p.unitsToAct > 0 ? 'can-act some' : 'can-act'}>{act}</small>}
+          <button
+            type="button" className="tool next-unit" disabled={p.nextDisabled === true} data-testid="next-unit"
+            aria-label={T.ui.nextUnit} onClick={p.onNextUnit}
+          >
+            <NextUnitIcon />
+            <span className="tool-label" aria-hidden="true">{T.ui.nextUnit}</span>
+          </button>
           <button type="button" className="player end-turn" data-testid="end-turn" disabled={p.endDisabled === true} onClick={p.onEndTurn}>
             {T.ui.endTurn}
           </button>

@@ -59,6 +59,12 @@ export function turnFocus(held: TurnFocus | null, key: string, focus: HexKey): T
 
 type Sheet = 'none' | 'tech' | 'menu';
 
+// Next unit is greyed, like End turn, while the AI plays, during End turn's lock and while a sheet or overlay is
+// up, and also when none of the viewer's units can still act.
+export function nextUnitDisabled(p: { canAct: number; aiBusy: boolean; locked: boolean; covered: boolean }): boolean {
+  return p.canAct === 0 || p.aiBusy || p.locked || p.covered;
+}
+
 export function Match(): ReactElement | null {
   const state = useApp((s) => s.state);
   const record = useApp((s) => s.record);
@@ -68,6 +74,7 @@ export function Match(): ReactElement | null {
   const last = useApp((s) => s.last);
   const run = useApp((s) => s.run);
   const tap = useApp((s) => s.tap);
+  const nextUnit = useApp((s) => s.nextUnit);
   const arm = useApp((s) => s.arm);
   const goHome = useApp((s) => s.goHome);
   const dismissDigest = useApp((s) => s.dismissDigest);
@@ -80,6 +87,8 @@ export function Match(): ReactElement | null {
   const [locked, setLocked] = useState(true);
   const [soundOn, setSoundOn] = useState(() => !isMuted());
   const [later, setLater] = useState<number[]>([]);
+  // Each tap on Next unit asks the board, once, to bring the unit it selected into view.
+  const [revealed, setRevealed] = useState(0);
 
   // End turn waits a moment after the screen appears, so the tap that ended the curtain cannot end the turn too.
   // Against the AI the screen stays up, so it waits again each time the person's turn comes back.
@@ -174,6 +183,11 @@ export function Match(): ReactElement | null {
   // In landscape the board takes the side column too while nothing is shown there.
   const side = sheet !== 'none' || panel !== null;
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
+  const nextDisabled = nextUnitDisabled({
+    canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
+  });
+  const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
+  const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
 
   return (
     <div className={side ? 'screen match has-side' : 'screen match'} data-testid="match">
@@ -181,10 +195,13 @@ export function Match(): ReactElement | null {
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
         unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy} thinking={aiBusy}
+        nextDisabled={nextDisabled} onNextUnit={onNextUnit}
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
       <div className="board-slot" data-testid="board-slot">
-        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}>
+        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}
+          reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
+        >
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
       </div>
