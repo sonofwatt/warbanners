@@ -48,9 +48,9 @@ Engineering
 
 Plan 2 (the game on screen)
 
-- `playerView` shows the live state of tiles and cities the player has explored
-  but cannot currently see (an unseen enemy city's level, an unseen new road).
-  Decide whether the view should remember only what was last seen.
+- Decided by David, 2026-11-18: `playerView` stays as built. A revealed tile is
+  shown live for the rest of the match (an enemy city's level, a new road), and
+  enemy units show only while currently seen. Nothing to change.
 - Moves that are blocked or stopped by an unseen enemy reveal that enemy through
   the list of legal moves. Decide whether that is acceptable.
 - The public data tables are mutable. Freeze them before UI code can touch them.

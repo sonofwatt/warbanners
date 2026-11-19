@@ -117,6 +117,9 @@ planned in detail now.
 - Hex tiles. Terrain: field, forest, mountain, water. Features: villages (neutral,
   capturable), cities, resource spots, treasure sites. **[David, via the genre]**
 - Hidden under fog until a unit or city sees it. Each player has their own view.
+- Once a tile is revealed, the player keeps seeing that tile live for the rest of
+  the match (terrain, roads, buildings, cities). Enemy units still show only
+  while one of the player's units or cities can see them. **[David]**
 - Generated from a seed at match start, so no two matches are the same.
   **[Claude's call]** Stage 1 has one size, tuned for two players and a match of
   roughly 30 to 60 minutes.

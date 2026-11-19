@@ -285,6 +285,9 @@ Mongols
 - A player sees every tile within `sight` of each of their units (one more from a
   mountain) and every tile within their cities' territory radius + 1.
 - Seen tiles stay explored for the rest of the match.
+- An explored tile is shown as it is now, not as it was when last seen: its
+  terrain, resource, building, road, and any city on it with that city's owner,
+  level and walls. Decided by David, 2026-11-18. Units are the exception, below.
 - Enemy units are known only while on a tile the player currently sees, and
   `hidden` ones only from next to them, or from a city they are standing on or
   next to.
