@@ -1,0 +1,112 @@
+import { useLayoutEffect, useRef, useState } from 'react';
+import type { AnimationEvent, ReactElement } from 'react';
+import type { FactionId, HexKey } from '../../engine';
+import { FIGURES } from '../art/factionUnits';
+import { ACCENT, playerColour } from '../art/palette';
+import { EFFECT_MS } from './effects';
+import type { Effect } from './effects';
+import { FIGURE_H, hexToBoard } from './layout';
+
+/** True when the phone asks for less motion. False in Node, where there is no matchMedia. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const LUNGE = 11; // how far, in board units, an attacker leans toward its target
+const BURST_R = 12;
+
+const r2 = (n: number): number => Math.round(n * 100) / 100;
+const place = (k: HexKey): string => {
+  const p = hexToBoard(k);
+  return `translate(${r2(p.x)} ${r2(p.y)})`;
+};
+
+/** What is drawn as its own shape: numbers always, falls and bursts only with motion. A lunge moves the unit itself. */
+const drawn = (f: Effect, still: boolean): boolean => f.kind === 'number' || (!still && f.kind !== 'lunge');
+
+/**
+ * Plays one action's effects inside the board's camera group, each removed when its
+ * animation ends. Mount it with the action's seq as its key, so each action plays once.
+ * It never takes a tap: the state is already final, these only decorate it.
+ */
+export function Effects(p: { effects: readonly Effect[]; factions: readonly FactionId[] }): ReactElement {
+  const [still] = useState(prefersReducedMotion);
+  const [live, setLive] = useState<ReadonlySet<number>>(
+    () => new Set(p.effects.flatMap((f, i) => (drawn(f, still) ? [i] : []))),
+  );
+  const ref = useRef<SVGGElement>(null);
+
+  // A lunge nudges the attacker's figure toward its target and back. It animates the unit's
+  // body, inside the group that places the unit, so it composes with a slide.
+  useLayoutEffect(() => {
+    const cam = ref.current?.parentElement;
+    if (still || cam == null) return undefined;
+    const running: Animation[] = [];
+    for (const f of p.effects) {
+      if (f.kind !== 'lunge') continue;
+      const unit = cam.querySelector(`[data-unit="${f.unit}"]`);
+      const body = unit?.querySelector('.unit-body');
+      const from = unit?.getAttribute('data-at');
+      if (body == null || from == null || typeof body.animate !== 'function') continue;
+      const a = hexToBoard(from);
+      const b = hexToBoard(f.toward);
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      if (len === 0) continue;
+      const dx = r2(((b.x - a.x) / len) * LUNGE);
+      const dy = r2(((b.y - a.y) / len) * LUNGE);
+      running.push(
+        body.animate(
+          [
+            { transform: 'translate(0px, 0px)' },
+            { transform: `translate(${dx}px, ${dy}px)`, offset: 0.3 },
+            { transform: 'translate(0px, 0px)' },
+          ],
+          { duration: EFFECT_MS, delay: f.delay, easing: 'ease-out' },
+        ),
+      );
+    }
+    return () => running.forEach((a) => a.cancel());
+    // Each mount plays one action; the list does not change while it plays.
+  }, []);
+
+  const end = (i: number) => (e: AnimationEvent<SVGGElement>): void => {
+    if (e.target !== e.currentTarget) return;
+    setLive((s) => {
+      const next = new Set(s);
+      next.delete(i);
+      return next;
+    });
+  };
+
+  return (
+    <g className="fx" pointerEvents="none" aria-hidden="true" ref={ref}>
+      {p.effects.map((f, i) => {
+        if (!live.has(i) || f.kind === 'lunge') return null;
+        const style = { animationDelay: `${f.delay}ms`, animationDuration: `${EFFECT_MS}ms` };
+        let body: ReactElement | null = null;
+        if (f.kind === 'number') {
+          body = (
+            <g className={`fx-number fx-${f.tone}${still ? ' fx-still' : ''}`} style={style} onAnimationEnd={end(i)}>
+              <text y={-FIGURE_H - 4} textAnchor="middle">{f.text}</text>
+            </g>
+          );
+        } else if (f.kind === 'fall') {
+          const faction = p.factions[f.owner];
+          if (faction === undefined) return null;
+          body = (
+            <g className="fx-fall" style={style} onAnimationEnd={end(i)}>
+              {FIGURES[f.unitType]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+            </g>
+          );
+        } else {
+          body = (
+            <g className={`fx-burst fx-${f.tone}`} style={style} onAnimationEnd={end(i)}>
+              <ellipse rx={BURST_R} ry={BURST_R * 0.62} />
+            </g>
+          );
+        }
+        return <g key={i} transform={place(f.at)}>{body}</g>;
+      })}
+    </g>
+  );
+}

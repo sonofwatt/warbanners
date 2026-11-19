@@ -2,18 +2,39 @@
   "name": "banners",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20.19" },
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "test": "vitest run",
-    "lint": "oxlint",
+    "test:browser": "vite build && cross-env BROWSER=1 vitest run src/browser",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx scripts/sim.ts"
+    "lint": "oxlint",
+    "sim": "tsx scripts/sim.ts",
+    "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@types/node": "^24",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "cross-env": "^10.1.0",
     "oxlint": "^1.75.0",
+    "playwright": "^1.65.1",
     "tsx": "^4",
     "typescript": "~6.0.2",
-    "vitest": "^4.1.11"
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^4.1.11",
+    "workbox-build": "^7.4.1",
+    "workbox-window": "^7.4.1"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
   }
 }

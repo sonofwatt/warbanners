@@ -16,3 +16,8 @@ export { FACTIONS } from './data/factions';
 export { CONFIG } from './data/config';
 export { RULES_VERSION } from './types';
 export type * from './types';
+export { key, parseKey, distance, neighbors, range } from './hex';
+export type { Hex, HexKey } from './hex';
+export type { PlayerView } from './vision';
+export { trainRefusal, campTrainRefusal, unitsOf } from './training';
+export { harvestRefusal, buildRefusal, roadRefusal, wallsRefusal } from './economy';
