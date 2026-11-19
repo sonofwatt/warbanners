@@ -141,8 +141,11 @@ input:focus { border-color: var(--blue); }
 
 /* Home */
 .home-hero { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) 0 var(--s1); }
-.home-hero .banner-tile { width: 92px; height: auto; flex: none; }
-.home-hero h1 { font-size: var(--t-hero); }
+.home-hero .banner-tile { width: clamp(64px, 20vw, 92px); height: auto; flex: none; }
+/* The words beside the flag measure their own width, so the title can scale to fit it. */
+.home-hero > div { flex: 1 1 0; min-width: 0; container-type: inline-size; }
+/* The title is one word: it shrinks with the room it has and never breaks inside the word. */
+.home-hero h1 { font-size: clamp(var(--t-h3), 13cqi, var(--t-hero)); overflow-wrap: normal; word-break: keep-all; }
 .tagline { font-size: var(--t-ml); font-weight: 600; margin-top: 2px !important; }
 .empty { font-weight: 600; }
 .notice {
@@ -462,7 +465,7 @@ input:focus { border-color: var(--blue); }
   .screen:not(.match) { gap: var(--s2); padding: var(--s3) var(--s4); }
   .home-hero { padding: 0; }
   .home-hero .banner-tile { width: 64px; }
-  .home-hero h1 { font-size: var(--t-h2); }
+  .home-hero h1 { font-size: clamp(var(--t-h3), 13cqi, var(--t-h2)); }
   .screen.setup h1 { font-size: var(--t-h3); }
   .faction-card { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s2); row-gap: 0; padding: 4px var(--s3) 9px; text-align: left; justify-items: start; }
   .faction-card .picture { width: 52px; grid-row: 1 / 3; }
