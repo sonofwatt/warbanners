@@ -25,10 +25,23 @@ const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
   { name: 'move', types: ['moved', 'lured'] },
 ];
 
-// One sound per action: the most important event wins.
-export function soundFor(events: readonly GameEvent[]): SoundName | null {
+// Whether the viewer may hear of an event. A hit, splash or death of a unit outside `seenUnits` (the ids the viewer
+// could see before the action or can see after it) is dropped, the same rule the board effects follow, so a sound
+// never tells of a hidden unit.
+function heard(e: GameEvent, seenUnits: ReadonlySet<number>): boolean {
+  switch (e.type) {
+    case 'died': return seenUnits.has(e.unit);
+    case 'attacked':
+    case 'splashed': return seenUnits.has(e.target);
+    default: return true;
+  }
+}
+
+// One sound per action: the most important event the viewer may know of wins.
+export function soundFor(events: readonly GameEvent[], seenUnits: ReadonlySet<number>): SoundName | null {
+  const known = events.filter((e) => heard(e, seenUnits));
   for (const { name, types } of ORDER) {
-    if (events.some((e) => types.includes(e.type))) return name;
+    if (known.some((e) => types.includes(e.type))) return name;
   }
   return null;
 }

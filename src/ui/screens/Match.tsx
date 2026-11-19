@@ -73,15 +73,8 @@ export function Match(): ReactElement | null {
     return () => clearTimeout(t);
   }, []);
 
-  // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   const heard = useRef(last?.seq ?? 0);
   const shownBefore = useRef(last?.seq ?? 0);
-  useEffect(() => {
-    if (last === null || last.seq === heard.current) return;
-    heard.current = last.seq;
-    const name = soundFor(last.events);
-    if (name !== null) play(name);
-  }, [last]);
 
   const data = useMemo(
     () => (state === null || viewer === null ? null : matchData(state, viewer, selection)),
@@ -92,12 +85,22 @@ export function Match(): ReactElement | null {
   // after it (a hidden unit can stand unseen on a visible tile). Worked out once per action, not per selection.
   // The curtain unmounts this screen, so nothing of `last` shows behind it, and what was accepted before the
   // screen appeared is not replayed.
+  // The sound is chosen by the same rule, from the same units.
   const fx = useMemo(() => {
     if (last === null || state === null || viewer === null || last.seq === shownBefore.current) return null;
     const now = playerView(state, viewer);
     const seenUnits = new Set([...playerView(last.before, viewer).units, ...now.units].map((u) => u.id));
-    return { seq: last.seq, list: effectsFor(last.events, last.before, state, new Set(now.visible), seenUnits) };
+    return {
+      seq: last.seq, sound: soundFor(last.events, seenUnits),
+      list: effectsFor(last.events, last.before, state, new Set(now.visible), seenUnits),
+    };
   }, [last, state, viewer]);
+  // One sound per accepted action; what was accepted before this screen appeared is not replayed.
+  useEffect(() => {
+    if (fx === null || fx.seq === heard.current) return;
+    heard.current = fx.seq;
+    if (fx.sound !== null) play(fx.sound);
+  }, [fx]);
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
   const items = useMemo(
     () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, selectedUnit, spentUnits: data.spent })),
