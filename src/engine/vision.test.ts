@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { applyAction, HANDLERS } from './apply';
 import { attackTargets } from './combat';
 import { createMatch } from './state';
-import { addCity, addUnit, blankMatch, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, randomPlayout, setTile } from './testkit';
 import { canSeeUnit, playerView, refreshExplored, visibleTiles } from './vision';
 
 describe('vision', () => {
@@ -84,6 +84,23 @@ describe('vision', () => {
     expect(v.visible).toEqual([...v.visible].sort());
     v.tiles['0,0']!.terrain = 'water';
     expect(s.tiles['0,0']!.terrain).toBe('field');
+  });
+  test('playerView shares no object with the match: every tile, unit and city in it is a copy', () => {
+    const objects = (x: unknown, into = new Set<object>()): Set<object> => {
+      if (typeof x !== 'object' || x === null || into.has(x)) return into;
+      into.add(x);
+      for (const v of Object.values(x)) objects(v, into);
+      return into;
+    };
+    const s = randomPlayout(7, 40);
+    for (const u of s.units.slice(0, 2)) u.lure = { target: 0, from: u.pos };
+    for (const c of s.cities.slice(0, 2)) c.pendingRewards = [2];
+    const inMatch = objects(s);
+    for (const p of [0, 1] as const) {
+      const v = playerView(s, p);
+      expect(v.units.length + v.cities.length).toBeGreaterThan(0);
+      expect([...objects(v)].filter((o) => inMatch.has(o))).toEqual([]);
+    }
   });
   test('createMatch explores around the starting units and cities', () => {
     const s = createMatch({ seed: 1, factions: ['spartans', 'mongols'] });

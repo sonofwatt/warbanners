@@ -14,12 +14,21 @@ const COUNTER_MS = 150;
 
 // What one viewer may be shown of one action: the tiles they see after it, and the units they could see before it
 // or can see after it. The match screen's effects and sound, and the pause after an AI action, all use this.
-export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId): { visible: Set<HexKey>; seenUnits: Set<number> } {
+// Each action is asked about twice (the store's pause, then the match screen), and working it out builds two whole
+// views: the answer is kept with the state after the action, which never changes, and shared. Callers only read it.
+export interface Seen { visible: ReadonlySet<HexKey>; seenUnits: ReadonlySet<number> }
+const asked = new WeakMap<MatchState, { before: MatchState; viewer: PlayerId; seen: Seen }[]>();
+export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId): Seen {
+  const known = asked.get(after) ?? [];
+  const hit = known.find((x) => x.before === before && x.viewer === viewer);
+  if (hit !== undefined) return hit.seen;
   const now = playerView(after, viewer);
-  return {
+  const seen = {
     visible: new Set(now.visible),
     seenUnits: new Set([...playerView(before, viewer).units, ...now.units].map((u) => u.id)),
   };
+  asked.set(after, [...known, { before, viewer, seen }]);
+  return seen;
 }
 
 // How long the viewer needs to watch one action: until its last effect ends, or one slide for a seen unit that

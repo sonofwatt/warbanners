@@ -63,17 +63,19 @@ export interface PlayerView {
   player: PlayerId; tiles: Record<HexKey, Tile>; cities: City[]; units: Unit[]; visible: HexKey[];
 }
 
+// The view is a copy that shares nothing with the match. It is made field by field rather than with structuredClone,
+// which costs several times more and is paid on the phone's main thread after every action.
 export function playerView(s: MatchState, player: PlayerId): PlayerView {
   const explored = s.players[player]?.explored ?? [];
   const tiles: Record<HexKey, Tile> = {};
   for (const k of explored) {
     const t = tileAt(s, k);
-    if (t !== undefined) tiles[k] = structuredClone(t);
+    if (t !== undefined) tiles[k] = { ...t };
   }
   const visible = visibleTiles(s, player);
   const units = s.units
     .filter((u) => u.owner === player || (visible.has(u.pos) && canSeeUnit(s, player, u, visible)))
-    .map((u) => structuredClone(u));
-  const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => structuredClone(c));
+    .map((u) => ({ ...u, lure: u.lure === null ? null : { ...u.lure } }));
+  const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => ({ ...c, pendingRewards: [...c.pendingRewards] }));
   return { player, tiles, cities, units, visible: [...visible].sort() };
 }

@@ -206,12 +206,11 @@ describe.runIf(process.env.BROWSER === '1')('solo play in the browser', () => {
     expect(t.wall - t.paused).toBeLessThan(3000);
   });
 
-  // Turned on by Task 11b: board render cost. The planner runs in a worker and is not the cause: at 4x the main
-  // thread draws the board in tasks of 112, 133 and 201 ms (three runs) right after End turn and each AI action,
-  // against the 100 ms bound. test.fails passes while that is so and starts failing once the board is cheap enough,
-  // at which point Task 11b turns it into a plain test.
-  test.fails('the page never stands still for 100 ms while the AI thinks, CPU slowed four times', async () => {
+  // Every main-thread task from the End turn tap until Thinking goes, the board's draw after each AI action included
+  // (those land in the pauses between actions, not while the planner thinks). Task 11b made the board redraw only
+  // the tiles and units that changed and the views cheaper to make: the longest task went from 116 to 154 ms to 54 to 56 ms.
+  test('the page never stands still for 100 ms during an AI turn, CPU slowed four times', async () => {
     const t = await hardTurn();
-    expect(t.worstWhileThinking).toBeLessThan(100);
+    expect(t.worstAnyTime).toBeLessThan(100);
   });
 }, 120_000);

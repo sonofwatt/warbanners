@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
@@ -14,6 +14,7 @@ import { boardBounds, hexToBoard, tileBox } from './layout';
 import type { Box, Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
+import { sameData } from './same';
 import { useGestures } from './useGestures';
 
 export interface BoardProps {
@@ -133,7 +134,7 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
   );
 }
 
-function TileView(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement {
+function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement {
   const { t } = p;
   const mark = t.mark === null ? null : <g data-mark={t.mark}><Highlight mark={t.mark} /></g>;
   const centre = <circle r={1} fill="none" pointerEvents="none" data-centre={t.key} />;
@@ -168,7 +169,7 @@ function TileView(p: { t: SceneTile; factions: readonly FactionId[]; viewer: Pla
   );
 }
 
-function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactElement | null {
+function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
@@ -197,6 +198,12 @@ function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactEle
     </g>
   );
 }
+
+// A tile or a unit is drawn again only when what it shows has changed. The scene is rebuilt from a fresh view after
+// every action, so its objects are always new: they are compared by value. Each draw of a whole board is thousands
+// of svg nodes, and on a phone redrawing them all after every action held the screen still for over 100 ms.
+const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && sameData(a.factions, b.factions) && sameData(a.t, b.t));
+const UnitView = memo(UnitViewOf, (a, b) => sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
  * After the slot has changed size with something selected: the least pan that keeps the selected tile in the

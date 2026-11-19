@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction, playerView } from '../../engine';
 import type { GameEvent, MatchState } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
-import { EFFECT_MS, MAX_TOTAL_MS, effectsFor } from './effects';
+import { EFFECT_MS, MAX_TOTAL_MS, effectsFor, seenBy } from './effects';
 
 /** Every unit in either state: for the tests about tiles, where every unit is in sight. */
 const everyone = (...states: MatchState[]): Set<number> => new Set(states.flatMap((x) => x.units.map((u) => u.id)));
@@ -138,4 +138,20 @@ test('the same hidden enemy, spotted by a unit next to it, gets its number', () 
   expect(spotted).toBe(true);
   const fx = effectsFor([{ type: 'splashed', target: scout.id, damage: 1 }], s, s, visible, seen);
   expect(fx).toEqual([{ kind: 'number', at: '2,0', text: '-1', tone: 'hurt', delay: 0 }]);
+});
+
+test('seenBy works an action out once: the store and the match screen ask about the same action and share the answer', () => {
+  const { s, rider } = killPosition();
+  const r = applyAction(s, { type: 'attack', unit: rider.id, target: '1,0' });
+  if (!r.ok) throw new Error(r.reason);
+  const first = seenBy(s, r.state, 0);
+  expect(seenBy(s, r.state, 0)).toBe(first);
+  expect(first.visible).toEqual(new Set(playerView(r.state, 0).visible));
+  expect(first.seenUnits).toEqual(new Set([...playerView(s, 0).units, ...playerView(r.state, 0).units].map((u) => u.id)));
+  // Another viewer or another state before is a different question.
+  expect(seenBy(s, r.state, 1)).not.toBe(first);
+  expect(seenBy(s, r.state, 1).visible).toEqual(new Set(playerView(r.state, 1).visible));
+  const other = applyAction(s, { type: 'endTurn' });
+  if (!other.ok) throw new Error(other.reason);
+  expect(seenBy(other.state, r.state, 0)).not.toBe(seenBy(s, r.state, 0));
 });
