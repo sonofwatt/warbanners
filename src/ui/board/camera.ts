@@ -73,6 +73,46 @@ export function zoomAt(c: Camera, factor: number, atPx: Pt, bounds: Box, vp: Vie
   );
 }
 
+/**
+ * After the slot changes size (a panel opening beside or below it): the board point at the slot's top-left
+ * corner stays where it is, so a slot that only loses its bottom or right part moves nothing. The sky the view
+ * already showed past an edge is allowed to stay, so a board that was centred is not nudged by the edge rule.
+ */
+export function keepCorner(c: Camera, was: Viewport, now: Viewport, bounds: Box): Camera {
+  const scale = clampScale(c.scale, bounds, now);
+  const moved = { cx: c.cx + (now.w - was.w) / 2 / c.scale, cy: c.cy + (now.h - was.h) / 2 / c.scale, scale: c.scale };
+  if (scale !== c.scale) return clampCamera(moved, bounds, now);
+  const axis = (v: number, lo: number, hi: number, wasC: number, wasPx: number, nowPx: number): number => {
+    if ((hi - lo) * scale <= nowPx) return (lo + hi) / 2;
+    const skyLo = Math.max(EDGE_PX, (lo - (wasC - wasPx / 2 / scale)) * scale);
+    const skyHi = Math.max(EDGE_PX, (wasC + wasPx / 2 / scale - hi) * scale);
+    return clamp(v, lo + (nowPx / 2 - skyLo) / scale, hi - (nowPx / 2 - skyHi) / scale);
+  };
+  return {
+    cx: axis(moved.cx, bounds.minX, bounds.maxX, c.cx, was.w, now.w),
+    cy: axis(moved.cy, bounds.minY, bounds.maxY, c.cy, was.h, now.h),
+    scale,
+  };
+}
+
+const KEEP_PX = 8; // the room keepInView leaves between a kept box and the slot's edge
+
+/** The least pan that brings `box` (board units) inside the slot with a small margin; none when it is already. */
+export function keepInView(c: Camera, vp: Viewport, box: Box, bounds: Box): Camera {
+  const lo = boardToScreen(c, vp, { x: box.minX, y: box.minY });
+  const hi = boardToScreen(c, vp, { x: box.maxX, y: box.maxY });
+  const shift = (a: number, b: number, size: number): number => {
+    if (b - a > size - 2 * KEEP_PX) return a < KEEP_PX ? KEEP_PX - a : 0; // too big to fit: show its start
+    if (a < KEEP_PX) return KEEP_PX - a;
+    if (b > size - KEEP_PX) return size - KEEP_PX - b;
+    return 0;
+  };
+  const dx = shift(lo.x, hi.x, vp.w);
+  const dy = shift(lo.y, hi.y, vp.h);
+  if (dx === 0 && dy === 0) return c;
+  return panBy(c, dx, dy, bounds, vp);
+}
+
 /** After a rotation or resize: same centre, scale re-clamped. */
 export function refit(c: Camera, bounds: Box, vp: Viewport): Camera {
   return clampCamera(c, bounds, vp);

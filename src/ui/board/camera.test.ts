@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { R, boardBounds, hexToBoard } from './layout';
-import { boardToScreen, fitScale, panBy, screenToBoard, startCamera, zoomAt } from './camera';
+import { R, boardBounds, hexToBoard, tileBox } from './layout';
+import { boardToScreen, fitScale, keepCorner, keepInView, panBy, screenToBoard, startCamera, zoomAt } from './camera';
 
 const B = boardBounds(6);
 const VP = { w: 412, h: 915 };
@@ -69,4 +69,39 @@ test('screen and board convert both ways', () => {
   const back = boardToScreen(c, VP, p);
   expect(back.x).toBeCloseTo(100, 5);
   expect(back.y).toBeCloseTo(500, 5);
+});
+
+test('a slot that loses its bottom or right part keeps the board still under the rest', () => {
+  const big = { w: 360, h: 536 };
+  const c = panBy(startCamera(hexToBoard('0,0'), B, big), 20, -30, B, big);
+  for (const small of [{ w: 360, h: 355 }, { w: 240, h: 536 }]) {
+    const k = keepCorner(c, big, small, B);
+    expect(k.scale).toBe(c.scale);
+    for (const p of [{ x: 0, y: 0 }, { x: 100, y: 200 }]) {
+      const was = boardToScreen(c, big, p); const now = boardToScreen(k, small, p);
+      expect(now.x).toBeCloseTo(was.x, 6); expect(now.y).toBeCloseTo(was.y, 6);
+    }
+  }
+});
+
+test('keepInView pans only as far as a box needs to be inside the slot, and not at all when it is', () => {
+  const vp = { w: 360, h: 355 };
+  const c = panBy(startCamera(hexToBoard('0,0'), B, vp), 0, 0, B, vp);
+  const near = tileBox('0,0');
+  expect(keepInView(c, vp, near, B)).toEqual(c);
+  // A tile low in the view comes up just far enough to clear the bottom by the margin.
+  const low = tileBox('-2,5');
+  const before = boardToScreen(c, vp, { x: 0, y: low.maxY }).y;
+  expect(before).toBeGreaterThan(vp.h);
+  const k = keepInView(c, vp, low, B);
+  const top = boardToScreen(k, vp, { x: low.minX, y: low.minY }); const bottom = boardToScreen(k, vp, { x: low.maxX, y: low.maxY });
+  expect(top.y).toBeGreaterThanOrEqual(0); expect(bottom.y).toBeLessThanOrEqual(vp.h);
+  expect(top.x).toBeGreaterThanOrEqual(0); expect(bottom.x).toBeLessThanOrEqual(vp.w);
+  expect(vp.h - bottom.y).toBeLessThan(16);
+});
+
+test('tileBox covers the tile, its side wall and a figure standing on it', () => {
+  const b = tileBox('1,2'); const p = hexToBoard('1,2');
+  expect(b.minX).toBeLessThan(p.x); expect(b.maxX).toBeGreaterThan(p.x);
+  expect(p.y - b.minY).toBeGreaterThan(30); expect(b.maxY).toBeGreaterThan(p.y);
 });

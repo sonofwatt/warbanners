@@ -7,11 +7,11 @@ import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, V
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, TileBase, Veil } from '../art/tiles';
 import { StatusOverlay } from '../art/units';
-import { refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
+import { keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
 import { prefersReducedMotion } from './Effects';
-import { boardBounds, hexToBoard } from './layout';
-import type { Pt } from './layout';
+import { boardBounds, hexToBoard, tileBox } from './layout';
+import type { Box, Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { useGestures } from './useGestures';
@@ -199,6 +199,21 @@ function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactEle
 }
 
 /**
+ * After the slot has changed size with something selected: the least pan that keeps the selected tile in the
+ * slot, and with it every marked tile (where the selection can go or act) when they all fit.
+ */
+function keepSelection(c: Camera, vp: Viewport, bounds: Box, items: readonly SceneItem[]): Camera {
+  const marked = items.filter((i): i is SceneTile => i.kind === 'tile' && i.mark !== null);
+  const selected = marked.find((t) => t.mark === 'selected');
+  if (selected === undefined) return c;
+  const all = marked.map((t) => tileBox(t.key)).reduce((a, b) => ({
+    minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY),
+  }));
+  const fits = (all.maxX - all.minX) * c.scale <= vp.w - 32 && (all.maxY - all.minY) * c.scale <= vp.h - 32;
+  return keepInView(c, vp, fits ? all : tileBox(selected.key), bounds);
+}
+
+/**
  * The interactive board: one svg, one camera group, the scene items back to front.
  * The camera lives in a ref; a pan or zoom writes the camera group's transform at most
  * once per animation frame and never re-renders React.
@@ -215,7 +230,8 @@ export function Board(p: BoardProps): ReactElement {
 
   // The latest props for the event handlers, which are attached once.
   const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds });
-  useEffect(() => {
+  // A layout effect, so a resize observed in the same frame as a new selection already sees it.
+  useLayoutEffect(() => {
     latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds };
   });
 
@@ -242,11 +258,20 @@ export function Board(p: BoardProps): ReactElement {
     const measure = (now: boolean): void => {
       const r = el.getBoundingClientRect();
       if (r.width <= MIN_SIDE || r.height <= MIN_SIDE) return;
+      const was = vp.current;
       vp.current = { w: r.width, h: r.height };
-      const { bounds: b, focus } = latest.current;
-      // Until the player pans or zooms, the camera keeps aiming at the focus: the clamp may have moved the
-      // centre off it (a board shorter than the screen is centred), and a new size may let it aim closer.
-      cam.current = measured.current && touched.current ? refit(cam.current!, b, vp.current) : startCamera(hexToBoard(focus), b, vp.current);
+      const { bounds: b, focus, items } = latest.current;
+      const selecting = items.some((i) => i.kind === 'tile' && i.mark === 'selected');
+      if (!measured.current || (!touched.current && !selecting)) {
+        // Until the player pans, zooms or selects something, the camera keeps aiming at the focus: the clamp may
+        // have moved the centre off it (a board shorter than the screen is centred), and a new size may let it aim closer.
+        cam.current = startCamera(hexToBoard(focus), b, vp.current);
+      } else {
+        // A panel opening or closing changes the slot: the board stays still under the finger, and moves only as
+        // far as it must to keep the selection in sight. From here on the camera no longer aims at the focus.
+        cam.current = keepSelection(keepCorner(cam.current!, was, vp.current, b), vp.current, b, items);
+        touched.current = true;
+      }
       measured.current = true;
       if (now) write();
       else schedule();
