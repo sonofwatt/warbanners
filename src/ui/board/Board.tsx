@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
@@ -9,7 +9,9 @@ import { Border, groundFor, Highlight, TileBase, Veil } from '../art/tiles';
 import { StatusOverlay } from '../art/units';
 import { refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
+import { prefersReducedMotion } from './Effects';
 import { boardBounds, hexToBoard } from './layout';
+import type { Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { useGestures } from './useGestures';
@@ -31,6 +33,25 @@ export const ASSUMED_VIEWPORT: Viewport = { w: 412, h: 915 };
 const MIN_SIDE = 48;
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** How long a unit takes to slide from one tile to the next. */
+export const SLIDE_MS = 180;
+// A moved unit is drawn on top while it slides and goes back into the draw order a little after it arrives.
+const SETTLE_MS = SLIDE_MS + 40;
+
+const unitTransform = (at: Pt): string => `translate(${r2(at.x)}px, ${r2(at.y)}px)`;
+
+function unitPlaces(items: readonly SceneItem[]): Map<number, HexKey> {
+  const m = new Map<number, HexKey>();
+  for (const it of items) if (it.kind === 'unit') m.set(it.unit.id, it.unit.pos);
+  return m;
+}
+
+function samePlaces(a: ReadonlyMap<number, HexKey>, b: ReadonlyMap<number, HexKey>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [id, k] of a) if (b.get(id) !== k) return false;
+  return true;
+}
 
 export function cameraTransform(c: Camera, vp: Viewport): string {
   return `translate(${r2(vp.w / 2 - c.cx * c.scale)} ${r2(vp.h / 2 - c.cy * c.scale)}) scale(${Math.round(c.scale * 10000) / 10000})`;
@@ -150,7 +171,7 @@ function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactEle
       data-unit={unit.id}
       data-at={unit.pos}
       className="board-unit"
-      style={{ transform: `translate(${r2(p.u.at.x)}px, ${r2(p.u.at.y)}px)` }}
+      style={{ transform: unitTransform(p.u.at) }}
     >
       {/* The body is what a lunge nudges, inside the group that places the unit. */}
       <g className="unit-body">
@@ -258,18 +279,51 @@ export function Board(p: BoardProps): ReactElement {
     schedule();
   });
 
+  // Units slide. A unit that has just moved is drawn last, on top of everything, while it slides: a
+  // unit moving toward the back row would otherwise pass under the tiles in front of it. Once it has
+  // arrived it goes back to its place in the draw order, behind whatever stands on the tile in front.
+  // React moves the same node each time; the slide is played on that node, so a move never jumps.
   const { items, factions, viewer } = p;
-  const drawn = useMemo(
-    () =>
-      items.map((it) =>
-        it.kind === 'tile' ? (
-          <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} />
-        ) : (
-          <UnitView key={`u${it.unit.id}`} u={it} factions={factions} />
-        ),
-      ),
-    [items, factions, viewer],
-  );
+  const [settled, setSettled] = useState<ReadonlyMap<number, HexKey>>(() => unitPlaces(p.items));
+  useEffect(() => {
+    const now = unitPlaces(items);
+    if (samePlaces(now, settled)) return undefined;
+    const t = setTimeout(() => setSettled(now), SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [items, settled]);
+
+  const shownAt = useRef(new Map<number, Pt>());
+  useLayoutEffect(() => {
+    const g = camRef.current;
+    const still = prefersReducedMotion();
+    const next = new Map<number, Pt>();
+    for (const it of items) {
+      if (it.kind !== 'unit') continue;
+      next.set(it.unit.id, it.at);
+      const was = shownAt.current.get(it.unit.id);
+      if (still || g === null || was === undefined || (was.x === it.at.x && was.y === it.at.y)) continue;
+      const el = g.querySelector(`[data-unit="${it.unit.id}"]`);
+      if (el !== null && typeof el.animate === 'function') {
+        el.animate([{ transform: unitTransform(was) }, { transform: unitTransform(it.at) }], { duration: SLIDE_MS, easing: 'ease-out' });
+      }
+    }
+    shownAt.current = next;
+  }, [items]);
+
+  const drawn = useMemo(() => {
+    const view = (it: SceneItem): ReactElement =>
+      it.kind === 'tile' ? (
+        <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} />
+      ) : (
+        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} />
+      );
+    const sliding = (it: SceneItem): boolean => {
+      if (it.kind !== 'unit') return false;
+      const was = settled.get(it.unit.id);
+      return was !== undefined && was !== it.unit.pos;
+    };
+    return [...items.filter((it) => !sliding(it)).map(view), ...items.filter(sliding).map(view)];
+  }, [items, factions, viewer, settled]);
 
   return (
     <svg ref={svgRef} className="board" width="100%" height="100%" style={{ touchAction: 'none' }} data-testid="board">

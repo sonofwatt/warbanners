@@ -42,6 +42,63 @@ async function startMatch(page: Page): Promise<void> {
   await page.getByTestId('start').tap();
 }
 
+/**
+ * Moves seed 7's Warrior (unit 0) from one tile to the next and checks the slide: the unit's node is the
+ * same node throughout, its screen position passes through points between the two tiles rather than
+ * jumping, and once it has arrived it sits in the draw order after its own tile and before the tile in
+ * front of it, so the back-to-front overlap holds.
+ */
+async function slide(page: Page, from: string, to: string): Promise<void> {
+  await tapTile(page, from);
+  await page.locator(`[data-mark="move"]`).first().waitFor({ state: 'attached' });
+  await page.evaluate(() => {
+    const w = window as unknown as { unitNode: Element | null; track: { x: number; y: number }[]; tracking: boolean };
+    w.unitNode = document.querySelector('[data-unit="0"]');
+    w.track = [];
+    w.tracking = true;
+    const sample = (): void => {
+      // Where the unit's own origin (its feet) is on the board: its screen matrix with the camera's taken
+      // out, so neither the box of what it draws nor a camera refit (the selection panel opening or closing
+      // resizes the board) counts as the unit moving.
+      const unit = document.querySelector('[data-unit="0"]') as SVGGraphicsElement | null;
+      const cam = document.querySelector('[data-camera]') as SVGGraphicsElement | null;
+      const m = unit?.getScreenCTM();
+      const c = cam?.getScreenCTM();
+      if (m && c) {
+        const b = c.inverse().multiply(m);
+        w.track.push({ x: b.e, y: b.f });
+      }
+      if (w.tracking) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await tapTile(page, to);
+  await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe(to);
+  await page.waitForTimeout(500);
+  const out = await page.evaluate((k) => {
+    const w = window as unknown as { unitNode: Element | null; track: { x: number; y: number }[]; tracking: boolean };
+    w.tracking = false;
+    const node = document.querySelector('[data-unit="0"]');
+    const tile = document.querySelector(`[data-hex="${k.to}"]`);
+    const front = document.querySelector(`[data-hex="${k.front}"]`);
+    const follows = (a: Element | null, b: Element | null): boolean =>
+      a !== null && b !== null && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    return { same: node !== null && node === w.unitNode, track: w.track, afterTile: follows(tile, node), beforeFront: follows(node, front) };
+  }, { to, front: `${Number(to.split(',')[0]) - 1},${Number(to.split(',')[1]) + 1}` });
+  expect(out.same).toBe(true);
+  const first = out.track[0]!;
+  const last = out.track[out.track.length - 1]!;
+  expect(Math.hypot(last.x - first.x, last.y - first.y)).toBeGreaterThan(30); // one tile is about 38 board units away
+  const between = out.track.filter((p) => {
+    const t = ((p.x - first.x) * (last.x - first.x) + (p.y - first.y) * (last.y - first.y)) /
+      ((last.x - first.x) ** 2 + (last.y - first.y) ** 2);
+    return t > 0.1 && t < 0.9;
+  });
+  expect(between.length, JSON.stringify(out.track)).toBeGreaterThanOrEqual(2);
+  expect(out.afterTile).toBe(true);
+  expect(out.beforeFront).toBe(true);
+}
+
 interface Problem { what: string; box: { x: number; y: number; w: number; h: number } }
 
 /**
@@ -190,6 +247,24 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await page.getByTestId('result-home').tap();
       await page.getByTestId('new-match').waitFor();
       await expectTidy(page, 'home again');
+    } finally {
+      await close();
+    }
+  });
+
+  test('a unit slides toward the back and toward the front, and keeps its node', async () => {
+    const { page, close } = await openApp(SEED);
+    try {
+      await startMatch(page);
+      await throughCurtain(page, 'Player 1');
+      await slide(page, '-2,5', '-2,4'); // toward the back row
+      await endTurnReady(page);
+      await page.getByTestId('end-turn').tap();
+      await throughCurtain(page, 'Player 2');
+      await endTurnReady(page);
+      await page.getByTestId('end-turn').tap();
+      await throughCurtain(page, 'Player 1');
+      await slide(page, '-2,4', '-2,5'); // toward the front row
     } finally {
       await close();
     }

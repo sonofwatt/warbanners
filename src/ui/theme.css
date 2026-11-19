@@ -131,8 +131,7 @@ h1, h2, p { overflow-wrap: anywhere; }
 
 /* The board: one svg filling its container; gestures are ours, never the page's. */
 .board { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
-.board .board-unit { transition: transform 180ms ease-out; }
-@media (prefers-reduced-motion: reduce) { .board .board-unit { transition: none; } }
+/* A unit's slide from tile to tile is played by Board.tsx on the unit's node, and skipped when less motion is asked for. */
 
 /* Battle effects (Effects.tsx). Each waits out its delay unseen, plays once and is then removed.
    Effects.tsx skips falls and bursts, and holds numbers still, when less motion is asked for. */
