@@ -515,7 +515,7 @@ export function Shadow(p: { wide?: boolean }): ReactElement;   // the soft blob 
 export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fresh: boolean; taunted: boolean; blinded: boolean }): ReactElement;
 ```
 
-A figure stands with its feet at about `(0, 4)` and fits the box x from -16 to 16, y from -36 to 8. It is about one tile tall with a big head, a simple body in the owner's colour, and one or two props that tell it apart at a glance:
+A figure stands with its feet at about `(0, 4)` and fits the box x from -20 to 20, y from -36 to 8. It is about one tile tall with a big head, a simple body in the owner's colour, and one or two props that tell it apart at a glance:
 
 | Figure | What makes it readable |
 |---|---|
@@ -548,7 +548,7 @@ test('each figure wears the colour it is given and no other player colour', () =
   }
 });
 test('each figure has a shadow, no gradient, and stays in its box', () => {
-  // for each: contains fill-opacity="0.18"; no Gradient or filter; every coordinate within x -16..16 and y -36..8
+  // for each: contains fill-opacity="0.18"; no Gradient or filter; every coordinate within x -20..20 and y -36..8
 });
 test('health pips', () => {
   const pips = (hp: number, maxHp: number) => html(<StatusOverlay hp={hp} maxHp={maxHp} spent={false} fresh={false} taunted={false} blinded={false} />);
