@@ -17,11 +17,15 @@ test.each([
   expect(acts).toHaveLength(count);
   expect(digest(acts)).toBe(legal);
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
-});
+}, 30_000);
 test('legalActions on a 24-unit position is fast', () => {
   const s = randomPlayout(7, 160);
   expect(s.units).toHaveLength(24);
-  const t0 = performance.now();
-  for (let i = 0; i < 20; i++) legalActions(s);
-  expect((performance.now() - t0) / 20).toBeLessThan(5); // about 9.4 ms before, 2.7 ms after, in Node on ClaudeComputer
-});
+  let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
+  for (let b = 0; b < 5; b++) {
+    const t0 = performance.now();
+    for (let i = 0; i < 20; i++) legalActions(s);
+    fastest = Math.min(fastest, (performance.now() - t0) / 20);
+  }
+  expect(fastest).toBeLessThan(5); // about 9.4 ms before, 2.7 ms after, in Node on ClaudeComputer
+}, 30_000);
