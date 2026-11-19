@@ -102,7 +102,8 @@ summary.
 2. Hero traits and expanded treasures.
 3. Remote play: first with a "text them it's their turn" button, then automatic
    notifications.
-4. More than two players, map sizes, speed settings, ships and water tech.
+4. More than two players, map sizes, speed settings, ships and water tech, and
+   cannibal camps (5.11).
 5. More factions.
 6. Exalted Heroes and player profiles.
 
@@ -298,6 +299,40 @@ map to another treasure, a wandering mercenary who joins you.
   chance to do it.
 - Milestones are things like a city reaching a high level or finishing a branch
   of tech. Exact conditions and cost: **[Builder]** at that stage.
+
+### 5.11 Cannibal camps (stage 4) **[David, 2026-11-19]**
+
+A hostile, AI-run group that belongs to no player. Added in stage 4 alongside more
+players and map sizes.
+
+What David asked for:
+
+- **Camps:** each map has several cannibal campsites, one per player. A campsite is
+  the cannibals' spawn point.
+- **Dormant until found:** a camp does nothing until a player uncovers it from the
+  fog. That player is the one who "woke" it.
+- **Raiders:** once woken, the camp slowly spawns cannibal units. They are melee only
+  and stronger than a tribe's starting unit. They head for the nearest city of the
+  player who woke them.
+- **Terror:** cannibals that reach a city terrify its people: the city's gold income,
+  the speed of unit production and similar output slow down.
+- **Burning the camp:** any player may destroy a campsite. No new cannibals come from
+  it after that, but a terrified city stays slowed until the cannibals on the tiles
+  next to it are cleared.
+- **Reward:** the unit that clears a campsite earns a boost towards hero status
+  (stage 2's deeds and traits), and its player gets some gold.
+- **War drums:** when a player's unit gets close to a cannibal camp, war drums start
+  to play, louder as it nears.
+- **Grudges:** if another player attacks a cannibal or a campsite, the cannibals split
+  their forces and send part of them after that player's nearest city too.
+
+Points to settle when stage 4 is planned **[Builder, with David]**: how many units a
+camp holds and how fast it spawns; the exact sizes of the terror slowdowns and of the
+reward; whether "close" for the drums is a fixed distance or the edge of sight; what
+"production" covers in a stage with no build queue (training cost, growth, or both);
+whether cannibals capture or only besiege; how they treat a city once its owner is
+eliminated; and an original name and look for the group. They are a fictional people
+drawn as storybook raiders, not modelled on any real culture. **[Claude's call]**
 
 ## 6. Multiplayer modes
 
