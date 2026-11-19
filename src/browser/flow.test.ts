@@ -102,38 +102,73 @@ async function slide(page: Page, from: string, to: string): Promise<void> {
 interface Problem { what: string; box: { x: number; y: number; w: number; h: number } }
 
 /**
- * Layout problems on the current screen: sideways scroll, and any visible button smaller than 44 by 44
- * or not fully inside the viewport. A button scrolled out of sight inside a scrolling panel is not visible;
- * one that a scrolling panel cuts at its edge is reached by scrolling, so there the panel itself must be
- * fully inside the viewport instead.
+ * Layout problems on the current screen: sideways scroll, and any button a finger cannot fully reach.
+ *
+ * Each rendered button is clipped by every clipping ancestor (overflow other than visible) and by the
+ * viewport. A button that is not wholly visible is acceptable only when the ancestor that cuts it is a real
+ * scroller (overflow auto or scroll, with more content than room; the page itself counts when it scrolls):
+ * it is then scrolled into view and must pass the same checks there. Anything cut by a clipping ancestor
+ * that cannot scroll, or by the viewport with no scroller to bring it in, is a problem.
+ * The checks: at least 44 by 44, fully inside the viewport, and fully inside every clipping ancestor.
  */
 function layoutProblems(page: Page): Promise<Problem[]> {
   return page.evaluate(() => {
     const out: { what: string; box: { x: number; y: number; w: number; h: number } }[] = [];
     const vw = window.innerWidth, vh = window.innerHeight;
-    const inside = (r: DOMRect): boolean => r.left >= -0.5 && r.top >= -0.5 && r.right <= vw + 0.5 && r.bottom <= vh + 0.5;
-    if (document.documentElement.scrollWidth > vw) {
-      out.push({ what: `page scrolls sideways (${document.documentElement.scrollWidth} > ${vw})`, box: { x: 0, y: 0, w: 0, h: 0 } });
+    const page = document.scrollingElement ?? document.documentElement;
+    if (page.scrollWidth > vw) {
+      out.push({ what: `page scrolls sideways (${page.scrollWidth} > ${vw})`, box: { x: 0, y: 0, w: 0, h: 0 } });
     }
+    const scrolls = (el: Element): boolean => {
+      if (el === page) return el.scrollHeight > el.clientHeight;
+      const o = getComputedStyle(el);
+      return ((o.overflowY === 'auto' || o.overflowY === 'scroll') && el.scrollHeight > el.clientHeight)
+        || ((o.overflowX === 'auto' || o.overflowX === 'scroll') && el.scrollWidth > el.clientWidth);
+    };
+    const clips = (el: Element): boolean => {
+      const o = getComputedStyle(el);
+      return o.overflowX !== 'visible' || o.overflowY !== 'visible';
+    };
+    const within = (r: DOMRect, c: { left: number; top: number; right: number; bottom: number }): boolean =>
+      r.left >= c.left - 0.5 && r.top >= c.top - 0.5 && r.right <= c.right + 0.5 && r.bottom <= c.bottom + 0.5;
+    const viewport = { left: 0, top: 0, right: vw, bottom: vh };
+
+    // The first box (from the button outward) that does not fully contain the button: the viewport counts
+    // as the page's box. Null when nothing cuts it.
+    const cutter = (b: Element): Element | null => {
+      const r = b.getBoundingClientRect();
+      for (let el = b.parentElement; el !== null && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+        if (clips(el) && !within(r, el.getBoundingClientRect())) return el;
+      }
+      return within(r, viewport) ? null : page;
+    };
+    const nameOf = (b: HTMLElement): string => b.dataset.testid ?? b.textContent ?? '?';
+    const boxOf = (r: DOMRect) => ({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) });
+    const check = (b: HTMLElement, when: string): void => {
+      const r = b.getBoundingClientRect();
+      if (r.width < 44 || r.height < 44) out.push({ what: `${nameOf(b)} is smaller than 44 by 44${when}`, box: boxOf(r) });
+      const c = cutter(b);
+      if (c !== null) {
+        const by = c === page ? 'the screen' : `${c.className || c.tagName} (${scrolls(c) ? 'scrolls' : 'cannot scroll'})`;
+        out.push({ what: `${nameOf(b)} is cut by ${by}${when}`, box: boxOf(r) });
+      }
+    };
+
+    const reachable: { b: HTMLElement; scroller: Element }[] = [];
     for (const b of Array.from(document.querySelectorAll('button'))) {
       const r = b.getBoundingClientRect();
       const st = getComputedStyle(b);
       if (r.width === 0 || r.height === 0 || st.visibility === 'hidden' || st.display === 'none') continue;
-      let hidden = false;
-      let scroller: Element | null = null;
-      for (let el = b.parentElement; el !== null && el !== document.body; el = el.parentElement) {
-        const o = getComputedStyle(el);
-        if (o.overflowX === 'visible' && o.overflowY === 'visible') continue;
-        const c = el.getBoundingClientRect();
-        if (r.bottom <= c.top || r.top >= c.bottom || r.right <= c.left || r.left >= c.right) { hidden = true; break; }
-        if (scroller === null && (o.overflowY === 'auto' || o.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) scroller = el;
-      }
-      if (hidden) continue;
-      const box = { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
-      const name = b.dataset.testid ?? b.textContent ?? '?';
-      if (r.width < 44 || r.height < 44) out.push({ what: `${name} is smaller than 44 by 44`, box });
-      const onScreen = scroller === null ? inside(r) : inside(scroller.getBoundingClientRect());
-      if (!onScreen) out.push({ what: `${name} is not fully on screen`, box });
+      const c = cutter(b);
+      if (c !== null && scrolls(c)) reachable.push({ b, scroller: c });
+      else check(b, '');
+    }
+    // Each button a scroller cuts or hides: scroll it into view, check it there, put the scroll back.
+    for (const { b, scroller } of reachable) {
+      const saved = Array.from(new Set([scroller, page])).map((el) => ({ el, top: el.scrollTop, left: el.scrollLeft }));
+      b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      check(b, ' after scrolling it into view');
+      for (const s of saved) { s.el.scrollTop = s.top; s.el.scrollLeft = s.left; }
     }
     return out;
   });
@@ -171,7 +206,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       expect(await text(page, 'who')).toBe('Player 1');
 
       await tapTile(page, '-2,5'); // the warrior
-      expect(await count(page, '[data-mark="move"]')).toBeGreaterThan(0);
+      await expect.poll(() => count(page, '[data-mark="move"]')).toBeGreaterThan(0);
       await tapTile(page, '-1,4');
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
 
@@ -209,7 +244,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
     }
   });
 
-  test.each([[360, 640], [412, 915], [915, 412]])('nothing is clipped at %i by %i', async (width, height) => {
+  test.each([[360, 640], [412, 915], [915, 412], [568, 320]])('nothing is clipped at %i by %i', async (width, height) => {
     const { page, close } = await openApp(SEED, { width, height });
     try {
       await page.getByTestId('new-match').waitFor();
@@ -238,6 +273,18 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await page.locator('.menu').waitFor();
       await expectTidy(page, 'menu');
       await expectEndTurnUncovered(page);
+
+      // Home with a save: the card (names, factions, turn, Continue, Delete) is the widest thing on Home.
+      await page.getByTestId('go-home').tap();
+      await page.getByTestId('save').waitFor();
+      await expectTidy(page, 'home with a save');
+      await page.getByTestId('delete').tap();
+      await page.getByTestId('delete-no').waitFor();
+      await expectTidy(page, 'home asking to delete a save');
+      await page.getByTestId('delete-no').tap();
+      await page.getByTestId('continue').tap();
+      await throughCurtain(page, 'Player 1');
+      await page.getByTestId('open-menu').tap();
       await page.getByTestId('resign').tap();
       await expectTidy(page, 'menu asking to resign');
       await page.getByTestId('resign-yes').tap();
@@ -276,13 +323,13 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await startMatch(page);
       await throughCurtain(page, 'Player 1');
       await endTurnReady(page);
-      const box = await page.getByTestId('end-turn').boundingBox();
-      if (box === null) throw new Error('End turn has no box');
-      const x = box.x + box.width / 2, y = box.y + box.height / 2;
-      const t0 = Date.now();
-      await page.touchscreen.tap(x, y);
-      await page.touchscreen.tap(x, y);
-      expect(Date.now() - t0).toBeLessThan(100);
+      // Both clicks land on the same button in one task, faster than any finger.
+      await page.evaluate(() => {
+        const b = document.querySelector<HTMLButtonElement>('[data-testid="end-turn"]');
+        if (b === null) throw new Error('no End turn');
+        b.click();
+        b.click();
+      });
       await throughCurtain(page, 'Player 2');
       expect(await text(page, 'who')).toBe('Player 2');
       expect(await text(page, 'turn')).toBe('Turn 1');
