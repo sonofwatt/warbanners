@@ -22,7 +22,15 @@ test('tap my unit on my city, then its tile again for the city, then again for n
   expect(a).toEqual({ selection: unitSel(0), action: null });
   const b = tap(a.selection, { unit: null, hex: '-2,5' }, V, IX);
   expect(b.selection).toEqual({ kind: 'city', id: 0 });
-  expect(tap(b.selection, { unit: 0, hex: '-2,5' }, V, IX).selection).toEqual(NONE);
+  expect(tap(b.selection, { unit: null, hex: '-2,5' }, V, IX).selection).toEqual(NONE);   // the third tap closes it, the unit not hit
+  expect(tap(b.selection, { unit: 0, hex: '-2,5' }, V, IX).selection).toEqual(NONE);      // or hit
+});
+test('a city with no unit on it: a tap opens it, another closes it', () => {
+  const moved = must(applyAction(open, { type: 'move', unit: 0, to: '-1,4' }));
+  const v = playerView(moved, 0), ix = indexActions(legalActions(moved));
+  const a = tap(NONE, { unit: null, hex: '-2,5' }, v, ix);
+  expect(a.selection).toEqual({ kind: 'city', id: 0 });
+  expect(tap(a.selection, { unit: null, hex: '-2,5' }, v, ix).selection).toEqual(NONE);
 });
 test('tap my unit off a city, then its tile again for the tile, then again for nothing', () => {
   const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
@@ -37,15 +45,16 @@ test('tap my unit off a city, then its tile again for the tile, then again for n
   // A tap there with another tile selected starts the cycle again with the unit.
   expect(tap({ kind: 'tile', at: '2,0' }, { unit: w.id, hex: '1,0' }, v, ix).selection).toEqual(unitSel(w.id));
 });
-test('my unit standing on an enemy city: the unit, then the tile, then nothing', () => {
-  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+test('my unit standing on an enemy city: the unit, then that city, then nothing', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); const foe = addCity(s, 1, 0, -3);
   const w = addUnit(s, 'warrior', 0, 0, -3);
   const v = playerView(s, 0), ix = indexActions(legalActions(s));
   const a = tap(NONE, { unit: w.id, hex: '0,-3' }, v, ix);
   expect(a.selection).toEqual(unitSel(w.id));
   const b = tap(a.selection, { unit: null, hex: '0,-3' }, v, ix);
-  expect(b.selection).toEqual({ kind: 'tile', at: '0,-3' });
+  expect(b.selection).toEqual({ kind: 'city', id: foe.id });
   expect(tap(b.selection, { unit: null, hex: '0,-3' }, v, ix).selection).toEqual(NONE);
+  expect(tap(b.selection, { unit: w.id, hex: '0,-3' }, v, ix).selection).toEqual(NONE);
 });
 test('Next unit: the units that can still act, in id order, after the selected one, wrapping round', () => {
   const ix = indexActions([

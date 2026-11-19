@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
 import { expect, test } from 'vitest';
 import { RULES_VERSION } from '../../engine';
+import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import { createAppStore } from '../../app/store';
 import type { Deps } from '../../app/store';
 import type { AiClient } from '../../app/aiClient';
@@ -199,6 +200,26 @@ test('the match screen draws Next unit, greyed while End turn is locked', () => 
   store.getState().ready();
   const html = render(store, <Match />);
   expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="next-unit"/);   // the lock is on when the screen first draws
+});
+
+test('an enemy city opened from under my unit shows only what the board shows', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  store.getState().ready();
+  const s = blankMatch();
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  addCity(s, 0, 0, 3); const foe = addCity(s, 1, 0, -3, { growth: 1 });
+  const w = addUnit(s, 'warrior', 0, 0, -3);
+  store.setState({ state: s });
+  store.getState().tap({ unit: w.id, hex: '0,-3' });
+  store.getState().tap({ unit: null, hex: '0,-3' });
+  expect(store.getState().selection).toEqual({ kind: 'city', id: foe.id });
+  const html = render(store, <Match />);
+  expect(html).toContain('city-panel');
+  expect(html).toContain(`>${T.ui.level}<`);
+  expect(html).toContain(`>${T.ui.walls}<`);
+  for (const hidden of [T.ui.growth, T.ui.unitsHeld, T.ui.incomeWord]) expect(html).not.toContain(`>${hidden}<`);
+  expect(html).not.toContain('data-testid="cmd-');
 });
 
 test('the Hud says the AI is thinking', () => {

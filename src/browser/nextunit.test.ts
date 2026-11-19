@@ -24,6 +24,29 @@ async function tapTile(page: Page, hex: string): Promise<void> {
   await frames(page);
 }
 
+/** Stat values in the open panel that a line break cuts inside a word, or that spill out of their box. */
+function brokenStats(page: Page): Promise<string[]> {
+  return page.evaluate(`(() => {
+    const out = [];
+    for (const dd of document.querySelectorAll('.selection .stat dd')) {
+      const box = dd.closest('.stat').getBoundingClientRect();
+      const text = dd.textContent ?? '';
+      const node = dd.firstChild;
+      if (node === null || node.nodeType !== 3) continue;
+      let at = 0;
+      for (const word of text.split(' ')) {
+        const r = document.createRange();
+        r.setStart(node, at); r.setEnd(node, at + word.length);
+        const rects = [...r.getClientRects()].filter((q) => q.width > 0);
+        if (rects.length !== 1) out.push(word + ' is broken');
+        else if (rects[0].left < box.left - 0.5 || rects[0].right > box.right + 0.5) out.push(word + ' spills out');
+        at += word.length + 1;
+      }
+    }
+    return out;
+  })()`);
+}
+
 async function intoMatch(width = 412, height = 915) {
   const app = await openApp(SEED, { width, height });
   const { page } = app;
@@ -100,8 +123,8 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
     }
   });
 
-  test('a second tap on my unit\'s tile opens the tile panel, a third closes it', async () => {
-    const { page, close } = await intoMatch();
+  test.each([[360, 640], [412, 915]])('at %i by %i a second tap on my unit\'s tile opens the tile panel, a third closes it, and no stat value breaks inside a word', async (width, height) => {
+    const { page, close } = await intoMatch(width, height);
     try {
       await tapTile(page, '-2,5');
       await tapTile(page, '-1,4');
@@ -109,11 +132,16 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
       await page.waitForTimeout(300);
       await tapTile(page, '-1,4');
       await page.locator('.selection .unit-panel').waitFor();
+      expect(await brokenStats(page)).toEqual([]);
       await tapTile(page, '-1,4');
       await page.locator('.selection .tile-panel').waitFor();
       expect(await page.locator('.selection .unit-panel').count()).toBe(0);
+      expect(await brokenStats(page)).toEqual([]);   // Cropland, on the tile the Warrior moved to
       await tapTile(page, '-1,4');
       await expect.poll(() => page.locator('.selection').count()).toBe(0);
+      await tapTile(page, '-2,5');   // the capital, now free
+      await page.locator('.selection .city-panel').waitFor();
+      expect(await brokenStats(page)).toEqual([]);
     } finally {
       await close();
     }

@@ -23,11 +23,16 @@ export function CardHead(p: { picture: ReactElement; title: string; faction?: Fa
 
 export interface Stat { icon: ReactElement; label: string; value: ReactNode }
 
+// The length of the longest word in a value: the stat's type shrinks to fit that word on one line (theme.css), so a
+// narrow card never breaks a word. A value that is not plain text counts as short.
+const longestWord = (v: ReactNode): number =>
+  typeof v === 'string' || typeof v === 'number' ? Math.max(1, ...String(v).split(/\s+/).map((w) => w.length)) : 1;
+
 export function Stats({ stats }: { stats: Stat[] }): ReactElement {
   return (
     <dl className="stats">
       {stats.map((s) => (
-        <div className="stat" key={s.label}>
+        <div className="stat" key={s.label} style={{ '--chars': longestWord(s.value) } as CSSProperties}>
           <dt>{s.icon}{s.label}</dt><dd>{s.value}</dd>
         </div>
       ))}
