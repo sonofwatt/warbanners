@@ -21,6 +21,8 @@ import { TechSheet } from '../panels/TechSheet';
 import { TilePanel } from '../panels/TilePanel';
 import { UnitPanel } from '../panels/UnitPanel';
 import { Board } from '../board/Board';
+import { Effects } from '../board/Effects';
+import { effectsFor } from '../board/effects';
 import { buildScene } from '../board/scene';
 import { FACTION_COLOUR } from './colour';
 
@@ -73,6 +75,7 @@ export function Match(): ReactElement | null {
 
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   const heard = useRef(last?.seq ?? 0);
+  const shownBefore = useRef(last?.seq ?? 0);
   useEffect(() => {
     if (last === null || last.seq === heard.current) return;
     heard.current = last.seq;
@@ -83,6 +86,14 @@ export function Match(): ReactElement | null {
   const data = useMemo(
     () => (state === null || viewer === null ? null : matchData(state, viewer, selection)),
     [state, viewer, selection],
+  );
+  // The effects of each action accepted while this screen is up, for this viewer's eyes only. effectsFor drops
+  // every tile the viewer cannot see. The curtain unmounts this screen, so nothing of `last` shows behind it,
+  // and what was accepted before the screen appeared is not replayed.
+  const fx = useMemo(
+    () => (last === null || state === null || data === null || last.seq === shownBefore.current ? null
+      : { seq: last.seq, list: effectsFor(last.events, last.before, state, new Set(data.view.visible)) }),
+    [last, state, data],
   );
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
   const items = useMemo(
@@ -147,7 +158,9 @@ export function Match(): ReactElement | null {
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
       <div className="board-slot" data-testid="board-slot">
-        <Board items={items} radius={data.radius} factions={data.factions} focus={data.focus ?? '0,0'} viewer={viewer} onTap={tap} />
+        <Board items={items} radius={data.radius} factions={data.factions} focus={data.focus ?? '0,0'} viewer={viewer} onTap={tap}>
+          {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
+        </Board>
       </div>
       {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
       {sheet === 'tech' ? (

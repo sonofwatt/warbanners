@@ -152,15 +152,18 @@ function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactEle
       className="board-unit"
       style={{ transform: `translate(${r2(p.u.at.x)}px, ${r2(p.u.at.y)}px)` }}
     >
-      <g opacity={opacity}>{FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}</g>
-      <StatusOverlay
-        hp={unit.hp}
-        maxHp={def.hp}
-        spent={p.u.spent}
-        fresh={unit.fresh}
-        taunted={unit.taunted}
-        blinded={unit.blinded}
-      />
+      {/* The body is what a lunge nudges, inside the group that places the unit. */}
+      <g className="unit-body">
+        <g opacity={opacity}>{FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}</g>
+        <StatusOverlay
+          hp={unit.hp}
+          maxHp={def.hp}
+          spent={p.u.spent}
+          fresh={unit.fresh}
+          taunted={unit.taunted}
+          blinded={unit.blinded}
+        />
+      </g>
     </g>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { useApp } from '../../app/useApp';
+import { play } from '../sound';
 import { T, fill } from '../text';
 import { FACTION_COLOUR } from './colour';
 
@@ -23,7 +24,7 @@ export function Pass(): ReactElement | null {
       <h1>{fill(T.ui.turnOf, { name })}</h1>
       <p>{T.faction[faction]}</p>
       <p>{fill(T.ui.passTo, { name })}</p>
-      <button type="button" className="primary" data-testid="ready" onClick={ready}>{fill(T.ui.imName, { name })}</button>
+      <button type="button" className="primary" data-testid="ready" onClick={() => { play('turn'); ready(); }}>{fill(T.ui.imName, { name })}</button>
     </div>
   );
 }
