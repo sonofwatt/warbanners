@@ -146,7 +146,8 @@ h1, h2, p { overflow-wrap: anywhere; }
 .fx-hurt { fill: #FF5A4A; }
 .fx-heal { fill: #7BE36A; }
 .fx-gold { fill: #FFD23A; }
-.fx-fall { animation-name: fx-fall; }
+/* The fallen unit is already gone from the board: its figure stands in its place until its fall begins. */
+.fx-fall { animation-name: fx-fall; animation-fill-mode: both; }
 .fx-burst { animation-name: fx-burst; }
 .fx-build { fill: #FFFFFF; }
 .fx-capture { fill: #FFC81A; }
