@@ -32,6 +32,13 @@ export function shrink(p: readonly Pt[], f: number): Pt[] {
  */
 export function edgeCorners(d: number): [Pt, Pt] {
   const c = topCorners();
+  const i = cornerEdge(d);
+  return [c[i]!, c[(i + 1) % 6]!];
+}
+
+/** Which top-face side (from corner i to corner i + 1) faces the neighbour in direction `d`. */
+function cornerEdge(d: number): number {
+  const c = topCorners();
   const dir = edgeDirs()[d] ?? { x: 0, y: 0 };
   let best = 0;
   let bestDot = -Infinity;
@@ -44,7 +51,15 @@ export function edgeCorners(d: number): [Pt, Pt] {
       best = i;
     }
   }
-  return [c[best]!, c[(best + 1) % 6]!];
+  return best;
+}
+
+/** Where the line through a and b crosses the line through c and d. */
+function cross(a: Pt, b: Pt, c: Pt, d: Pt): Pt {
+  const den = (a.x - b.x) * (c.y - d.y) - (a.y - b.y) * (c.x - d.x);
+  if (den === 0) return b;
+  const t = ((a.x - c.x) * (c.y - d.y) - (a.y - c.y) * (c.x - d.x)) / den;
+  return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
 }
 
 export function TileBase(p: { ground: Ground }): ReactElement {
@@ -75,8 +90,8 @@ export function Highlight(p: { mark: Mark }): ReactElement {
     case 'move':
       return (
         <g>
-          <ellipse cx={0} cy={1} rx={6} ry={3.8} fill="#000000" fillOpacity={0.12} />
-          <ellipse cx={0} cy={0} rx={5.6} ry={3.6} fill="#FFFFFF" fillOpacity={0.92} />
+          <ellipse cx={0} cy={1.2} rx={8.6} ry={5.6} fill="#1E2833" fillOpacity={0.4} />
+          <ellipse cx={0} cy={0} rx={7.6} ry={4.8} fill="#FFFFFF" fillOpacity={0.95} />
         </g>
       );
     case 'attack':
@@ -89,8 +104,9 @@ export function Highlight(p: { mark: Mark }): ReactElement {
     case 'ability':
       return (
         <g>
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="#F2C230" fillOpacity={0.2} />
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#F2B705" strokeWidth={2.6} strokeDasharray="5 3" />
+          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="#F2C230" fillOpacity={0.3} />
+          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#3D2C00" strokeOpacity={0.45} strokeWidth={4.4} />
+          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#FFC81A" strokeWidth={2.8} strokeDasharray="5 3" />
         </g>
       );
     case 'selected':
@@ -107,7 +123,8 @@ export function Highlight(p: { mark: Mark }): ReactElement {
     case 'capture':
       return (
         <g>
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#F2B705" strokeWidth={1.6} />
+          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#3D2C00" strokeOpacity={0.45} strokeWidth={4.4} />
+          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#FFC81A" strokeWidth={2.8} />
           <ellipse cx={-2} cy={2} rx={4} ry={1.8} fill="#000000" fillOpacity={0.16} />
           <line x1={-2} y1={2} x2={-2} y2={-19} stroke="#6B4A2B" strokeWidth={1.5} strokeLinecap="round" />
           <polygon points="-1.3,-19 11,-16 6.5,-13.5 11,-11 -1.3,-11" fill="#F2B705" />
@@ -116,20 +133,34 @@ export function Highlight(p: { mark: Mark }): ReactElement {
   }
 }
 
-/** Territory edge lines, drawn just inside the top face so two owners' borders sit side by side. */
+/**
+ * Territory edge lines, drawn just inside the top face so two owners' borders sit side by side.
+ * Where the outline carries on into the next tile of the same territory (the side next to this
+ * edge is not a border here), the line runs on to that shared side, so it meets the next tile's
+ * line there and the outline has no gap.
+ */
 export function Border(p: { edges: readonly number[]; colour: string }): ReactElement {
+  const c = topCorners();
+  const f = 0.9;
+  const inner = shrink(c, f);
+  const sides = new Set(p.edges.map(cornerEdge));
   return (
     <g>
       {p.edges.map((d) => {
-        const [a, b] = edgeCorners(d);
-        const f = 0.9;
+        const i = cornerEdge(d);
+        const j = (i + 1) % 6;
+        let a = inner[i]!;
+        let b = inner[j]!;
+        const before = (i + 5) % 6; // the side ending at corner i
+        if (!sides.has(before)) a = cross(inner[j]!, inner[i]!, c[before]!, c[i]!);
+        if (!sides.has(j)) b = cross(inner[i]!, inner[j]!, c[j]!, c[(j + 1) % 6]!);
         return (
           <line
             key={d}
-            x1={r1(a.x * f)}
-            y1={r1(a.y * f)}
-            x2={r1(b.x * f)}
-            y2={r1(b.y * f)}
+            x1={r1(a.x)}
+            y1={r1(a.y)}
+            x2={r1(b.x)}
+            y2={r1(b.y)}
             stroke={p.colour}
             strokeWidth={2.4}
             strokeLinecap="round"

@@ -1,0 +1,80 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { expect, test } from 'vitest';
+import { createMatch, playerView } from '../../engine';
+import type { PlayerView, Unit } from '../../engine';
+import { Board } from './Board';
+import { buildScene } from './scene';
+import type { SceneInput } from './scene';
+
+const s = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
+const input = (over: Partial<SceneInput> = {}): SceneInput => ({
+  view: playerView(s, 0), radius: 6, marks: {}, selectedUnit: null, spentUnits: new Set(), ...over,
+});
+const draw = (over: Partial<SceneInput> = {}): string =>
+  renderToStaticMarkup(
+    <Board items={buildScene(input(over))} radius={6} factions={['spartans', 'mongols']} focus="-2,5" onTap={() => {}} />,
+  );
+
+/** The markup of one `<g data-hex="k">` group, up to the next tile or unit group. */
+function tileMarkup(html: string, k: string): string {
+  const start = html.indexOf(`data-hex="${k}"`);
+  const rest = html.slice(start + 1);
+  const next = rest.search(/data-hex=|data-unit=/);
+  return next < 0 ? rest : rest.slice(0, next);
+}
+
+test('the board draws every tile and visible unit, and no fog tile leaks terrain', () => {
+  const html = draw();
+  expect((html.match(/data-hex=/g) ?? []).length).toBe(127);
+  expect((html.match(/data-unit=/g) ?? []).length).toBe(1);
+  expect((html.match(/data-fog="true"/g) ?? []).length).toBe(127 - s.players[0]!.explored.length);
+});
+
+test('every tile has a tap target at its centre, and the svg is touch-action none', () => {
+  const html = draw();
+  expect((html.match(/data-centre=/g) ?? []).length).toBe(127);
+  expect(html).toMatch(/<svg[^>]*touch-action:none/);
+});
+
+test('before measuring, the camera opens on the focus as if the screen were 412 by 915', () => {
+  const html = draw();
+  const m = /<g data-camera="true" transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\)"/.exec(html);
+  expect(m).not.toBeNull();
+  const [tx, ty, sc] = [Number(m![1]), Number(m![2]), Number(m![3])];
+  // The focus tile's centre lands in the middle of a 412 by 915 screen.
+  const fx = 30 * Math.sqrt(3) * (-2 + 5 / 2);
+  const fy = 30 * 1.5 * 0.62 * 5;
+  expect(tx + fx * sc).toBeCloseTo(206, 0);
+  expect(ty + fy * sc).toBeCloseTo(457.5, 0);
+});
+
+test('a mark on a fog tile is drawn, and nothing else of that tile but its fog', () => {
+  const fogKey = Object.keys(playerView(s, 0).tiles).includes('0,0') ? '6,-6' : '0,0';
+  const plain = tileMarkup(draw(), fogKey);
+  const marked = tileMarkup(draw({ marks: { [fogKey]: 'move' } }), fogKey);
+  expect(plain).toContain('data-fog="true"');
+  expect(marked.length).toBeGreaterThan(plain.length);
+  expect(marked).toContain('data-mark="move"');
+});
+
+test('a spent own unit is dimmed to 55%, a fresh one is not', () => {
+  const me = s.units.find((u) => u.owner === 0)!;
+  expect(draw({ spentUnits: new Set([me.id]) })).toContain('opacity="0.55"');
+  expect(draw()).not.toContain('opacity="0.55"');
+});
+
+test('my own hidden unit is drawn at 70%', () => {
+  const view = playerView(s, 0);
+  const me = view.units[0]!;
+  const scout: Unit = { ...me, id: 99, type: 'scout', pos: '-2,4' };
+  const withScout: PlayerView = { ...view, units: [...view.units, scout] };
+  const html = draw({ view: withScout });
+  expect(html).toMatch(/data-unit="99"[^>]*>(<g[^>]*>)*?<g opacity="0.7"/);
+});
+
+test('the capital is drawn as a city in the owner\'s colour, with a closed border around it', () => {
+  const cap = tileMarkup(draw(), '-2,5');
+  expect(cap).toContain('#B3261E'); // the Spartan red
+  const html = draw();
+  expect((html.match(/<line[^>]*stroke="#B3261E"[^>]*stroke-width="2.4"/g) ?? []).length).toBeGreaterThanOrEqual(18);
+});

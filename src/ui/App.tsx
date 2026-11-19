@@ -4,6 +4,7 @@ import { useApp } from '../app/useApp';
 import { APP_VERSION, BUILD } from '../version';
 import { T } from './text';
 import { ArtSheet } from './art/ArtSheet';
+import { BoardDemo } from './board/BoardDemo';
 import { Home } from './screens/Home';
 import type { HomeProps } from './screens/Home';
 import { Match } from './screens/Match';
@@ -16,9 +17,21 @@ function wantsArtSheet(): boolean {
   return typeof location !== 'undefined' && new URLSearchParams(location.search).has('sheet');
 }
 
-// The art sheet is a developer page; everything else is the game.
+/** The demo board's seed and turns when the URL asks for one (?board=<seed>&turns=<n>), else null. Null in Node. */
+function wantsBoard(): { seed: number; turns: number } | null {
+  if (typeof location === 'undefined') return null;
+  const q = new URLSearchParams(location.search);
+  const seed = Number.parseInt(q.get('board') ?? '', 10);
+  if (!Number.isFinite(seed)) return null;
+  const turns = Number.parseInt(q.get('turns') ?? '0', 10);
+  return { seed, turns: Number.isFinite(turns) ? Math.max(0, Math.min(turns, 200)) : 0 };
+}
+
+// The art sheet and the demo board are developer pages; everything else is the game.
 export function App(home: HomeProps = {}): ReactElement {
   if (wantsArtSheet()) return <ArtSheet />;
+  const board = wantsBoard();
+  if (board !== null) return <BoardDemo seed={board.seed} turns={board.turns} />;
   return <Screens {...home} />;
 }
 

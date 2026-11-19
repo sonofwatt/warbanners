@@ -101,3 +101,13 @@ h1, h2, p { overflow-wrap: anywhere; }
 .panel dd { margin: 0; }
 .tech.locked { opacity: 0.5; }
 .tech.owned { opacity: 0.8; }
+
+/* The board: one svg filling its container; gestures are ours, never the page's. */
+.board { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.board .board-unit { transition: transform 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .board .board-unit { transition: none; } }
+
+/* The demo board (?board=<seed>), a developer page. */
+.board-demo { position: fixed; inset: 0; overflow: hidden; touch-action: none; background: var(--sky); }
+.board-demo output { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 6px; background: var(--paper); font-size: 14px; pointer-events: none; }
+.board-demo output:empty { display: none; }
