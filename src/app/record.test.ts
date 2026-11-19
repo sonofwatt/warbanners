@@ -72,3 +72,21 @@ test('a trusted snapshot does not excuse a damaged players list or settings', ()
   ];
   for (const b of bads) expect(restore(b)).toEqual({ ok: false, reason: 'corrupt' });
 });
+test('a snapshot this build cannot play is rebuilt from the actions, though its hash matches itself', () => {
+  const { rec, state } = playSome(40);
+  const drift = (f: (s: any) => void) => {
+    const r = JSON.parse(JSON.stringify(rec)); f(r.snapshot.state); r.snapshot.hash = hashState(r.snapshot.state); return r;
+  };
+  for (const bad of [drift(s => { delete s.players[0].explored; }), drift(s => { delete s.winner; })]) {
+    const r = ok(restore(bad));
+    expect(r.repaired).toBe(true);
+    expect(hashState(r.state)).toBe(hashState(state));
+  }
+});
+test('a record that cannot be rebuilt either is reported as damaged, not thrown', () => {
+  const { rec } = playSome(10);
+  const r = JSON.parse(JSON.stringify(rec));
+  delete r.snapshot.state.players[0].explored; r.snapshot.hash = hashState(r.snapshot.state);
+  r.actions[3] = { type: 'move', unit: 999, to: '0,0' };
+  expect(restore(r)).toEqual({ ok: false, reason: 'corrupt' });
+});

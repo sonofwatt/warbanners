@@ -10,6 +10,7 @@ import type { HomeProps } from './screens/Home';
 import { Match } from './screens/Match';
 import { Pass } from './screens/Pass';
 import { Result } from './screens/Result';
+import { ScreenGuard } from './screens/ScreenGuard';
 import { Setup } from './screens/Setup';
 
 /** True when the page URL asks for the art sheet (?sheet=1). False in Node, where there is no location. */
@@ -32,7 +33,7 @@ export function App(home: HomeProps = {}): ReactElement {
   if (wantsArtSheet()) return <ArtSheet />;
   const board = wantsBoard();
   if (board !== null) return <BoardDemo seed={board.seed} turns={board.turns} />;
-  return <Screens {...home} />;
+  return <ScreenGuard><Screens {...home} /></ScreenGuard>;
 }
 
 // Shows the screen the store names. Home's updater and install hooks come from main.tsx.

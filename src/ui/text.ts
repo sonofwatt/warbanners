@@ -138,6 +138,7 @@ const ui = {
   installHint: 'Keep {name} on your home screen.',
   movesFirst: 'Moves first',
   digestTitle: 'While you were away',
+  screenFailed: 'Something went wrong on this screen. Your saved matches are safe.',
 } as const;
 
 export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui } as {

@@ -220,6 +220,8 @@ input:focus { border-color: var(--blue); }
 .result-card { background: var(--paper); border-radius: var(--r-l); padding: var(--s3) var(--s4); font-weight: 600; box-shadow: var(--lift); width: 100%; }
 .result-card p + p { margin-top: var(--s1); color: var(--ink-soft); }
 .screen.result .big { width: min(100%, 340px); }
+.screen.guard { justify-content: center; align-items: center; text-align: center; gap: var(--s4); }
+.screen.guard .big { width: min(100%, 340px); }
 .confetti { position: absolute; inset: 0; pointer-events: none; }
 .bit {
   position: absolute; width: 10px; height: 16px; border-radius: 3px;

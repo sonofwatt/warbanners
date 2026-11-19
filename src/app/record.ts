@@ -1,4 +1,4 @@
-import { createMatch, FACTIONS, hashState, replay, RULES_VERSION } from '../engine';
+import { createMatch, FACTIONS, hashState, legalActions, playerView, replay, RULES_VERSION } from '../engine';
 import type { Action, MatchSettings, MatchState } from '../engine';
 
 // The same shape online play will store in plan 4.
@@ -67,11 +67,41 @@ export function restore(value: unknown): Restored {
     if (isObject(snap) && snap.count === rec.actions.length && typeof snap.hash === 'string' && isObject(snap.state)) {
       let trusted = false;
       try { trusted = hashState(snap.state as unknown as MatchState) === snap.hash; } catch { trusted = false; }
-      if (trusted) return { ok: true, record: rec, state: snap.state as unknown as MatchState, repaired: false };
+      if (trusted && playable(snap.state as unknown as MatchState, rec.settings)) {
+        return { ok: true, record: rec, state: snap.state as unknown as MatchState, repaired: false };
+      }
     }
     return rebuilt(rec, true);
   } catch {
     return { ok: false, reason: 'corrupt' };
+  }
+}
+
+// Whether every object in `items` has each field that `like` has. An empty `like` proves nothing and passes.
+function sameFields(items: unknown[], like: object | undefined): boolean {
+  if (like === undefined) return true;
+  const keys = Object.keys(like);
+  return items.every(x => isObject(x) && keys.every(k => Object.hasOwn(x, k)));
+}
+
+// A snapshot's hash proves it is the one that was written, not that this build can read it: a state written before
+// a change to MatchState's shape hashes to itself and then throws on the screen. So its fields are checked against
+// a fresh match of the same settings, and the screens' first calls are tried on it.
+function playable(state: MatchState, settings: MatchSettings): boolean {
+  try {
+    const fresh = createMatch(settings);
+    if (!sameFields([state], fresh)) return false;
+    const { players, units, cities, tiles } = state as unknown as Record<string, unknown>;
+    if (!Array.isArray(players) || !Array.isArray(units) || !Array.isArray(cities) || !isObject(tiles)) return false;
+    if (!sameFields(players, fresh.players[0]) || !sameFields(units, fresh.units[0]) || !sameFields(cities, fresh.cities[0])) return false;
+    if (!sameFields(Object.values(tiles), Object.values(fresh.tiles)[0])) return false;
+    if (state.winner !== null && state.winner !== 0 && state.winner !== 1) return false;
+    playerView(state, 0);
+    playerView(state, 1);
+    legalActions(state);
+    return true;
+  } catch {
+    return false;
   }
 }
 

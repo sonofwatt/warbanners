@@ -32,6 +32,7 @@ export interface AppState {
   tap(hit: Hit): void; run(action: Action): void; arm(armed: Armed | null): void; select(sel: Selection): void;
   setUpdate(s: UpdateState): void; applyUpdate(): void;   // a new build is applied only from home
   goHome(): void; dismissNotice(): void; dismissDigest(): void;
+  recover(): void;                  // back to home after a screen failed to draw, keeping every save
 }
 
 export function createAppStore(deps: Deps): StoreApi<AppState> {
@@ -130,6 +131,11 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       goHome: () => {
         const { record, state } = get();
         if (record !== null && state !== null && state.winner !== null) deleteSave(kv, record.id);
+        turnLog = [];
+        set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
+      },
+
+      recover: () => {
         turnLog = [];
         set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
       },
