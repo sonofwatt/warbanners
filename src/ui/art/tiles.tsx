@@ -4,8 +4,9 @@ import { edgeDirs, THICK, tileCorners } from '../board/layout';
 import type { Pt } from '../board/layout';
 import { GROUND } from './palette';
 import type { Ground } from './palette';
+import type { Mark } from '../board/mark';
 
-export type Mark = 'move' | 'attack' | 'ability' | 'selected' | 'capture';
+export type { Mark } from '../board/mark';
 
 /** "x,y x,y ..." with one decimal, for a polygon's points. */
 export function pts(p: readonly Pt[]): string {
