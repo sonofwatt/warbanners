@@ -34,6 +34,7 @@ export default defineConfig({
       },
     }),
   ],
+  worker: { format: 'es' },
   define: { __BUILD__: JSON.stringify((process.env.GITHUB_SHA ?? 'dev').slice(0, 7)) },
   test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'] },
 });
