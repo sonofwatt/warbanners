@@ -1,4 +1,4 @@
-import { createMatch, hashState, replay, RULES_VERSION } from '../engine';
+import { createMatch, FACTIONS, hashState, replay, RULES_VERSION } from '../engine';
 import type { Action, MatchSettings, MatchState } from '../engine';
 
 // The same shape online play will store in plan 4.
@@ -42,12 +42,23 @@ export type Restored =
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+// The parts a consumer reads that the snapshot hash does not cover.
+function wellFormed(v: Record<string, unknown>): boolean {
+  const { players, settings } = v;
+  if (!Array.isArray(players) || players.length !== 2) return false;
+  if (!players.every(p => isObject(p) && typeof p.name === 'string')) return false;
+  if (!isObject(settings) || typeof settings.seed !== 'number') return false;
+  const f = settings.factions;
+  return Array.isArray(f) && f.length === 2 && f.every(x => typeof x === 'string' && Object.hasOwn(FACTIONS, x));
+}
+
 // Never throws, whatever it is given.
 export function restore(value: unknown): Restored {
   if (!isObject(value) || typeof value.rulesVersion !== 'number' || !isObject(value.settings) || !Array.isArray(value.actions)) {
     return { ok: false, reason: 'corrupt' };
   }
   if (value.rulesVersion !== RULES_VERSION) return { ok: false, reason: 'version' };
+  if (!wellFormed(value)) return { ok: false, reason: 'corrupt' };
   const rec = value as unknown as MatchRecord;
 
   try {

@@ -45,3 +45,11 @@ test('delete removes the body and the entry', () => {
   const kv = fake(); writeSave(kv, rec('a', 10), start); deleteSave(kv, 'a');
   expect(listSaves(kv)).toEqual([]); expect(kv.map.has('banners.save.a')).toBe(false);
 });
+test('a damaged list entry is dropped, not passed on', () => {
+  const kv = fake(); writeSave(kv, rec('a', 10), start); writeSave(kv, rec('b', 20), start);
+  const list = JSON.parse(kv.map.get('banners.saves.v1')!);
+  delete list.find((e: any) => e.id === 'a').names;
+  list.find((e: any) => e.id === 'b').factions = 'x';
+  kv.map.set('banners.saves.v1', JSON.stringify(list));
+  expect(listSaves(kv)).toEqual([]);
+});

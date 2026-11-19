@@ -59,3 +59,16 @@ test('rubbish is refused and nothing throws', () => {
     expect(restore(v)).toEqual({ ok: false, reason: 'corrupt' });
   }
 });
+test('a trusted snapshot does not excuse a damaged players list or settings', () => {
+  const { rec } = playSome(5);
+  const damage = (f: (r: any) => void) => { const r = JSON.parse(JSON.stringify(rec)); f(r); return r; };
+  const bads = [
+    damage(r => { delete r.players; }),
+    damage(r => { r.players = [{ name: 'Ann', kind: 'human' }]; }),
+    damage(r => { r.players[1] = { kind: 'human' }; }),
+    damage(r => { r.settings.factions = ['spartans']; }),
+    damage(r => { r.settings.factions = ['spartans', 'nobody']; }),
+    damage(r => { r.settings.seed = 'x'; }),
+  ];
+  for (const b of bads) expect(restore(b)).toEqual({ ok: false, reason: 'corrupt' });
+});

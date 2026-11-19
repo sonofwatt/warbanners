@@ -1,4 +1,4 @@
-import { RULES_VERSION } from '../engine';
+import { FACTIONS, RULES_VERSION } from '../engine';
 import type { FactionId, MatchState, PlayerId } from '../engine';
 import { roundOf } from './record';
 import type { MatchRecord } from './record';
@@ -26,13 +26,22 @@ const bodyKey = (id: string) => `banners.save.${id}`;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+const isPair = (v: unknown, item: (x: unknown) => boolean): boolean => Array.isArray(v) && v.length === 2 && v.every(item);
+
+function isSummary(e: unknown): e is SaveSummary {
+  return isObject(e) && typeof e.id === 'string' && typeof e.updatedAt === 'number'
+    && isPair(e.names, x => typeof x === 'string')
+    && isPair(e.factions, x => typeof x === 'string' && Object.hasOwn(FACTIONS, x))
+    && typeof e.round === 'number' && (e.current === 0 || e.current === 1) && typeof e.over === 'boolean';
+}
+
 function readList(kv: KeyValue): SaveSummary[] {
   try {
     const raw = kv.getItem(LIST_KEY);
     if (raw === null) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e): e is SaveSummary => isObject(e) && typeof e.id === 'string' && typeof e.updatedAt === 'number');
+    return parsed.filter(isSummary);
   } catch {
     return [];
   }
