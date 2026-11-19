@@ -281,11 +281,17 @@ export function moveScore(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, m
   return score;
 }
 
-// The part of a move's formation loss the planner may forgive: the share of it from bonds broken with
-// own units that have not moved yet this turn and could still step next to `to` (full movement, ignoring
-// terrain), times FOLLOW_SHARE, and only for the unit's first move this turn. A block moves one unit at a
-// time, so without this its first step always pays for a bond the next unit restores. Not part of
-// valueOf: it is about what may happen next, not the position.
+// The follow credit: a planner score added to a move, on top of its moveScore, so a line can advance.
+// What it credits: the part of the move's formation loss that comes from bonds broken with own units
+// that have not moved yet this turn and could still step next to `to` (full movement, ignoring terrain),
+// times FOLLOW_SHARE, and only for the unit's first move this turn. A block moves one unit at a time, so
+// without it the first step out of a line always pays for a bond the next unit will restore, and the
+// line never moves. A step too far for the others to keep up earns nothing. The share is taken of the
+// whole formation change, so where BOND_CAP binds a third unit the forgiven amount is approximate.
+// Why it is scored outside valueOf: it is about what may happen next, not the position. Inside valueOf
+// it would either remove the reason to close a gap or charge later movers for bonds they never had,
+// and a move's score would stop being a change in position. So valueOf and moveScore leave it out, and
+// only the planner (plan.ts, move candidates) adds it.
 export function followCredit(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, mpLeft: number): number {
   const u = b.units.find((x) => x.id === unitId);
   if (u === undefined) throw new Error(`no unit ${unitId}`);

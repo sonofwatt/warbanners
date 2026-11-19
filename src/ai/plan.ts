@@ -4,7 +4,7 @@ import {
   canCapture, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
   parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
-import type { AbilityId, Action, BuildingId, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
+import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
@@ -90,6 +90,9 @@ class TurnPlanner {
   private cutShort = false;
   private readonly actions: Action[] = [];
   private readonly expect: string[] = [];
+  // Gold a garrison's step off its city tile relied on this turn, by city id: the training phase spends it
+  // there first, and no other garrison may count on it.
+  private readonly pledged = new Map<number, number>();
 
   constructor(input: AiInput, private readonly opts: PlanOpts) {
     this.b = believedState(input);
@@ -243,7 +246,9 @@ class TurnPlanner {
         this.checkClock();
         const c = this.decide(next.id);
         if (c === null) break;
+        const refill = c.action.type === 'move' ? this.refill(unitIn(this.b, next.id)!) : null;
         this.commit(c.action, c.result);
+        if (refill !== null) this.pledged.set(refill.city.id, unitCost(this.b, this.me, refill.type)!);   // refill only names types with a cost
         if (unitIn(this.b, next.id) === undefined || !this.live()) break;
       }
     }
@@ -251,7 +256,9 @@ class TurnPlanner {
 
   private training(): void {
     if (!this.live()) return;
-    for (const c of [...this.b.cities].sort((x, y) => x.id - y.id)) {
+    // Cities a garrison stepped out of, counting on a trained unit, are served first.
+    const order = [...this.b.cities].sort((x, y) => Number(this.pledged.has(y.id)) - Number(this.pledged.has(x.id)) || x.id - y.id);
+    for (const c of order) {
       if (c.owner !== this.me) continue;
       const type = this.trainableOrder().find((t) => trainRefusal(this.b, c.id, t) === null
         && this.allowed({ type: 'train', city: c.id, unitType: t }));
@@ -331,19 +338,43 @@ class TurnPlanner {
 
   // ---- one unit ----
 
-  // What stepping off this tile is worth when the unit stands on an own city tile that could train this
-  // turn: the value the trained unit would add (its worth less the gold term), plus the exposure the step
-  // costs in moveScore, since the trained unit will stand on the tile and hold the city.
-  private vacateBonus(u: Unit): number {
+  // Gold already pledged to refill other cities' tiles whose garrison stepped out this turn. A pledge
+  // lapses once an own unit stands on that tile again, since the city can no longer train there.
+  private pledgedElsewhere(cityId: number): number {
+    let gold = 0;
+    for (const [id, cost] of this.pledged) {
+      const c = this.b.cities.find((x) => x.id === id);
+      if (id !== cityId && c !== undefined && !this.b.units.some((x) => x.pos === c.pos)) gold += cost;
+    }
+    return gold;
+  }
+
+  // When the unit stands on an own city tile that could train this turn if it stepped off: the city, the
+  // type the training phase would pick, and the state with the unit off the tile. The training phase's
+  // own check, run on the gold left after other garrisons' pledges, so no gold is counted on twice.
+  private refill(u: Unit): { city: City; type: UnitTypeId; vacated: MatchState } | null {
     const city = this.b.cities.find((c) => c.pos === u.pos && c.owner === this.me);
-    if (city === undefined) return 0;
-    // The training phase's own check, on the state with this unit stepped off the tile.
-    const vacated: MatchState = { ...this.b, units: this.b.units.map((x) => (x.id === u.id ? { ...x, pos: '' } : x)) };
+    if (city === undefined) return null;
+    const promised = this.pledgedElsewhere(city.id);
+    const vacated: MatchState = {
+      ...this.b,
+      units: this.b.units.map((x) => (x.id === u.id ? { ...x, pos: '' } : x)),
+      players: this.b.players.map((p) => (p.id === this.me ? { ...p, gold: p.gold - promised } : p)),
+    };
     const type = this.trainableOrder().find((t) => trainRefusal(vacated, city.id, t) === null
       && this.allowed({ type: 'train', city: city.id, unitType: t }));
-    if (type === undefined) return 0;
-    return unitWorth(type) - GOLD_WEIGHT * this.ctx.skill.economy * unitCost(this.b, this.me, type)!
-      + exposureCost(vacated, this.ctx, city);
+    return type === undefined ? null : { city, type, vacated };
+  }
+
+  // What stepping off this tile is worth when the city could then train: the value the trained unit would
+  // add (its worth less the gold term), plus the exposure the step costs in moveScore, since the trained
+  // unit will stand on the tile and hold the city.
+  private vacateBonus(u: Unit): number {
+    const r = this.refill(u);
+    if (r === null) return 0;
+    // trainRefusal returned null for this type, and it refuses any type without a cost, so the cost is defined.
+    return unitWorth(r.type) - GOLD_WEIGHT * this.ctx.skill.economy * unitCost(this.b, this.me, r.type)!
+      + exposureCost(r.vacated, this.ctx, r.city);
   }
 
   private scoreAfter(s: MatchState, base: number, r: Applied, targetId: number | null): number {
@@ -419,6 +450,8 @@ class TurnPlanner {
       this.spend();
       const bonus = s === this.b ? this.vacateBonus(u) : 0;
       const reach = reachable(s, id);
+      // A move scores its change in valueOf, plus the follow credit (assess.ts) for a first step out of a
+      // line the others can still close, plus the vacate bonus when the city would train onto the tile.
       for (const to of Object.keys(reach).sort()) {
         const score = moveScore(s, this.ctx, id, to, reach[to]!) + followCredit(s, this.ctx, id, to, reach[to]!) + bonus;
         push({ action: { type: 'move', unit: id, to }, base: score, score });

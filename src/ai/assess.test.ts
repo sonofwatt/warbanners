@@ -150,3 +150,14 @@ test('stepping out of a line is forgiven in part while the partner can still fol
   b.units[1]!.moved = false; b.units[0]!.moved = true;               // a second step gets no credit
   expect(followCredit(b, ctx, 0, '-1,2', 0)).toBe(0);
 });
+test('the follow credit goes to a step the line can keep up with, and not to one it cannot', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  addUnit(s, 'hoplite', 0, 0, 2);                   // move 1: can step one tile a turn
+  const rider = addUnit(s, 'horseman', 0, 1, 1);    // beside it, advancing on the enemy city
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = makeCtx(s, 0, LEVEL_DIAL.normal);
+  const bond = PERSONAS.spartans.formation * 1;    // a horseman and a hoplite bond with weight 1
+  expect(followCredit(s, ctx, rider.id, '1,0', 0)).toBeCloseTo(0.75 * bond, 9);   // one ahead: the hoplite keeps up
+  expect(followCredit(s, ctx, rider.id, '1,-1', 0)).toBe(0);                     // two ahead: it cannot
+  expect(followCredit(s, ctx, rider.id, '0,1', 0)).toBe(0);                      // still beside it: no bond broken
+});
