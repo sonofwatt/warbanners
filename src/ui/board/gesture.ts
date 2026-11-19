@@ -1,7 +1,8 @@
 import type { Pt } from './layout';
 
 export const TAP_SLOP_PX = 10;
-export const TAP_MAX_MS = 350;
+// Generous, since there is no long press: a slow, still touch is still a tap.
+export const TAP_MAX_MS = 600;
 
 export type PointerInput = { type: 'down' | 'move' | 'up' | 'cancel'; id: number; x: number; y: number; t: number };
 export type GestureOut =
@@ -24,6 +25,13 @@ export type GestureState =
   | { mode: 'two'; a: Finger; b: Finger };
 
 export const IDLE: GestureState = { mode: 'idle' };
+
+// Whether the reducer is following this pointer.
+export function follows(s: GestureState, id: number): boolean {
+  if (s.mode === 'one') return s.id === id;
+  if (s.mode === 'two') return s.a.id === id || s.b.id === id;
+  return false;
+}
 
 const none = (state: GestureState): { state: GestureState; out: GestureOut } => ({ state, out: null });
 

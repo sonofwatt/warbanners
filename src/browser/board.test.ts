@@ -92,4 +92,24 @@ describe.runIf(process.env.BROWSER === '1')('the board in a browser', () => {
       await close();
     }
   });
+
+  test('a finger whose capture was lost does not leave taps stuck', async () => {
+    const { page, close } = await openApp('?board=7');
+    try {
+      await page.locator('[data-centre="-2,4"]').waitFor({ state: 'attached' });
+      await frames(page);
+      // A pointer goes down and the board loses it without an up or a cancel (it lifted off the board).
+      await page.evaluate(() => {
+        const svg = document.querySelector('[data-camera]')!.closest('svg')!;
+        const at = { clientX: 100, clientY: 400, bubbles: true, pointerType: 'touch' };
+        svg.dispatchEvent(new PointerEvent('pointerdown', { ...at, pointerId: 77 }));
+        svg.dispatchEvent(new PointerEvent('lostpointercapture', { ...at, pointerId: 77 }));
+      });
+      const a = await centreOf(page, '[data-centre="-2,4"]');
+      await page.touchscreen.tap(a.x, a.y);
+      await expect.poll(() => lastTap(page)).toBe('hex -2,4');
+    } finally {
+      await close();
+    }
+  });
 }, 60_000);
