@@ -78,7 +78,7 @@ test('home lists saves and explains notices', () => {
   fresh.setState({ notice: 'saveUnreadable' });
   expect(render(fresh, <Home />)).toContain(T.ui.saveUnreadable);
 
-  map.set('banners.save.m1', JSON.stringify({ ...JSON.parse(map.get('banners.save.m1')!) as object, rulesVersion: RULES_VERSION + 1 }));
+  map.set('warbanners.save.m1', JSON.stringify({ ...JSON.parse(map.get('warbanners.save.m1')!) as object, rulesVersion: RULES_VERSION + 1 }));
   const old = render(createAppStore(deps), <Home />);
   expect(old).toContain(T.ui.fromOlder);
   expect(old).not.toContain('data-testid="continue"');

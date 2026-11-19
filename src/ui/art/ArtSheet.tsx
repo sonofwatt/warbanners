@@ -136,7 +136,7 @@ const VARIANTS = [0, 1, 2] as const;
 export function ArtSheet(): ReactElement {
   return (
     <main style={{ background: '#F4F1EA', color: '#2B2B2A', padding: 16, minHeight: '100dvh', boxSizing: 'border-box' }}>
-      <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Banners art sheet</h1>
+      <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Warbanners art sheet</h1>
       <Section title="Figures side by side">
         <Lineup faction="spartans" scale={PX} ids={SHARED_IDS} />
         <Lineup faction="mongols" scale={PX} ids={SHARED_IDS} />

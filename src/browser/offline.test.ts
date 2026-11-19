@@ -64,7 +64,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
     });
     try {
       await installed(page);
-      // The worker covers the folder the game is served from (/banners/ on the live site), not more or less.
+      // The worker covers the folder the game is served from (/warbanners/ on the live site), not more or less.
       expect(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope)).toBe(new URL('./', page.url()).href);
 
       await context.setOffline(true);
@@ -109,7 +109,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
         name: string; display: string; start_url: string; scope: string;
         icons: { src: string; sizes: string; type: string; purpose?: string }[];
       };
-      expect(m.name).toBe('Banners');
+      expect(m.name).toBe('Warbanners');
       expect(m.display).toBe('standalone');
       const relative = (u: string): boolean => !/^([a-z]+:|\/)/i.test(u);
       expect(relative(m.start_url), m.start_url).toBe(true);
@@ -136,7 +136,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
   test('a new build waits until Update is tapped on Home, and never swaps in under a match', async () => {
     // The first build is a copy of dist; the second is the same game with another build label, so every
     // chunk hash and the service worker's file list change, as they do when a new version is deployed.
-    const work = await mkdtemp(join(tmpdir(), 'banners-update-'));
+    const work = await mkdtemp(join(tmpdir(), 'warbanners-update-'));
     const served = join(work, 'served');
     const next = join(work, 'next');
     await cp('dist', served, { recursive: true });
@@ -204,7 +204,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
   });
 
   test('Update tapped in one window never reloads another that is in a match; that one waits for Home', async () => {
-    const work = await mkdtemp(join(tmpdir(), 'banners-update2-'));
+    const work = await mkdtemp(join(tmpdir(), 'warbanners-update2-'));
     const served = join(work, 'served');
     const next = join(work, 'next');
     await cp('dist', served, { recursive: true });

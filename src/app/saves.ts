@@ -21,8 +21,8 @@ export interface SaveSummary {
 }
 
 export const MAX_SAVES = 20;
-const LIST_KEY = 'banners.saves.v1';
-const bodyKey = (id: string) => `banners.save.${id}`;
+const LIST_KEY = 'warbanners.saves.v1';
+const bodyKey = (id: string) => `warbanners.save.${id}`;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 

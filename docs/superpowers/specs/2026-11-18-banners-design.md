@@ -2,7 +2,7 @@
 
 Date: 2026-11-18
 Status: approved by David on 2026-11-18
-Working title: "Banners" (a placeholder; David has said names do not matter to him)
+Name: Warbanners (David named the game on 2026-11-19; "Banners" was a working title)
 
 ## How to read this
 

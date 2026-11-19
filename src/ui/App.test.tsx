@@ -6,7 +6,7 @@ import { App } from './App';
 
 test('the shell names the game and its versions', () => {
   const html = renderToStaticMarkup(<App />);
-  expect(html).toContain('Banners');
+  expect(html).toContain('Warbanners');
   expect(html).toContain(`v${APP_VERSION}`);
   expect(html).toContain(`rules ${RULES_VERSION}`);
 });
