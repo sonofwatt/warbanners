@@ -15,19 +15,24 @@ const COUNTER_MS = 150;
 // What one viewer may be shown of one action: the tiles they see after it, and the units they could see before it
 // or can see after it. The match screen's effects and sound, and the pause after an AI action, all use this.
 // Each action is asked about twice (the store's pause, then the match screen), and working it out builds two whole
-// views: the answer is kept with the state after the action, which never changes, and shared. Callers only read it.
+// views: the answer is kept with the states of the action, which never change, and shared. Callers only read it.
+// Both states are held weakly (a WeakMap keyed by the state after, holding a WeakMap keyed by the state before),
+// so the answers never keep a match's earlier states alive.
 export interface Seen { visible: ReadonlySet<HexKey>; seenUnits: ReadonlySet<number> }
-const asked = new WeakMap<MatchState, { before: MatchState; viewer: PlayerId; seen: Seen }[]>();
+const asked = new WeakMap<MatchState, WeakMap<MatchState, Map<PlayerId, Seen>>>();
 export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId): Seen {
-  const known = asked.get(after) ?? [];
-  const hit = known.find((x) => x.before === before && x.viewer === viewer);
-  if (hit !== undefined) return hit.seen;
+  let byBefore = asked.get(after);
+  if (byBefore === undefined) asked.set(after, (byBefore = new WeakMap()));
+  let byViewer = byBefore.get(before);
+  if (byViewer === undefined) byBefore.set(before, (byViewer = new Map()));
+  const hit = byViewer.get(viewer);
+  if (hit !== undefined) return hit;
   const now = playerView(after, viewer);
   const seen = {
     visible: new Set(now.visible),
     seenUnits: new Set([...playerView(before, viewer).units, ...now.units].map((u) => u.id)),
   };
-  asked.set(after, [...known, { before, viewer, seen }]);
+  byViewer.set(viewer, seen);
   return seen;
 }
 

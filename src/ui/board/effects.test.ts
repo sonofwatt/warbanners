@@ -1,3 +1,5 @@
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { expect, test } from 'vitest';
 import { applyAction, playerView } from '../../engine';
 import type { GameEvent, MatchState } from '../../engine';
@@ -154,4 +156,30 @@ test('seenBy works an action out once: the store and the match screen ask about 
   const other = applyAction(s, { type: 'endTurn' });
   if (!other.ok) throw new Error(other.reason);
   expect(seenBy(other.state, r.state, 0)).not.toBe(seenBy(s, r.state, 0));
+});
+
+/** A match played for `actions` turn ends, asking seenBy about each one as the store does. Only the last state is returned. */
+function askedChain(actions: number): { last: MatchState; earlier: WeakRef<MatchState>[] } {
+  let state = killPosition().s;
+  const earlier: WeakRef<MatchState>[] = [];
+  for (let i = 0; i < actions; i++) {
+    const r = applyAction(state, { type: 'endTurn' });
+    if (!r.ok) throw new Error(r.reason);
+    seenBy(state, r.state, 0);
+    seenBy(state, r.state, 1);
+    earlier.push(new WeakRef(state));
+    state = r.state;
+  }
+  return { last: state, earlier };
+}
+
+test('seenBy keeps no earlier state alive: while the latest state lives, the states before it can still be freed', async () => {
+  setFlagsFromString('--expose-gc');
+  const gc = runInNewContext('gc') as () => void;
+  const { last, earlier } = askedChain(6);
+  // A WeakRef holds its target until the current job ends.
+  await new Promise((r) => setTimeout(r, 0));
+  gc();
+  expect(earlier.filter((w) => w.deref() !== undefined).length).toBe(0);
+  expect(last.units.length).toBeGreaterThan(0);   // the latest state was alive through the collection
 });
