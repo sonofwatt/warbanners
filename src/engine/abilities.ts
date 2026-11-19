@@ -3,7 +3,7 @@ import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
-import { canSeeUnit } from './vision';
+import { canSeeUnit, visibleTiles } from './vision';
 import { ABILITIES } from './types';
 import type { AbilityId, Action, Handler, MatchState, Unit } from './types';
 
@@ -22,8 +22,9 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
       && t.hp < UNITS[t.type].hp);
   } else if (ability === 'taunt') {
+    const visible = visibleTiles(s, u.owner);
     found = s.units.filter((t) => t.owner !== u.owner && distance(here, parseKey(t.pos)) <= CONFIG.tauntRange
-      && canSeeUnit(s, u.owner, t));
+      && canSeeUnit(s, u.owner, t, visible));
   } else if (ability === 'hasten') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
       && hasTrait(t, 'mounted') && !t.fresh);
@@ -42,10 +43,11 @@ function stormVictims(s: MatchState, owner: number, k: HexKey): Unit[] {
 // A dust storm may be aimed at a tile in range with a unit the caster's owner can see on or beside it.
 function dustStormTiles(s: MatchState, u: Unit): HexKey[] {
   const out: HexKey[] = [];
+  const visible = visibleTiles(s, u.owner);
   for (const h of range(parseKey(u.pos), CONFIG.dustStormRange)) {
     const k = key(h);
     if (tileAt(s, k) === undefined) continue;
-    if (stormVictims(s, u.owner, k).some((t) => canSeeUnit(s, u.owner, t))) out.push(k);
+    if (stormVictims(s, u.owner, k).some((t) => canSeeUnit(s, u.owner, t, visible))) out.push(k);
   }
   return out.sort();
 }
