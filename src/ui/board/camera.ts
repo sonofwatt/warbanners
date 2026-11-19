@@ -17,6 +17,7 @@ export const MAX_TILE_PX = 110; // closest zoom
 
 const TILE_W = R * Math.sqrt(3);
 const MARGIN_PX = 16;
+const EDGE_PX = 24; // the most sky the view may show past the board's edge
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
@@ -33,11 +34,22 @@ function clampScale(scale: number, bounds: Box, vp: Viewport): number {
   return clamp(scale, lo, hi);
 }
 
+/**
+ * Where the view centre may be along one axis. When the board is larger than the screen on that axis,
+ * the view may run at most EDGE_PX past the board's edge; when it is smaller, it is centred.
+ */
+function clampAxis(c: number, lo: number, hi: number, scale: number, screenPx: number): number {
+  if ((hi - lo) * scale <= screenPx) return (lo + hi) / 2;
+  const reach = (screenPx / 2 - EDGE_PX) / scale;
+  return clamp(c, lo + reach, hi - reach);
+}
+
 function clampCamera(c: Camera, bounds: Box, vp: Viewport): Camera {
+  const scale = clampScale(c.scale, bounds, vp);
   return {
-    cx: clamp(c.cx, bounds.minX, bounds.maxX),
-    cy: clamp(c.cy, bounds.minY, bounds.maxY),
-    scale: clampScale(c.scale, bounds, vp),
+    cx: clampAxis(c.cx, bounds.minX, bounds.maxX, scale, vp.w),
+    cy: clampAxis(c.cy, bounds.minY, bounds.maxY, scale, vp.h),
+    scale,
   };
 }
 

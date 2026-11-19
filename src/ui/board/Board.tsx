@@ -206,6 +206,7 @@ export function Board(p: BoardProps): ReactElement {
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
   const cam = useRef<Camera | null>(null);
+  const touched = useRef(false); // the player has panned or zoomed since the camera last aimed at the focus
   if (cam.current === null) cam.current = startCamera(hexToBoard(p.focus), bounds, vp.current);
 
   // The latest props for the event handlers, which are attached once.
@@ -239,7 +240,9 @@ export function Board(p: BoardProps): ReactElement {
       if (r.width <= MIN_SIDE || r.height <= MIN_SIDE) return;
       vp.current = { w: r.width, h: r.height };
       const { bounds: b, focus } = latest.current;
-      cam.current = measured.current ? refit(cam.current!, b, vp.current) : startCamera(hexToBoard(focus), b, vp.current);
+      // Until the player pans or zooms, the camera keeps aiming at the focus: the clamp may have moved the
+      // centre off it (a board shorter than the screen is centred), and a new size may let it aim closer.
+      cam.current = measured.current && touched.current ? refit(cam.current!, b, vp.current) : startCamera(hexToBoard(focus), b, vp.current);
       measured.current = true;
       if (now) write();
       else schedule();
@@ -259,6 +262,7 @@ export function Board(p: BoardProps): ReactElement {
       return;
     }
     cam.current = startCamera(hexToBoard(p.focus), latest.current.bounds, vp.current);
+    touched.current = false;
     schedule();
   }, [p.focus, schedule]);
   const firstBounds = useRef(true);
@@ -281,6 +285,7 @@ export function Board(p: BoardProps): ReactElement {
       onTap(pick(items, screenToBoard(c, vp.current, out.at), radius));
       return;
     }
+    touched.current = true;
     schedule();
   });
 

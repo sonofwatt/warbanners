@@ -13,7 +13,29 @@ test('a match opens at the default zoom on its focus', () => {
   const c = startCamera(hexToBoard('-2,5'), B, VP);
   expect(R * Math.sqrt(3) * c.scale).toBeCloseTo(64, 5);
   expect(c.cx).toBeCloseTo(25.98, 2);
-  expect(c.cy).toBeCloseTo(139.5, 2);
+  // 415 board units tall at 1.2317 px each is 511 px, less than 915: the board is centred top to bottom.
+  expect(c.cy).toBeCloseTo((B.minY + B.maxY) / 2, 5);
+});
+
+test('a focus near the edge stops where the board edge is 24 px from the screen edge', () => {
+  const vp = { w: 915, h: 412 };
+  const c = startCamera(hexToBoard('-2,5'), B, vp);
+  // 675.5 units wide at 1.2317 px is 832 px, less than 915: centred left to right.
+  expect(c.cx).toBeCloseTo(0, 5);
+  // Taller than 412 px: the bottom of the view may reach 24 px below the board, so the centre is
+  // at most maxY + (24 - 206) / scale = 195 - 147.77 = 47.23, short of the focus at 139.5.
+  expect(c.cy).toBeCloseTo(B.maxY + (24 - vp.h / 2) / c.scale, 5);
+  expect(c.cy).toBeCloseTo(47.23, 2);
+  expect(boardToScreen(c, vp, { x: 0, y: B.maxY }).y).toBeCloseTo(vp.h - 24, 5);
+});
+
+test('the view shows at most 24 px past the board on an axis where the board is the larger', () => {
+  for (const [dx, dy] of [[99999, 0], [-99999, 0]]) {
+    const c = panBy({ cx: 0, cy: 0, scale: 2 }, dx!, dy!, B, VP);
+    const left = boardToScreen(c, VP, { x: B.minX, y: 0 }).x;
+    const right = boardToScreen(c, VP, { x: B.maxX, y: 0 }).x;
+    expect(Math.max(left, VP.w - right)).toBeCloseTo(24, 5);
+  }
 });
 
 test('zoom keeps the point under the finger', () => {
@@ -34,8 +56,11 @@ test('zoom and pan are clamped', () => {
     5,
   );
   const far = panBy({ cx: 0, cy: 0, scale: 1 }, -99999, -99999, B, VP);
-  expect(far.cx).toBeCloseTo(B.maxX, 5);
-  expect(far.cy).toBeCloseTo(B.maxY, 5);
+  // Wider than the screen (675.5 px at scale 1): the right edge stops 24 px in from the screen's
+  // right edge, so cx = maxX + 24 - 206 = 155.75. Shorter than the screen (415 px): centred.
+  expect(far.cx).toBeCloseTo(B.maxX + 24 - VP.w / 2, 5);
+  expect(far.cx).toBeCloseTo(155.75, 2);
+  expect(far.cy).toBeCloseTo((B.minY + B.maxY) / 2, 5);
 });
 
 test('screen and board convert both ways', () => {

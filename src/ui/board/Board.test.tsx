@@ -3,6 +3,7 @@ import { expect, test } from 'vitest';
 import { createMatch, playerView } from '../../engine';
 import type { PlayerView, Unit } from '../../engine';
 import { Board } from './Board';
+import { boardBounds } from './layout';
 import { buildScene } from './scene';
 import type { SceneInput } from './scene';
 
@@ -36,16 +37,18 @@ test('every tile has a tap target at its centre, and the svg is touch-action non
   expect(html).toMatch(/<svg[^>]*touch-action:none/);
 });
 
-test('before measuring, the camera opens on the focus as if the screen were 412 by 915', () => {
+test('before measuring, the camera opens on the focus as if the screen were 412 by 915, centred top to bottom', () => {
   const html = draw();
   const m = /<g data-camera="true" transform="translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\)"/.exec(html);
   expect(m).not.toBeNull();
   const [tx, ty, sc] = [Number(m![1]), Number(m![2]), Number(m![3])];
-  // The focus tile's centre lands in the middle of a 412 by 915 screen.
+  // The focus tile's centre lands in the middle of a 412 by 915 screen left to right. The board is
+  // shorter than 915 px at this zoom, so it is centred top to bottom instead: its middle, halfway
+  // between its top (-220) and its bottom (195), lands in the middle.
   const fx = 30 * Math.sqrt(3) * (-2 + 5 / 2);
-  const fy = 30 * 1.5 * 0.62 * 5;
+  const b = boardBounds(6);
   expect(tx + fx * sc).toBeCloseTo(206, 0);
-  expect(ty + fy * sc).toBeCloseTo(457.5, 0);
+  expect(ty + ((b.minY + b.maxY) / 2) * sc).toBeCloseTo(457.5, 0);
 });
 
 test('a mark on a fog tile is drawn, and nothing else of that tile but its fog', () => {
