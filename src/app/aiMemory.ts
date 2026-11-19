@@ -2,7 +2,7 @@
 import { ADAPT } from '../ai/adapt';
 import type { KeyValue } from './saves';
 
-export const MEMORY_KEY = 'banners.ai.adaptive.v1';
+export const MEMORY_KEY = 'warbanners.ai.adaptive.v1';
 
 const nameKey = (name: string): string => name.trim().toLowerCase();
 
