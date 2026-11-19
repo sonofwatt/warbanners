@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
-import { createMatch, legalActions } from '../../engine';
+import { FACTIONS, UNITS, createMatch, legalActions } from '../../engine';
 import type { DigestLine } from '../../app/digest';
 import { roundOf } from '../../app/record';
 import { indexActions } from '../interaction';
@@ -29,6 +29,14 @@ test('the unit panel shows the card and its commands', () => {
   const u = open.units[0]!;
   const html = renderToStaticMarkup(<UnitPanel type={u.type} hp={u.hp} faction="spartans" commands={unitCommands({ kind: 'unit', id: u.id, armed: null, askLure: null }, open, ix)} onCommand={noop} />);
   expect(html).toContain('Warrior'); expect(html).toContain('10/10');
+});
+test('the unit panel movement includes the Mongol mounted bonus for every mounted unit', () => {
+  const move = (type: 'horseArcher' | 'khansGuard' | 'horseman', faction: 'mongols' | 'spartans') =>
+    renderToStaticMarkup(<UnitPanel type={type} hp={10} faction={faction} commands={[]} onCommand={noop} />);
+  const bonus = FACTIONS.mongols.mountedMoveBonus;
+  expect(move('horseArcher', 'mongols')).toContain(`Movement</dt><dd>${UNITS.horseArcher.move + bonus}</dd>`);
+  expect(move('khansGuard', 'mongols')).toContain(`Movement</dt><dd>${UNITS.khansGuard.move + bonus}</dd>`);
+  expect(move('horseman', 'spartans')).toContain(`Movement</dt><dd>${UNITS.horseman.move}</dd>`);
 });
 test('the city panel shows growth, units and train commands', () => {
   const c = open.cities[0]!;

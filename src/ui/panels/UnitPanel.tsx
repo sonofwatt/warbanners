@@ -12,7 +12,7 @@ export interface UnitPanelProps {
 // An enemy unit gets the same card with an empty command list.
 export function UnitPanel({ type, hp, faction, commands, onCommand }: UnitPanelProps): ReactElement {
   const def = UNITS[type];
-  const move = def.move + (def.traits.includes('mounted') && def.faction === null ? FACTIONS[faction].mountedMoveBonus : 0);
+  const move = def.move + (def.traits.includes('mounted') ? FACTIONS[faction].mountedMoveBonus : 0);
   return (
     <section className="panel unit-panel">
       <h2>{T.unit[type].name}</h2>

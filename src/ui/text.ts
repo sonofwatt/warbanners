@@ -15,10 +15,10 @@ const unit: Record<UnitTypeId, Entry> = {
   archer: { name: 'Archer', blurb: 'Shoots enemies up to two tiles away and sees two tiles around.' },
   horseman: { name: 'Horseman', blurb: 'A fast rider who keeps their remaining movement after attacking.' },
   knight: { name: 'Knight', blurb: 'A strong, fast rider who gets another attack after every kill.' },
-  catapult: { name: 'Catapult', blurb: 'Throws rocks three tiles, hurting the target and the units beside it, but cannot attack after moving.' },
-  hoplite: { name: 'Hoplite', blurb: 'A Spartan spear fighter whose defence grows with every other Hoplite beside it.' },
+  catapult: { name: 'Catapult', blurb: 'Throws rocks three tiles, hurting the target and the enemy units beside it, but cannot attack after moving.' },
+  hoplite: { name: 'Hoplite', blurb: 'A Spartan spear fighter whose defence grows with each other Hoplite beside it, up to 2.' },
   kingsGuard: { name: "King's Guard", blurb: 'The Spartan champion, a mighty fighter whose attack does not weaken as it is hurt.' },
-  piper: { name: 'Piper', blurb: 'A Spartan helper who heals friends, taunts enemies and cannot be lured away from friends beside them.' },
+  piper: { name: 'Piper', blurb: 'A Spartan helper who heals friends, taunts enemies and keeps friends beside it from being lured.' },
   scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees far and is seen by enemies only from the next tile.' },
   horseArcher: { name: 'Horse Archer', blurb: 'A Mongol rider who shoots two tiles away and keeps moving after attacking.' },
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
@@ -41,16 +41,16 @@ const trait: Record<Trait, Entry> = {
   inspire: { name: 'Inspire', blurb: 'Friendly riders beside it have 1 more attack.' },
   camp: { name: 'Camp', blurb: 'Cannot attack, but can train units.' },
   heal: { name: 'Heal', blurb: 'Can heal a hurt friendly unit beside it.' },
-  taunt: { name: 'Taunt', blurb: 'Can force an enemy within 2 tiles to attack only Hoplites in its reach.' },
+  taunt: { name: 'Taunt', blurb: 'Can force an enemy within 2 tiles to attack only Hoplites, when any are in its reach.' },
   hasten: { name: 'Hasten', blurb: 'Can give a friendly rider beside it one extra tile of movement.' },
-  dustStorm: { name: 'Dust storm', blurb: 'Can blind enemies near a tile within 2, so they see nothing and attack only from next door.' },
+  dustStorm: { name: 'Dust storm', blurb: 'Can blind enemies near a tile within 2, so they give their owner no vision and attack only from next door.' },
 };
 
 const ability: Record<AbilityId, Entry> = {
   heal: { name: 'Heal', blurb: `Restores ${CONFIG.abilityHeal} health to a hurt friendly unit beside it.` },
-  taunt: { name: 'Taunt', blurb: 'Forces an enemy within 2 tiles to attack only Hoplites in its reach until its owner next turn ends.' },
+  taunt: { name: 'Taunt', blurb: 'Forces an enemy within 2 tiles to attack only Hoplites, when any are in its reach, until its owner next turn ends.' },
   hasten: { name: 'Hasten', blurb: 'Gives a friendly rider beside it one extra tile of movement this turn.' },
-  dustStorm: { name: 'Dust storm', blurb: 'Blinds the enemies on and around a tile within 2 until their owner next turn ends.' },
+  dustStorm: { name: 'Dust storm', blurb: 'Blinds the enemies on and around a tile within 2, so they give no vision and attack only from next door, until their owner next turn ends.' },
 };
 
 const reward: Record<RewardId, Entry> = {
