@@ -39,7 +39,7 @@ export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s,
   }
   s.current = next;
 
-  // 4. The new player's income, rest healing and fresh movement.
+  // 4. The new player's income, rest healing, fresh movement, and units spawned last turn may act.
   const player = s.players[next]!;
   if (player.turnsTaken > 0) {
     player.gold += playerIncome(s, next);
@@ -57,6 +57,7 @@ export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s,
     u.attacks = freshAttacks(u.type);
     u.moved = false;
     u.acted = false;
+    u.fresh = false;
   }
 
   // 5.

@@ -32,6 +32,7 @@ export function addUnit(
   u.mp = 2 * UNITS[type].move;
   u.attacks = freshAttacks(type);
   u.enteredTurn = 0;
+  u.fresh = false;
   Object.assign(u, patch);
   return u;
 }

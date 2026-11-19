@@ -37,13 +37,14 @@ export function refreshExplored(s: MatchState, player: PlayerId): void {
   p.explored = [...all].sort();
 }
 
+// A unit or city of `player` close enough to reveal a hidden unit on `pos`: a city also sees one on its own tile.
 function hasSpotterNextTo(s: MatchState, player: PlayerId, pos: HexKey): boolean {
   const at = parseKey(pos);
   for (const u of s.units) {
     if (u.owner === player && !u.blinded && distance(parseKey(u.pos), at) === 1) return true;
   }
   for (const c of s.cities) {
-    if (c.owner === player && distance(parseKey(c.pos), at) === 1) return true;
+    if (c.owner === player && distance(parseKey(c.pos), at) <= CONFIG.hiddenRevealRange) return true;
   }
   return false;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { applyAction, HANDLERS } from './apply';
+import { attackTargets } from './combat';
 import { createMatch } from './state';
 import { addCity, addUnit, blankMatch, setTile } from './testkit';
 import { canSeeUnit, playerView, refreshExplored, visibleTiles } from './vision';
@@ -38,6 +39,16 @@ describe('vision', () => {
     const s = blankMatch(); const scout = addUnit(s, 'scout', 0, 2, 0);
     addCity(s, 1, 3, 0);
     expect(canSeeUnit(s, 1, scout)).toBe(true);
+  });
+  test('a city sees a hidden unit standing on its own tile, and one next to it', () => {
+    const s = blankMatch(); s.current = 1;
+    const onCity = addUnit(s, 'scout', 0, 2, 0); const beside = addUnit(s, 'scout', 0, -1, 0);
+    addCity(s, 1, 2, 0); addCity(s, 1, -2, 0);
+    const guard = addUnit(s, 'warrior', 1, 3, 0, { blinded: true });   // blinded: it spots nothing itself
+    expect(canSeeUnit(s, 1, onCity)).toBe(true);
+    expect(canSeeUnit(s, 1, beside)).toBe(true);
+    expect(playerView(s, 1).units.map((u) => u.id)).toContain(onCity.id);
+    expect(attackTargets(s, guard.id)).toEqual(['2,0']);
   });
   test('a blinded neighbour does not reveal a hidden unit', () => {
     const s = blankMatch(); const scout = addUnit(s, 'scout', 0, 2, 0);

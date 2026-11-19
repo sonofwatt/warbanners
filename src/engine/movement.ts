@@ -32,7 +32,7 @@ function hasRoadOrCity(s: MatchState, k: HexKey): boolean {
 export function reachable(s: MatchState, unitId: number): Record<HexKey, number> {
   const u = unitById(s, unitId);
   if (u === undefined) return {};
-  if (u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
+  if (u.fresh || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
   const best = new Map<HexKey, number>([[u.pos, u.mp]]);
@@ -107,21 +107,23 @@ export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
   ev.push({ type: 'treasure', at: u.pos, outcome });
 }
 
-// rules 13: the lured unit follows the rider by one tile if the tile is free
+// rules 13: the lured unit follows the rider by one tile if a tile is free
 function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): void {
   const target = unitById(s, mover.lure!.target);
   if (target === undefined) return;
   const at = parseKey(target.pos);
   const gap = distance(parseKey(from), at);
   let dest: HexKey | null = null;
-  if (gap === 1) dest = from;
+  const free = (k: HexKey): boolean => isEnterable(s, k) && unitAt(s, k) === undefined;
+  if (gap === 1) dest = free(from) ? from : null;
   else if (gap === 2) {
+    // the first shared neighbour in direction order that is free and enterable
     for (const d of DIRS) {
       const n = key(add(at, d));
-      if (distance(parseKey(from), parseKey(n)) === 1) { dest = n; break; }
+      if (distance(parseKey(from), parseKey(n)) === 1 && free(n)) { dest = n; break; }
     }
   }
-  if (dest === null || !isEnterable(s, dest) || unitAt(s, dest) !== undefined) return;
+  if (dest === null) return;
   const old = target.pos;
   target.pos = dest; target.enteredTurn = s.stamp;
   ev.push({ type: 'lured', unit: target.id, from: old, to: dest });

@@ -98,6 +98,17 @@ test('a lure whose destination is occupied does nothing and clears the lure', ()
   expect(unitById(t, a.id)!.lure).toBeNull();
   expect(r.ok && r.events.some((e) => e.type === 'lured')).toBe(false);
 });
+test('a distance 2 lure uses the first shared neighbour that is free, skipping a blocked one', () => {
+  const s = mongols(); const a = addUnit(s, 'horseArcher', 0, 0, 0, { mp: 6 }); const d = addUnit(s, 'warrior', 1, 2, -1);
+  const blocker = addUnit(s, 'warrior', 0, 1, -1);                   // the first shared neighbour in direction order
+  const shot = must(applyAction(s, { type: 'attack', unit: a.id, target: '2,-1', lure: true }));
+  const r = applyAction(shot, { type: 'move', unit: a.id, to: '-2,0' }); const t = must(r);
+  expect(unitById(t, d.id)!.pos).toBe('1,0'); expect(unitById(t, blocker.id)!.pos).toBe('1,-1');
+  expect(r.ok && r.events).toContainEqual({ type: 'lured', unit: d.id, from: '2,-1', to: '1,0' });
+  addUnit(shot, 'warrior', 0, 1, 0);                                 // now both shared neighbours are taken
+  const both = must(applyAction(shot, { type: 'move', unit: a.id, to: '-2,0' }));
+  expect(unitById(both, d.id)!.pos).toBe('2,-1'); expect(unitById(both, a.id)!.lure).toBeNull();
+});
 test('a pulled unit never collects a treasure', () => {
   const s = mongols(); const a = addUnit(s, 'horseArcher', 0, 0, 0, { mp: 6 }); const d = addUnit(s, 'warrior', 1, 2, 0);
   setTile(s, 1, 0, { treasure: true });

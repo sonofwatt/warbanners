@@ -68,6 +68,7 @@ export function campTrainRefusal(s: MatchState, unitId: unknown, unitType: unkno
     || typeof to !== 'string' || tileAt(s, to) === undefined) return 'bad training';
   const camp = unitById(s, unitId);
   if (camp === undefined || camp.owner !== s.current || !hasTrait(camp, 'camp')) return 'not your camp';
+  if (camp.fresh) return 'camp was trained this turn';
   if (camp.moved || camp.acted) return 'camp already used this turn';
   if (distance(parseKey(camp.pos), parseKey(to)) !== 1) return 'tile is not next to the camp';
   if (!isEnterable(s, to) || unitAt(s, to) !== undefined) return 'tile is not free';

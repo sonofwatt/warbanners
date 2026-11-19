@@ -57,7 +57,7 @@ function reachOf(u: Unit): number {
 // rules 10: tiles holding an enemy this unit may attack now
 export function attackTargets(s: MatchState, unitId: number): HexKey[] {
   const u = unitById(s, unitId);
-  if (u === undefined || u.owner !== s.current || u.attacks <= 0) return [];
+  if (u === undefined || u.owner !== s.current || u.fresh || u.attacks <= 0) return [];
   const def = UNITS[u.type];
   if (def.range === 0 || def.atk === 0) return [];
   if (hasTrait(u, 'siege') && u.moved) return [];

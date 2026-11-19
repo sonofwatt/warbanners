@@ -16,7 +16,7 @@ function isAbility(v: unknown): v is AbilityId {
 export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId): HexKey[] {
   if (!isAbility(ability)) return [];
   const u = unitById(s, unitId);
-  if (u === undefined || u.owner !== s.current || u.attacks <= 0 || !hasTrait(u, ability)) return [];
+  if (u === undefined || u.owner !== s.current || u.fresh || u.attacks <= 0 || !hasTrait(u, ability)) return [];
   const here = parseKey(u.pos);
   let found: Unit[] = [];
   if (ability === 'heal') {
@@ -27,7 +27,7 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
       && canSeeUnit(s, u.owner, t));
   } else if (ability === 'hasten') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
-      && hasTrait(t, 'mounted'));
+      && hasTrait(t, 'mounted') && !t.fresh);
   } else {
     return dustStormTiles(s, u);
   }

@@ -13,7 +13,7 @@ export const CONFIG = {
     mountain: { enterCost: 0, cover: 1.5 },   // 0 means "all remaining, needs full movement"
     water: { enterCost: null, cover: 0 },
   },
-  roadCost: 1, relayCost: 1, cityCover: 1.5, wallsCover: 2, mountainSightBonus: 1,
+  roadCost: 1, relayCost: 1, cityCover: 1.5, wallsCover: 2, mountainSightBonus: 1, hiddenRevealRange: 1,
   mapgen: {
     field: 50, forest: 72, mountain: 86,
     orchard: 20, cropland: 40, game: 30, ore: 40,
@@ -45,7 +45,7 @@ export const CONFIG = {
 } as const satisfies {
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
-  roadCost: number; relayCost: number; cityCover: number; wallsCover: number; mountainSightBonus: number;
+  roadCost: number; relayCost: number; cityCover: number; wallsCover: number; mountainSightBonus: number; hiddenRevealRange: number;
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;

@@ -67,7 +67,7 @@ export function spawnUnit(
   const u: Unit = {
     id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, attacks: 0, home,
     enteredTurn: s.stamp, moved: false, acted: false, rested: false,
-    taunted: false, blinded: false, lure: null,
+    taunted: false, blinded: false, lure: null, fresh: true,
   };
   s.nextUnitId += 1;
   s.units.push(u);
@@ -117,6 +117,7 @@ export function createMatch(settings: MatchSettings): MatchState {
     const u = spawnUnit(s, type, p.id, city.pos, city.id);
     u.mp = maxMp(s, u);
     u.attacks = freshAttacks(type);
+    u.fresh = false;
   }
   for (const p of s.players) refreshExplored(s, p.id);
   return s;

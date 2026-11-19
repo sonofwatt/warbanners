@@ -36,6 +36,7 @@ export interface Unit {
   rested: boolean;                       // did nothing on its owner's previous turn
   taunted: boolean; blinded: boolean;
   lure: { target: number; from: HexKey } | null;
+  fresh: boolean;                        // spawned this turn; cleared when its owner's next turn starts
 }
 export interface Player {
   id: PlayerId; faction: FactionId; gold: number; techs: TechId[];

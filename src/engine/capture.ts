@@ -7,7 +7,7 @@ export function canCapture(s: MatchState, unitId: number): boolean {
   if (typeof unitId !== 'number') return false;
   const u = unitById(s, unitId);
   if (u === undefined || u.owner !== s.current) return false;
-  if (u.moved || u.acted || u.enteredTurn >= s.stamp) return false;
+  if (u.fresh || u.moved || u.acted || u.enteredTurn >= s.stamp) return false;
   const city = cityAt(s, u.pos);
   if (city !== undefined) return city.owner !== u.owner;
   return tileAt(s, u.pos)?.village === true;
