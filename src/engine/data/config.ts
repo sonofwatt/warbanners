@@ -1,9 +1,10 @@
+import { deepFreeze } from './freeze';
 import type { HexKey } from '../hex';
 import type { BuildingId, Resource, RewardId, TechId, Terrain } from '../types';
 
 // Every number the rules file leaves to tuning. `as const` keeps the literal values;
 // `satisfies` checks the shape. Water has no cover in the rules (it cannot be entered), so 0.
-export const CONFIG = {
+export const CONFIG = deepFreeze({
   mapRadius: 6,
   capitals: ['-2,5', '2,-5'],
   startGold: [8, 10],
@@ -69,4 +70,4 @@ export const CONFIG = {
   harvest: Record<'orchard' | 'game', { tech: TechId; cost: number; growth: number }>;
   buildings: Record<BuildingId, { tech: TechId; cost: number; growth: number; on: Terrain; resource: Resource | null; income: number }>;
   walls: { tech: 'shieldwork'; cost: number }; road: { tech: 'roads'; cost: number };
-};
+});

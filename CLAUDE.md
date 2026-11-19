@@ -19,3 +19,8 @@ characters would otherwise eat this line.
 ## Originality
 
 Banners is a new game in the same genre as Hexonia, not a copy of it. All art, sound, names, text and numbers are our own, and nothing is taken from the Hexonia APK.
+
+## Code layout
+
+- The engine lives in `src/engine` and is reached from the app only through its index. Any import from `src/ui`, `src/app`, `src/browser` or `src/main.tsx` that names the engine must end in `/engine` or `/engine/index`. Inside the engine, nothing imports from outside it. `src/boundaries.test.ts` and `src/engine/purity.test.ts` enforce both.
+- No DOM, storage, clock or randomness access when a module loads. Importing a module must have no side effects; touch `document`, `window`, `localStorage` and the like only inside functions that the app calls.

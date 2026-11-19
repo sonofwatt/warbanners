@@ -1,9 +1,10 @@
+import { deepFreeze } from './freeze';
 import type { TechId } from '../types';
 
 export interface TechDef { tier: 1 | 2 | 3; requires: TechId | null; }
 
 // rules 7: four branches of three tiers
-export const TECHS: Record<TechId, TechDef> = {
+export const TECHS: Record<TechId, TechDef> = deepFreeze({
   foraging: { tier: 1, requires: null },
   farming: { tier: 2, requires: 'foraging' },
   markets: { tier: 3, requires: 'farming' },
@@ -16,4 +17,4 @@ export const TECHS: Record<TechId, TechDef> = {
   bronze: { tier: 1, requires: null },
   shieldwork: { tier: 2, requires: 'bronze' },
   smithing: { tier: 3, requires: 'shieldwork' },
-};
+});
