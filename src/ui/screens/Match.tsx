@@ -87,14 +87,17 @@ export function Match(): ReactElement | null {
     () => (state === null || viewer === null ? null : matchData(state, viewer, selection)),
     [state, viewer, selection],
   );
-  // The effects of each action accepted while this screen is up, for this viewer's eyes only. effectsFor drops
-  // every tile the viewer cannot see. The curtain unmounts this screen, so nothing of `last` shows behind it,
-  // and what was accepted before the screen appeared is not replayed.
-  const fx = useMemo(
-    () => (last === null || state === null || data === null || last.seq === shownBefore.current ? null
-      : { seq: last.seq, list: effectsFor(last.events, last.before, state, new Set(data.view.visible)) }),
-    [last, state, data],
-  );
+  // The effects of each action accepted while this screen is up, for this viewer's eyes only: effectsFor drops
+  // every tile the viewer cannot see and every unit the viewer could not see before the action and cannot see
+  // after it (a hidden unit can stand unseen on a visible tile). Worked out once per action, not per selection.
+  // The curtain unmounts this screen, so nothing of `last` shows behind it, and what was accepted before the
+  // screen appeared is not replayed.
+  const fx = useMemo(() => {
+    if (last === null || state === null || viewer === null || last.seq === shownBefore.current) return null;
+    const now = playerView(state, viewer);
+    const seenUnits = new Set([...playerView(last.before, viewer).units, ...now.units].map((u) => u.id));
+    return { seq: last.seq, list: effectsFor(last.events, last.before, state, new Set(now.visible), seenUnits) };
+  }, [last, state, viewer]);
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
   const items = useMemo(
     () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, selectedUnit, spentUnits: data.spent })),

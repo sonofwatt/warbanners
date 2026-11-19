@@ -41,16 +41,20 @@ const SETTLE_MS = SLIDE_MS + 40;
 
 const unitTransform = (at: Pt): string => `translate(${r2(at.x)}px, ${r2(at.y)}px)`;
 
-function unitPlaces(items: readonly SceneItem[]): Map<number, HexKey> {
-  const m = new Map<number, HexKey>();
-  for (const it of items) if (it.kind === 'unit') m.set(it.unit.id, it.unit.pos);
-  return m;
+/** Where every unit stands, as one string ("id@q,r" by id), so equal placements compare equal however often the scene is rebuilt. */
+function placesKey(items: readonly SceneItem[]): string {
+  const out: string[] = [];
+  for (const it of items) if (it.kind === 'unit') out.push(`${it.unit.id}@${it.unit.pos}`);
+  return out.sort().join(' ');
 }
 
-function samePlaces(a: ReadonlyMap<number, HexKey>, b: ReadonlyMap<number, HexKey>): boolean {
-  if (a.size !== b.size) return false;
-  for (const [id, k] of a) if (b.get(id) !== k) return false;
-  return true;
+function parsePlaces(k: string): Map<number, HexKey> {
+  const m = new Map<number, HexKey>();
+  for (const part of k === '' ? [] : k.split(' ')) {
+    const at = part.indexOf('@');
+    m.set(Number(part.slice(0, at)), part.slice(at + 1));
+  }
+  return m;
 }
 
 export function cameraTransform(c: Camera, vp: Viewport): string {
@@ -294,13 +298,16 @@ export function Board(p: BoardProps): ReactElement {
   // arrived it goes back to its place in the draw order, behind whatever stands on the tile in front.
   // React moves the same node each time; the slide is played on that node, so a move never jumps.
   const { items, factions, viewer } = p;
-  const [settled, setSettled] = useState<ReadonlyMap<number, HexKey>>(() => unitPlaces(p.items));
+  // The settle timer depends on where units stand, not on the scene object, so a rebuild for a new
+  // selection or mark does not restart it.
+  const places = useMemo(() => placesKey(items), [items]);
+  const [settledKey, setSettledKey] = useState(places);
+  const settled = useMemo(() => parsePlaces(settledKey), [settledKey]);
   useEffect(() => {
-    const now = unitPlaces(items);
-    if (samePlaces(now, settled)) return undefined;
-    const t = setTimeout(() => setSettled(now), SETTLE_MS);
+    if (places === settledKey) return undefined;
+    const t = setTimeout(() => setSettledKey(places), SETTLE_MS);
     return () => clearTimeout(t);
-  }, [items, settled]);
+  }, [places, settledKey]);
 
   const shownAt = useRef(new Map<number, Pt>());
   useLayoutEffect(() => {
