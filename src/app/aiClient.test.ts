@@ -3,7 +3,7 @@ import { randomPlayout } from '../engine/testkit';
 import { aiInputFor } from '../ai/input';
 import { planTurn } from '../ai/plan';
 import type { Plan } from '../ai/plan';
-import { FALLBACK_DIAL_CAP, THINK_TIMEOUT_MS, createAiClient } from './aiClient';
+import { FALLBACK_DIAL_CAP, SupersededError, THINK_TIMEOUT_MS, createAiClient, isSuperseded } from './aiClient';
 import type { WorkerLike } from './aiClient';
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -26,15 +26,14 @@ test('answers come back by id and stale ones are ignored', async () => {
   const w = fake();
   const client = createAiClient(() => w);
   const opts = { dial: 0.5, seed: 1, refused: [] };
-  const first = vi.fn();
-  void client.think(input(), opts).then(first);
+  const first = client.think(input(), opts);
+  const firstOutcome = first.then(() => 'resolved', (e: unknown) => (isSuperseded(e) ? 'superseded' : 'other'));
   const second = client.think(input(), opts);
   expect(w.sent.map((m) => m.id)).toEqual([1, 2]);
   w.onmessage?.({ data: { id: 2, plan: stub(2) } });
   w.onmessage?.({ data: { id: 1, plan: stub(1) } });
   await expect(second).resolves.toEqual(stub(2));
-  await Promise.resolve();
-  expect(first).not.toHaveBeenCalled();
+  await expect(firstOutcome).resolves.toBe('superseded');
   expect(w.terminated).toBe(0);
   client.dispose();
   expect(w.terminated).toBe(1);
@@ -92,4 +91,51 @@ test('a factory that throws also falls back', async () => {
   const inp = input();
   const opts = { dial: 0.1, seed: 7, refused: [] };
   await expect(client.think(inp, opts)).resolves.toEqual(planTurn(inp, opts));
+});
+
+test('a superseded think rejects at once; the old timeout does not touch the new one', async () => {
+  vi.useFakeTimers();
+  const w = fake();
+  const client = createAiClient(() => w);
+  const opts = { dial: 0.5, seed: 1, refused: [] };
+  const old = client.think(input(), opts);
+  const oldSettled = expect(old).rejects.toBeInstanceOf(SupersededError);
+  await vi.advanceTimersByTimeAsync(THINK_TIMEOUT_MS - 1000);
+  const fresh = client.think(input(), opts);
+  await oldSettled;
+  await vi.advanceTimersByTimeAsync(1000);   // the old think's deadline passes
+  expect(w.terminated).toBe(0);
+  w.onmessage?.({ data: { id: 2, plan: stub(2) } });
+  await expect(fresh).resolves.toEqual(stub(2));
+});
+
+test('a superseded think followed by a timeout answers only the newest question', async () => {
+  vi.useFakeTimers();
+  const w = fake();
+  const client = createAiClient(() => w);
+  const inp = input();
+  const opts = { dial: 0.7, seed: 2, refused: [] };
+  const old = client.think(inp, opts);
+  const oldSettled = expect(old).rejects.toBeInstanceOf(SupersededError);
+  const fresh = client.think(inp, opts);
+  await oldSettled;
+  await vi.advanceTimersByTimeAsync(THINK_TIMEOUT_MS);
+  await vi.runAllTimersAsync();
+  await expect(fresh).resolves.toEqual(planTurn(inp, { ...opts, dial: FALLBACK_DIAL_CAP }));
+  expect(w.terminated).toBe(1);
+});
+
+test('dispose rejects a pending think, guards terminate, and later thinks use the main thread', async () => {
+  const w = fake();
+  w.terminate = () => { w.terminated += 1; throw new Error('gone'); };
+  const client = createAiClient(() => w);
+  const inp = input();
+  const opts = { dial: 0.9, seed: 8, refused: [] };
+  const pending = client.think(inp, opts);
+  const settled = expect(pending).rejects.toMatchObject({ name: 'SupersededError', message: 'disposed' });
+  expect(() => client.dispose()).not.toThrow();
+  await settled;
+  expect(w.terminated).toBe(1);
+  await expect(client.think(inp, opts)).resolves.toEqual(planTurn(inp, { ...opts, dial: FALLBACK_DIAL_CAP }));
+  expect(w.sent).toHaveLength(1);
 });

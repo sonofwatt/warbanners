@@ -10,6 +10,12 @@ export interface WorkerLike {
   postMessage(m: unknown): void; terminate(): void;
   onmessage: ((e: { data: unknown }) => void) | null; onerror: ((e: unknown) => void) | null;
 }
+// A think that was replaced by a newer one, or cut off by dispose(), rejects with this. Callers catch it and stop.
+export class SupersededError extends Error {
+  constructor(message = 'superseded') { super(message); this.name = 'SupersededError'; }
+}
+export const isSuperseded = (e: unknown): e is SupersededError => e instanceof SupersededError;
+
 export interface AiClient { think(input: AiInput, opts: Omit<PlanOpts, 'now'>): Promise<Plan>; dispose(): void }
 
 type Opts = Omit<PlanOpts, 'now'>;
@@ -63,7 +69,7 @@ export function createAiClient(make: () => WorkerLike | null = makeWorker): AiCl
     think(input, opts) {
       const w = start();
       if (!w) return onMainThread(input, opts);
-      if (current) clearTimeout(current.timer);   // a newer question supersedes the old one, which is never answered
+      if (current) { clearTimeout(current.timer); current.reject(new SupersededError()); }   // a newer question supersedes the old one
       const id = ++nextId;
       return new Promise<Plan>((resolve, reject) => {
         current = { id, input, opts, resolve, reject, timer: setTimeout(giveUp, THINK_TIMEOUT_MS) };
@@ -71,10 +77,11 @@ export function createAiClient(make: () => WorkerLike | null = makeWorker): AiCl
       });
     },
     dispose() {
-      if (current) clearTimeout(current.timer);
-      current = null; broken = true;
+      const c = current; current = null;
+      if (c) { clearTimeout(c.timer); c.reject(new SupersededError('disposed')); }
+      broken = true;
       const w = worker; worker = null;
-      if (w) { w.onmessage = null; w.onerror = null; w.terminate(); }
+      if (w) { w.onmessage = null; w.onerror = null; try { w.terminate(); } catch { /* already gone */ } }
     },
   };
 }
