@@ -4,6 +4,8 @@ import { expect, test } from 'vitest';
 import { RULES_VERSION } from '../../engine';
 import { createAppStore } from '../../app/store';
 import type { Deps } from '../../app/store';
+import type { AiClient } from '../../app/aiClient';
+import { planTurn } from '../../ai/plan';
 import type { KeyValue } from '../../app/saves';
 import { StoreContext } from '../../app/useApp';
 import { App } from '../App';
@@ -12,11 +14,15 @@ import { Home } from './Home';
 import { Match, turnFocus } from './Match';
 import { Pass } from './Pass';
 import { Result, resultSound } from './Result';
+import { Setup } from './Setup';
+import { Hud } from '../panels/Hud';
+
+const thinker = (): AiClient => ({ think: async (input, opts) => planTurn(input, opts), dispose: () => {} });
 
 function fakeStore(id = 'm1') {
   const map = new Map<string, string>();
   const kv: KeyValue = { getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, removeItem: (k) => { map.delete(k); } };
-  const deps: Deps = { kv, now: () => 1000, newSeed: () => 7, newId: () => id };
+  const deps: Deps = { kv, now: () => 1000, newSeed: () => 7, newId: () => id, ai: thinker(), sleep: async () => {} };
   return { map, deps, store: createAppStore(deps) };
 }
 const SETUP = { names: ['Ann', 'Ben'] as [string, string], factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
@@ -165,4 +171,54 @@ test('the camera aims at the focus once a turn, so moving the focus unit keeps t
   // The lowest-id unit (the focus of a player with no capital) moved: same turn, same focus object.
   expect(turnFocus(start, '1:0', '1,0')).toBe(start);
   expect(turnFocus(start, '2:0', '1,0')).toEqual({ key: '2:0', focus: '1,0' });
+});
+
+test('setup offers a person or the AI at four levels for the second seat', () => {
+  const { store } = fakeStore();
+  const html = render(store, <Setup />);
+  expect(html).toContain(T.ui.secondPlayer);
+  for (const label of [T.ui.person, T.ai.name.easy, T.ai.name.normal, T.ai.name.hard, T.ai.name.adaptive]) expect(html).toContain(`>${label}<`);
+  const chosen = (h: string): string[] => [...h.matchAll(/<button[^>]*aria-checked="true"[^>]*data-testid="second-(\w+)"/g)].map((m) => m[1]!);
+  expect(chosen(html)).toEqual(['human']);
+  expect(html).toContain('data-testid="name-1"');
+  const hard = render(store, <Setup initialSecond="hard" />);
+  expect(hard).not.toContain('data-testid="name-1"');
+  expect(chosen(hard)).toEqual(['hard']);
+  expect(hard).toContain(`<strong class="faction-player">${T.ai.name.hard}</strong>`);
+});
+
+test('the Hud says the AI is thinking', () => {
+  const props = {
+    name: 'Ann', colour: '#f00', faction: 'spartans' as const, gold: 8, income: 2, round: 1, unitsToAct: 1, techReady: false,
+    onOpenTech: () => {}, onOpenMenu: () => {}, onEndTurn: () => {},
+  };
+  expect(renderToStaticMarkup(<Hud {...props} />)).not.toContain(T.ai.thinking);
+  const html = renderToStaticMarkup(<Hud {...props} thinking endDisabled />);
+  expect(html).toContain(T.ai.thinking);
+  expect(html).toMatch(/disabled=""[^>]*data-testid="end-turn"|data-testid="end-turn"[^>]*disabled=""/);
+});
+
+test('the match screen shows Thinking while the AI plays, and a blocked move\'s reason', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch({ ...SETUP, second: 'easy' });
+  expect(store.getState()).toMatchObject({ screen: 'match', viewer: 0 });
+  expect(render(store, <Match />)).not.toContain(T.ai.thinking);
+  store.setState({ aiBusy: true });
+  expect(render(store, <Match />)).toContain(T.ai.thinking);
+  store.setState({ aiBusy: false, notice: 'blockedUnseen' });
+  expect(render(store, <Match />)).toContain(T.ui.blockedUnseen);
+});
+
+test('the result of an adaptive match says where the AI settled', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch({ ...SETUP, second: 'adaptive' });
+  const rec = store.getState().record!;
+  const seat = rec.players[1]!;
+  if (seat.kind !== 'ai') throw new Error('no AI');
+  store.getState().run({ type: 'resign' });
+  store.setState({ record: { ...store.getState().record!, players: [rec.players[0]!, { ...seat, adapt: { dial: 0.62, trend: 0 } }] } });
+  const html = render(store, <Result />);
+  expect(html).toContain('The AI finished at level 6 of 10.');
+  const plain = fakeStore(); plain.store.getState().startMatch({ ...SETUP, second: 'hard' }); plain.store.getState().run({ type: 'resign' });
+  expect(render(plain.store, <Result />)).not.toContain('The AI finished');
 });

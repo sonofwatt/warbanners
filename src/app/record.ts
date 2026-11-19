@@ -1,24 +1,30 @@
 import { createMatch, FACTIONS, hashState, legalActions, playerView, replay, RULES_VERSION } from '../engine';
-import type { Action, MatchSettings, MatchState } from '../engine';
+import type { Action, MatchSettings, MatchState, PlayerId } from '../engine';
+import type { AdaptState } from '../ai/adapt';
+import type { AiLevel } from '../ai/types';
+
+// Who sits in each seat: a person, or the AI at a level with its own random salt and adaptive dial.
+export type Seat = { name: string; kind: 'human' } | { name: string; kind: 'ai'; level: AiLevel; salt: number; adapt: AdaptState };
 
 // The same shape online play will store in plan 4.
 export interface MatchRecord {
   id: string;
   rulesVersion: number;
   settings: MatchSettings;
-  players: { name: string; kind: 'human' }[]; // plan 3 adds 'ai'
+  players: Seat[];
   actions: Action[];
   snapshot: { count: number; hash: string; state: MatchState } | null; // the state after `count` actions
   createdAt: number;
   updatedAt: number;
 }
 
-export function newRecord(id: string, settings: MatchSettings, names: [string, string], now: number): MatchRecord {
+// A plain name is a person's seat.
+export function newRecord(id: string, settings: MatchSettings, seats: readonly [string | Seat, string | Seat], now: number): MatchRecord {
   return {
     id,
     rulesVersion: RULES_VERSION,
     settings,
-    players: names.map(name => ({ name, kind: 'human' as const })),
+    players: seats.map((s): Seat => (typeof s === 'string' ? { name: s, kind: 'human' } : s)),
     actions: [],
     snapshot: null,
     createdAt: now,
@@ -36,17 +42,32 @@ export function append(rec: MatchRecord, action: Action, stateAfter: MatchState,
   };
 }
 
+// A new record whose AI seat `seat` has the given adaptive state. A person's seat is left as it is.
+export function setAdapt(rec: MatchRecord, seat: PlayerId, adapt: AdaptState): MatchRecord {
+  return { ...rec, players: rec.players.map((p, i) => (i === seat && p.kind === 'ai' ? { ...p, adapt: { ...adapt } } : p)) };
+}
+
 export type Restored =
   | { ok: true; record: MatchRecord; state: MatchState; repaired: boolean }
   | { ok: false; reason: 'version' | 'corrupt' };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+const LEVELS: readonly AiLevel[] = ['easy', 'normal', 'hard', 'adaptive'];
+const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+
+function seatWellFormed(p: unknown): boolean {
+  if (!isObject(p) || typeof p.name !== 'string') return false;
+  if (p.kind === 'human') return true;
+  if (p.kind !== 'ai' || !LEVELS.includes(p.level as AiLevel) || !finite(p.salt)) return false;
+  return isObject(p.adapt) && finite(p.adapt.dial) && finite(p.adapt.trend);
+}
+
 // The parts a consumer reads that the snapshot hash does not cover.
 function wellFormed(v: Record<string, unknown>): boolean {
   const { players, settings } = v;
   if (!Array.isArray(players) || players.length !== 2) return false;
-  if (!players.every(p => isObject(p) && typeof p.name === 'string')) return false;
+  if (!players.every(seatWellFormed) || !players.some(p => (p as Seat).kind === 'human')) return false;
   if (!isObject(settings) || typeof settings.seed !== 'number') return false;
   const f = settings.factions;
   return Array.isArray(f) && f.length === 2 && f.every(x => typeof x === 'string' && Object.hasOwn(FACTIONS, x));

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import { CONFIG } from '../../engine';
 import type { FactionId, UnitTypeId } from '../../engine';
+import type { SecondSeat } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { FIGURES } from '../art/factionUnits';
 import { ACCENT, playerColour } from '../art/palette';
@@ -29,15 +30,20 @@ function FactionCard({ faction, name, first }: { faction: FactionId; name: strin
   );
 }
 
-export function Setup(): ReactElement {
+const SEATS: readonly SecondSeat[] = ['human', 'easy', 'normal', 'hard', 'adaptive'];
+const seatLabel = (s: SecondSeat): string => (s === 'human' ? T.ui.person : T.ai.name[s]);
+
+// `initialSecond` lets a test draw the screen with the AI already chosen.
+export function Setup({ initialSecond = 'human' }: { initialSecond?: SecondSeat } = {}): ReactElement {
   const startMatch = useApp((s) => s.startMatch);
   const goHome = useApp((s) => s.goHome);
   const [first, setFirst] = useState('');
   const [second, setSecond] = useState('');
+  const [seat, setSeat] = useState<SecondSeat>(initialSecond);
   const [swapped, setSwapped] = useState(false);
 
   const a = first.trim() === '' ? T.ui.playerOne : first.trim();
-  const b = second.trim() === '' ? T.ui.playerTwo : second.trim();
+  const b = seat !== 'human' ? T.ai.name[seat] : second.trim() === '' ? T.ui.playerTwo : second.trim();
   const factions: [FactionId, FactionId] = swapped ? ['mongols', 'spartans'] : ['spartans', 'mongols'];
   const spartanName = swapped ? b : a;
   const extra = CONFIG.startGold[1] - CONFIG.startGold[0];
@@ -49,10 +55,23 @@ export function Setup(): ReactElement {
           <span>{fill(T.ui.nameLabel, { n: 1 })}</span>
           <input data-testid="name-0" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerOne} value={first} onChange={(e) => setFirst(e.target.value)} />
         </label>
-        <label>
-          <span>{fill(T.ui.nameLabel, { n: 2 })}</span>
-          <input data-testid="name-1" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={second} onChange={(e) => setSecond(e.target.value)} />
-        </label>
+        {seat === 'human' ? (
+          <label>
+            <span>{fill(T.ui.nameLabel, { n: 2 })}</span>
+            <input data-testid="name-1" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={second} onChange={(e) => setSecond(e.target.value)} />
+          </label>
+        ) : null}
+      </div>
+      <div className="setup-seat">
+        <span id="second-label">{T.ui.secondPlayer}</span>
+        <div className="chips" role="radiogroup" aria-labelledby="second-label">
+          {SEATS.map((s) => (
+            <button
+              key={s} type="button" role="radio" aria-checked={s === seat} className={s === seat ? 'chip on' : 'chip'}
+              data-testid={`second-${s}`} onClick={() => setSeat(s)}
+            >{seatLabel(s)}</button>
+          ))}
+        </div>
       </div>
       <div className="setup-factions">
         <FactionCard faction="spartans" name={spartanName} first={!swapped} />
@@ -64,7 +83,7 @@ export function Setup(): ReactElement {
       <p className="vh" data-testid="spartans-line" aria-live="polite">{fill(T.ui.spartansPlay, { name: spartanName })}</p>
       <p className="setup-line">{fill(T.ui.setupLine, { first: a, second: b, n: extra })}</p>
       <div className="setup-row">
-        <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions })}>{T.ui.start}</button>
+        <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions, second: seat })}>{T.ui.start}</button>
         <button type="button" data-testid="setup-back" onClick={goHome}><HomeIcon />{T.ui.home}</button>
       </div>
     </div>

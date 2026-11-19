@@ -1,5 +1,7 @@
 // Pure selection and tap logic. Every order comes from the engine's legal actions: nothing here decides what is allowed.
-import type { AbilityId, Action, BuildingId, HexKey, PlayerView, TechId, UnitTypeId } from '../engine';
+import { legalActions } from '../engine';
+import type { AbilityId, Action, BuildingId, HexKey, MatchState, PlayerId, PlayerView, TechId, UnitTypeId } from '../engine';
+import { aiInputFor, believedState } from '../ai/input';
 import type { Mark } from './board/mark';
 
 export type Hit = { unit: number | null; hex: HexKey | null };
@@ -18,6 +20,15 @@ export interface ActionIndex {
   train: Record<number, UnitTypeId[]>; walls: number[]; rewards: number[];
   harvest: HexKey[]; build: Record<HexKey, BuildingId[]>; road: HexKey[]; research: TechId[];
   activeUnits: number[];   // own units with a move, attack, ability, capture or camp training left
+}
+
+// What the screen offers the viewer: the legal actions of the state the viewer can believe in, built from what the
+// viewer knows, exactly as the AI plans. So a move an unseen enemy blocks is offered (and refused when tried), and
+// no gap in the highlights gives the enemy away. Nothing is offered off the viewer's turn. The store's taps and the
+// match screen's highlights both come from here, so they cannot disagree.
+export function offered(state: MatchState, viewer: PlayerId): ActionIndex {
+  if (state.current !== viewer || state.winner !== null) return indexActions([]);
+  return indexActions(legalActions(believedState(aiInputFor(state, viewer))));
 }
 
 function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): void {

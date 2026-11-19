@@ -4,6 +4,7 @@ import type {
   AbilityId, BuildingId, FactionId, Resource, RewardId, TechId, Terrain, Trait, UnitTypeId,
 } from '../engine';
 import type { DigestLine } from '../app/digest';
+import type { AiLevel } from '../ai/types';
 
 type Entry = { name: string; blurb: string };
 
@@ -139,13 +140,21 @@ const ui = {
   movesFirst: 'Moves first',
   digestTitle: 'While you were away',
   screenFailed: 'Something went wrong on this screen. Your saved matches are safe.',
+  blockedUnseen: 'Something unseen blocks the way.',
+  secondPlayer: 'Second player', person: 'Person',
 } as const;
 
-export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui } as {
+const ai = {
+  name: { easy: 'Easy AI', normal: 'Normal AI', hard: 'Hard AI', adaptive: 'Adaptive AI' } as Record<AiLevel, string>,
+  thinking: 'Thinking...',
+  settled: (n: number): string => `The AI finished at level ${n} of 10.`,
+};
+
+export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
   unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; ability: Record<AbilityId, Entry>;
   reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
   resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
-  reason: Record<string, string>; ui: typeof ui;
+  reason: Record<string, string>; ui: typeof ui; ai: typeof ai;
 };
 
 export function fill(template: string, values: Record<string, string | number>): string {

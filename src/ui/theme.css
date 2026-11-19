@@ -526,3 +526,9 @@ input:focus { border-color: var(--blue); }
 .board-demo { position: fixed; inset: 0; overflow: hidden; touch-action: none; background: var(--sky); }
 .board-demo output { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 6px; background: var(--paper); font-size: 14px; pointer-events: none; }
 .board-demo output:empty { display: none; }
+
+/* Setup: who takes the second seat, as a row of chips. */
+.setup-seat { display: flex; flex-direction: column; gap: var(--s1); font-size: var(--t-m); font-weight: 750; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.chip { flex: 1 1 auto; min-height: 44px; padding: 0 var(--s3); border-radius: 999px; font-weight: 750; }
+.chip.on { background: var(--sea); color: var(--on-colour); }
