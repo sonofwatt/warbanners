@@ -33,13 +33,12 @@ function FactionCard({ faction, name, first }: { faction: FactionId; name: strin
 const SEATS: readonly SecondSeat[] = ['human', 'easy', 'normal', 'hard', 'adaptive'];
 const seatLabel = (s: SecondSeat): string => (s === 'human' ? T.ui.person : T.ai.name[s]);
 
-// `initialSecond` lets a test draw the screen with the AI already chosen.
-export function Setup({ initialSecond = 'human' }: { initialSecond?: SecondSeat } = {}): ReactElement {
+export function Setup(): ReactElement {
   const startMatch = useApp((s) => s.startMatch);
   const goHome = useApp((s) => s.goHome);
   const [first, setFirst] = useState('');
   const [second, setSecond] = useState('');
-  const [seat, setSeat] = useState<SecondSeat>(initialSecond);
+  const [seat, setSeat] = useState<SecondSeat>('human');
   const [swapped, setSwapped] = useState(false);
 
   const a = first.trim() === '' ? T.ui.playerOne : first.trim();

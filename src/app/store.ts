@@ -7,14 +7,13 @@ import type { AdaptState } from '../ai/adapt';
 import { afterAct, afterThink, aiStep, START } from '../ai/driver';
 import type { Cursor } from '../ai/driver';
 import { aiInputFor } from '../ai/input';
-import type { Plan } from '../ai/plan';
 import { LEVEL_DIAL } from '../ai/types';
 import type { AiLevel } from '../ai/types';
 import { watchMs } from '../ui/board/effects';
-import { afterAction, NONE, offered, tap as tapLogic } from '../ui/interaction';
+import { afterAction, isOffered, NONE, offered, tap as tapLogic } from '../ui/interaction';
 import type { Armed, Hit, Selection } from '../ui/interaction';
 import { T } from '../ui/text';
-import { createAiClient } from './aiClient';
+import { createAiClient, isSuperseded } from './aiClient';
 import type { AiClient } from './aiClient';
 import { readDial, writeDial } from './aiMemory';
 import { digestFor } from './digest';
@@ -32,7 +31,7 @@ export interface Deps {
 export type SecondSeat = 'human' | AiLevel;
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId]; second?: SecondSeat }   // second: 'human' if left out
 export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result';
-export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion' | 'blockedUnseen';
+export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion' | 'blockedUnseen' | 'aiPassed';
 
 // The least time the person gets to watch an AI action they can see.
 export const AI_STEP_MS = 450;
@@ -60,6 +59,7 @@ export interface AppState {
 }
 
 type AiSeat = Extract<Seat, { kind: 'ai' }>;
+const END_TURN: Action = { type: 'endTurn' };
 
 // The one person's seat in a match against the AI, or null in a match between two people.
 export function soloSeat(record: MatchRecord): PlayerId | null {
@@ -134,8 +134,8 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       if (get().screen !== 'match' || record === null || state === null || viewer === null || viewer !== state.current || aiBusy) return;
       const res = applyAction(state, action);
       if (!res.ok) {
-        // The screen offered this move from what the person knows, so something they cannot see is in the way.
-        if (action.type === 'move' && (offered(state, viewer).moves[action.unit] ?? []).includes(action.to) && get().notice !== 'saveFailed') {
+        // The screen offered this from what the person knows, so something they cannot see is in the way.
+        if (isOffered(state, viewer, action) && get().notice !== 'saveFailed') {
           set({ notice: 'blockedUnseen' });
         }
         return;
@@ -176,62 +176,79 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       const aiSeat = { player: ai, dial, salt: seat.salt };
 
       turnLog = [];
-      set({ aiBusy: true, selection: NONE });
+      set({ aiBusy: true, selection: NONE, notice: get().notice === 'aiPassed' ? null : get().notice });
       let cur: Cursor = START;
-      try {
-        for (;;) {
+      let failed = false;      // the step being tried has failed once already
+
+      // Applies one AI action the engine accepted. Returns true when the AI's turn is over (or the match is).
+      const play = (record: MatchRecord, state: MatchState, action: Action, res: { state: MatchState; events: GameEvent[] }, passed = false): boolean => {
+        const withAdapt = adapt !== null ? setAdapt(record, ai, adapt) : record;
+        adapt = null;
+        const patch = commit(withAdapt, state, action, res);
+        count += 1;
+        if (passed && patch.notice !== 'saveFailed') patch.notice = 'aiPassed';
+        if (res.state.winner !== null) {
+          set({ ...patch, screen: 'result', viewer: null, selection: NONE, aiBusy: false });
+          return true;
+        }
+        if (action.type === 'endTurn') {
+          set({ ...patch, aiBusy: false, digest: digestFor(viewer, turnLog) });
+          turnLog = [];
+          return true;
+        }
+        set(patch);
+        return false;
+      };
+
+      // The AI could not decide twice running: it ends its turn, which is always legal, and the person is told.
+      const pass = (): void => {
+        const { record, state } = get();
+        if (record === null || state === null) return;
+        const res = applyAction(state, END_TURN);
+        if (res.ok) play(record, state, END_TURN, res, true);
+        else set({ aiBusy: false });
+      };
+
+      for (;;) {
+        try {
           const { record, state } = get();
           if (record === null || state === null) return;
           const step = aiStep(cur, state, aiSeat);
           if (step.kind === 'think') {
             const deadlineMs = cur.plan === null && cur.refused.length === 0 ? FIRST_THINK_MS : REPLAN_MS;
-            let plan: Plan;
-            try {
-              plan = await deps.ai.think(aiInputFor(state, ai), { dial, seed: step.seed, refused: step.refused, deadlineMs });
-            } catch {
-              if (run === aiRun) set({ aiBusy: false });
-              return;
-            }
+            const plan = await deps.ai.think(aiInputFor(state, ai), { dial, seed: step.seed, refused: step.refused, deadlineMs });
             if (!live()) return;
             cur = afterThink(cur, plan);
+            failed = false;
             continue;
           }
           const res = applyAction(state, step.action);
           cur = afterAct(cur, step.action, res.ok);
+          failed = false;
           if (!res.ok) {
             if (step.action.type === 'endTurn') { set({ aiBusy: false }); return; }   // cannot happen; never loop on it
             continue;
           }
-          const withAdapt = adapt !== null ? setAdapt(record, ai, adapt) : record;
-          adapt = null;
-          const patch = commit(withAdapt, state, step.action, res);
-          count += 1;
-          if (res.state.winner !== null) {
-            set({ ...patch, screen: 'result', viewer: null, selection: NONE, aiBusy: false });
-            return;
-          }
-          if (step.action.type === 'endTurn') {
-            set({ ...patch, aiBusy: false, digest: digestFor(viewer, turnLog) });
-            turnLog = [];
-            return;
-          }
-          set(patch);
+          if (play(record, state, step.action, res)) return;
+          // Let the screen draw what it can see, and never hold the main thread through a long run of unseen actions.
           const watch = watchMs(res.events, state, res.state, viewer);
-          if (watch > 0) {
-            await deps.sleep(Math.max(AI_STEP_MS, watch));
-            if (!live()) return;
-          }
+          await deps.sleep(watch > 0 ? Math.max(AI_STEP_MS, watch) : 0);
+          if (!live()) return;
+        } catch (e) {
+          // A newer think or Home took over: that one owns the turn now. Should nothing have, aiBusy is not left set.
+          if (isSuperseded(e) || !live()) { if (run === aiRun) set({ aiBusy: false }); return; }
+          // Anything else (a planner or worker failure): try the same step once more, then pass the turn.
+          if (!failed) { failed = true; continue; }
+          pass();
+          return;
         }
-      } catch {
-        // A broken plan or a throwing engine call: the person can go home and continue, which tries the turn again.
-        if (run === aiRun) set({ aiBusy: false });
       }
     };
 
     const leave = (): void => {
       turnLog = [];
       aiRun += 1;
-      const notice = get().notice === 'blockedUnseen' ? null : get().notice;
+      const notice = get().notice === 'blockedUnseen' || get().notice === 'aiPassed' ? null : get().notice;
       set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv), aiBusy: false, notice });
       deps.updater?.homeReached();
     };
@@ -291,7 +308,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         set({ selection: { kind: 'unit', id: selection.id, armed, askLure: null } });
       },
 
-      select: sel => { if (get().screen === 'match') set({ selection: sel }); },
+      select: sel => { if (get().screen === 'match' && !get().aiBusy) set({ selection: sel }); },
 
       goHome: () => {
         const { record, state } = get();

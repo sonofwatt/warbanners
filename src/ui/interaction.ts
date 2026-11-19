@@ -31,6 +31,14 @@ export function offered(state: MatchState, viewer: PlayerId): ActionIndex {
   return indexActions(legalActions(believedState(aiInputFor(state, viewer))));
 }
 
+// Whether `action` is one the screen offers the viewer (whatever the order of its fields).
+export function isOffered(state: MatchState, viewer: PlayerId, action: Action): boolean {
+  if (state.current !== viewer || state.winner !== null) return false;
+  const k = canonical(action);
+  return legalActions(believedState(aiInputFor(state, viewer))).some((a) => canonical(a) === k);
+}
+const canonical = (a: Action): string => JSON.stringify(Object.entries(a).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
+
 function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): void {
   const list = map[k] ?? (map[k] = []);
   if (!list.includes(v)) list.push(v);

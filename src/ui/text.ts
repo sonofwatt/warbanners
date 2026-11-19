@@ -141,6 +141,7 @@ const ui = {
   digestTitle: 'While you were away',
   screenFailed: 'Something went wrong on this screen. Your saved matches are safe.',
   blockedUnseen: 'Something unseen blocks the way.',
+  aiPassed: 'The AI could not decide and passed its turn.',
   secondPlayer: 'Second player', person: 'Person',
 } as const;
 

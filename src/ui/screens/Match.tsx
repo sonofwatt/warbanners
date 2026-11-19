@@ -188,7 +188,7 @@ export function Match(): ReactElement | null {
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
       </div>
-      {notice === 'saveFailed' || notice === 'blockedUnseen' ? (
+      {notice === 'saveFailed' || notice === 'blockedUnseen' || notice === 'aiPassed' ? (
         <div className="match-notice" data-testid="match-notice"><NoticeLine notice={notice} onDismiss={dismissNotice} /></div>
       ) : null}
       {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}

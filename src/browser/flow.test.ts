@@ -337,4 +337,33 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await close();
     }
   });
+
+  test('choosing the AI hides the second name, and the match has no curtain', async () => {
+    const { page, close } = await openApp(SEED);
+    try {
+      await page.getByTestId('new-match').tap();
+      expect(await page.getByTestId('second-human').getAttribute('aria-checked')).toBe('true');
+      expect(await count(page, '[data-testid="name-1"]')).toBe(1);
+      await page.getByTestId('second-hard').tap();
+      expect(await page.getByTestId('second-hard').getAttribute('aria-checked')).toBe('true');
+      expect(await page.getByTestId('second-human').getAttribute('aria-checked')).toBe('false');
+      expect(await count(page, '[data-testid="name-1"]')).toBe(0);
+      expect(await bodyText(page)).toContain('Hard AI');
+      await page.getByTestId('second-human').tap();
+      expect(await count(page, '[data-testid="name-1"]')).toBe(1);
+      await page.getByTestId('second-easy').tap();
+      await page.getByTestId('start').tap();
+      await page.getByTestId('match').waitFor();
+      expect(await count(page, '[data-testid="pass"]')).toBe(0);
+      expect(await text(page, 'who')).toBe('Player 1');
+      await endTurnReady(page);
+      await page.getByTestId('end-turn').tap();
+      // The AI plays its turn on this screen and gives the phone straight back.
+      await expect.poll(() => text(page, 'turn'), { timeout: 15_000 }).toBe('Turn 2');
+      expect(await count(page, '[data-testid="thinking"]')).toBe(0);
+      expect(await text(page, 'who')).toBe('Player 1');
+    } finally {
+      await close();
+    }
+  });
 }, 120_000);

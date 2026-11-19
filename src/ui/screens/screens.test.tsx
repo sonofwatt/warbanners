@@ -181,10 +181,7 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   const chosen = (h: string): string[] => [...h.matchAll(/<button[^>]*aria-checked="true"[^>]*data-testid="second-(\w+)"/g)].map((m) => m[1]!);
   expect(chosen(html)).toEqual(['human']);
   expect(html).toContain('data-testid="name-1"');
-  const hard = render(store, <Setup initialSecond="hard" />);
-  expect(hard).not.toContain('data-testid="name-1"');
-  expect(chosen(hard)).toEqual(['hard']);
-  expect(hard).toContain(`<strong class="faction-player">${T.ai.name.hard}</strong>`);
+  // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
 });
 
 test('the Hud says the AI is thinking', () => {
@@ -207,6 +204,8 @@ test('the match screen shows Thinking while the AI plays, and a blocked move\'s 
   expect(render(store, <Match />)).toContain(T.ai.thinking);
   store.setState({ aiBusy: false, notice: 'blockedUnseen' });
   expect(render(store, <Match />)).toContain(T.ui.blockedUnseen);
+  store.setState({ notice: 'aiPassed' });
+  expect(render(store, <Match />)).toContain(T.ui.aiPassed);
 });
 
 test('the result of an adaptive match says where the AI settled', () => {
