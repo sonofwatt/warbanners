@@ -6,6 +6,9 @@ import { playerColour } from './palette';
 import type { Ground } from './palette';
 import { Border, Highlight, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
+import { SHARED_FIGURES, StatusOverlay } from './units';
+import type { SharedFigure } from './units';
+import { ACCENT } from './palette';
 
 // A development page that shows every piece of ground art at 2 pixels per
 // board unit, each with a small label. Open it with ?sheet=1.
@@ -13,10 +16,11 @@ import type { Mark } from './tiles';
 const PX = 2; // pixels per board unit
 const VIEW = { x: -40, y: -44, w: 80, h: 76 };
 
-function Cell(p: { label: string; ground: Ground; children?: ReactNode; veil?: boolean }): ReactElement {
+function Cell(p: { label: string; ground: Ground; children?: ReactNode; veil?: boolean; tall?: boolean }): ReactElement {
+  const v = p.tall ? { ...VIEW, y: VIEW.y - 10, h: VIEW.h + 10 } : VIEW;
   return (
     <figure style={{ margin: 0, textAlign: 'center' }}>
-      <svg width={VIEW.w * PX} height={VIEW.h * PX} viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`} style={{ display: 'block' }}>
+      <svg width={v.w * PX} height={v.h * PX} viewBox={`${v.x} ${v.y} ${v.w} ${v.h}`} style={{ display: 'block' }}>
         <TileBase ground={p.ground} />
         {p.children}
         {p.veil ? <Veil /> : null}
@@ -70,6 +74,25 @@ function Scene(): ReactElement {
   );
 }
 
+const FIGURES = Object.keys(SHARED_FIGURES) as SharedFigure[];
+
+/** A row of tiles, each with a figure, drawn as one board so they can be compared at a glance. */
+function Lineup(p: { faction: FactionId; scale: number }): ReactElement {
+  const colour = playerColour(p.faction);
+  const step = 56;
+  const w = FIGURES.length * step;
+  return (
+    <svg width={w * p.scale} height={80 * p.scale} viewBox={`${-step / 2} -52 ${w} 80`} style={{ display: 'block', maxWidth: '100%', height: 'auto' }}>
+      {FIGURES.map((id, i) => (
+        <g key={id} transform={`translate(${i * step} 0)`}>
+          <TileBase ground="grass" />
+          {SHARED_FIGURES[id]({ colour, accent: ACCENT[p.faction] })}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 const MARKS: readonly Mark[] = ['move', 'attack', 'ability', 'selected', 'capture'];
 const FACTIONS: readonly FactionId[] = ['spartans', 'mongols'];
 const VARIANTS = [0, 1, 2] as const;
@@ -77,7 +100,46 @@ const VARIANTS = [0, 1, 2] as const;
 export function ArtSheet(): ReactElement {
   return (
     <main style={{ background: '#F4F1EA', color: '#2B2B2A', padding: 16, minHeight: '100dvh', boxSizing: 'border-box' }}>
-      <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Banners art sheet: ground</h1>
+      <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Banners art sheet</h1>
+      <Section title="Figures side by side">
+        <Lineup faction="spartans" scale={PX} />
+        <Lineup faction="mongols" scale={PX} />
+      </Section>
+      <Section title="Figures at phone size (a tile about 45 pixels wide)">
+        <Lineup faction="spartans" scale={0.87} />
+        <Lineup faction="mongols" scale={0.87} />
+      </Section>
+      {FACTIONS.map((f) => (
+        <Section key={`fig${f}`} title={`Figures: ${f}`}>
+          {FIGURES.map((id) => (
+            <Cell key={id} label={id} ground="grass" tall>
+              {SHARED_FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
+            </Cell>
+          ))}
+        </Section>
+      ))}
+      <Section title="Status above a figure">
+        {(
+          [
+            ['full health', { hp: 15, maxHp: 15 }],
+            ['6 of 15', { hp: 6, maxHp: 15 }],
+            ['1 of 10', { hp: 1, maxHp: 10 }],
+            ['new', { hp: 10, maxHp: 10, fresh: true }],
+            ['taunted', { hp: 20, maxHp: 20, taunted: true }],
+            ['blinded', { hp: 12, maxHp: 15, blinded: true }],
+            ['both, 40 health', { hp: 25, maxHp: 40, taunted: true, blinded: true }],
+          ] as const
+        ).map(([label, s]) => (
+          <Cell key={label} label={label} ground="grass" tall>
+            {SHARED_FIGURES.spearman({ colour: playerColour('spartans'), accent: ACCENT.spartans })}
+            <StatusOverlay spent={false} fresh={false} taunted={false} blinded={false} {...s} />
+          </Cell>
+        ))}
+        <Cell label="spent (dimmed by caller)" ground="grass" tall>
+          <g opacity={0.5}>{SHARED_FIGURES.archer({ colour: playerColour('mongols'), accent: ACCENT.mongols })}</g>
+          <StatusOverlay hp={10} maxHp={10} spent fresh={false} taunted={false} blinded={false} />
+        </Cell>
+      </Section>
       <Section title="Together">
         <Scene />
       </Section>

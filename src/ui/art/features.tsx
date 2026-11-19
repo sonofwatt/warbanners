@@ -18,7 +18,7 @@ const LEAF_LOW = ['#4FA556', '#3F8F46'] as const; // lower cone
  * multiplied by `scale` (so a piece can be drawn a little larger as a whole)
  * and rounded to one decimal.
  */
-class Ink {
+export class Ink {
   readonly items: ReactElement[] = [];
   private k = 0;
   constructor(private readonly scale = 1) {}
@@ -64,6 +64,12 @@ class Ink {
     this.items.push(
       <path key={this.key()} d={scaled} fill="none" stroke={stroke} strokeWidth={this.n(width)} strokeLinecap="round" strokeLinejoin="round" />,
     );
+    return this;
+  }
+  /** A filled path made only of absolute commands (M, L, Q, C, Z), so every number in `d` is a coordinate. */
+  shape(d: string, fill: string): this {
+    const scaled = d.replace(/-?\d+(\.\d+)?/g, (v) => String(this.n(Number(v))));
+    this.items.push(<path key={this.key()} d={scaled} fill={fill} />);
     return this;
   }
   /** A four-point sparkle. */
