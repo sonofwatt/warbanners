@@ -15,19 +15,19 @@ export interface FigureProps {
 export type SharedFigure = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult';
 
 const EYE = '#3A2A1E';
-const HAIR = '#5B3A22';
-const BOOT = '#6B4A2B';
-const WOOD = '#9C6B3E';
-const WOOD_DARK = '#6B4A2B';
-const STEEL = '#D5DAE0';
-const STEEL_DARK = '#9AA2AC';
+export const HAIR = '#5B3A22';
+export const BOOT = '#6B4A2B';
+export const WOOD = '#9C6B3E';
+export const WOOD_DARK = '#6B4A2B';
+export const STEEL = '#D5DAE0';
+export const STEEL_DARK = '#9AA2AC';
 const STONE = '#8F8A80';
 const HORSE = '#8B5A33';
 const HORSE_DARK = '#6B4226';
-const MANE = '#4A2E1A';
+export const MANE = '#4A2E1A';
 const GREY_HORSE = '#D2CBBF';
 const GREY_HORSE_DARK = '#A9A194';
-const STRING = '#F2ECDD';
+export const STRING = '#F2ECDD';
 
 /** The soft blob under a figure: black at 18%. */
 export function Shadow(p: { wide?: boolean }): ReactElement {
@@ -38,10 +38,10 @@ export function Shadow(p: { wide?: boolean }): ReactElement {
   );
 }
 
-// ---- shared parts ----
+// ---- shared parts (the faction figures use them too) ----
 
 /** Legs, boots and a tunic in the owner's colour with a darker hem. */
-function standingBody(ink: Ink, c: FigureProps['colour']): void {
+export function standingBody(ink: Ink, c: FigureProps['colour']): void {
   ink.rect(-4.6, -3, 3.4, 5.5, SKIN);
   ink.rect(1.2, -3, 3.4, 5.5, SKIN);
   ink.rect(-5, 1.6, 4, 2.4, BOOT, 1);
@@ -53,19 +53,19 @@ function standingBody(ink: Ink, c: FigureProps['colour']): void {
 }
 
 /** A big round head with two dot eyes, centred on (x, y). */
-function head(ink: Ink, x: number, y: number, r = 6.4): void {
+export function head(ink: Ink, x: number, y: number, r = 6.4): void {
   ink.circle(x, y, r, SKIN);
   ink.circle(x - r * 0.33, y + r * 0.1, r * 0.13, EYE);
   ink.circle(x + r * 0.33, y + r * 0.1, r * 0.13, EYE);
 }
 
 /** A rounded cap over the top half of a head of radius r at (x, y). */
-function dome(ink: Ink, x: number, y: number, r: number, fill: string): void {
+export function dome(ink: Ink, x: number, y: number, r: number, fill: string): void {
   const k = r * 1.33;
   ink.shape(`M ${x - r} ${y} C ${x - r} ${y - k} ${x + r} ${y - k} ${x + r} ${y} Z`, fill);
 }
 
-function hand(ink: Ink, x: number, y: number): void {
+export function hand(ink: Ink, x: number, y: number): void {
   ink.circle(x, y, 1.9, SKIN);
 }
 
@@ -85,7 +85,7 @@ function sword(ink: Ink, x1: number, y1: number, x2: number, y2: number, guard: 
 }
 
 /** A four-legged horse facing right, its body centred near (-2, -6.5). */
-function horse(ink: Ink, coat: string, shade: string, mane: string): void {
+export function horse(ink: Ink, coat: string, shade: string, mane: string): void {
   // Far legs first, a shade darker, then the near ones.
   ink.line(-7, -4, -8, 3, shade, 2.6);
   ink.line(7, -4, 8.6, 3, shade, 2.6);
@@ -102,7 +102,7 @@ function horse(ink: Ink, coat: string, shade: string, mane: string): void {
 }
 
 /** The rider's seat: a leg over the near flank and a torso. */
-function rider(ink: Ink, c: FigureProps['colour'], torso: string): void {
+export function rider(ink: Ink, c: FigureProps['colour'], torso: string): void {
   ink.rect(-1.6, -12, 4, 8.4, c.dark, 2);
   ink.rect(-2, -5.4, 4.6, 2.2, BOOT, 1);
   ink.rect(-5, -21, 10, 11, torso, 3);

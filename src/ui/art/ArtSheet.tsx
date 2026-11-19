@@ -1,6 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
-import type { FactionId, HexKey } from '../../engine';
+import type { FactionId, HexKey, UnitTypeId } from '../../engine';
 import { hexToBoard } from '../board/layout';
+import { FACTION_FIGURES, FIGURES } from './factionUnits';
+import type { FactionFigure } from './factionUnits';
 import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from './features';
 import { playerColour } from './palette';
 import type { Ground } from './palette';
@@ -39,26 +41,22 @@ function Section(p: { title: string; children: ReactNode }): ReactElement {
   );
 }
 
-/** Seven tiles drawn back to front, to see the pieces together. */
-function Scene(): ReactElement {
-  const tiles: { k: HexKey; ground: Ground; art: ReactElement | null }[] = [
-    { k: '0,-1', ground: 'rock', art: <TerrainFeature terrain="mountain" variant={0} /> },
-    { k: '1,-1', ground: 'grass', art: <ResourceMark resource="orchard" /> },
-    { k: '-1,0', ground: 'grass', art: <Village /> },
-    { k: '0,0', ground: 'sand', art: <CityMark faction="spartans" colour={playerColour('spartans')} level={3} capital walls={false} pending={false} /> },
-    { k: '1,0', ground: 'grass', art: <Road links={[3, 0]} /> },
-    { k: '-1,1', ground: 'water', art: <TerrainFeature terrain="water" variant={0} /> },
-    { k: '0,1', ground: 'grass', art: <TerrainFeature terrain="forest" variant={1} /> },
-  ];
-  const sorted = [...tiles].sort((a, b) => hexToBoard(a.k).y - hexToBoard(b.k).y || hexToBoard(a.k).x - hexToBoard(b.k).x);
+interface SceneTile {
+  k: HexKey;
+  ground: Ground;
+  art: ReactElement | null;
+}
+
+/** Tiles drawn back to front: every tile base first, then the art standing on them. */
+function Board(p: { tiles: readonly SceneTile[]; view: string; w: number; h: number }): ReactElement {
+  const sorted = [...p.tiles].sort((a, b) => hexToBoard(a.k).y - hexToBoard(b.k).y || hexToBoard(a.k).x - hexToBoard(b.k).x);
   return (
-    <svg width={180 * PX} height={150 * PX} viewBox="-90 -70 180 150" style={{ display: 'block' }}>
-      {sorted.map(({ k }) => {
+    <svg width={p.w * PX} height={p.h * PX} viewBox={p.view} style={{ display: 'block', maxWidth: '100%', height: 'auto' }}>
+      {sorted.map(({ k, ground }) => {
         const c = hexToBoard(k);
-        const t = tiles.find((x) => x.k === k)!;
         return (
           <g key={`base${k}`} transform={`translate(${c.x} ${c.y})`}>
-            <TileBase ground={t.ground} />
+            <TileBase ground={ground} />
           </g>
         );
       })}
@@ -74,19 +72,57 @@ function Scene(): ReactElement {
   );
 }
 
-const FIGURES = Object.keys(SHARED_FIGURES) as SharedFigure[];
+/** Seven tiles drawn back to front, to see the pieces together. */
+function Scene(): ReactElement {
+  const tiles: SceneTile[] = [
+    { k: '0,-1', ground: 'rock', art: <TerrainFeature terrain="mountain" variant={0} /> },
+    { k: '1,-1', ground: 'grass', art: <ResourceMark resource="orchard" /> },
+    { k: '-1,0', ground: 'grass', art: <Village /> },
+    { k: '0,0', ground: 'sand', art: <CityMark faction="spartans" colour={playerColour('spartans')} level={3} capital walls={false} pending={false} /> },
+    { k: '1,0', ground: 'grass', art: <Road links={[3, 0]} /> },
+    { k: '-1,1', ground: 'water', art: <TerrainFeature terrain="water" variant={0} /> },
+    { k: '0,1', ground: 'grass', art: <TerrainFeature terrain="forest" variant={1} /> },
+  ];
+  return <Board tiles={tiles} view="-90 -70 180 150" w={180} h={150} />;
+}
+
+/**
+ * The look reference's scene drawn with the real pieces: a Spartan city in the
+ * middle, a hoplite to its left, a Mongol horse archer to its right, mountain and
+ * orchard behind, water and forest in front, and a tile more at each end: more
+ * water, and a Mongol camp behind the archer.
+ */
+function Diorama(): ReactElement {
+  const fig = (id: UnitTypeId, f: FactionId): ReactElement => FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] });
+  const tiles: SceneTile[] = [
+    { k: '0,-1', ground: 'rock', art: <TerrainFeature terrain="mountain" variant={0} /> },
+    { k: '1,-1', ground: 'grass', art: <ResourceMark resource="orchard" /> },
+    { k: '2,-1', ground: 'grass', art: fig('camp', 'mongols') },
+    { k: '-1,0', ground: 'grass', art: fig('hoplite', 'spartans') },
+    { k: '0,0', ground: 'sand', art: <CityMark faction="spartans" colour={playerColour('spartans')} level={3} capital={false} walls={false} pending={false} /> },
+    { k: '1,0', ground: 'grass', art: fig('horseArcher', 'mongols') },
+    { k: '-2,1', ground: 'water', art: <TerrainFeature terrain="water" variant={1} /> },
+    { k: '-1,1', ground: 'water', art: <TerrainFeature terrain="water" variant={0} /> },
+    { k: '0,1', ground: 'grass', art: <TerrainFeature terrain="forest" variant={1} /> },
+  ];
+  return <Board tiles={tiles} view="-108 -68 216 128" w={216} h={128} />;
+}
+
+const SHARED_IDS = Object.keys(SHARED_FIGURES) as SharedFigure[];
+const FACTION_IDS = Object.keys(FACTION_FIGURES) as FactionFigure[];
+const ALL_IDS: readonly UnitTypeId[] = [...SHARED_IDS, ...FACTION_IDS];
 
 /** A row of tiles, each with a figure, drawn as one board so they can be compared at a glance. */
-function Lineup(p: { faction: FactionId; scale: number }): ReactElement {
+function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId[] }): ReactElement {
   const colour = playerColour(p.faction);
   const step = 56;
-  const w = FIGURES.length * step;
+  const w = p.ids.length * step;
   return (
-    <svg width={w * p.scale} height={80 * p.scale} viewBox={`${-step / 2} -52 ${w} 80`} style={{ display: 'block', maxWidth: '100%', height: 'auto' }}>
-      {FIGURES.map((id, i) => (
+    <svg width={w * p.scale} height={84 * p.scale} viewBox={`${-step / 2} -56 ${w} 84`} style={{ display: 'block', maxWidth: '100%', height: 'auto' }}>
+      {p.ids.map((id, i) => (
         <g key={id} transform={`translate(${i * step} 0)`}>
           <TileBase ground="grass" />
-          {SHARED_FIGURES[id]({ colour, accent: ACCENT[p.faction] })}
+          {FIGURES[id]({ colour, accent: ACCENT[p.faction] })}
         </g>
       ))}
     </svg>
@@ -102,18 +138,20 @@ export function ArtSheet(): ReactElement {
     <main style={{ background: '#F4F1EA', color: '#2B2B2A', padding: 16, minHeight: '100dvh', boxSizing: 'border-box' }}>
       <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Banners art sheet</h1>
       <Section title="Figures side by side">
-        <Lineup faction="spartans" scale={PX} />
-        <Lineup faction="mongols" scale={PX} />
+        <Lineup faction="spartans" scale={PX} ids={SHARED_IDS} />
+        <Lineup faction="mongols" scale={PX} ids={SHARED_IDS} />
+        <Lineup faction="spartans" scale={PX} ids={FACTION_IDS} />
+        <Lineup faction="mongols" scale={PX} ids={FACTION_IDS} />
       </Section>
       <Section title="Figures at phone size (a tile about 45 pixels wide)">
-        <Lineup faction="spartans" scale={0.87} />
-        <Lineup faction="mongols" scale={0.87} />
+        <Lineup faction="spartans" scale={0.87} ids={ALL_IDS} />
+        <Lineup faction="mongols" scale={0.87} ids={ALL_IDS} />
       </Section>
       {FACTIONS.map((f) => (
         <Section key={`fig${f}`} title={`Figures: ${f}`}>
-          {FIGURES.map((id) => (
+          {ALL_IDS.map((id) => (
             <Cell key={id} label={id} ground="grass" tall>
-              {SHARED_FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
+              {FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
             </Cell>
           ))}
         </Section>
@@ -222,6 +260,9 @@ export function ArtSheet(): ReactElement {
           </Section>
         );
       })}
+      <Section title="The look reference, drawn with the real pieces">
+        <Diorama />
+      </Section>
     </main>
   );
 }
