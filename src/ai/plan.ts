@@ -1,11 +1,11 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
-  CONFIG, FACTIONS, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, neighbors, parseKey,
-  reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+  CONFIG, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
+  canCapture, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
+  parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
-import { dangerMap, moveScore, objectives, unitWorth, valueOf } from './assess';
+import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
 import { PERSONAS } from './persona';
@@ -28,7 +28,6 @@ const BUILDINGS = Object.keys(CONFIG.buildings) as BuildingId[];
 const WEIGHT_SCALE = 1_000_000;      // softmax weights are rounded to integers so every machine picks alike
 const MAX_STEPS_PER_UNIT = 8;        // a unit acts a few times at most (move, attack, move); a guard, not a rule
 const ECONOMY_THRESHOLD = 0.5;       // value per gold an economy action must reach, divided by skill.economy
-const GOLD_WEIGHT = 0.25;            // valueOf's weight on gold, added back when an action's gain is measured per gold
 
 type Applied = { state: MatchState; events: GameEvent[] };
 interface Cand {
@@ -48,17 +47,6 @@ const unitIn = (s: MatchState, id: number): Unit | undefined => s.units.find((u)
 function actionKey(a: Action): string {
   const rec = a as unknown as Record<string, unknown>;
   return JSON.stringify(Object.keys(rec).filter((k) => rec[k] !== undefined).sort().map((k) => [k, rec[k]]));
-}
-
-function healthFactor(u: Unit): number {
-  if (has(u, 'unbowed')) return 1;
-  const max = UNITS[u.type].hp;
-  return (u.hp + max) / (2 * max);
-}
-
-// A unit can still move this turn (the same early checks reachable makes, so no budget is spent on it).
-function canMove(u: Unit): boolean {
-  return !u.fresh && u.mp > 0 && (!u.acted || has(u, 'retreat'));
 }
 
 // Could this unit kill a seen enemy this turn, judged by the damage formula alone (no probe)?
@@ -321,14 +309,20 @@ class TurnPlanner {
       const before = valueOf(this.b, fresh(this.b));
       const gold = this.b.players[this.me]!.gold;
       let best: { a: Action; r: Applied; ratio: number } | null = null;
-      for (const a of list) {
-        if (!this.allowed(a)) continue;
-        const r = this.probe(this.b, a);
-        const cost = gold - r.state.players[this.me]!.gold;
-        if (cost <= 0) continue;
-        const gain = valueOf(r.state, fresh(r.state)) - before + GOLD_WEIGHT * this.ctx.skill.economy * cost;
-        const ratio = gain / cost;
-        if (best === null || ratio > best.ratio) best = { a, r, ratio };
+      try {
+        for (const a of list) {
+          if (!this.allowed(a)) continue;
+          const r = this.probe(this.b, a);
+          const cost = gold - r.state.players[this.me]!.gold;
+          if (cost <= 0) continue;
+          const gain = valueOf(r.state, fresh(r.state)) - before + GOLD_WEIGHT * this.ctx.skill.economy * cost;
+          const ratio = gain / cost;
+          if (best === null || ratio > best.ratio) best = { a, r, ratio };
+        }
+      } catch (e) {
+        // Out of budget partway: the best action found so far is already probed, so it costs nothing more.
+        if (e instanceof OutOfTime && best !== null && best.ratio >= need) this.commit(best.a, best.r);
+        throw e;
       }
       if (best === null || best.ratio < need) return;
       this.commit(best.a, best.r);
@@ -338,17 +332,18 @@ class TurnPlanner {
   // ---- one unit ----
 
   // What stepping off this tile is worth when the unit stands on an own city tile that could train this
-  // turn, in a city nobody threatens: the value the trained unit would add (its worth less the gold term).
+  // turn: the value the trained unit would add (its worth less the gold term), plus the exposure the step
+  // costs in moveScore, since the trained unit will stand on the tile and hold the city.
   private vacateBonus(u: Unit): number {
     const city = this.b.cities.find((c) => c.pos === u.pos && c.owner === this.me);
-    if (city === undefined || unitsOf(this.b, city.id) >= unitCapacity(city)) return 0;
-    if (this.ctx.goals.some((g) => g.kind === 'defend' && g.at === city.pos)) return 0;
-    const gold = this.b.players[this.me]!.gold;
-    for (const t of this.trainableOrder()) {
-      const cost = unitCost(this.b, this.me, t);
-      if (cost !== null && cost <= gold) return unitWorth(t) - GOLD_WEIGHT * this.ctx.skill.economy * cost;
-    }
-    return 0;
+    if (city === undefined) return 0;
+    // The training phase's own check, on the state with this unit stepped off the tile.
+    const vacated: MatchState = { ...this.b, units: this.b.units.map((x) => (x.id === u.id ? { ...x, pos: '' } : x)) };
+    const type = this.trainableOrder().find((t) => trainRefusal(vacated, city.id, t) === null
+      && this.allowed({ type: 'train', city: city.id, unitType: t }));
+    if (type === undefined) return 0;
+    return unitWorth(type) - GOLD_WEIGHT * this.ctx.skill.economy * unitCost(this.b, this.me, type)!
+      + exposureCost(vacated, this.ctx, city);
   }
 
   private scoreAfter(s: MatchState, base: number, r: Applied, targetId: number | null): number {
@@ -389,14 +384,11 @@ class TurnPlanner {
       }
     }
 
-    const canLure = FACTIONS[s.players[this.me]!.faction].canLure && has(u, 'retreat') && !u.fresh;
     for (const target of attackTargets(s, id)) {
       const plain: Action = { type: 'attack', unit: id, target };
       const victim = s.units.find((t) => t.pos === target)!;
       const lure: Action = { type: 'attack', unit: id, target, lure: true };
-      const lureListed = canLure && !s.cities.some((c) => c.pos === target)
-        && !s.units.some((n) => n.owner === victim.owner && n.id !== victim.id && has(n, 'steady')
-          && distance(parseKey(n.pos), parseKey(victim.pos)) === 1);
+      const lureListed = lureApplies(s, u, victim);
       if (!this.allowed(plain) && !(lureListed && this.allowed(lure))) continue;
       const r = this.probe(s, plain);
       const died = new Set(r.events.flatMap((e) => (e.type === 'died' ? [e.unit] : [])));
@@ -428,7 +420,7 @@ class TurnPlanner {
       const bonus = s === this.b ? this.vacateBonus(u) : 0;
       const reach = reachable(s, id);
       for (const to of Object.keys(reach).sort()) {
-        const score = moveScore(s, this.ctx, id, to, reach[to]!) + bonus;
+        const score = moveScore(s, this.ctx, id, to, reach[to]!) + followCredit(s, this.ctx, id, to, reach[to]!) + bonus;
         push({ action: { type: 'move', unit: id, to }, base: score, score });
       }
     }

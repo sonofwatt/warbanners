@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction, createMatch, damageFor, reachable } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
-import { dangerMap, moveScore, objectives, unitWorth, valueOf } from './assess';
+import { dangerMap, followCredit, moveScore, objectives, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState } from './input';
 import { PERSONAS } from './persona';
@@ -117,4 +117,36 @@ test('the value rewards a capture and punishes standing in danger', () => {
   const at = (danger: Record<string, number>) => moveScore(raid, { ...rctx, danger }, archer.id, '0,-1', 0);
   expect(at({}) - at({ '0,-1': 5 })).toBeCloseTo(4 * 5 / 10, 9);    // worth 4, danger 5 on 10 hp
   expect(at({}) - at({ '0,-1': 50 })).toBeCloseTo(4, 9);            // never more than its worth
+});
+
+test('an own city left empty within an enemy\'s move costs half its worth', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const foe = addUnit(s, 'warrior', 1, 0, 1);       // 2 tiles from the empty city, move 1: cannot walk in
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = makeCtx(s, 0, 1);
+  const far = valueOf(s, ctx);
+  foe.pos = '0,2';                                  // next to it: it could
+  expect(far - valueOf(s, ctx)).toBeCloseTo(0.5 * (12 + 4 + PERSONAS.spartans.spread), 9);
+});
+test('a hit on a city\'s garrison is worth more than the same hit in the field', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  addUnit(s, 'warrior', 0, 0, 3);                   // in its city
+  addUnit(s, 'warrior', 0, 2, 0);                   // in the field
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = makeCtx(s, 1, 1);
+  const hit = (pos: string) => { const c = structuredClone(s); c.units.find(u => u.pos === pos)!.hp -= 3; return valueOf(c, ctx) - valueOf(s, ctx); };
+  expect(hit('0,3')).toBeCloseTo(3 / 10 * (2 + 0.5 * 16), 9);         // worth 2 plus half the city's 16
+  expect(hit('2,0')).toBeCloseTo(3 / 10 * 2, 9);
+});
+test('stepping out of a line is forgiven in part while the partner can still follow, once per unit', () => {
+  const b = believedState(aiInputFor(spartanLine(), 0));
+  const ctx = makeCtx(b, 0, LEVEL_DIAL.normal);
+  b.units[1]!.pos = '1,0';                          // the two hoplites side by side
+  const loss = moveScore(b, { ...ctx, persona: { ...ctx.persona, formation: 0 } }, 0, '-1,2', 0) - moveScore(b, ctx, 0, '-1,2', 0);
+  expect(loss).toBeCloseTo(PERSONAS.spartans.formation * 2, 9);       // one hoplite bond broken
+  expect(followCredit(b, ctx, 0, '-1,2', 0)).toBeCloseTo(0.75 * loss, 9);
+  b.units[1]!.moved = true;                         // the partner has moved: nobody follows
+  expect(followCredit(b, ctx, 0, '-1,2', 0)).toBe(0);
+  b.units[1]!.moved = false; b.units[0]!.moved = true;               // a second step gets no credit
+  expect(followCredit(b, ctx, 0, '-1,2', 0)).toBe(0);
 });

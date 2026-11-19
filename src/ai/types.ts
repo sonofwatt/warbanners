@@ -32,8 +32,8 @@ export interface Skill {
 
 // How a faction likes to play: scoring weights plus orders for research, training and level rewards.
 export interface Persona {
-  formation: number;     // per pair of adjacent own units (Hoplite pairs count twice)
-  hold: number;          // per own unit inside own territory or next to an own city
+  formation: number;     // per bond between two own units (Hoplite pairs count twice), see assess.ts
+  hold: number;          // per own unit near a threatened own city; a garrison on an own city tile counts 3 times
   spread: number;        // per own city, on top of the city's value
   raid: number;          // a mounted unit that attacked and ends out of every seen enemy's reach
   forestPenalty: number; // a mounted unit ending its turn in forest
