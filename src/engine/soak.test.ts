@@ -3,9 +3,10 @@ import { applyAction, legalActions, replay } from './apply';
 import { UNITS } from './data/units';
 import { hashState } from './hash';
 import { rngInt } from './rng';
-import { createMatch, isEnterable, tileAt } from './state';
+import { maxMp } from './movement';
+import { createMatch, firstFreeNeighbor, freshAttacks, isEnterable, spawnUnit, tileAt } from './state';
 import { must } from './testkit';
-import type { Action, MatchSettings, MatchState } from './types';
+import type { AbilityId, Action, FactionId, MatchSettings, MatchState, PlayerId, UnitTypeId } from './types';
 
 function checkInvariants(s: MatchState): void {
   const seen = new Set<string>();
@@ -62,4 +63,48 @@ test('hostile actions against a live match are all refused quietly', () => {
   ] as unknown as Action[];
   for (const a of bad) expect(applyAction(s, a).ok).toBe(false);
   expect(hashState(s)).toBe(before);
+});
+
+// Test-only edit: a reward unit placed beside a capital, ready to act.
+function place(s: MatchState, faction: FactionId, type: UnitTypeId): void {
+  const owner: PlayerId = s.players.find((p) => p.faction === faction)!.id;
+  const at = firstFreeNeighbor(s, s.cities.find((c) => c.owner === owner && c.capital)!.pos);
+  if (at === null) throw new Error(`no room for a ${type}`);
+  const u = spawnUnit(s, type, owner, at, null);
+  u.mp = maxMp(s, u); u.attacks = freshAttacks(type); u.fresh = false;
+}
+
+// Random play that takes an ability whenever one is offered, at most once per unit per turn.
+const abilityCounts: Record<AbilityId, number> = { heal: 0, taunt: 0, hasten: 0, dustStorm: 0 };
+test.each([1, 2, 3, 4, 5, 6])('seed %i: abilities in random play keep every invariant and replay to the same hash', (seed) => {
+  const settings: MatchSettings = { seed, factions: seed % 2 ? ['spartans', 'mongols'] : ['mongols', 'spartans'] };
+  const start = createMatch(settings);
+  place(start, 'spartans', 'piper'); place(start, 'mongols', 'skyCaller'); place(start, 'mongols', 'khansGuard');
+  checkInvariants(start);
+  let s = start; let pick = seed * 7919; const log: Action[] = [];
+  for (let turn = 0; turn < 60 && s.winner === null; turn++) {
+    const used = new Set<number>();
+    for (let n = 0; n < 40; n++) {
+      const acts = legalActions(s).filter(a => a.type !== 'resign' && a.type !== 'endTurn');
+      if (acts.length === 0) break;
+      const abilities = acts.filter(a => a.type === 'ability' && !used.has(a.unit));
+      const pool = abilities.length > 0 ? abilities : acts;
+      const [i, next] = rngInt(pick, pool.length); pick = next;
+      const a = pool[i]!;
+      const r = applyAction(s, a); expect(r.ok, `seed ${seed} ${JSON.stringify(a)}`).toBe(true); if (!r.ok) return;
+      if (a.type === 'ability') { used.add(a.unit); abilityCounts[a.ability] += 1; }
+      log.push(a); s = r.state; checkInvariants(s);
+      if (s.winner !== null) break;
+    }
+    if (s.winner === null) { log.push({ type: 'endTurn' }); s = must(applyAction(s, { type: 'endTurn' })); checkInvariants(s); }
+  }
+  let again = start;
+  for (const a of log) again = must(applyAction(again, a));
+  expect(hashState(again)).toBe(hashState(s));
+});
+test('the ability soak applied every ability at least once', () => {
+  expect(abilityCounts.heal).toBeGreaterThan(0);
+  expect(abilityCounts.taunt).toBeGreaterThan(0);
+  expect(abilityCounts.hasten).toBeGreaterThan(0);
+  expect(abilityCounts.dustStorm).toBeGreaterThan(0);
 });

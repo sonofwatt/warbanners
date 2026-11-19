@@ -198,3 +198,28 @@ test('an attack asking for a lure that cannot apply is accepted with the lure ig
   const r = applyAction(s, { type: 'attack', unit: a.id, target: '2,0', lure: true });
   expect(unitById(must(r), a.id)).toMatchObject({ attacks: 0, lure: null });
 });
+test('hasten, dustStorm and campTrain refuse hostile and off-map targets with the state untouched', () => {
+  const s = mongols(); give(s, 0, 'riding', 'roads'); addCity(s, 0, -3, 0);
+  const c = addUnit(s, 'skyCaller', 0, 0, 0); addUnit(s, 'horseman', 0, 1, 0); addUnit(s, 'warrior', 1, 2, 0);
+  const camp = addUnit(s, 'camp', 0, -2, 2);
+  const before = hashState(s);
+  const bad: unknown[] = [
+    { type: 'ability', unit: c.id, ability: 'hasten', target: 'constructor' },
+    { type: 'ability', unit: c.id, ability: 'hasten', target: '__proto__' },
+    { type: 'ability', unit: c.id, ability: 'dustStorm', target: 'constructor' },
+    { type: 'ability', unit: c.id, ability: 'dustStorm', target: '__proto__' },
+    { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '99,99' },
+    { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '-2,7' },
+  ];
+  for (const a of bad) expect(applyAction(s, a as Action).ok).toBe(false);
+  expect(hashState(s)).toBe(before);
+});
+test('the Camp refuses to train onto water or onto an occupied neighbour', () => {
+  const s = mongols(); give(s, 0, 'riding', 'roads'); addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
+  setTile(s, 3, 0, { terrain: 'water' }); addUnit(s, 'warrior', 0, 2, 1);
+  const before = hashState(s);
+  expect(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '3,0' }).ok).toBe(false);
+  expect(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '2,1' }).ok).toBe(false);
+  expect(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '1,0' }).ok).toBe(true);   // control
+  expect(hashState(s)).toBe(before);
+});
