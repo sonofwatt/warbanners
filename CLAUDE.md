@@ -24,3 +24,9 @@ Banners is a new game in the same genre as Hexonia, not a copy of it. All art, s
 
 - The engine lives in `src/engine` and is reached from the app only through its index. Any import from `src/ui`, `src/app`, `src/browser` or `src/main.tsx` that names the engine must end in `/engine` or `/engine/index`. Inside the engine, nothing imports from outside it. `src/boundaries.test.ts` and `src/engine/purity.test.ts` enforce both.
 - No DOM, storage, clock or randomness access when a module loads. Importing a module must have no side effects; touch `document`, `window`, `localStorage` and the like only inside functions that the app calls.
+
+## Testing and releases
+
+- The browser suites in `src/browser` gate on `BROWSER=1` (`describe.runIf(process.env.BROWSER === '1')`) and otherwise skip, which reports green. `npm run test:browser` sets it. CI must run that script and install Chromium first; `src/browser/coverage.test.ts` fails if the workflow stops doing so or a browser test file loses its gate.
+- A new version of the app is never applied mid-match. The service worker waits, and the update is offered and applied only from Home, after the match has ended or been left.
+- The deployed site lives under `/banners/`, so browser tests are run with `GITHUB_PAGES_BASE=/banners/` to check it under the sub-path.

@@ -64,15 +64,26 @@ export function boardKeys(radius: number): HexKey[] {
   return range({ q: 0, r: 0 }, radius).map(key).sort(depthOrder);
 }
 
+/** One tile with its side wall below and the height of a figure standing on it above. */
+export function tileBox(k: HexKey): Box {
+  const c = hexToBoard(k);
+  return {
+    minX: c.x - (R * SQRT3) / 2,
+    maxX: c.x + (R * SQRT3) / 2,
+    minY: c.y - R * SQUASH - FIGURE_H,
+    maxY: c.y + R * SQUASH + THICK,
+  };
+}
+
 /** Includes side walls below and figure height above. */
 export function boardBounds(radius: number): Box {
   const box: Box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   for (const k of boardKeys(radius)) {
-    const c = hexToBoard(k);
-    box.minX = Math.min(box.minX, c.x - (R * SQRT3) / 2);
-    box.maxX = Math.max(box.maxX, c.x + (R * SQRT3) / 2);
-    box.minY = Math.min(box.minY, c.y - R * SQUASH - FIGURE_H);
-    box.maxY = Math.max(box.maxY, c.y + R * SQUASH + THICK);
+    const t = tileBox(k);
+    box.minX = Math.min(box.minX, t.minX);
+    box.maxX = Math.max(box.maxX, t.maxX);
+    box.minY = Math.min(box.minY, t.minY);
+    box.maxY = Math.max(box.maxY, t.maxY);
   }
   return box;
 }

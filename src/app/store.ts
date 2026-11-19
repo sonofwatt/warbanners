@@ -8,13 +8,14 @@ import { digestFor } from './digest';
 import type { DigestLine, TurnStep } from './digest';
 import { append, newRecord, restore } from './record';
 import type { MatchRecord } from './record';
-import { deleteSave, listSaves, readSave, writeSave } from './saves';
+import { deleteSave, listSaves, readSave, withSave, writeSave } from './saves';
 import type { KeyValue, SaveSummary } from './saves';
+import type { UpdateState, Updater } from './update';
 
-export interface Deps { kv: KeyValue; now(): number; newSeed(): number; newId(): string }
+export interface Deps { kv: KeyValue; now(): number; newSeed(): number; newId(): string; updater?: Updater }
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId] }
 export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result';
-export type Notice = 'saveFailed' | 'saveRepaired' | 'saveUnreadable' | 'saveOldVersion';
+export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion';
 
 export interface AppState {
   screen: Screen;
@@ -25,10 +26,13 @@ export interface AppState {
   digest: DigestLine[];
   notice: Notice | null;
   saves: SaveSummary[];
+  update: UpdateState;              // what the service worker has reported
   openSetup(): void; startMatch(setup: Setup): void; resume(id: string): void; removeSave(id: string): void;
   ready(): void;                    // the player named on the curtain now has the phone
   tap(hit: Hit): void; run(action: Action): void; arm(armed: Armed | null): void; select(sel: Selection): void;
+  setUpdate(s: UpdateState): void; applyUpdate(): void;   // a new build is applied only from home
   goHome(): void; dismissNotice(): void; dismissDigest(): void;
+  recover(): void;                  // back to home after a screen failed to draw, keeping every save
 }
 
 export function createAppStore(deps: Deps): StoreApi<AppState> {
@@ -53,12 +57,15 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       if (!res.ok) return;
       const next = append(record, action, res.state, deps.now());
       const saved = writeSave(kv, next, res.state);
-      turnLog.push({ before: state, events: res.events });
+      turnLog.push({ before: state, after: res.state, events: res.events });
       seq += 1;
       const patch: Partial<AppState> = {
-        record: next, state: res.state, saves: listSaves(kv), last: { seq, events: res.events, before: state },
+        record: next, state: res.state, saves: withSave(get().saves, saved), last: { seq, events: res.events, before: state },
       };
-      if (!saved) patch.notice = 'saveFailed';
+      // A failure is reported at once; a later save that works makes the report out of date, so it goes.
+      if (!saved.saved) patch.notice = 'saveFailed';
+      else if (saved.droppedUnfinished) patch.notice = 'saveDropped';
+      else if (get().notice === 'saveFailed') patch.notice = null;
       if (res.state.winner !== null) {
         set({ ...patch, screen: 'result', viewer: null, selection: NONE });
       } else if (action.type === 'endTurn') {
@@ -71,7 +78,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
 
     return {
       screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [],
-      notice: null, saves: listSaves(kv),
+      notice: null, saves: listSaves(kv), update: { offlineReady: false, updateReady: false },
 
       openSetup: () => set({ screen: 'setup' }),
 
@@ -81,7 +88,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         const base = newRecord(deps.newId(), settings, setup.names, deps.now());
         const fresh: MatchRecord = { ...base, snapshot: { count: 0, hash: hashState(state), state } };
         const saved = writeSave(kv, fresh, state);
-        openMatch(fresh, state, { notice: saved ? null : 'saveFailed' });
+        openMatch(fresh, state, { notice: !saved.saved ? 'saveFailed' : saved.droppedUnfinished ? 'saveDropped' : null });
       },
 
       resume: id => {
@@ -126,7 +133,17 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         if (record !== null && state !== null && state.winner !== null) deleteSave(kv, record.id);
         turnLog = [];
         set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
+        deps.updater?.homeReached();
       },
+
+      recover: () => {
+        turnLog = [];
+        set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv) });
+        deps.updater?.homeReached();
+      },
+
+      setUpdate: update => set({ update }),
+      applyUpdate: () => { if (get().screen === 'home' && get().update.updateReady) void deps.updater?.apply(); },
 
       dismissNotice: () => set({ notice: null }),
       dismissDigest: () => set({ digest: [] }),

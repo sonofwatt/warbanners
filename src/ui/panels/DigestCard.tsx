@@ -8,6 +8,7 @@ export function DigestCard({ lines }: { lines: DigestLine[] }): ReactElement {
   const more = lines.length - MAX_LINES;
   return (
     <section className="digest">
+      <h2>{T.ui.digestTitle}</h2>
       <ul>{lines.slice(0, MAX_LINES).map((l, i) => <li key={i}>{digestText(l)}</li>)}</ul>
       {more > 0 ? <p>{fill(T.ui.andMore, { n: more })}</p> : null}
     </section>

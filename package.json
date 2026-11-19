@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "sim": "tsx scripts/sim.ts",
-    "icons": "tsx scripts/icons.ts"
+    "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@types/node": "^24",
@@ -27,7 +27,10 @@
     "tsx": "^4",
     "typescript": "~6.0.2",
     "vite": "^8.3.8",
-    "vitest": "^4.1.11"
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^4.1.11",
+    "workbox-build": "^7.4.1",
+    "workbox-window": "^7.4.1"
   },
   "dependencies": {
     "react": "^19.3.1",

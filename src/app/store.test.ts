@@ -3,6 +3,7 @@ import { hashState } from '../engine';
 import { NONE } from '../ui/interaction';
 import { browserDeps, createAppStore } from './store';
 import type { Deps, Setup } from './store';
+import type { Updater } from './update';
 import { restore } from './record';
 import { listSaves, readSave } from './saves';
 import type { KeyValue } from './saves';
@@ -89,6 +90,34 @@ test('when the phone refuses to save, play carries on and says so', () => {
   get().ready(); get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
   expect(get().record!.actions).toHaveLength(1);
 });
+test('a passing failure to save is cleared by the next save that works', () => {
+  const x = deps(); let refuse = true;
+  const kv: KeyValue = { ...x.d.kv, setItem: (k, v) => { if (refuse) throw new Error('QuotaExceededError'); x.d.kv.setItem(k, v); } };
+  const store = createAppStore({ ...x.d, kv }); const get = store.getState;
+  get().startMatch(SETUP); expect(get().notice).toBe('saveFailed');
+  get().ready(); get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
+  expect(get().notice).toBe('saveFailed');
+  refuse = false; get().run({ type: 'endTurn' });
+  expect(get().notice).toBeNull();
+  expect(listSaves(kv).map(s => s.id)).toEqual(['m1']);
+});
+test('a working save leaves other notices alone', () => {
+  const { get } = started(); get().ready();
+  get().dismissNotice(); expect(get().notice).toBeNull();
+  const store = started(); store.store.setState({ notice: 'saveRepaired' }); store.get().ready();
+  store.get().tap({ unit: 0, hex: '-2,5' }); store.get().tap({ unit: null, hex: '-1,4' });
+  expect(store.get().notice).toBe('saveRepaired');
+});
+test('starting a match when twenty unfinished ones are kept drops the oldest other one and says so', () => {
+  let id = 0; let at = 100;
+  const x = deps({ newId: () => `m${id++}`, now: () => at++ });
+  const store = createAppStore(x.d);
+  for (let i = 0; i < 20; i++) { store.getState().startMatch(SETUP); expect(store.getState().notice).toBeNull(); store.getState().goHome(); }
+  store.getState().startMatch(SETUP);
+  expect(store.getState().notice).toBe('saveDropped');
+  const ids = listSaves(x.d.kv).map(s => s.id);
+  expect(ids).toHaveLength(20); expect(ids).toContain('m20'); expect(ids).not.toContain('m0');
+});
 test('ready does nothing off the curtain, and a resumed game cannot act until ready', () => {
   const first = started(); first.get().ready(); first.get().run({ type: 'endTurn' });
   const again = createAppStore(first.d);
@@ -104,4 +133,49 @@ test('browserDeps works without a DOM and keeps nothing', () => {
   d.kv.setItem('a', 'b'); expect(d.kv.getItem('a')).toBeNull(); d.kv.removeItem('a');
   expect(Number.isInteger(d.newSeed())).toBe(true); expect(d.newId()).not.toBe(d.newId());
   expect(createAppStore(d).getState().screen).toBe('home');
+});
+test('a new build is applied from home and never during a match', () => {
+  let applied = 0; let home = 0;
+  const updater: Updater = { apply: async () => { applied++; }, check: () => {}, homeReached: () => { home++; } };
+  const { get } = started({ updater });
+  get().setUpdate({ offlineReady: true, updateReady: true });
+  get().applyUpdate(); expect(applied).toBe(0);            // behind the curtain
+  get().ready(); get().applyUpdate(); expect(applied).toBe(0);   // in the match
+  get().run({ type: 'resign' }); get().applyUpdate(); expect(applied).toBe(0);   // on the result
+  expect(home).toBe(0);
+  get().goHome(); expect(home).toBe(1); get().applyUpdate(); expect(applied).toBe(1);
+  get().recover(); expect(home).toBe(2);
+});
+test('a save whose snapshot this build cannot play resumes by replaying its moves', () => {
+  const first = started(); first.get().ready(); first.get().tap({ unit: 0, hex: '-2,5' }); first.get().tap({ unit: null, hex: '-1,4' });
+  const body = JSON.parse(first.map.get('banners.save.m1')!);
+  delete body.snapshot.state.players[0].explored; body.snapshot.hash = hashState(body.snapshot.state);
+  first.map.set('banners.save.m1', JSON.stringify(body));
+  const again = createAppStore(first.d); again.getState().resume('m1');
+  expect(again.getState()).toMatchObject({ screen: 'pass', notice: 'saveRepaired' });
+  expect(hashState(again.getState().state!)).toBe(hashState(first.get().state!));
+  body.actions[0] = { type: 'move', unit: 999, to: '0,0' };
+  first.map.set('banners.save.m1', JSON.stringify(body));
+  const third = createAppStore(first.d); third.getState().resume('m1');
+  expect(third.getState()).toMatchObject({ screen: 'home', notice: 'saveUnreadable', state: null });
+  expect(third.getState().saves.map(s => s.id)).toEqual(['m1']);
+});
+test('recovering from a broken screen goes home and keeps every save, a finished one too', () => {
+  const { get, map } = started(); get().ready(); get().run({ type: 'resign' });
+  expect(get().screen).toBe('result');
+  get().recover();
+  expect(get()).toMatchObject({ screen: 'home', record: null, state: null, viewer: null });
+  expect(map.has('banners.save.m1')).toBe(true);
+  expect(get().saves.map(s => s.id)).toEqual(['m1']);
+});
+test('an accepted action keeps the save list without reading any saved match back', () => {
+  const x = deps(); let bodyReads = 0;
+  const kv: KeyValue = { ...x.d.kv, getItem: k => { if (k.startsWith('banners.save.')) bodyReads++; return x.d.kv.getItem(k); } };
+  let at = 1000; const store = createAppStore({ ...x.d, kv, now: () => at++ }); const get = store.getState;
+  get().startMatch(SETUP); get().ready();
+  bodyReads = 0;
+  get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' }); get().run({ type: 'endTurn' });
+  expect(bodyReads).toBe(0);
+  expect(get().saves).toEqual(listSaves(kv));
+  expect(get().saves[0]).toMatchObject({ id: 'm1', current: 1 });
 });

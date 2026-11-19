@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { IDLE, gesture } from './gesture';
+import { IDLE, follows, gesture } from './gesture';
 import type { GestureOut, PointerInput } from './gesture';
 
 const run = (events: PointerInput[]) => {
@@ -26,8 +26,13 @@ test('a short still touch is a tap', () => {
   ]);
 });
 
-test('a long touch is not a tap', () => {
-  expect(run([ev('down', 1, 50, 50, 0), ev('up', 1, 50, 50, 500)])).toEqual([]);
+test('a slow still touch is still a tap', () => {
+  expect(run([ev('down', 1, 50, 50, 0), ev('up', 1, 50, 50, 500)])).toEqual([{ kind: 'tap', at: { x: 50, y: 50 } }]);
+  expect(run([ev('down', 1, 50, 50, 0), ev('up', 1, 50, 50, 600)])).toEqual([{ kind: 'tap', at: { x: 50, y: 50 } }]);
+});
+
+test('a very long touch is not a tap', () => {
+  expect(run([ev('down', 1, 50, 50, 0), ev('up', 1, 50, 50, 900)])).toEqual([]);
 });
 
 test('a drag pans and never taps', () => {
@@ -71,4 +76,15 @@ test('a third pointer is ignored', () => {
 
 test('cancel resets', () => {
   expect(run([ev('down', 1, 5, 5, 0), ev('cancel', 1, 5, 5, 10), ev('up', 1, 5, 5, 20)])).toEqual([]);
+});
+
+test('the reducer says which pointers it follows', () => {
+  expect(follows(IDLE, 1)).toBe(false);
+  const one = gesture(IDLE, ev('down', 1, 50, 50, 0)).state;
+  expect(follows(one, 1)).toBe(true); expect(follows(one, 2)).toBe(false);
+  const two = gesture(one, ev('down', 2, 90, 50, 10)).state;
+  expect(follows(two, 1)).toBe(true); expect(follows(two, 2)).toBe(true);
+  // Lifting one finger of a pinch: the lifted one is no longer followed, so losing it changes nothing.
+  const rest = gesture(two, ev('up', 1, 50, 50, 20)).state;
+  expect(follows(rest, 1)).toBe(false); expect(follows(rest, 2)).toBe(true);
 });
