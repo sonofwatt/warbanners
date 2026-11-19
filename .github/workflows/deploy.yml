@@ -1,0 +1,67 @@
+name: Test and deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+# Read-only for the build job. It is where the untrusted work happens (npm ci,
+# the test suites, a browser) and none of it needs to publish. The two grants
+# that deploy a Pages site are on the deploy job alone, below.
+permissions:
+  contents: read
+# Never cancel a deployment mid-flight: GitHub's own Pages starter sets this to
+# false for that reason. Two quick pushes both run to completion.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # The site lives at /<repo>/, so the build, the browser tests and the
+      # uploaded artifact all use that base.
+      GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Nothing after the checkout talks to git, so the job token has no
+          # business sitting in .git/config for the rest of the run.
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # Chromium for the browser suites, keyed on the lockfile so a Playwright
+      # bump fetches the browser that version expects.
+      - name: Cache the Playwright browser
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      # The browser suites gate on BROWSER=1 and otherwise SKIP, which reports
+      # green. Without the next two steps they would never run here;
+      # src/browser/coverage.test.ts fails if either goes away.
+      - run: npx playwright install --with-deps chromium
+      # Builds dist under the Pages base, then tests that same build.
+      - run: npm run test:browser
+      # The offline suite makes a second build in a temp folder, not in dist, but
+      # rebuild anyway so the artifact is certainly the plain Pages build.
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
