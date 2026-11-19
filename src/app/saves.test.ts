@@ -37,7 +37,7 @@ test('the match being written is never dropped, even when the clock has gone bac
   // The phone's clock went back: the match now being played has the oldest time of all.
   expect(writeSave(kv, rec('now', 5), start)).toMatchObject(SAVED);
   expect(listSaves(kv).map(s => s.id)).toContain('now');
-  expect(kv.map.has('banners.save.now')).toBe(true);
+  expect(kv.map.has('warbanners.save.now')).toBe(true);
   expect(writeSave(kv, rec('now', 6), start)).toMatchObject(SAVED);
   expect(listSaves(kv).map(s => s.id)).toContain('now');
 });
@@ -48,7 +48,7 @@ test('finished matches go first, oldest first', () => {
   expect(writeSave(kv, rec('n1', 500), start)).toMatchObject(SAVED);
   let ids = listSaves(kv).map(s => s.id);
   expect(ids).toHaveLength(20); expect(ids).not.toContain('m7'); expect(ids).toContain('m0'); expect(ids).toContain('m3');
-  expect(kv.map.has('banners.save.m7')).toBe(false);
+  expect(kv.map.has('warbanners.save.m7')).toBe(false);
   expect(writeSave(kv, rec('n2', 501), start)).toMatchObject(SAVED);
   ids = listSaves(kv).map(s => s.id);
   expect(ids).not.toContain('m3'); expect(ids).toContain('m0');
@@ -60,7 +60,7 @@ test('only when twenty unfinished matches are kept does the oldest other one go,
   expect(writeSave(kv, rec('new', 1), start)).toMatchObject({ saved: true, droppedUnfinished: true, summary: { id: 'new' }, dropped: ['m0'] });
   const ids = listSaves(kv).map(s => s.id);
   expect(ids).toHaveLength(20); expect(ids).toContain('new'); expect(ids).not.toContain('m0');
-  expect(kv.map.has('banners.save.m0')).toBe(false);
+  expect(kv.map.has('warbanners.save.m0')).toBe(false);
 });
 test('writing the same match again replaces it', () => {
   const kv = fake(); writeSave(kv, rec('a', 10), start); writeSave(kv, rec('a', 99), start);
@@ -74,21 +74,21 @@ test('a phone that refuses to store does not break anything', () => {
 });
 test('broken entries are dropped and old versions are marked', () => {
   const kv = fake(); writeSave(kv, rec('a', 10), start); writeSave(kv, rec('b', 20), start); writeSave(kv, rec('c', 30), start);
-  kv.map.set('banners.save.a', '{not json'); kv.map.delete('banners.save.b');
-  kv.map.set('banners.save.c', JSON.stringify({ ...rec('c', 30), rulesVersion: RULES_VERSION + 1 }));
+  kv.map.set('warbanners.save.a', '{not json'); kv.map.delete('warbanners.save.b');
+  kv.map.set('warbanners.save.c', JSON.stringify({ ...rec('c', 30), rulesVersion: RULES_VERSION + 1 }));
   expect(listSaves(kv).map(s => [s.id, s.resumable])).toEqual([['c', false]]);
-  kv.map.set('banners.saves.v1', 'rubbish'); expect(listSaves(kv)).toEqual([]);
+  kv.map.set('warbanners.saves.v1', 'rubbish'); expect(listSaves(kv)).toEqual([]);
 });
 test('delete removes the body and the entry', () => {
   const kv = fake(); writeSave(kv, rec('a', 10), start); deleteSave(kv, 'a');
-  expect(listSaves(kv)).toEqual([]); expect(kv.map.has('banners.save.a')).toBe(false);
+  expect(listSaves(kv)).toEqual([]); expect(kv.map.has('warbanners.save.a')).toBe(false);
 });
 test('a damaged list entry is dropped, not passed on', () => {
   const kv = fake(); writeSave(kv, rec('a', 10), start); writeSave(kv, rec('b', 20), start);
-  const list = JSON.parse(kv.map.get('banners.saves.v1')!);
+  const list = JSON.parse(kv.map.get('warbanners.saves.v1')!);
   delete list.find((e: any) => e.id === 'a').names;
   list.find((e: any) => e.id === 'b').factions = 'x';
-  kv.map.set('banners.saves.v1', JSON.stringify(list));
+  kv.map.set('warbanners.saves.v1', JSON.stringify(list));
   expect(listSaves(kv)).toEqual([]);
 });
 test('a write brings a list up to date as listSaves would, without reading it back', () => {

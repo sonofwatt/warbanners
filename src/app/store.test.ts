@@ -84,16 +84,16 @@ test('a reopened game starts at home and resumes through the curtain', () => {
   expect(hashState(again.getState().state!)).toBe(hashState(first.get().state!));
 });
 test('damaged, unreadable and old saves are handled in plain terms', () => {
-  const a = started(); const body = JSON.parse(a.map.get('banners.save.m1')!);
+  const a = started(); const body = JSON.parse(a.map.get('warbanners.save.m1')!);
   body.snapshot = { count: 0, hash: 'wrong', state: body.snapshot?.state ?? {} };
-  a.map.set('banners.save.m1', JSON.stringify(body));
+  a.map.set('warbanners.save.m1', JSON.stringify(body));
   const s1 = createAppStore(a.d); s1.getState().resume('m1');
   expect(s1.getState()).toMatchObject({ screen: 'pass', notice: 'saveRepaired' });
-  a.map.set('banners.save.m1', '{');
+  a.map.set('warbanners.save.m1', '{');
   const s2 = createAppStore(a.d); s2.getState().resume('m1');
   expect(s2.getState()).toMatchObject({ screen: 'home', notice: 'saveUnreadable', state: null });
-  const b = started(); const old = JSON.parse(b.map.get('banners.save.m1')!); old.rulesVersion = 999;
-  b.map.set('banners.save.m1', JSON.stringify(old));
+  const b = started(); const old = JSON.parse(b.map.get('warbanners.save.m1')!); old.rulesVersion = 999;
+  b.map.set('warbanners.save.m1', JSON.stringify(old));
   const s3 = createAppStore(b.d); s3.getState().resume('m1');
   expect(s3.getState()).toMatchObject({ screen: 'home', notice: 'saveOldVersion' });
   s3.getState().resume('no-such-id'); expect(s3.getState().notice).toBe('saveUnreadable');
@@ -163,14 +163,14 @@ test('a new build is applied from home and never during a match', () => {
 });
 test('a save whose snapshot this build cannot play resumes by replaying its moves', () => {
   const first = started(); first.get().ready(); first.get().tap({ unit: 0, hex: '-2,5' }); first.get().tap({ unit: null, hex: '-1,4' });
-  const body = JSON.parse(first.map.get('banners.save.m1')!);
+  const body = JSON.parse(first.map.get('warbanners.save.m1')!);
   delete body.snapshot.state.players[0].explored; body.snapshot.hash = hashState(body.snapshot.state);
-  first.map.set('banners.save.m1', JSON.stringify(body));
+  first.map.set('warbanners.save.m1', JSON.stringify(body));
   const again = createAppStore(first.d); again.getState().resume('m1');
   expect(again.getState()).toMatchObject({ screen: 'pass', notice: 'saveRepaired' });
   expect(hashState(again.getState().state!)).toBe(hashState(first.get().state!));
   body.actions[0] = { type: 'move', unit: 999, to: '0,0' };
-  first.map.set('banners.save.m1', JSON.stringify(body));
+  first.map.set('warbanners.save.m1', JSON.stringify(body));
   const third = createAppStore(first.d); third.getState().resume('m1');
   expect(third.getState()).toMatchObject({ screen: 'home', notice: 'saveUnreadable', state: null });
   expect(third.getState().saves.map(s => s.id)).toEqual(['m1']);
@@ -180,12 +180,12 @@ test('recovering from a broken screen goes home and keeps every save, a finished
   expect(get().screen).toBe('result');
   get().recover();
   expect(get()).toMatchObject({ screen: 'home', record: null, state: null, viewer: null });
-  expect(map.has('banners.save.m1')).toBe(true);
+  expect(map.has('warbanners.save.m1')).toBe(true);
   expect(get().saves.map(s => s.id)).toEqual(['m1']);
 });
 test('an accepted action keeps the save list without reading any saved match back', () => {
   const x = deps(); let bodyReads = 0;
-  const kv: KeyValue = { ...x.d.kv, getItem: k => { if (k.startsWith('banners.save.')) bodyReads++; return x.d.kv.getItem(k); } };
+  const kv: KeyValue = { ...x.d.kv, getItem: k => { if (k.startsWith('warbanners.save.')) bodyReads++; return x.d.kv.getItem(k); } };
   let at = 1000; const store = createAppStore({ ...x.d, kv, now: () => at++ }); const get = store.getState;
   get().startMatch(SETUP); get().ready();
   bodyReads = 0;

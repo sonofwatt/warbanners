@@ -46,7 +46,7 @@ export function soundFor(events: readonly GameEvent[], seenUnits: ReadonlySet<nu
   return null;
 }
 
-const MUTE_KEY = 'banners.muted';
+const MUTE_KEY = 'warbanners.muted';
 let mutedMemory = false;
 
 export function isMuted(): boolean {

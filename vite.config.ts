@@ -11,9 +11,10 @@ export default defineConfig({
       registerType: 'prompt',
       injectRegister: false,
       manifest: {
-        name: 'Banners',
-        short_name: 'Banners',
-        description: 'A turn-based strategy game of banners and borders.',
+        id: 'warbanners',
+        name: 'Warbanners',
+        short_name: 'Warbanners',
+        description: 'A turn-based hex strategy game for two players: lead your army across the map and take the field.',
         start_url: './',
         scope: './',
         display: 'standalone',
