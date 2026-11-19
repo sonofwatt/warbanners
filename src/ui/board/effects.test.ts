@@ -80,3 +80,22 @@ test('a long list still finishes in time', () => {
   expect(fx).toHaveLength(30);
   expect(Math.max(...fx.map((f) => f.delay)) + EFFECT_MS).toBeLessThanOrEqual(MAX_TOTAL_MS);
 });
+
+test('no lunge when the target tile is hidden, even if the attacker is seen', () => {
+  const s = blankMatch();
+  const a = addUnit(s, 'warrior', 0, 0, 0);
+  const b = addUnit(s, 'warrior', 1, 1, 0);
+  const events: GameEvent[] = [{ type: 'attacked', unit: a.id, target: b.id, damage: 4, counter: 2 }];
+  const fx = effectsFor(events, s, s, new Set(['0,0']));
+  expect(fx.some((f) => f.kind === 'lunge')).toBe(false);
+  expect(JSON.stringify(fx)).not.toContain('1,0');
+});
+
+test('an event with every effect hidden does not use up a delay slot', () => {
+  const s = blankMatch();
+  const events: GameEvent[] = [
+    { type: 'built', at: '5,0', what: 'road' },
+    { type: 'built', at: '0,0', what: 'road' },
+  ];
+  expect(effectsFor(events, s, s, new Set(['0,0']))).toEqual([{ kind: 'burst', at: '0,0', tone: 'build', delay: 0 }]);
+});
