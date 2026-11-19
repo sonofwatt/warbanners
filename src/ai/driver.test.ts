@@ -1,16 +1,18 @@
 import { expect, test } from 'vitest';
 import { applyAction, hashState, visibleTiles } from '../engine';
 import type { Action, MatchState } from '../engine';
-import { addCity, addUnit, blankMatch, randomPlayout } from '../engine/testkit';
+import { addCity, addUnit, blankMatch, must, randomPlayout } from '../engine/testkit';
 import { MAX_REPLANS, START, afterAct, afterThink, aiStep, planSeed, runAiTurn } from './driver';
 import type { Cursor } from './driver';
-import { aiInputFor, viewKey } from './input';
+import { aiInputFor, believedState, viewKey } from './input';
 import { planTurn } from './plan';
+import type { Plan } from './plan';
 import { hiddenScout } from './scenarios';
 
 test('a move into an unseen scout is refused, remembered, and the turn still ends', () => {
   const { state, rider } = hiddenScout();
-  // force the first plan to try 2,0 by giving the driver a plan that does
+  // force the first plan to try 2,0 by giving the driver a plan that does. Its expected views are never read:
+  // aiStep compares a view only after an accepted action, and this plan's only one is refused.
   let cur = afterThink(START, { actions: [{ type: 'move', unit: rider, to: '2,0' }, { type: 'endTurn' }], expect: ['x', 'y'], evals: 0, cutShort: false });
   const step = aiStep(cur, state, { player: 1, dial: 0.5, salt: 1 });
   expect(step).toEqual({ kind: 'act', action: { type: 'move', unit: rider, to: '2,0' } });
@@ -71,6 +73,7 @@ test('a refusal loop is cut off', () => {
     const step = aiStep(cur, state, seat);
     if (step.kind === 'think') {
       seeds.push(step.seed);
+      // The expected views are never read: the plan's first action is always refused, so next stays 0.
       cur = afterThink(cur, { actions: [doomed, { type: 'endTurn' }], expect: ['x', 'y'], evals: 0, cutShort: false });
       continue;
     }
@@ -132,4 +135,53 @@ test('a real win ends the turn loop without an endTurn', () => {
   expect(log.steps.map(x => x.action.type)).toEqual(['capture']);
   expect(log.state.winner).toBe(0);
   expect(log.steps[0]!.events.some(e => e.type === 'matchOver')).toBe(true);
+});
+
+// Player 0's warrior at 0,2 steps to 0,1, which brings a player 1 warrior at 0,0 into sight, three tiles from
+// player 0's city. The plan expects the believed view after the step, where 0,0 is empty.
+function revealingStep(enemy: boolean): { s: MatchState; plan: Plan; move: Action } {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const warrior = addUnit(s, 'warrior', 0, 0, 2).id;
+  if (enemy) addUnit(s, 'warrior', 1, 0, 0);
+  for (const p of s.players) p.explored = [...visibleTiles(s, p.id)].sort();
+  const move: Action = { type: 'move', unit: warrior, to: '0,1' };
+  const b1 = must(applyAction(believedState(aiInputFor(s, 0)), move));
+  const b2 = must(applyAction(b1, { type: 'endTurn' }));
+  const plan: Plan = { actions: [move, { type: 'endTurn' }], expect: [viewKey(aiInputFor(b1, 0)), viewKey(aiInputFor(b2, 0))], evals: 0, cutShort: false };
+  return { s, plan, move };
+}
+
+test('a last move that reveals an enemy gives a replan, not endTurn', () => {
+  const seat = { player: 0, dial: 0.5, salt: 1 };
+  const { s, plan, move } = revealingStep(true);
+  expect(aiInputFor(s, 0).view.units.some(u => u.owner === 1 && u.pos === '0,0')).toBe(false);
+  let cur = afterThink(START, plan);
+  expect(aiStep(cur, s, seat)).toEqual({ kind: 'act', action: move });
+  const real = must(applyAction(s, move));
+  expect(aiInputFor(real, 0).view.units.some(u => u.owner === 1 && u.pos === '0,0')).toBe(true);
+  cur = afterAct(cur, move, true);
+  expect(aiStep(cur, real, seat)).toEqual({ kind: 'think', refused: [], seed: planSeed(1, real.stamp, 1) });
+  // with no enemy there, the real view is the expected one and the turn ends as planned
+  const quiet = revealingStep(false);
+  const quietReal = must(applyAction(quiet.s, quiet.move));
+  expect(aiStep(afterAct(afterThink(START, quiet.plan), quiet.move, true), quietReal, seat))
+    .toEqual({ kind: 'act', action: { type: 'endTurn' } });
+});
+
+test('a plan that runs out without endTurn ends the turn once the view is as expected', () => {
+  const seat = { player: 0, dial: 0.5, salt: 1 };
+  const { s, plan, move } = revealingStep(false);
+  const short: Plan = { ...plan, actions: [move], expect: [plan.expect[0]!] };
+  const cur = afterAct(afterThink(START, short), move, true);
+  expect(aiStep(cur, must(applyAction(s, move)), seat)).toEqual({ kind: 'act', action: { type: 'endTurn' } });
+  expect(aiStep(cur, s, seat).kind).toBe('think');   // the move not seen in the real view: replan
+});
+
+test('a refused endTurn throws instead of looping', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); s.players[0]!.gold = 0;
+  for (const p of s.players) p.explored = [...visibleTiles(s, p.id)].sort();
+  // a value structuredClone cannot copy: the planner never sees it, but applyAction refuses every action
+  (s as unknown as Record<string, unknown>).broken = () => 0;
+  expect(applyAction(s, { type: 'endTurn' })).toEqual({ ok: false, reason: 'invalid action' });
+  expect(() => runAiTurn(s, { player: 0, dial: 1, salt: 1 })).toThrow('the match refused endTurn: invalid action');
 });

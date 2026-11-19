@@ -31,13 +31,25 @@ const END_TURN: Action = { type: 'endTurn' };
 // No plan and nothing refused yet: the coming think makes the turn's first plan.
 const firstThink = (cur: Cursor): boolean => cur.plan === null && cur.refused.length === 0;
 
+// Did the plan believe its last applied action won the match? Only a capture can end a match (the planner
+// never resigns), and the believed state counts only seen cities, so it believes it has won exactly when
+// the view it expected after the capture shows no rival city. The planner then pushes endTurn without
+// applying it, and the real view after the capture differs from that belief whenever the win is not real.
+function believedWin(plan: Plan, next: number, me: PlayerId): boolean {
+  if (plan.actions[next - 1]?.type !== 'capture') return false;
+  try {
+    const view = JSON.parse(plan.expect[next - 1] ?? '') as { cities?: { owner: PlayerId }[] };
+    return Array.isArray(view.cities) && view.cities.every((c) => c.owner === me);
+  } catch {
+    return false;
+  }
+}
+
 export function aiStep(cur: Cursor, real: MatchState, seat: AiSeat): Step {
   const { plan, next } = cur;
   if (plan !== null) {
-    const action = plan.actions[next] ?? END_TURN;
-    // endTurn is played as planned: after a believed win its expected view is not a real one, and
-    // a surprise this late leaves nothing to replan.
-    if (action.type === 'endTurn') return { kind: 'act', action };
+    const action = plan.actions[next] ?? END_TURN;   // a plan always ends with endTurn; this is a guard
+    if (action.type === 'endTurn' && believedWin(plan, next, seat.player)) return { kind: 'act', action };
     if (next === 0 || viewKey(aiInputFor(real, seat.player)) === plan.expect[next - 1]) return { kind: 'act', action };
   }
   const index = firstThink(cur) ? 0 : cur.replans + 1;
