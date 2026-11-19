@@ -4,7 +4,7 @@ import { T, fill } from '../text';
 
 export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
-  unitsToAct: number; techReady: boolean;
+  unitsToAct: number; techReady: boolean; endDisabled?: boolean;
   onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void;
 }
 
@@ -30,7 +30,7 @@ export function Hud(p: HudProps): ReactElement {
       </div>
       <div className="hud-end">
         <small data-testid="can-act">{act}</small>
-        <button type="button" data-testid="end-turn" onClick={p.onEndTurn}>{T.ui.endTurn}</button>
+        <button type="button" data-testid="end-turn" disabled={p.endDisabled === true} onClick={p.onEndTurn}>{T.ui.endTurn}</button>
       </div>
     </header>
   );

@@ -121,6 +121,17 @@ const ui = {
   saveUnreadable: 'A saved match could not be read.',
   saveOldVersion: 'A saved match was made with older rules and cannot be continued.',
   oldVersion: 'This match was made with older rules. You can look at it but not continue it.',
+  newMatch: 'New match', savedMatches: 'Saved matches', noSaves: 'No saved matches yet.',
+  versusLine: '{a} ({fa}) against {b} ({fb})', turnLine: 'Turn {n}, {name} to move',
+  continueButton: 'Continue', seeResult: 'See result', fromOlder: 'From an older version',
+  deleteButton: 'Delete', deleteAsk: 'Delete this match?', deleteYes: 'Yes, delete', deleteNo: 'Keep it',
+  dismiss: 'Dismiss', gotIt: 'Got it',
+  playerOne: 'Player 1', playerTwo: 'Player 2', nameLabel: 'Name for player {n}', setupTitle: 'New match',
+  spartansPlay: '{name} plays Spartans', swapFactions: 'Swap factions',
+  setupLine: '{first} moves first and {second} starts with {n} more gold.', start: 'Start',
+  turnOf: "{name}'s turn", passTo: 'Pass the phone to {name}', imName: "I'm {name}",
+  wins: '{name} wins', endedOn: 'The match ended on turn {n}.',
+  byResignation: 'The other player resigned.', byLastCity: 'The last city was taken.', homeButton: 'Home',
 } as const;
 
 export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui } as {
