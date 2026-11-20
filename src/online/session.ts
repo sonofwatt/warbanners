@@ -13,7 +13,7 @@ import type { ClockView } from './clock';
 import { aiSeatToPlay, hostMove } from './host';
 import { applyLocal, follow, opening, rebuild } from './sync';
 import type { Followed, Step } from './sync';
-import { factionsFor, liveDesync, SCHEMA, TIMEOUT_RETRY_MS } from './wire';
+import { decodeAction, factionsFor, liveDesync, SCHEMA, TIMEOUT_RETRY_MS } from './wire';
 import type { ClockSec, Presence, Room } from './wire';
 
 export type SessionPhase = 'connecting' | 'notFound' | 'version' | 'join' | 'lobby' | 'playing' | 'over' | 'desync' | 'failed';
@@ -53,6 +53,12 @@ const RETURN_TRIES = 3;      // the last one claims no credit
 const TIMEOUT_TRIES = 2;     // a refused timeout is tried once more
 // A room is read node by node, and the nodes one write changed can arrive a few messages apart. A timeout is decided
 // only on a tick at least this long after the last reading, never from a reading that may be half of an update.
+// Why a time and not "due on two ticks in a row": that would move every timeout a whole tick later than the
+// brief's 500 ms lead. Why it is safe: the rules gate every write by its index, so a wrong decision from a split
+// reading lands nothing but a refused endTurn (and then the retry, from the whole reading); two halves more than
+// 250 ms apart could still mislead one tick, which costs at most about one tick of delay. In play the only
+// multi-node write a backup sees with presence in it is a return (presence on plus head/paused), and in either
+// order the server already holds what the backup misread, so the rules refuse it.
 const SETTLE_MS = 250;
 
 // One action on its way to the database: applied locally already, written in order, one at a time.
@@ -225,6 +231,9 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     if (sending() && list.length < local.actions.length && isPrefix(list, local.actions)) return;
     const f = follow(local, list, head);
     if (f.kind === 'wait') return;
+    // While a write of ours is pending, the SDK's cache mixes it with what the server sent (our head beside their
+    // list, say): a disagreement then is the write losing its race, not a broken match. Its answer decides.
+    if (f.kind === 'broken' && sending()) return;
     if (f.kind === 'broken') { broken(); return; }
     if (f.kind === 'advanced') {
       const from = local.actions.length;
@@ -235,13 +244,35 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
       followed = f.followed;
       lastSteps = { seq: ++seq, steps: f.steps, mine: false };
     } else if (f.kind === 'rebuilt') {
+      timedOutIn(local, list);
       followed = f.followed;
       lastSteps = { seq: ++seq, steps: [], mine: false };
       dropQueue();
       for (const n of tapped) if (n >= list.length) tapped.delete(n);
+      // What this phone played and lost may have ended the match here: the record decides.
+      if (phase === 'over' || phase === 'playing') phase = followed.state.winner !== null ? 'over' : 'playing';
     }
     agreed();
     if (followed!.state.winner !== null && phase === 'playing') phase = 'over';
+  }
+
+  // A rebuild has no steps, but an endTurn of the record's that ended my turn where I lost my own write (a backup
+  // timeout that beat my last move) still owes the timeUp line. Replays the record from where the two lists part.
+  function timedOutIn(local: Followed, list: string[]): void {
+    const seat = mySeat();
+    let k = 0;
+    while (k < list.length && k < local.actions.length && list[k] === local.actions[k]) k++;
+    if (seat === null || !list.slice(k).includes('{"type":"endTurn"}')) return;
+    const base = rebuild(local.settings, list.slice(0, k), null, {});
+    if (!base.ok) return;
+    let state = base.followed;
+    for (let i = k; i < list.length; i++) {
+      const action = decodeAction(list[i]);
+      const r = action && applyLocal(state, action);
+      if (!r) return;
+      if (action.type === 'endTurn' && r.step.before.current === seat && !tapped.has(i)) timedOut = i;
+      state = r.followed;
+    }
   }
 
   // This phone's state disagrees with the record: say so, and stop acting.
@@ -269,6 +300,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
   // An entry left by someone who is no longer a member blocks nothing; any member may remove it.
   function clearStale(): void {
     if (!room || !member()) return;
+    for (const uid of staleTried) if (!Object.hasOwn(room.desync, uid)) staleTried.delete(uid);   // gone: forget it
     for (const uid of Object.keys(room.desync)) {
       if (Object.hasOwn(room.members, uid) || staleTried.has(uid)) continue;
       staleTried.add(uid);
@@ -317,11 +349,12 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
           const live = await net.readLive(code);
           if (!stillMine()) return;
           if (live === 'offline') { pause(); return; }
-          if (typeof live !== 'object') { done(); return; }
+          // No fresh read (refused, say): still say this phone is here, but claim no credit from a guess.
+          const fresh = typeof live === 'object' ? live : null;
           const seat = mySeat();
           const clockOn = (room?.meta.clock ?? 0) > 0;
-          const credit = i < RETURN_TRIES - 1 && clockOn && seat !== null
-            ? creditOnReturn(live.head, seat === live.head?.seat, live.presence, net.serverNow()) : null;
+          const credit = fresh && i < RETURN_TRIES - 1 && clockOn && seat !== null
+            ? creditOnReturn(fresh.head, seat === fresh.head?.seat, fresh.presence, net.serverNow()) : null;
           const r = await net.present(code, credit);
           if (!stillMine()) return;
           if (r === true) { done(); return; }
@@ -437,6 +470,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     const current = room!.seats[head.seat];
     const mine = head.seat === seat || (current?.kind === 'ai' && room!.meta.hostId === me);
     if (!timeoutDue(clockView(room!.meta.clock, head, currentPresence(room!), now), now, mine)) return;
+    for (const n of timeoutTries.keys()) if (n < head.n) timeoutTries.delete(n);   // indexes long passed
     const tries = timeoutTries.get(head.n);
     if (tries && (tries.count >= TIMEOUT_TRIES || now - tries.at < TIMEOUT_RETRY_MS)) return;
     timeoutTries.set(head.n, { count: (tries?.count ?? 0) + 1, at: now });

@@ -5,6 +5,7 @@ import type { AiClient } from '../app/aiClient';
 import {
   bareServer, fakeKit, hanging, headOf, meta, pair, playTurns, settle, sharedBodies, spyReadStart, until,
 } from '../net/sessionKit';
+import { openSession } from './session';
 import { encodeAction, SCHEMA } from './wire';
 
 vi.setConfig({ testTimeout: 30_000 });   // the AI tests run the real planner on a shared machine
@@ -131,6 +132,7 @@ test('the race: my last move against the timeout, before I have seen it; one lan
   expect(a.view().followed!.actions).toEqual(b!.view().followed!.actions);
   expect(a.view().followed!.state.current).toBe(1); expect(a.view().phase).toBe('playing');
   expect(server.log().filter(w => w.uid === 'u0' && w.paths.some(p => p.startsWith('actions/')))).toEqual([]);
+  expect(a.view().timedOut).toBe(0);                     // the timeUp line, though the endTurn arrived through a rebuild
 });
 test('a move held while offline is refused on return when the clock ended the turn meanwhile', async () => {
   const { a, b, server, timers } = await pair();
@@ -142,6 +144,26 @@ test('a move held while offline is refused on return when the clock ended the tu
   await server.back('u0'); await settle(server);         // the held move lands late and is refused at index 0
   expect(a.view().followed!.actions).toEqual(['{"type":"endTurn"}']); expect(a.view().sending).toBe(false);
   expect(a.view().phase).toBe('playing'); expect(a.view().followed!.state.current).toBe(1);
+  expect(a.view().timedOut).toBe(0);
+});
+test('a resign that loses its index leaves the match playing', async () => {
+  await sharedBodies['a resign that loses its index leaves the match playing']!(fakeKit());
+});
+test('a resign that races the timeout is rolled back', async () => {
+  await sharedBodies['a resign that races the timeout is rolled back']!(fakeKit());
+});
+test('a move held across a drop is refused, rolled back and rebuilt', async () => {
+  await sharedBodies['a move held across a drop is refused, rolled back and rebuilt']!(fakeKit());
+});
+test('a return whose fresh read is refused still says this phone is here', async () => {
+  const { a, server, open } = await pair();
+  a.close(); await settle(server);
+  const as = server.as;
+  server.as = (uid) => ({ ...as(uid), readLive: async () => 'refused' as const });
+  const again = await open('u0');
+  expect(again.view().returning).toBe(false);
+  expect((server.tree() as any).rooms.ABC234.presence.u0.on).toBe(true);
+  expect(headOf(server).paused).toBe(0);                 // no credit without a fresh read
 });
 test('a reload mid-turn loses nothing that reached the database, and the clock resumes with the drop credited', async () => {
   const { a, server, timers, open } = await pair();
@@ -183,6 +205,15 @@ test('a different rules version, or a newer wire schema, is refused and nothing 
   expect(s.view().phase).toBe('version'); expect(s.view().remoteVersion).toBe(RULES_VERSION + 1);
   const t = await openAs('u1', 'DEF567'); await settle(server);
   expect(t.view().phase).toBe('version'); expect(t.view().remoteSchema).toBe(SCHEMA + 1);
+  expect(JSON.stringify(server.tree())).toBe(before);
+});
+test('a member reopening on another rules version is refused too, and writes nothing', async () => {
+  const { a, server, timers } = await pair();
+  a.close(); await settle(server);
+  const before = JSON.stringify(server.tree());
+  const s = openSession('ABC234', { net: server.as('u0'), ai: hanging(), build: 't', rulesVersion: RULES_VERSION + 1, setTimer: timers.setTimerFor('u0') }, () => {});
+  await settle(server);
+  expect(s.view().phase).toBe('version'); expect(s.view().remoteVersion).toBe(RULES_VERSION);
   expect(JSON.stringify(server.tree())).toBe(before);
 });
 test('a hash that disagrees pauses both phones', async () => {

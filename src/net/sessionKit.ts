@@ -9,7 +9,7 @@ import { hashState, legalActions, RULES_VERSION, type PlayerId } from '../engine
 import type { AiLevel } from '../ai/types';
 import { planTurn } from '../ai/plan';
 import type { AiClient } from '../app/aiClient';
-import { openSession, type Session, type SessionDeps } from '../online/session';
+import { openSession, type Session, type SessionDeps, type SessionPhase, type SessionView } from '../online/session';
 import { DROP_PAUSE_MS, encodeAction, makeRoomCode, type ClockSec, type Head, type RoomMeta } from '../online/wire';
 import { fakeServer, type FakeServer } from './fakeNet';
 import { EMU, fb, setOnline, watchConnected } from './firebase';
@@ -87,7 +87,15 @@ export const hanging = (): AiClient => ({ think: () => new Promise(() => {}), di
 
 const CODE = 'ABC234';
 const START = 1_000_000;
-const noop = (): void => {};
+const seen = new WeakMap<Session, SessionPhase[]>();
+/** Every phase a session opened by these helpers has shown, in order (repeats collapsed). */
+export function phasesSeen(s: Session): SessionPhase[] { return seen.get(s) ?? []; }
+function recorded(open: (onChange: (v: SessionView) => void) => Session): Session {
+  const phases: SessionPhase[] = [];
+  const s = open((v) => { if (phases.at(-1) !== v.phase) phases.push(v.phase); });
+  seen.set(s, phases);
+  return s;
+}
 
 // The fake logs full paths; the session tests read them relative to the room, as the patches spell them.
 function roomLog(raw: FakeServer): FakeServer {
@@ -97,7 +105,7 @@ function roomLog(raw: FakeServer): FakeServer {
 function opener(server: FakeServer, timers: ManualTimers, ai?: Partial<Record<string, AiClient>>) {
   return async (uid: string, code: string): Promise<Session> => {
     const deps: SessionDeps = { net: server.as(uid), ai: ai?.[uid] ?? thinker(), build: 't', setTimer: timers.setTimerFor(uid) };
-    const s = openSession(code, deps, noop);
+    const s = recorded((onChange) => openSession(code, deps, onChange));
     await settle(server);
     return s;
   };
@@ -212,7 +220,17 @@ export function fakeKit(): SessionKit {
       await settle(server);
     },
     head: async () => headOf(P().server),
-    until: async (pred, ms) => { await until(pred, ms); if (p) await settle(p.server); },
+    // Fake time moves only here: a quarter second per round once the fake has settled, so a body that waits for a
+    // clock (a backup timeout) sees the phones' tickers fire.
+    async until(pred, ms = 10_000) {
+      const end = Date.now() + ms;
+      for (;;) {
+        if (p) await settle(p.server); else await turn();
+        if (pred()) return;
+        if (Date.now() > end) throw new Error('until: the condition never held');
+        p?.timers.tick(250);
+      }
+    },
     closeAll: () => { for (const s of opened.splice(0)) s.close(); },
   };
 }
@@ -247,7 +265,7 @@ export function firebaseKit(k: number): SessionKit {
   let code = '';
   const opened: Session[] = [];
   const open = (who: 'a' | 'b'): Session => {
-    const s = openSession(code, { net: firebaseNet(names[who]), ai: thinker(), build: 't', setTimer: realTimer }, noop);
+    const s = recorded((onChange) => openSession(code, { net: firebaseNet(names[who]), ai: thinker(), build: 't', setTimer: realTimer }, onChange));
     opened.push(s);
     return s;
   };
@@ -283,6 +301,28 @@ export function firebaseKit(k: number): SessionKit {
     until: poll,
     closeAll: () => { for (const s of opened.splice(0)) s.close(); },
   };
+}
+
+// Ann's session stays open with its watcher, she acts, and the connection goes before the write lands (the SDK holds
+// it and shows it in the cache at once). Her turn and the pause both run out on the server, Ben's backup takes
+// index 0, and Ann comes back: her held write is refused, the cache rolls back, and her board is the database's.
+async function heldAgainstTimeout(kit: SessionKit, play: (s: Session) => void): Promise<void> {
+  const { a, b } = await kit.start();
+  await kit.until(() => a.view().myTurn && !b.view().returning);
+  play(a); kit.drop('a');
+  expect(a.view().sending).toBe(true);
+  await kit.until(() => b.view().absent.includes(0), 10_000);
+  await kit.rewind(310_000, { who: 'a', ms: 300_000 });           // the 120 s turn and the 180 s pause have run out
+  await kit.until(() => b.view().followed!.actions.length === 1 && b.view().followed!.state.current === 1, 10_000);
+  expect(b.view().followed!.actions).toEqual(['{"type":"endTurn"}']);
+  await kit.back('a');
+  await kit.until(() => !a.view().sending && !a.view().returning && a.view().followed!.actions.length === 1, 10_000);
+  expect(a.view().followed!.actions).toEqual(b.view().followed!.actions);
+  expect(hashState(a.view().followed!.state)).toBe(hashState(b.view().followed!.state));
+  expect(a.view().phase).toBe('playing'); expect(a.view().followed!.state.winner).toBeNull();
+  expect(a.view().timedOut).toBe(0);                              // the clock ended her turn: the timeUp line
+  expect(phasesSeen(a)).not.toContain('desync');                  // losing a race is not a broken match
+  expect(a.view().myTurn).toBe(false);
 }
 
 export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = {
@@ -324,6 +364,28 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
     await kit.until(() => b.view().followed?.state.current === 1, 10_000);
     expect(a.view().timedOut).toBe(0);
   },
+  'a resign that loses its index leaves the match playing': async (kit) => {
+    const { a, b } = await kit.start();
+    await kit.until(() => a.view().myTurn && b.view().phase === 'playing' && !b.view().returning);
+    const move = legalActions(a.view().followed!.state).find(x => x.type === 'move')!;
+    expect(b.resign()).toBe(true); kit.drop('b');                  // handed to the SDK, which holds it
+    expect(b.view().phase).toBe('over');                           // it wins locally at once
+    expect(a.act(move)).not.toBeNull(); await kit.until(() => !a.view().sending);   // Ann's move takes index 0
+    await kit.back('b');
+    await kit.until(() => !b.view().sending && !b.view().returning && b.view().followed!.actions.length === 1);
+    expect(b.view().followed!.actions).toEqual([encodeAction(move)]);
+    expect(b.view().phase).toBe('playing'); expect(b.view().followed!.state.winner).toBeNull();
+    expect(phasesSeen(b)).not.toContain('desync');                 // losing a race is not a broken match
+    expect(a.act({ type: 'endTurn' })).not.toBeNull();
+    await kit.until(() => b.view().myTurn);                        // Ben plays on
+  },
+  'a resign that races the timeout is rolled back': (kit) => heldAgainstTimeout(kit, (s) => {
+    expect(s.resign()).toBe(true);
+    expect(s.view().phase).toBe('over');
+  }),
+  'a move held across a drop is refused, rolled back and rebuilt': (kit) => heldAgainstTimeout(kit, (s) => {
+    expect(s.act(legalActions(s.view().followed!.state).find(x => x.type === 'move')!)).not.toBeNull();
+  }),
   'back from a drop keeps the turn': async (kit) => {
     const { a, b } = await kit.start();
     await kit.until(() => a.view().myTurn);
