@@ -590,6 +590,7 @@ input:focus { border-color: var(--blue); }
 .lobby-code .room-code { padding-left: 0.14em; /* the last letter's spacing, so the code sits in the middle */ }
 .lobby-code > button { width: min(100%, 300px); }
 .copied { font-size: var(--t-m); font-weight: 750; color: var(--grass-ink); }
+.copy-failed { font-size: var(--t-m); font-weight: 700; color: var(--ink); text-align: center; flex-basis: 100%; }
 /* Both seats: a banner, the name and the side, in the side's colour. */
 .lobby-seats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
 .lobby-seat {
@@ -642,18 +643,48 @@ input:focus { border-color: var(--blue); }
 /* A notice that asks (Update now?): the words take the whole width, the answers share the row under them. */
 .notice.asks > span { flex: 1 1 calc(100% - 40px); }
 .notice.asks > button { flex: 1 1 0; margin-left: 0; }
-/* The Hud's turn line: at most two lines in its corner, never squeezed to nothing; a very long name is cut. */
-.can-act[data-testid="hud-status"] {
-  min-width: 56px; flex: 0 1 auto; overflow: hidden; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
-}
+/* The Hud's turn line (online): the player's name never breaks inside itself (a long one is cut with an ellipsis),
+   and the rest of the sentence ("'s turn") stays whole, beside the name when there is room, else on the line under. */
+.can-act.hud-turn { display: block; flex: 0 1 auto; min-width: 64px; max-width: 120px; }
+.hud-turn .status-name { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* Plain text after the name, so the sentence wraps at its own space ("Ann's / turn") when that fits. */
+.hud-turn .status-rest { display: inline; }
+/* The round number in a word, or, where the Hud is short of room, the hourglass and the number alone. */
+.turn-short { display: none; }
 /* A short, narrow landscape phone keeps its one-row Hud with the clock in it: the clock keeps only its numbers and
-   takes the round pill's place (the round is on the Turn pill again once the clock is off). */
-@media (orientation: landscape) and (max-width: 700px) {
-  .hud.has-clock .pill.turn { display: none; }
+   the round pill only its hourglass and number. */
+@media (orientation: landscape) and (max-width: 700px), (max-width: 400px) {
+  .hud.has-clock .turn-full {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .hud.has-clock .turn-short { display: inline; }
+  .hud.has-clock .pill.turn { padding-left: 4px; }
+  .hud.has-clock .pill.turn .icon { display: block; width: 16px; height: 16px; }
   .pill.clock .icon { display: none; }
   .pill.clock { padding-left: 8px; }
-  .can-act[data-testid="hud-status"] { max-width: 72px; }
+  .can-act.hud-turn { max-width: 84px; }
+}
+@media (orientation: landscape) and (max-width: 700px) {
+  /* The viewer's own name gives way first, down to its first few letters. */
+  .hud.has-clock > .hud-status { flex-shrink: 1; min-width: 0; }
+  .hud.has-clock > .hud-actions { flex-shrink: 0; }
+  .hud.has-clock .hud-who { min-width: 72px; flex: 0 1 auto; gap: 4px; }
+  .hud.has-clock .hud-who .banner-mark { width: 26px; height: 26px; }
+  .hud.has-clock .pill { padding-right: 5px; }
+  .hud.has-clock .hud-name { min-width: 0; }
+  .hud.has-clock .hud-numbers { flex: none; }
+  .hud.has-clock .can-act.hud-turn { width: 52px; min-width: 52px; max-width: 52px; }
+  .hud.has-clock { padding-left: 4px; padding-right: 4px; }
+  .hud.has-clock .tool { width: 44px; }
+  .hud.has-clock .hud-numbers { gap: 3px; }
+  /* A few pixels from every gap and the slimmer End turn, so the clock fits beside the round. */
+  .hud.has-clock { column-gap: 6px; }
+  .hud.has-clock .hud-actions { gap: 4px; }
+  .hud.has-clock .end-turn { min-width: 80px; padding: 0 6px var(--thick); }
+  .hud.has-clock .pill.clock { padding: 0 6px; }
+  .hud.has-clock .pill.clock.paused { font-size: var(--t-xs); padding: 0 5px; }
+  .hud.has-clock .pill.turn { padding-right: 6px; }
 }
 /* A short screen: the room code, its label and the invite on one row. */
 @media (max-height: 500px) {

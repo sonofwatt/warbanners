@@ -8,8 +8,21 @@ export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
   unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean; thinking?: boolean;
   // Online: whose turn it is, in place of the units-to-act line, and the turn clock as m:ss (or Paused).
-  status?: string; clock?: string; clockPaused?: boolean;
+  // `statusName`, when the status names a player, is drawn on a line of its own and cut with an ellipsis if it is
+  // long, so the rest of the sentence ("'s turn") is never cut.
+  status?: string; statusName?: string; clock?: string; clockPaused?: boolean;
   onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void; onNextUnit: () => void;
+}
+
+// The status with the player's name in a span of its own: one line, cut at its end when there is no room.
+function statusParts(status: string, name: string | undefined): ReactElement | string {
+  const at = name === undefined || name === '' ? -1 : status.indexOf(name);
+  if (at < 0 || name === undefined) return status;
+  return (
+    <>
+      {status.slice(0, at)}<span className="status-name">{name}</span><span className="status-rest">{status.slice(at + name.length)}</span>
+    </>
+  );
 }
 
 // One strip: who is playing (their banner, name and people), their purse and the turn, then the buttons, with
@@ -38,7 +51,8 @@ export function Hud(p: HudProps): ReactElement {
           </span>
           <span className="pill turn">
             <HourglassIcon />
-            <span data-testid="turn">{`${T.ui.turn} ${p.round}`}</span>
+            <span data-testid="turn" className="turn-full">{`${T.ui.turn} ${p.round}`}</span>
+            <span className="turn-short" aria-hidden="true">{p.round}</span>
           </span>
           {p.clock !== undefined ? (
             <span className={p.clockPaused === true ? 'pill clock paused' : 'pill clock'}>
@@ -63,7 +77,12 @@ export function Hud(p: HudProps): ReactElement {
         </div>
         <div className="hud-end">
           {p.status !== undefined
-            ? <small data-testid="hud-status" className="can-act some" role="status">{p.status}</small>
+            ? (
+              // The sentence is drawn in two parts; the reader hears it whole.
+              <small data-testid="hud-status" className="can-act some hud-turn" role="status" aria-label={p.status}>
+                {statusParts(p.status, p.statusName)}
+              </small>
+            )
             : p.thinking === true
             ? <small data-testid="thinking" className="can-act some" role="status">{T.ai.thinking}</small>
             : <small data-testid="can-act" className={p.unitsToAct > 0 ? 'can-act some' : 'can-act'}>{act}</small>}

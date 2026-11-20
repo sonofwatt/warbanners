@@ -189,13 +189,13 @@ test('version and connection messages name both versions', () => {
 test('the menu offers resign on the other player\'s turn and says the match waits', () => {
   const html = render(guestMatch({ menuOpen: true }));
   expect(html).toContain('data-testid="resign"'); expect(html).toContain(T.ui.homeWaits);
-  expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*data-testid="resign"/);
+  expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*data-testid="resign"|<button[^>]*data-testid="resign"[^>]*disabled=""/);
 });
 
 // ---- beyond the brief's list ----
 
 test('the Hud names whose turn it is in hud-status, and the host on its own turn sees Your turn', () => {
-  expect(render(guestMatch())).toMatch(/data-testid="hud-status"[^>]*>[^<]*Ann/);
+  expect(render(guestMatch())).toMatch(/data-testid="hud-status"[^>]*><span class="status-name">Ann</);
   const mine = render(hostMatch());
   expect(mine).toMatch(new RegExp(`data-testid="hud-status"[^>]*>${T.ui.yourTurn}<`));
   expect(mine).toContain('data-testid="clock"');
@@ -234,4 +234,23 @@ test('the result has its test id', () => {
   store.getState().ready();
   store.getState().run({ type: 'resign' });
   expect(render(store)).toContain('data-testid="result"');
+});
+
+// ---- fix round 1 ----
+
+test('the update notice for a lobby with nobody in it yet names no one', () => {
+  const store = homeWith({ onlineEntries: [entry('ABC234', { names: ['Ann', ''] })] });
+  store.setState({ notice: 'updateDuringOnline', update: { offlineReady: false, updateReady: true } });
+  const html = render(store);
+  expect(html).toContain(T.ui.updateDuringLobby); expect(html).not.toContain('with  is');
+});
+test('a version refusal with no rules number says so without a made-up number', () => {
+  const store = storeWith();
+  store.setState({ screen: 'join', mode: 'online', online: view(room(), { phase: 'version', me: 'u9', mySeat: null, hostIsMe: false }) });
+  const html = render(store);
+  expect(html).toContain(T.ui.rulesDiffer); expect(html).not.toContain('rules 0');
+});
+test('the turn line keeps the name apart from the sentence, and the own turn waits for the connection', () => {
+  expect(render(guestMatch())).toMatch(/data-testid="hud-status"[^>]*><span class="status-name">Ann<\/span><span class="status-rest">'s turn<\/span>/);
+  expect(render(hostMatch({ connected: false }))).toMatch(new RegExp(`data-testid="hud-status"[^>]*>${T.ui.yourTurnWaits}<`));
 });

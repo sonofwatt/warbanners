@@ -164,7 +164,7 @@ const ui = {
   newerBuild: 'This match was made by a newer version of the game. Update the game to join it.',
   goUpdate: 'Update the game',
   olderVersion: 'This match uses rules {theirs}, and this phone has rules {mine}. It cannot be continued on this version.',
-  theirTurn: "{name}'s turn", yourTurn: 'Your turn', connecting: 'Connecting',
+  theirTurn: "{name}'s turn", yourTurn: 'Your turn', yourTurnWaits: 'Your turn, once online', connecting: 'Connecting',
   reconnecting: 'No connection. Your match is safe and will carry on when you are back online.',
   dropped: '{name} has lost their connection. The clock is paused.',
   droppedWaiting: '{name} has lost their connection.',
@@ -172,6 +172,8 @@ const ui = {
   clockPaused: 'Paused', timeUp: 'Time ran out, so the turn ended.',
   desync: 'Your phones disagree about the match, so it is paused. Make sure both phones have the latest version, then reopen the match.',
   onlineWith: 'Online with {name}', homeWaits: 'The match will wait for you.',
+  updateDuringLobby: 'You have an online lobby open. If this update changes the rules, its match cannot be played. Update now?',
+  copyFailed: 'The link could not be sent from here. Read the room code out to the other player instead.',
   // Ours, beyond the plan's list: every refusal the session can report gets a sentence, and Home's online rows a few words.
   roomStarted: 'That match has already started.',
   joinRefused: 'The server did not let this phone in. Try again in a moment.',

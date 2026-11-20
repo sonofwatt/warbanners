@@ -30,13 +30,18 @@ function Seat({ room, seat, mine }: { room: Room; seat: PlayerId; mine: boolean 
   );
 }
 
-// Sends the invite: the share sheet where the phone has one, otherwise the link goes on the clipboard.
+// Sends the invite: the share sheet where the phone has one (closing it is the player's choice, not a failure),
+// otherwise the link goes on the clipboard.
 async function share(link: string): Promise<'shared' | 'copied' | 'failed'> {
-  try {
-    if (typeof navigator.share === 'function') {
+  if (typeof navigator.share === 'function') {
+    try {
       await navigator.share({ title: T.ui.appName, text: T.ui.inviteText, url: link });
       return 'shared';
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return 'shared';
     }
+  }
+  try {
     await navigator.clipboard.writeText(link);
     return 'copied';
   } catch {
@@ -55,6 +60,7 @@ export function Lobby(): ReactElement | null {
   const notice = useApp((s) => s.notice);
   const dismissNotice = useApp((s) => s.dismissNotice);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   useEffect(() => {
     if (!copied) return undefined;
     const t = setTimeout(() => setCopied(false), COPIED_MS);
@@ -65,7 +71,7 @@ export function Lobby(): ReactElement | null {
   const host = online.hostIsMe;
   const full = room.seats[0] !== null && room.seats[1] !== null;
   const shareLink = link ?? `${typeof location === 'undefined' ? '' : location.origin + location.pathname}?room=${room.code}`;
-  const onShare = (): void => { void share(shareLink).then((r) => { if (r === 'copied') setCopied(true); }); };
+  const onShare = (): void => { void share(shareLink).then((r) => { setCopied(r === 'copied'); setCopyFailed(r === 'failed'); }); };
   return (
     <div className="screen setup lobby">
       <h1>{T.ui.onlineTitle}</h1>
@@ -76,6 +82,7 @@ export function Lobby(): ReactElement | null {
         <strong className="room-code" data-testid="room-code">{room.code}</strong>
         <button type="button" className="primary" data-testid="share-invite" onClick={onShare}>{T.ui.shareInvite}</button>
         {copied ? <small className="copied" role="status" data-testid="copied">{T.ui.copied}</small> : null}
+        {copyFailed ? <small className="copy-failed" role="status" data-testid="copy-failed">{T.ui.copyFailed}</small> : null}
       </div>
       <ul className="lobby-seats">
         <Seat room={room} seat={0} mine={online.mySeat === 0} />

@@ -223,12 +223,16 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
 
   // Online: whose turn, the clock, the line over the board, and the sheet a desync puts over it all.
   let status: string | undefined;
+  let statusName: string | undefined;
   let clock: string | undefined;
   let line: OnlineLine = null;
   if (isOnline) {
     const settled = online !== null && online.connected && !online.returning;
-    // Whose turn, always: the line over the board says when the connection is the trouble.
-    status = state.current === viewer ? T.ui.yourTurn : fill(T.ui.theirTurn, { name: nameOf(state.current) });
+    // Whose turn, always. On the player's own turn while the connection is down (or the return has not landed), End
+    // turn is greyed, so the status says the turn waits for the connection; the line over the board says why.
+    status = state.current !== viewer ? fill(T.ui.theirTurn, { name: nameOf(state.current) })
+      : settled ? T.ui.yourTurn : T.ui.yourTurnWaits;
+    if (state.current !== viewer) statusName = nameOf(state.current);
     if (online !== null && online.clock.kind !== 'off' && online.secondsLeft !== null && state.winner === null) {
       clock = online.clock.kind === 'paused' ? T.ui.clockPaused : formatClock(online.secondsLeft);
     }
@@ -254,7 +258,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
         unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting} thinking={aiBusy && !isOnline}
-        status={status} clock={clock} clockPaused={online?.clock.kind === 'paused'}
+        status={status} statusName={statusName} clock={clock} clockPaused={online?.clock.kind === 'paused'}
         nextDisabled={nextDisabled} onNextUnit={onNextUnit}
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />

@@ -116,8 +116,9 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
   const sorted = [...saves].sort((x, y) => y.updatedAt - x.updatedAt);
   const blocked = onlineBlocked();
   // The update notice names the online match it would put at risk.
-  const going = onlineList.find((e) => !e.over);
-  const goingWith = going === undefined ? '' : going.names[going.seat === 0 ? 1 : 0] ?? '';
+  const other = (e: OnlineEntry): string => e.names[e.seat === 0 ? 1 : 0] ?? '';
+  const going = onlineList.find((e) => !e.over && other(e) !== '');
+  const goingWith = going === undefined ? '' : other(going);
   return (
     <div className="screen home">
       <header className="home-hero">
@@ -130,6 +131,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
       {notice === 'updateDuringOnline' ? (
         <NoticeLine
           notice={notice} onDismiss={dismissNotice} values={{ name: goingWith }}
+          text={going === undefined ? T.ui.updateDuringLobby : undefined}
           action={{ label: T.ui.updateButton, testid: 'update-anyway', onClick: () => applyUpdate(true) }}
         />
       ) : notice !== null ? <NoticeLine notice={notice} onDismiss={dismissNotice} /> : null}

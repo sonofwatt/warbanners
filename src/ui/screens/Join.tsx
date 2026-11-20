@@ -60,9 +60,12 @@ function RoomEntry({ v }: { v: SessionView }): ReactElement {
   const room = v.room;
 
   if (v.phase === 'version') {
-    const newer = v.remoteSchema !== null || (v.remoteVersion ?? 0) > RULES_VERSION;
+    // Without either number (never expected) the words name no rules, and the update is still offered.
+    const known = v.remoteSchema !== null || v.remoteVersion !== null;
+    const newer = !known || v.remoteSchema !== null || (v.remoteVersion ?? 0) > RULES_VERSION;
     const text = v.remoteSchema !== null ? T.ui.newerBuild
-      : fill(newer ? T.ui.newerVersion : T.ui.olderVersion, { theirs: v.remoteVersion ?? 0, mine: RULES_VERSION });
+      : v.remoteVersion === null ? T.ui.rulesDiffer
+      : fill(newer ? T.ui.newerVersion : T.ui.olderVersion, { theirs: v.remoteVersion, mine: RULES_VERSION });
     return (
       <>
         <Problem text={text} />
