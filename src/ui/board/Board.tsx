@@ -72,6 +72,7 @@ function variantOf(k: HexKey): number {
 // Pieces drawn smaller toward the back of a tile, and in front of it, when two share a tile.
 const BACK = 'translate(1 -5) scale(0.8)';
 const FRONT = 'translate(2 6) scale(0.72)';
+const BESIDE = 'translate(17 1) scale(0.75)';    // a treasure under a unit: off to the side, clear of the figure
 
 /**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
@@ -81,8 +82,9 @@ const FRONT = 'translate(2 6) scale(0.72)';
  * - game in a forest, ore on a mountain and a treasure in a forest share the tile: the
  *   terrain feature smaller at the back, the resource or chest smaller in front.
  * - a road is drawn under everything.
+ * - a treasure under a unit is drawn small beside the figure, so a unit waiting to claim it never hides it.
  */
-export function TileArt(p: { k: HexKey; tile: Tile }): ReactElement {
+export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): ReactElement {
   const { tile } = p;
   const v = variantOf(p.k);
   const feature = tile.terrain === 'water' || tile.terrain === 'field' ? null : <TerrainFeature terrain={tile.terrain} variant={v} />;
@@ -100,8 +102,18 @@ export function TileArt(p: { k: HexKey; tile: Tile }): ReactElement {
   } else if (tile.village) {
     art = <Village />;
   } else {
-    const item = tile.treasure ? <Treasure /> : tile.resource !== null ? <ResourceMark resource={tile.resource} /> : null;
-    if (feature !== null && item !== null) {
+    const beside = tile.treasure && p.occupied === true;
+    const item = tile.treasure
+      ? <g data-treasure={beside ? 'beside' : 'centre'}><Treasure /></g>
+      : tile.resource !== null ? <ResourceMark resource={tile.resource} /> : null;
+    if (beside) {
+      art = (
+        <>
+          {feature}
+          <g transform={BESIDE}>{item}</g>
+        </>
+      );
+    } else if (feature !== null && item !== null) {
       art = (
         <>
           <g transform={BACK}>{feature}</g>
@@ -154,7 +166,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
     <>
       <TileBase ground={groundFor(t.tile, t.city !== null)} />
       {t.tile.road && t.city === null ? <Road links={t.roadLinks} /> : null}
-      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} />}
+      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} />}
     </>
   );
   return (
