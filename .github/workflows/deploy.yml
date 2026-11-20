@@ -37,10 +37,25 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # Java for the Firebase database emulator that `npm run test:emu` starts.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      # The emulator jars firebase-tools downloads on first use, keyed on the lockfile so a
+      # firebase-tools bump fetches the jars that version expects.
+      - name: Cache the Firebase emulators
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: firebase-emulators-${{ runner.os }}-
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      # The whole unit suite plus the emulator suites, which gate on EMULATOR=1 and otherwise
+      # SKIP. src/net/emulatorCoverage.test.ts fails if this stops being `npm run test:emu`.
+      - run: npm run test:emu
       # The browser suites gate on BROWSER=1 and otherwise SKIP, which reports
       # green. Without the next two steps they would never run here;
       # src/browser/coverage.test.ts fails if either goes away.

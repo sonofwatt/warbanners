@@ -1,0 +1,12 @@
+{
+  "database": { "rules": "database.rules.json" },
+  "auth": { "providers": { "anonymous": true } },
+  "emulators": {
+    "database": { "port": 9010 },
+    "auth": { "port": 9110 },
+    "hub": { "port": 4410 },
+    "logging": { "port": 4510 },
+    "ui": { "enabled": false },
+    "singleProjectMode": false
+  }
+}

@@ -4,3 +4,8 @@ node_modules/
 dist/
 test-results/
 .worktrees/
+database-debug.log
+firebase-debug.log
+auth-debug.log
+.firebase/
+dist-emu/
