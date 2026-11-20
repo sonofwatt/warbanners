@@ -27,20 +27,24 @@ function hasRoadOrCity(s: MatchState, k: HexKey): boolean {
   return tileAt(s, k)?.road === true || cityAt(s, k) !== undefined;
 }
 
-// rules 2 and 9: tile it may stop on -> half-points left on arrival
+// rules 2, 9 and 13: tile it may stop on -> half-points left on arrival. A move may end on one tile its owner had
+// not explored when the move began, never pass through one; only scouting riders keep movement after it.
 export function reachable(s: MatchState, unitId: number): Record<HexKey, number> {
   const u = unitById(s, unitId);
   if (u === undefined) return {};
   if (u.fresh || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
+  const explored = new Set(s.players[u.owner]!.explored);
+  const keepsMoveInFog = mounted && faction.scoutingRiders;
+  const fog = new Set<HexKey>();                            // unexplored tiles reached: ends of moves only
   const best = new Map<HexKey, number>([[u.pos, u.mp]]);
   const done = new Set<HexKey>();
   for (;;) {
     let from: HexKey | null = null;
     let left = 0;
     for (const [k, v] of best) {
-      if (!done.has(k) && v > 0 && (from === null || v > left)) { from = k; left = v; }
+      if (!done.has(k) && !fog.has(k) && v > 0 && (from === null || v > left)) { from = k; left = v; }
     }
     if (from === null) break;
     done.add(from);
@@ -72,6 +76,10 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
         after = 0;
       }
       if (nextToEnemy(s, u.owner, to)) after = 0;
+      if (!explored.has(to)) {
+        fog.add(to);
+        if (!keepsMoveInFog) after = 0;
+      }
       if (after > (best.get(to) ?? -1)) best.set(to, after);
     }
   }

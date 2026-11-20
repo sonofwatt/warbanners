@@ -150,3 +150,26 @@ test('inherited property names are refused as move targets', () => {
   }
   expect(hashState(s)).toBe(before);
 });
+test('a move may end on one unexplored tile but never pass through one (rules 9)', () => {
+  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0);            // Spartan knight, 6 half-points
+  s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];
+  const r = reachable(s, k.id);
+  expect(r['1,0']).toBe(4);                                                     // explored: as before
+  expect(r['2,0']).toBe(0);                                                     // the first unexplored tile: it stops there
+  expect(r['3,0']).toBeUndefined();                                             // only through an unexplored tile
+  expect(Object.keys(r).filter((h) => !s.players[0]!.explored.includes(h)).every((h) => r[h] === 0)).toBe(true);
+});
+test('a Spartan unit that steps into the fog has no movement left', () => {
+  const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 4 });
+  s.players[0]!.explored = ['0,0'];
+  expect(reachable(s, h.id)).toEqual({ '-1,0': 0, '-1,1': 0, '0,-1': 0, '0,1': 0, '1,-1': 0, '1,0': 0 });
+  const t = must(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }));
+  expect(unitById(t, h.id)).toMatchObject({ pos: '1,0', mp: 0 });
+  expect(t.players[0]!.explored).toContain('2,0');                              // it looked around
+  expect(reachable(t, h.id)).toEqual({});
+});
+test('the explored set is the one from before the move: a second fog step needs a second move', () => {
+  const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 4 });
+  s.players[0]!.explored = ['0,0'];
+  expect(applyAction(s, { type: 'move', unit: h.id, to: '2,0' }).ok).toBe(false);
+});

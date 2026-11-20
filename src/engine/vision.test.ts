@@ -14,41 +14,41 @@ const NESTED: [Same<ObjectKeys<Tile>, never>, Same<ObjectKeys<Unit>, 'lure'>, Sa
 
 describe('vision', () => {
   test('a warrior sees one tile, two from a mountain', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 0, 0);
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 0, 0);
     expect(visibleTiles(s, 0).size).toBe(7);
     setTile(s, 0, 0, { terrain: 'mountain' });
     expect(visibleTiles(s, 0).size).toBe(19);
   });
   test('a city sees its radius plus one', () => {
-    const s = blankMatch(); addCity(s, 0, 0, 0);
+    const s = blankMatch({ unexplored: true }); addCity(s, 0, 0, 0);
     expect(visibleTiles(s, 0).size).toBe(19);
   });
   test('explored tiles stay explored', () => {
-    const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0);
+    const s = blankMatch({ unexplored: true }); const u = addUnit(s, 'warrior', 0, 0, 0);
     refreshExplored(s, 0); u.pos = '3,0'; refreshExplored(s, 0);
     expect(s.players[0]!.explored).toContain('0,0');
     expect(s.players[0]!.explored).toContain('4,0');
     expect([...s.players[0]!.explored]).toEqual([...s.players[0]!.explored].sort());
   });
   test('refreshing twice adds no duplicates', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 0, 0);
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 0, 0);
     refreshExplored(s, 0); refreshExplored(s, 0);
     expect(s.players[0]!.explored.length).toBe(7);
   });
   test('hidden scout is seen only from next to it', () => {
-    const s = blankMatch(); const scout = addUnit(s, 'scout', 0, 2, 0);
+    const s = blankMatch({ unexplored: true }); const scout = addUnit(s, 'scout', 0, 2, 0);
     addUnit(s, 'horseman', 1, 0, 0);
     expect(canSeeUnit(s, 1, scout)).toBe(false);
     addUnit(s, 'warrior', 1, 1, 0);
     expect(canSeeUnit(s, 1, scout)).toBe(true);
   });
   test('a city next to a hidden unit reveals it', () => {
-    const s = blankMatch(); const scout = addUnit(s, 'scout', 0, 2, 0);
+    const s = blankMatch({ unexplored: true }); const scout = addUnit(s, 'scout', 0, 2, 0);
     addCity(s, 1, 3, 0);
     expect(canSeeUnit(s, 1, scout)).toBe(true);
   });
   test('a city sees a hidden unit standing on its own tile, and one next to it', () => {
-    const s = blankMatch(); s.current = 1;
+    const s = blankMatch({ unexplored: true }); s.current = 1;
     const onCity = addUnit(s, 'scout', 0, 2, 0); const beside = addUnit(s, 'scout', 0, -1, 0);
     addCity(s, 1, 2, 0); addCity(s, 1, -2, 0);
     const guard = addUnit(s, 'warrior', 1, 3, 0, { blinded: true });   // blinded: it spots nothing itself
@@ -58,32 +58,32 @@ describe('vision', () => {
     expect(attackTargets(s, guard.id)).toEqual(['2,0']);
   });
   test('a blinded neighbour does not reveal a hidden unit', () => {
-    const s = blankMatch(); const scout = addUnit(s, 'scout', 0, 2, 0);
+    const s = blankMatch({ unexplored: true }); const scout = addUnit(s, 'scout', 0, 2, 0);
     addUnit(s, 'horseman', 1, 0, 0);
     addUnit(s, 'warrior', 1, 1, 0, { blinded: true });
     expect(canSeeUnit(s, 1, scout)).toBe(false);
   });
   test('own units are always seen', () => {
-    const s = blankMatch(); const u = addUnit(s, 'scout', 0, 2, 0, { blinded: true });
+    const s = blankMatch({ unexplored: true }); const u = addUnit(s, 'scout', 0, 2, 0, { blinded: true });
     expect(canSeeUnit(s, 0, u)).toBe(true);
   });
   test('a blinded unit gives no vision', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 0, 0, { blinded: true });
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 0, 0, { blinded: true });
     expect(visibleTiles(s, 0).size).toBe(0);
   });
   test('tiles off the map are never visible', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 4, 0);
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 4, 0);
     expect(visibleTiles(s, 0).has('5,0')).toBe(false);
     expect(visibleTiles(s, 0).size).toBe(4);
   });
   test('playerView leaves out what the player cannot see', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 3, 0); refreshExplored(s, 0);
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 3, 0); refreshExplored(s, 0);
     const v = playerView(s, 0);
     expect(v.units.map(u => u.owner)).toEqual([0]);
     expect(v.tiles['3,0']).toBeUndefined();
   });
   test('playerView shows seen enemies and cities on explored tiles, with copied tiles', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0);
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0);
     addCity(s, 1, 0, 1); addCity(s, 1, 4, 0); refreshExplored(s, 0);
     const v = playerView(s, 0);
     expect(v.units.length).toBe(2);
@@ -118,7 +118,7 @@ describe('vision', () => {
     expect(s.players[1]!.explored.length).toBeGreaterThan(0);
   });
   test('applyAction refreshes explored for living players only', () => {
-    const s = blankMatch(); addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 3, 0);
+    const s = blankMatch({ unexplored: true }); addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 3, 0);
     s.players[1]!.alive = false;
     HANDLERS.endTurn = () => null;
     try {

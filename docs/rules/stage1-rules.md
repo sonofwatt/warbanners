@@ -158,6 +158,12 @@ Starting unit: Spartans a Warrior, Mongols a Horseman.
 - One unit per tile. You may pass through your own units but not stop on them. You
   may not enter a tile holding an enemy unit.
 - Engagement: entering a tile next to an enemy unit uses up the rest of the move.
+- Into the fog: a single move may enter at most one tile its owner had not explored
+  when the move began, and only as the last tile of the move; a path never passes
+  through an unexplored tile. The unit stops there and its owner explores what it
+  now sees. It then has no movement left this turn, except a Mongol scouting rider
+  (see 13). Costs, engagement, forest, mountain, roads and relay riders apply as
+  usual.
 - After attacking, a unit cannot move, unless it has `retreat`, which keeps
   whatever movement it had left.
 - A unit trained or spawned this turn is fresh until its owner's next turn starts:
@@ -280,6 +286,9 @@ Mongols
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
 - Mounted Mongol units have +1 movement. Entering a forest costs them the normal
   forest cost and then uses up the rest of their move.
+- Scouting riders: a mounted Mongol unit that ends a move on a tile its owner had
+  not explored keeps whatever movement that move left it, and may move again this
+  turn from there under the same rule (see 9).
 - Relay riders: for Mongol units, entering any tile inside Mongol territory costs
   1 half-point.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.

@@ -37,7 +37,7 @@ test('each reward does what rules 6 says', () => {
   expect(applyAction(t, { type: 'chooseReward', city: c.id, choice: 0 }).ok).toBe(false);
 });
 test('scout reward explores every tile within 3, sorted and without duplicates', () => {
-  const s = blankMatch({ radius: 6 }); const c = addCity(s, 0, 0, 0, { level: 2, pendingRewards: [2] });
+  const s = blankMatch({ radius: 6, unexplored: true }); const c = addCity(s, 0, 0, 0, { level: 2, pendingRewards: [2] });
   const r = applyAction(s, { type: 'chooseReward', city: c.id, choice: 1 });
   const t = must(r);
   expect(t.players[0]!.explored).toContain('3,0'); expect(t.players[0]!.explored).toContain('-3,3');

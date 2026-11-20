@@ -7,10 +7,11 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules version 2 (treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost)
+  // re-pinned for rules version 2 (treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
+  // one unexplored tile per move); seed 7 did not change with the last
   [7, 160, 105, '235245564f95a1ab', '46fe6d2edf0d6633', '6837b8c501f02708'],
-  [1, 200, 277, '70cbac528c62a009', '5117160e3536f74b', '8d8c11847456b687'],
-  [3, 90, 39, '076da221e267ea48', '2d0470742f84cd9d', 'd4269b9e34a9464d'],
+  [1, 200, 131, 'b41b4777387f3602', 'aae08ce8475a70c3', '16e7cdb34174f2dc'],
+  [3, 90, 26, '86498899224de5e0', '40693b682c85f3d7', '6b92506b56ba1cd6'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -20,7 +21,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 30_000);
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(2, 192);              // re-picked when the Mongol forest rule changed: seed 7 no longer reaches 25
+  const s = randomPlayout(6, 128);              // re-picked for the fog rule (rules 9): seed 2 no longer reaches 25 at 192
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {

@@ -50,7 +50,7 @@ test('the deadline ends the turn early with legal actions', () => {
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 30_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(2, 192), 0);         // 25 units; seed 7 no longer reaches 25 after the forest rule
+  const input = aiInputFor(randomPlayout(6, 128), 0);         // 25 units; re-picked for the fog rule (rules 9)
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);

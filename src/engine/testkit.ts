@@ -8,7 +8,9 @@ import type {
   Action, City, FactionId, MatchState, PlayerId, Result, TechId, Tile, Unit, UnitTypeId,
 } from './types';
 
-export function blankMatch(opts?: { radius?: number; factions?: [FactionId, FactionId] }): MatchState {
+// Every tile starts explored by both players (rules 9: a move may not pass through an unexplored tile), unless
+// `unexplored` is set, which leaves both explored sets empty.
+export function blankMatch(opts?: { radius?: number; factions?: [FactionId, FactionId]; unexplored?: boolean }): MatchState {
   const radius = opts?.radius ?? 4;
   const factions = opts?.factions ?? ['spartans', 'mongols'];
   const tiles: Record<string, Tile> = {};
@@ -21,7 +23,7 @@ export function blankMatch(opts?: { radius?: number; factions?: [FactionId, Fact
   return {
     rulesVersion: RULES_VERSION, seed: 0, rng: 1, radius, tiles, cities: [], units: [],
     players: factions.map((faction, i) => ({
-      id: i, faction, gold: 20, techs: [], explored: [], alive: true, turnsTaken: 0,
+      id: i, faction, gold: 20, techs: [], explored: opts?.unexplored === true ? [] : Object.keys(tiles).sort(), alive: true, turnsTaken: 0,
     })),
     current: 0, stamp: 5, nextUnitId: 0, nextCityId: 0, winner: null,
   };
