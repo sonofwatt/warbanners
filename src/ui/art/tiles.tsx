@@ -110,9 +110,11 @@ export function Highlight(p: { mark: Mark }): ReactElement {
   switch (p.mark) {
     case 'move':
       return (
+        // A small white ring on a dark band, open in the middle, so a building or a resource on the
+        // tile still shows through it; small and white, it never reads as an attack or ability ring.
         <g>
-          <ellipse cx={0} cy={1.4} rx={10.4} ry={6.8} fill={UNDER} fillOpacity={0.45} />
-          <ellipse cx={0} cy={0} rx={9.2} ry={5.8} fill="#FFFFFF" fillOpacity={0.95} />
+          <ellipse cx={0} cy={1.2} rx={7.6} ry={4.7} fill="none" stroke={UNDER} strokeOpacity={0.5} strokeWidth={3.2} />
+          <ellipse cx={0} cy={0} rx={7.6} ry={4.7} fill="none" stroke="#FFFFFF" strokeWidth={3.2} />
         </g>
       );
     case 'attack':
