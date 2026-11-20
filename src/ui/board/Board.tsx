@@ -78,7 +78,8 @@ const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in
 /**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
  * - a building replaces what it was built on (a farm its cropland, a mine its ore and
- *   mountain); a lumber camp stands in front of a grove along the back of its forest.
+ *   mountain); a lumber camp (only ever built in a forest) stands in front of a grove along
+ *   the back of its forest.
  * - a village replaces the terrain feature; it only stands on field or forest.
  * - game or a treasure in a forest stands in front of a grove along the back of the tile;
  *   ore or a treasure on a mountain shares the tile: the mountain smaller at the back,
@@ -95,7 +96,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
     art =
       tile.building === 'lumberCamp' ? (
         <>
-          {tile.terrain === 'forest' ? <Grove variant={v} /> : feature}
+          <Grove variant={v} />
           <g transform={BEFORE_GROVE}><BuildingMark building="lumberCamp" /></g>
         </>
       ) : (
