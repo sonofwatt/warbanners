@@ -2,23 +2,17 @@
 import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Page } from 'playwright';
+import type { BrowserContext, Page } from 'playwright';
 import { build } from 'vite';
 import { describe, expect, test } from 'vitest';
+import { RULES_VERSION } from '../engine';
 import { T } from '../ui/text';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // The installed game with no connection, in a real browser with its service worker running.
 // Seed 7 facts (see flow.test.ts): Player 1 moves first with one Warrior (unit 0) on -2,5, which can move to -1,4.
 
 const SEED = '?seed=7';
-
-async function tapTile(page: Page, hex: string): Promise<void> {
-  const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-  if (box === null) throw new Error(`tile ${hex} has no box`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await frames(page);
-}
 
 const text = async (page: Page, id: string): Promise<string> => (await page.getByTestId(id).textContent()) ?? '';
 
@@ -55,13 +49,26 @@ async function installed(page: Page): Promise<void> {
   expect(await text(page, 'offline-ready')).toBe(T.ui.offlineReady);
 }
 
+// Every request and every WebSocket the browser opens, by URL. Playwright's request event does not report WebSockets,
+// and the Realtime Database talks over one, so both are watched, on every page the context opens.
+function watchNetwork(c: BrowserContext): { requests: string[]; sockets: string[] } {
+  const seen = { requests: [] as string[], sockets: [] as string[] };
+  c.on('request', (r) => { seen.requests.push(r.url()); });
+  c.on('page', (p) => { p.on('websocket', (ws) => { seen.sockets.push(ws.url()); }); });
+  return seen;
+}
+// Firebase's hosts, matched on the host name rather than anywhere in the URL.
+const FIREBASE_HOST = /(^|\.)(firebaseio\.com|firebasedatabase\.app|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|firebaseapp\.com)$/;
+const firebaseHosts = (urls: string[]): string[] => urls.filter((u) => FIREBASE_HOST.test(new URL(u).hostname));
+
 describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
   test('installed files, then no network: open, play, reload, resume', async () => {
-    const requests: string[] = [];
+    let seen: ReturnType<typeof watchNetwork> | null = null;
     const { page, context, origin, close } = await openApp(SEED, {
       serviceWorkers: 'allow',
-      beforeOpen: (c) => c.on('request', (r) => { requests.push(r.url()); }),
+      beforeOpen: (c) => { seen = watchNetwork(c); },
     });
+    const { requests, sockets } = seen!;
     try {
       await installed(page);
       // The worker covers the folder the game is served from (/warbanners/ on the live site), not more or less.
@@ -92,6 +99,60 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
 
       expect(requests.length).toBeGreaterThan(0);
       expect(requests.filter((u) => new URL(u).origin !== origin)).toEqual([]);
+      // Pass-the-phone play never talks to Firebase. (The worker precaches every chunk, the lazy Firebase one
+      // included, by design, so which scripts were fetched says nothing; the hosts asked are what counts.)
+      expect(firebaseHosts(requests)).toEqual([]);
+      expect(sockets).toEqual([]);
+    } finally {
+      await close();
+    }
+  });
+
+  test('solo against the AI, and Home with an online match listed, never contact Firebase, online or not', async () => {
+    // With the network up, so a request or a socket would really go out. A finished online match made on this phone
+    // a week ago is listed on Home: the sweep would delete it, but only once online play has loaded the network.
+    let seen: ReturnType<typeof watchNetwork> | null = null;
+    const { page, origin, close } = await openApp(SEED, { beforeOpen: (c) => { seen = watchNetwork(c); } });
+    const { requests, sockets } = seen!;
+    try {
+      await page.evaluate((rules) => {
+        localStorage.setItem('warbanners.online.v1', JSON.stringify([{
+          code: 'ABC234', seat: 0, names: ['Ann', 'Ben'], factions: ['spartans', 'mongols'], round: 4, current: 0,
+          over: true, rulesVersion: rules, createdHere: true, updatedAt: Date.now() - 7 * 86_400_000,
+        }]));
+      }, RULES_VERSION);
+      await page.reload();
+      await page.getByTestId('online-row').waitFor();
+
+      await page.getByTestId('new-match').tap();
+      await page.getByTestId('second-easy').tap();
+      await page.getByTestId('start').tap();
+      await page.getByTestId('match').waitFor();
+      await page.locator('[data-centre]').first().waitFor({ state: 'attached' });
+      await frames(page);
+      await tapTile(page, '-2,5');
+      await tapTile(page, '-1,4');
+      await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
+      await endTurn(page);
+      await expect.poll(() => page.getByTestId('turn').textContent(), { timeout: 10_000 }).toBe(`${T.ui.turn} 2`);
+
+      // Home and back to the match, twice over: each visit to Home is where the sweep would run.
+      for (let i = 0; i < 2; i++) {
+        await page.getByTestId('open-menu').tap();
+        await page.getByTestId('go-home').tap();
+        await page.getByTestId('online-row').waitFor();
+        await page.getByTestId('continue').tap();
+        await page.getByTestId('match').waitFor();
+      }
+      await page.getByTestId('open-menu').tap();
+      await page.getByTestId('go-home').tap();
+      await page.getByTestId('online-row').waitFor();
+      await page.waitForTimeout(1_000);                     // time for anything the sweep might have started
+
+      expect(requests.length).toBeGreaterThan(0);
+      expect(requests.filter((u) => new URL(u).origin !== origin)).toEqual([]);
+      expect(firebaseHosts(requests)).toEqual([]);
+      expect(sockets).toEqual([]);
     } finally {
       await close();
     }

@@ -8,9 +8,8 @@ import { FIGURES } from '../art/factionUnits';
 import { ACCENT, playerColour } from '../art/palette';
 import { TileBase } from '../art/tiles';
 import { HomeIcon, SwapIcon } from '../icons';
+import { MAX_NAME } from '../../online/wire';
 import { T, fill } from '../text';
-
-export const MAX_NAME = 16;
 
 // Each people shown by one of its own soldiers, in its colours.
 const FACE: Record<FactionId, UnitTypeId> = { spartans: 'hoplite', mongols: 'horseArcher' };

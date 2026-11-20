@@ -194,3 +194,30 @@ describe('claiming a treasure (rules 12)', () => {
     expect(canClaimTreasure(s, 'constructor' as unknown as number)).toBe(false);
   });
 });
+
+test('a player may resign out of turn, and only a real living player', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);
+  const t = must(applyAction(s, { type: 'resign', player: 1 }));
+  expect(t.winner).toBe(0); expect(t.players[1]!.alive).toBe(false); expect(t.current).toBe(0);
+  for (const player of [2, -1, 0.5, '1', null]) {
+    expect(applyAction(s, { type: 'resign', player } as never)).toEqual({ ok: false, reason: 'invalid player' });
+  }
+  expect(must(applyAction(s, { type: 'resign' })).winner).toBe(1);
+});
+
+test('a resign without a player is exactly the old resign', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);
+  const a = applyAction(s, { type: 'resign' }); const b = applyAction(s, { type: 'resign', player: s.current });
+  expect(a.ok && hashState(a.state)).toBe(b.ok && hashState(b.state));
+  expect(a.ok && a.events).toEqual(b.ok && b.events);
+});
+
+test('a resigning current player hands the turn on when others remain', () => {
+  const s = blankMatch(); s.players.push({ ...structuredClone(s.players[1]!), id: 2 });
+  addCity(s, 0, 0, 0); addCity(s, 1, 3, 0); addCity(s, 2, -3, 0);
+  const r = applyAction(s, { type: 'resign', player: 0 }); const t = must(r);
+  expect(t.winner).toBeNull(); expect(t.current).toBe(1);
+  const viaEnd = must(applyAction(s, { type: 'endTurn' }));
+  expect(t.stamp).toBe(viaEnd.stamp);
+  expect(r.ok && r.events.map(e => e.type)).toEqual(['eliminated', 'turnStarted']);
+});

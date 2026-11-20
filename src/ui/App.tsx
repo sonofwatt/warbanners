@@ -4,6 +4,9 @@ import { Version } from './Version';
 import { ArtSheet } from './art/ArtSheet';
 import { BoardDemo } from './board/BoardDemo';
 import { Home } from './screens/Home';
+import { Join } from './screens/Join';
+import { Lobby } from './screens/Lobby';
+import { OnlineSetup } from './screens/OnlineSetup';
 import type { HomeProps } from './screens/Home';
 import { Match } from './screens/Match';
 import { Pass } from './screens/Pass';
@@ -42,5 +45,8 @@ function Screens(home: HomeProps): ReactElement {
   if (screen === 'setup') return <main className="app"><Setup /></main>;
   if (screen === 'pass') return <main className="app"><Pass /></main>;
   if (screen === 'match') return <main className="app"><Match /></main>;
+  if (screen === 'onlineSetup') return <main className="app"><OnlineSetup /></main>;
+  if (screen === 'lobby') return <main className="app"><Lobby /></main>;
+  if (screen === 'join') return <main className="app"><Join /></main>;
   return <main className="app"><Result /></main>;
 }

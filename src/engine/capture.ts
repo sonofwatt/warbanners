@@ -4,6 +4,7 @@ import { key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { rngInt } from './rng';
 import { cityAt, firstFreeNeighbor, foundCity, removeUnit, spawnUnit, tileAt, unitById } from './state';
+import { passTurn } from './turn';
 import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
 
 // rules 12: a unit that entered its tile on an earlier turn and has not moved or acted this turn
@@ -100,7 +101,11 @@ export const claimTreasureHandler: Handler<Extract<Action, { type: 'claimTreasur
   return null;
 };
 
-export const resignHandler: Handler<Extract<Action, { type: 'resign' }>> = (s, _a, ev) => {
-  eliminate(s, s.current, ev);
+// `player` absent means the player whose turn it is. Anyone alive may resign, on their own turn or another's.
+export const resignHandler: Handler<Extract<Action, { type: 'resign' }>> = (s, a, ev) => {
+  const p = a.player === undefined ? s.current : a.player;
+  if (!Number.isInteger(p) || s.players[p]?.alive !== true) return 'invalid player';
+  eliminate(s, p, ev);
+  if (s.winner === null && p === s.current) passTurn(s, p, ev);
   return null;
 };

@@ -269,8 +269,7 @@ nothing.
   not yet chosen is dropped. City tribute is paid only by factions that have a
   tribute rule.
 - A player with no cities is eliminated and their units are removed. The last
-  player left wins. A player may resign at any time on their turn, which
-  eliminates them.
+  player left wins. Either player may resign at any time, on their own turn or the other's; resigning eliminates them.
 
 ## 13. Faction rules
 

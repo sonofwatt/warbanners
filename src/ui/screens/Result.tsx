@@ -26,6 +26,7 @@ export function Result(): ReactElement | null {
   const state = useApp((s) => s.state);
   const last = useApp((s) => s.last);
   const goHome = useApp((s) => s.goHome);
+  const sending = useApp((s) => s.mode === 'online' && s.online?.sending === true);
   const played = useRef<number | null>(null);
   useEffect(() => {
     const name = resultSound(last);
@@ -41,7 +42,7 @@ export function Result(): ReactElement | null {
   const colour = playerColour(faction);
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
-    <div className="screen result" style={style}>
+    <div className="screen result" style={style} data-testid="result">
       <div className="trophy">
         <div className="confetti" aria-hidden="true">
           {CONFETTI.map(([x, y, turn, c], i) => (
@@ -56,6 +57,7 @@ export function Result(): ReactElement | null {
         <p>{fill(T.ui.endedOn, { n: roundOf(state) })}</p>
         <p>{resigned ? T.ui.byResignation : T.ui.byLastCity}</p>
         {adaptive?.kind === 'ai' ? <p data-testid="ai-settled">{T.ai.settled(Math.round(adaptive.adapt.dial * 10))}</p> : null}
+        {sending ? <p className="online-line" data-testid="result-sending" role="status">{T.ui.sending}</p> : null}
       </div>
       <button type="button" className="primary big" data-testid="result-home" onClick={goHome}><HomeIcon />{T.ui.homeButton}</button>
     </div>

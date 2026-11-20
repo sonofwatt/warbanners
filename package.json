@@ -11,7 +11,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:browser": "vite build && cross-env BROWSER=1 vitest run src/browser/ai.test.ts && cross-env BROWSER=1 vitest run src/browser --exclude src/browser/ai.test.ts",
+    "test:online": "vite build --mode emu --outDir dist-emu && firebase emulators:exec --only database,auth --project demo-banners \"cross-env BROWSER=1 EMULATOR=1 vitest run src/browser/online.test.ts\"",
     "typecheck": "tsc --noEmit",
+    "emu": "firebase emulators:start --only database,auth --project demo-banners",
+    "test:emu": "firebase emulators:exec --only database,auth --project demo-banners \"cross-env EMULATOR=1 vitest run\"",
     "lint": "oxlint",
     "sim": "tsx scripts/sim.ts",
     "sim:ai": "tsx scripts/simai.ts",
@@ -19,11 +22,13 @@
     "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^24",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "cross-env": "^10.1.0",
+    "firebase-tools": "^15.28.1",
     "oxlint": "^1.75.0",
     "playwright": "^1.65.1",
     "tsx": "^4",
@@ -35,6 +40,7 @@
     "workbox-window": "^7.4.1"
   },
   "dependencies": {
+    "firebase": "^12.18.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zustand": "^5.1.0"
