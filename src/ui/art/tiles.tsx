@@ -126,15 +126,20 @@ export function Highlight(p: { mark: Mark }): ReactElement {
         </g>
       );
     case 'selected':
+      // White on a dark band, so the outline also reads on a city's pale sand and on snow.
       return (
-        <polygon
-          points={pts(shrink(topCorners(), 0.9))}
-          fill="#FFFFFF"
-          fillOpacity={0.18}
-          stroke="#FFFFFF"
-          strokeWidth={2.4}
-          strokeLinejoin="round"
-        />
+        <g>
+          <polygon
+            points={pts(shrink(topCorners(), 0.9))}
+            fill="#FFFFFF"
+            fillOpacity={0.18}
+            stroke={UNDER}
+            strokeOpacity={0.45}
+            strokeWidth={4.4}
+            strokeLinejoin="round"
+          />
+          <polygon points={pts(shrink(topCorners(), 0.9))} fill="none" stroke="#FFFFFF" strokeWidth={2.4} strokeLinejoin="round" />
+        </g>
       );
     case 'capture':
       return (
