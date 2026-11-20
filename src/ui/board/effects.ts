@@ -1,3 +1,4 @@
+import { playerView } from '../../engine';
 import type { GameEvent, HexKey, MatchState, PlayerId, UnitTypeId } from '../../engine';
 
 export type Effect =
@@ -10,6 +11,40 @@ export const EFFECT_MS = 450;
 export const MAX_TOTAL_MS = 1200;
 const STEP_MS = 120;
 const COUNTER_MS = 150;
+
+// What one viewer may be shown of one action: the tiles they see after it, and the units they could see before it
+// or can see after it. The match screen's effects and sound, and the pause after an AI action, all use this.
+// Each action is asked about twice (the store's pause, then the match screen), and working it out builds two whole
+// views: the answer is kept with the states of the action, which never change, and shared. Callers only read it.
+// Both states are held weakly (a WeakMap keyed by the state after, holding a WeakMap keyed by the state before),
+// so the answers never keep a match's earlier states alive.
+export interface Seen { visible: ReadonlySet<HexKey>; seenUnits: ReadonlySet<number> }
+const asked = new WeakMap<MatchState, WeakMap<MatchState, Map<PlayerId, Seen>>>();
+export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId): Seen {
+  let byBefore = asked.get(after);
+  if (byBefore === undefined) asked.set(after, (byBefore = new WeakMap()));
+  let byViewer = byBefore.get(before);
+  if (byViewer === undefined) byBefore.set(before, (byViewer = new Map()));
+  const hit = byViewer.get(viewer);
+  if (hit !== undefined) return hit;
+  const now = playerView(after, viewer);
+  const seen = {
+    visible: new Set(now.visible),
+    seenUnits: new Set([...playerView(before, viewer).units, ...now.units].map((u) => u.id)),
+  };
+  byViewer.set(viewer, seen);
+  return seen;
+}
+
+// How long the viewer needs to watch one action: until its last effect ends, or one slide for a seen unit that
+// moved (moves are drawn by the board's slide, not by an effect). 0 when the viewer can see none of it.
+export function watchMs(events: readonly GameEvent[], before: MatchState, after: MatchState, viewer: PlayerId): number {
+  const { visible, seenUnits } = seenBy(before, after, viewer);
+  const list = effectsFor(events, before, after, visible, seenUnits);
+  const moved = events.some((e) => (e.type === 'moved' || e.type === 'lured' || e.type === 'advanced') && seenUnits.has(e.unit));
+  if (list.length === 0) return moved ? EFFECT_MS : 0;
+  return Math.max(...list.map((f) => f.delay)) + EFFECT_MS;
+}
 
 // Turn the events of one action into short on-board effects. The state is already final;
 // these only decorate it. Secrecy: an effect on a tile outside `visible` is dropped, and so is any
@@ -38,6 +73,7 @@ export function effectsFor(
     switch (e.type) {
       case 'moved':
       case 'lured':
+      case 'advanced':
         pos.set(e.unit, e.to);
         break;
       case 'attacked': {

@@ -79,3 +79,9 @@ test('picking: the figure wins over the tile behind it, the tile wins elsewhere,
   expect(pick(items, hexToBoard('0,0'), 6)).toEqual({ unit: null, hex: '0,0' });
   expect(pick(items, { x: 5000, y: 5000 }, 6)).toEqual({ unit: null, hex: null });
 });
+
+test('a tile knows whether a unit stands on it', () => {
+  const t = tiles(buildScene(input()));
+  const occupied = t.filter((x) => x.occupied).map((x) => x.key);
+  expect(occupied).toEqual(playerView(s, 0).units.map((u) => u.pos));
+});

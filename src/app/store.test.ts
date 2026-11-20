@@ -1,17 +1,32 @@
 import { expect, test } from 'vitest';
-import { hashState } from '../engine';
-import { NONE } from '../ui/interaction';
+import { hashState, playerView, replay, RULES_VERSION } from '../engine';
+import { adaptStep, betweenMatches, gapOf } from '../ai/adapt';
+import type { AdaptState } from '../ai/adapt';
+import { planTurn } from '../ai/plan';
+import type { Plan } from '../ai/plan';
+import { hiddenScout } from '../ai/scenarios';
+import { isOffered, NONE, offered } from '../ui/interaction';
+import { SupersededError } from './aiClient';
+import type { AiClient } from './aiClient';
+import { readDial } from './aiMemory';
 import { browserDeps, createAppStore } from './store';
 import type { Deps, Setup } from './store';
 import type { Updater } from './update';
-import { restore } from './record';
-import { listSaves, readSave } from './saves';
+import { newRecord, restore } from './record';
+import { listSaves, readSave, writeSave } from './saves';
 import type { KeyValue } from './saves';
+
+// Plans on the spot, as the worker would.
+const thinker = (): AiClient => ({ think: async (input, opts) => planTurn(input, opts), dispose: () => {} });
+// Lets every pending promise run until the AI is done or `limit` rounds pass.
+async function settle(done: () => boolean, limit = 2000): Promise<void> {
+  for (let i = 0; i < limit && !done(); i++) await new Promise(r => setTimeout(r, 0));
+}
 
 function deps(over: Partial<Deps> = {}) {
   const map = new Map<string, string>();
   const kv: KeyValue = { getItem: k => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, removeItem: k => { map.delete(k); } };
-  return { map, d: { kv, now: () => 1000, newSeed: () => 7, newId: () => 'm1', ...over } as Deps };
+  return { map, d: { kv, now: () => 1000, newSeed: () => 7, newId: () => 'm1', ai: thinker(), sleep: async () => {}, ...over } as Deps };
 }
 const SETUP: Setup = { names: ['Ann', 'Ben'], factions: ['spartans', 'mongols'] };
 const started = (over: Partial<Deps> = {}) => { const x = deps(over); const store = createAppStore(x.d); store.getState().startMatch(SETUP); return { ...x, store, get: store.getState }; };
@@ -46,6 +61,22 @@ test('nothing can be done while the curtain is up', () => {
   const { get } = started(); const before = get().state;
   get().tap({ unit: 0, hex: '-2,5' }); get().run({ type: 'move', unit: 0, to: '-1,4' }); get().arm({ kind: 'ability', ability: 'heal' });
   expect(get().state).toBe(before); expect(get().selection).toEqual(NONE); expect(get().record!.actions).toEqual([]);
+});
+test('Next unit selects a unit that can still act, and does nothing when none can or off the match', () => {
+  const { get } = started();
+  get().nextUnit();
+  expect(get().selection).toEqual(NONE);                                     // the curtain is up
+  get().ready();
+  get().nextUnit();
+  expect(get().selection).toEqual({ kind: 'unit', id: 0, armed: null, askLure: null });
+  get().nextUnit();                                                           // the only one: it stays selected
+  expect(get().selection).toEqual({ kind: 'unit', id: 0, armed: null, askLure: null });
+  get().run({ type: 'move', unit: 0, to: '0,3' });                            // the starting Scout's whole move
+  expect(offered(get().state!, 0).activeUnits).toEqual([]);
+  get().select({ kind: 'tile', at: '-2,4' });
+  get().nextUnit();
+  expect(get().selection).toEqual({ kind: 'tile', at: '-2,4' });              // none can act: nothing changes
+  expect(get().record!.actions).toHaveLength(1);
 });
 test('a refused action changes nothing', () => {
   const { get } = started(); get().ready(); const before = get().state;
@@ -178,4 +209,235 @@ test('an accepted action keeps the save list without reading any saved match bac
   expect(bodyReads).toBe(0);
   expect(get().saves).toEqual(listSaves(kv));
   expect(get().saves[0]).toMatchObject({ id: 'm1', current: 1 });
+});
+
+const SOLO: Setup = { names: ['Ann', ''], factions: ['spartans', 'mongols'], second: 'normal' };
+
+test('solo: no curtain, the AI answers, the person moves again', async () => {
+  const x = deps(); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO);
+  expect(get()).toMatchObject({ screen: 'match', viewer: 0, aiBusy: false });
+  expect(get().record!.players[1]).toMatchObject({ name: 'Normal AI', kind: 'ai', level: 'normal', adapt: { dial: 0.5, trend: 0 } });
+  get().run({ type: 'endTurn' });
+  expect(get().aiBusy).toBe(true);
+  await settle(() => !get().aiBusy);
+  const actions = get().record!.actions;
+  expect(get()).toMatchObject({ screen: 'match', viewer: 0, aiBusy: false });
+  expect(get().state!.current).toBe(0);
+  expect(actions[actions.length - 1]).toEqual({ type: 'endTurn' });
+  expect(actions.length).toBeGreaterThan(2);
+  expect(hashState(replay(get().record!.settings, actions))).toBe(hashState(get().state!));
+  get().tap({ unit: 0, hex: '-2,5' });
+  expect(get().selection).toMatchObject({ kind: 'unit', id: 0 });
+}, 30_000);
+
+test('the AI turn is saved action by action and resumes after Home', async () => {
+  // The first plan is told to expect a view that never comes, so the AI replans after its first action; that
+  // second think never answers.
+  let calls = 0;
+  const hanging: AiClient = {
+    think: (input, opts) => {
+      calls += 1;
+      if (calls > 1) return new Promise<Plan>(() => {});
+      const plan = planTurn(input, opts);
+      return Promise.resolve({ ...plan, expect: plan.expect.map(() => 'never') });
+    },
+    dispose: () => {},
+  };
+  const x = deps({ ai: hanging }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => calls > 1);
+  expect(get().aiBusy).toBe(true);
+  const saved = restore(readSave(x.d.kv, 'm1'));
+  if (!saved.ok) throw new Error('unreadable');
+  expect(saved.record.actions).toEqual(get().record!.actions);
+  expect(saved.record.actions).toHaveLength(2);   // the person's endTurn and the AI's first action
+  get().goHome();
+  expect(get()).toMatchObject({ screen: 'home', aiBusy: false });
+
+  const again = createAppStore({ ...x.d, ai: thinker() }); const g2 = again.getState;
+  g2().resume('m1');
+  expect(g2()).toMatchObject({ screen: 'match', viewer: 0, aiBusy: true });
+  await settle(() => !g2().aiBusy);
+  const actions = g2().record!.actions;
+  expect(actions.slice(0, 2)).toEqual(saved.record.actions);
+  expect(g2().state!.current).toBe(0);
+  expect(actions.filter(a => a.type === 'endTurn')).toHaveLength(2);
+  expect(hashState(replay(g2().record!.settings, actions))).toBe(hashState(g2().state!));
+}, 30_000);
+
+test('taps, runs and resign do nothing while the AI plays', async () => {
+  let release: (p: Plan) => void = () => {};
+  let pending: Parameters<AiClient['think']> | null = null;
+  // Only the first think is held; any replan after it is answered at once.
+  const held: AiClient = {
+    think: (...args) => {
+      if (pending !== null) return Promise.resolve(planTurn(...args));
+      pending = args; return new Promise<Plan>(r => { release = r; });
+    },
+    dispose: () => {},
+  };
+  const x = deps({ ai: held }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => pending !== null);
+  const before = get().record; get().select({ kind: 'unit', id: 0, armed: null, askLure: null });
+  get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
+  get().run({ type: 'move', unit: 0, to: '-1,4' }); get().run({ type: 'resign' }); get().run({ type: 'endTurn' });
+  get().arm({ kind: 'ability', ability: 'heal' }); get().nextUnit();
+  expect(get().record).toBe(before);
+  expect(get().selection).toEqual(NONE);
+  expect(get().aiBusy).toBe(true);
+  release(planTurn(pending![0], pending![1]));
+  await settle(() => !get().aiBusy);
+  expect(get().state!.current).toBe(0); expect(get().state!.winner).toBeNull();
+}, 30_000);
+
+test('a late answer after Home is ignored', async () => {
+  let release: (p: Plan) => void = () => {};
+  let pending: Parameters<AiClient['think']> | null = null;
+  const held: AiClient = { think: (...args) => { pending = args; return new Promise<Plan>(r => { release = r; }); }, dispose: () => {} };
+  const x = deps({ ai: held }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => pending !== null);
+  get().goHome();
+  release(planTurn(pending![0], pending![1]));
+  await settle(() => false, 50);
+  expect(get()).toMatchObject({ screen: 'home', record: null, aiBusy: false });
+  const saved = restore(readSave(x.d.kv, 'm1'));
+  expect(saved.ok && saved.record.actions).toEqual([{ type: 'endTurn' }]);
+});
+
+test('a superseded think stops the AI quietly and never leaves it busy', async () => {
+  const superseded: AiClient = { think: () => Promise.reject(new SupersededError()), dispose: () => {} };
+  const x = deps({ ai: superseded }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => !get().aiBusy);
+  expect(get()).toMatchObject({ screen: 'match', aiBusy: false, notice: null });
+  expect(get().record!.actions).toEqual([{ type: 'endTurn' }]);
+});
+
+test('a think that fails once is tried again and the AI plays on', async () => {
+  let calls = 0;
+  const flaky: AiClient = {
+    think: async (input, opts) => { calls += 1; if (calls === 1) throw new Error('worker fell over'); return planTurn(input, opts); },
+    dispose: () => {},
+  };
+  const x = deps({ ai: flaky }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => !get().aiBusy);
+  const actions = get().record!.actions;
+  expect(get()).toMatchObject({ screen: 'match', aiBusy: false, notice: null });
+  expect(get().state!.current).toBe(0);
+  expect(actions.length).toBeGreaterThan(2);   // it planned and acted, not just passed
+  expect(actions[actions.length - 1]).toEqual({ type: 'endTurn' });
+}, 30_000);
+
+test('a think that always fails passes the AI turn, says so, and gives the turn back', async () => {
+  let calls = 0;
+  const broken: AiClient = { think: async () => { calls += 1; throw new Error('no plan'); }, dispose: () => {} };
+  const x = deps({ ai: broken }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => !get().aiBusy);
+  expect(calls).toBe(2);
+  expect(get()).toMatchObject({ screen: 'match', viewer: 0, aiBusy: false, notice: 'aiPassed' });
+  expect(get().state!.current).toBe(0);
+  expect(get().record!.actions).toEqual([{ type: 'endTurn' }, { type: 'endTurn' }]);
+  const saved = restore(readSave(x.d.kv, 'm1'));
+  expect(saved.ok && saved.record.actions).toHaveLength(2);
+  // The person plays on; the notice stays until dismissed or the next AI turn, and Home clears it.
+  get().tap({ unit: 0, hex: '-2,5' }); get().tap({ unit: null, hex: '-1,4' });
+  expect(get().record!.actions).toHaveLength(3);
+  expect(get().notice).toBe('aiPassed');
+  get().goHome(); expect(get().notice).toBeNull();
+});
+
+test('the AI gives the main thread back after every action it applies', async () => {
+  const sleeps: number[] = [];
+  const x = deps({ sleep: async (ms: number) => { sleeps.push(ms); } }); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch(SOLO); get().run({ type: 'endTurn' });
+  await settle(() => !get().aiBusy);
+  const aiActions = get().record!.actions.length - 2;   // less the person's endTurn and the AI's own
+  expect(aiActions).toBeGreaterThan(0);
+  expect(sleeps).toHaveLength(aiActions);
+}, 30_000);
+
+test('adaptive: the dial moves once per AI turn, with its first action, and is remembered at the end', async () => {
+  const x = deps(); const store = createAppStore(x.d); const get = store.getState;
+  get().startMatch({ ...SOLO, second: 'adaptive' });
+  const adaptOf = (rec = get().record!): AdaptState => { const p = rec.players[1]!; if (p.kind !== 'ai') throw new Error('no AI'); return p.adapt; };
+  expect(get().record!.players[1]).toMatchObject({ name: 'Adaptive AI' });
+  expect(adaptOf()).toEqual({ dial: readDial(x.d.kv, 'Ann'), trend: 0 });
+  // Every record the store holds, as (number of actions, adapt).
+  const log: { n: number; adapt: string }[] = [];
+  const unsub = store.subscribe(s => { if (s.record !== null) log.push({ n: s.record.actions.length, adapt: JSON.stringify(adaptOf(s.record)) }); });
+  let moved = 0;
+  for (let turn = 0; turn < 3; turn++) {
+    const prev = adaptOf();
+    get().run({ type: 'endTurn' });
+    const startN = get().record!.actions.length;
+    const expected = adaptStep(prev, gapOf(get().state!, 1));
+    log.length = 0;
+    await settle(() => !get().aiBusy);
+    expect(get().state!.current).toBe(0);
+    expect(adaptOf()).toEqual(expected);
+    // The new adapt arrives with the turn's first AI action and never changes after it.
+    const atFirst = log.filter(e => e.n === startN + 1).map(e => e.adapt);
+    expect(atFirst.length).toBeGreaterThan(0);
+    expect(new Set(log.filter(e => e.n > startN).map(e => e.adapt))).toEqual(new Set([JSON.stringify(expected)]));
+    if (JSON.stringify(expected) !== JSON.stringify(prev)) moved += 1;
+  }
+  unsub();
+  expect(moved).toBeGreaterThan(0);   // the test saw the dial's state actually change
+  const dial = adaptOf().dial;
+  get().run({ type: 'resign' });
+  expect(get().screen).toBe('result');
+  expect(readDial(x.d.kv, 'Ann')).toBeCloseTo(betweenMatches(dial, 'ai'), 10);
+}, 30_000);
+
+test('a plan 2 save still resumes', () => {
+  const x = deps();
+  const settings = { seed: 7, factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
+  const rec = { ...newRecord('old', settings, ['Ann', 'Ben'], 500), rulesVersion: RULES_VERSION };
+  writeSave(x.d.kv, JSON.parse(JSON.stringify(rec)), replay(settings, []));
+  const store = createAppStore(x.d); store.getState().resume('old');
+  expect(store.getState()).toMatchObject({ screen: 'pass', viewer: null, aiBusy: false, notice: null });
+  store.getState().ready();
+  expect(store.getState()).toMatchObject({ screen: 'match', viewer: 0 });
+});
+
+test('a move blocked by an unseen enemy is offered, refused, and explained', () => {
+  const { store, get } = started(); get().ready();
+  const { state, rider } = hiddenScout();
+  expect(playerView(state, 1).units.map(u => u.owner)).not.toContain(0);
+  store.setState({ state, viewer: 1 });
+  expect(offered(state, 1).moves[rider]).toContain('2,0');
+  const before = get().record;
+  get().select({ kind: 'unit', id: rider, armed: null, askLure: null });
+  get().tap({ unit: null, hex: '2,0' });
+  expect(get().record).toBe(before); expect(get().state).toBe(state);
+  expect(get().notice).toBe('blockedUnseen');
+  get().goHome(); expect(get().notice).toBeNull();
+});
+
+test('a Mongol rider that rides into the fog stays selected with its new highlights', () => {
+  const { store, get } = started(); get().ready();
+  const { state, rider } = hiddenScout();
+  state.players[1]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];   // the rider's own tile and the next ring
+  expect(offered(state, 1).moves[rider]).toContain('-2,0');
+  expect(offered(state, 1).moves[rider]).not.toContain('-3,0');            // only through the fog tile at -2,0
+  store.setState({ state, viewer: 1 });
+  get().select({ kind: 'unit', id: rider, armed: null, askLure: null });
+  get().tap({ unit: null, hex: '-2,0' });
+  const after = get().state!;
+  expect(after.units.find(u => u.id === rider)).toMatchObject({ pos: '-2,0', mp: 2 });
+  expect(get().selection).toEqual({ kind: 'unit', id: rider, armed: null, askLure: null });
+  expect(offered(after, 1).moves[rider]).toContain('-3,0');
+});
+
+test('every offered action counts as offered, whatever the order of its fields', () => {
+  const { get } = started(); get().ready();
+  const state = get().state!;
+  expect(isOffered(state, 0, { to: '-1,4', unit: 0, type: 'move' } as never)).toBe(true);
+  expect(isOffered(state, 0, { type: 'move', unit: 0, to: '0,0' })).toBe(false);
+  expect(isOffered(state, 1, { type: 'endTurn' })).toBe(false);   // not that player's turn
 });

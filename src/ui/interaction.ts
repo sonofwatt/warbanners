@@ -1,5 +1,7 @@
 // Pure selection and tap logic. Every order comes from the engine's legal actions: nothing here decides what is allowed.
-import type { AbilityId, Action, BuildingId, HexKey, PlayerView, TechId, UnitTypeId } from '../engine';
+import { legalActions } from '../engine';
+import type { AbilityId, Action, BuildingId, HexKey, MatchState, PlayerId, PlayerView, TechId, UnitTypeId } from '../engine';
+import { aiInputFor, believedState } from '../ai/input';
 import type { Mark } from './board/mark';
 
 export type Hit = { unit: number | null; hex: HexKey | null };
@@ -14,11 +16,28 @@ export const NONE: Selection = { kind: 'none' };
 export interface ActionIndex {
   moves: Record<number, HexKey[]>; attacks: Record<number, HexKey[]>; lures: Record<number, HexKey[]>;
   abilities: Record<number, Partial<Record<AbilityId, HexKey[]>>>;
-  captures: number[]; campTrain: Record<number, Partial<Record<UnitTypeId, HexKey[]>>>;
+  captures: number[]; claims: number[]; campTrain: Record<number, Partial<Record<UnitTypeId, HexKey[]>>>;
   train: Record<number, UnitTypeId[]>; walls: number[]; rewards: number[];
   harvest: HexKey[]; build: Record<HexKey, BuildingId[]>; road: HexKey[]; research: TechId[];
-  activeUnits: number[];   // own units with a move, attack, ability, capture or camp training left
+  activeUnits: number[];   // own units with a move, attack, ability, capture, treasure claim or camp training left
 }
+
+// What the screen offers the viewer: the legal actions of the state the viewer can believe in, built from what the
+// viewer knows, exactly as the AI plans. So a move an unseen enemy blocks is offered (and refused when tried), and
+// no gap in the highlights gives the enemy away. Nothing is offered off the viewer's turn. The store's taps and the
+// match screen's highlights both come from here, so they cannot disagree.
+export function offered(state: MatchState, viewer: PlayerId): ActionIndex {
+  if (state.current !== viewer || state.winner !== null) return indexActions([]);
+  return indexActions(legalActions(believedState(aiInputFor(state, viewer))));
+}
+
+// Whether `action` is one the screen offers the viewer (whatever the order of its fields).
+export function isOffered(state: MatchState, viewer: PlayerId, action: Action): boolean {
+  if (state.current !== viewer || state.winner !== null) return false;
+  const k = canonical(action);
+  return legalActions(believedState(aiInputFor(state, viewer))).some((a) => canonical(a) === k);
+}
+const canonical = (a: Action): string => JSON.stringify(Object.entries(a).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
 
 function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): void {
   const list = map[k] ?? (map[k] = []);
@@ -27,7 +46,7 @@ function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): v
 
 export function indexActions(actions: readonly Action[]): ActionIndex {
   const ix: ActionIndex = {
-    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], campTrain: {}, train: {},
+    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], claims: [], campTrain: {}, train: {},
     walls: [], rewards: [], harvest: [], build: {}, road: [], research: [], activeUnits: [],
   };
   const active = new Set<number>();
@@ -45,6 +64,7 @@ export function indexActions(actions: readonly Action[]): ActionIndex {
         active.add(a.unit); break;
       }
       case 'capture': if (!ix.captures.includes(a.unit)) ix.captures.push(a.unit); active.add(a.unit); break;
+      case 'claimTreasure': if (!ix.claims.includes(a.unit)) ix.claims.push(a.unit); active.add(a.unit); break;
       case 'campTrain': {
         const per = ix.campTrain[a.unit] ?? (ix.campTrain[a.unit] = {});
         const list = per[a.unitType] ?? (per[a.unitType] = []);
@@ -77,7 +97,7 @@ function armedTargets(sel: Extract<Selection, { kind: 'unit' }>, ix: ActionIndex
 export function marksFor(sel: Selection, view: PlayerView, ix: ActionIndex): Record<HexKey, Mark> {
   const marks: Record<HexKey, Mark> = {};
   if (sel.kind === 'none') {
-    for (const id of ix.captures) {
+    for (const id of [...ix.captures, ...ix.claims]) {
       const u = unitById(view, id);
       if (isMine(view, u) && u !== undefined) marks[u.pos] = 'capture';
     }
@@ -131,11 +151,14 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
   const hitUnit = hit.unit === null ? undefined : unitById(view, hit.unit);
   const mine = isMine(view, hitUnit) ? hitUnit : view.units.find((u) => u.pos === hex && u.owner === view.player);
   if (mine !== undefined) {
+    // A tile holding my own unit cycles: the unit, then the ground under it (the city there, mine or not, else the
+    // tile), then nothing. A city tile takes no harvest, building or road, so the city's panel is the tile's panel
+    // there; a capture stays on the unit's panel.
     if (sel.kind === 'unit' && sel.id === mine.id) {
-      return { selection: city !== undefined && city.owner === view.player ? { kind: 'city', id: city.id } : NONE, action: null };
+      return { selection: city !== undefined ? { kind: 'city', id: city.id } : { kind: 'tile', at: hex }, action: null };
     }
-    // The city on this tile was selected from the unit stacked on it: another tap closes it.
     if (sel.kind === 'city' && city !== undefined && sel.id === city.id) return { selection: NONE, action: null };
+    if (sel.kind === 'tile' && sel.at === hex) return { selection: NONE, action: null };
     return { selection: { kind: 'unit', id: mine.id, armed: null, askLure: null }, action: null };
   }
   if (hitUnit !== undefined) return { selection: { kind: 'unit', id: hitUnit.id, armed: null, askLure: null }, action: null };
@@ -146,6 +169,15 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
     return { selection: sel.kind === 'tile' && sel.at === hex ? NONE : { kind: 'tile', at: hex }, action: null };
   }
   return { selection: NONE, action: null };
+}
+
+// Next unit: the viewer's units that can still act, in id order. The one after the selected unit, wrapping round;
+// the first when the selection is anything else. Null when none can act.
+export function nextUnit(sel: Selection, ix: ActionIndex): Selection | null {
+  const list = ix.activeUnits;
+  if (list.length === 0) return null;
+  const at = sel.kind === 'unit' ? list.indexOf(sel.id) : -1;
+  return { kind: 'unit', id: list[(at + 1) % list.length]!, armed: null, askLure: null };
 }
 
 export function afterAction(sel: Selection, view: PlayerView, ix: ActionIndex): Selection {

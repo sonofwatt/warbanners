@@ -35,9 +35,9 @@ test('tribute and slow growth', () => {
   expect(must(applyAction(s, { type: 'capture', unit: v.id })).players[0]!.gold).toBe(26);
   expect(growthNeeded(s, addCity(s, 0, 0, 3))).toBe(3); void c;
 });
-test('inspire: a horseman beside the Khan\'s Guard deals 6 to a warrior', () => {
+test('inspire: a horseman beside the Khan\'s Guard deals 8 to a warrior', () => {
   const s = mongols(); const h = addUnit(s, 'horseman', 0, 0, 0); addUnit(s, 'khansGuard', 0, -1, 0); const d = addUnit(s, 'warrior', 1, 1, 0);
-  expect(unitById(must(applyAction(s, { type: 'attack', unit: h.id, target: '1,0' })), d.id)!.hp).toBe(4);
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: h.id, target: '1,0' })), d.id)!.hp).toBe(2);
   const w = addUnit(s, 'warrior', 0, -1, 1); expect(attackOf(s, w)).toBe(4);
 });
 test('inspire also lifts the counter-attack, and an enemy Guard does not inspire', () => {
@@ -222,4 +222,29 @@ test('the Camp refuses to train onto water or onto an occupied neighbour', () =>
   expect(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '2,1' }).ok).toBe(false);
   expect(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '1,0' }).ok).toBe(true);   // control
   expect(hashState(s)).toBe(before);
+});
+test('scouting riders: a mounted Mongol unit keeps its movement after a step into the fog', () => {
+  const s = mongols(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 4 });
+  s.players[0]!.explored = ['0,0'];
+  const r = reachable(s, h.id);
+  expect(r).toEqual({ '-1,0': 2, '-1,1': 2, '0,-1': 2, '0,1': 2, '1,-1': 2, '1,0': 2 });
+  const t = must(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }));
+  expect(unitById(t, h.id)).toMatchObject({ pos: '1,0', mp: 2, moved: true });
+  const again = reachable(t, h.id);
+  expect(again['2,0']).toBe(0);                                                 // explored by the first move: field costs 2
+  const u = must(applyAction(t, { type: 'move', unit: h.id, to: '2,0' }));
+  expect(unitById(u, h.id)).toMatchObject({ pos: '2,0', mp: 0 });
+});
+test('scouting riders: forest, engagement and unmounted units still stop the move', () => {
+  const s = mongols(); s.players[0]!.explored = ['0,0', '0,2', '0,-2'];
+  const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 6 }); setTile(s, 1, 0, { terrain: 'forest' });
+  addUnit(s, 'warrior', 1, -2, 2);
+  const r = reachable(s, h.id);
+  expect(r['1,0']).toBe(0);                                                     // forest in the fog: the rest of the move is gone
+  expect(r['-1,1']).toBe(0);                                                    // beside the enemy
+  expect(r['0,-1']).toBe(4);
+  const w = addUnit(s, 'warrior', 0, 0, 2, { mp: 2 });                          // a Mongol foot unit
+  expect(reachable(s, w.id)['1,2']).toBe(0);
+  const a = addUnit(s, 'horseArcher', 0, 0, -2, { mp: 6 });
+  expect(reachable(s, a.id)['1,-2']).toBe(4);
 });

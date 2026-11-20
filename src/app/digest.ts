@@ -4,6 +4,8 @@ import type { GameEvent, MatchState, PlayerId, UnitTypeId } from '../engine';
 export type DigestLine =
   | { kind: 'unitLost'; unitType: UnitTypeId; by: UnitTypeId | null }
   | { kind: 'unitHurt'; unitType: UnitTypeId; damage: number; by: UnitTypeId | null }
+  | { kind: 'tileTaken'; by: UnitTypeId }          // an enemy melee killer stepped into a lost unit's tile
+  | { kind: 'treasureTaken' }                       // the other side claimed a treasure the viewer's side can see
   | { kind: 'cityLost' };
 
 // One accepted action: the state before and after it, and what it did.
@@ -12,7 +14,8 @@ export interface TurnStep { before: MatchState; after: MatchState; events: GameE
 // Whether the viewer's side could see unit `id` in `state`.
 const sees = (state: MatchState, viewer: PlayerId, id: number): boolean => playerView(state, viewer).units.some(u => u.id === id);
 
-// What happened to the viewer's own units and cities, in order. Nothing else is reported.
+// What happened to the viewer's own units and cities, in order, and the treasures the other side claimed in sight.
+// Nothing else is reported.
 export function digestFor(viewer: PlayerId, log: readonly TurnStep[]): DigestLine[] {
   const lines: DigestLine[] = [];
   for (const { before, after, events } of log) {
@@ -35,6 +38,14 @@ export function digestFor(viewer: PlayerId, log: readonly TurnStep[]): DigestLin
         } else {
           lines.push({ kind: 'unitHurt', unitType: target.type, damage: e.damage, by });
         }
+      } else if (e.type === 'advanced') {
+        // Told only after a loss of ours, and only when our side can see the unit standing there now.
+        const unit = after.units.find(u => u.id === e.unit);
+        if (unit !== undefined && unit.owner !== viewer && lost.size > 0 && sees(after, viewer, e.unit)) {
+          lines.push({ kind: 'tileTaken', by: unit.type });
+        }
+      } else if (e.type === 'treasure') {
+        if (before.current !== viewer && playerView(after, viewer).visible.includes(e.at)) lines.push({ kind: 'treasureTaken' });
       } else if (e.type === 'captured') {
         if (before.cities.find(c => c.id === e.city)?.owner === viewer) lines.push({ kind: 'cityLost' });
       }

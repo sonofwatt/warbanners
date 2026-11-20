@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
-  growthNeeded, playerIncome, playerView, cityIncome, legalActions, unitCapacity, unitsOf,
+  growthNeeded, playerIncome, playerView, cityIncome, unitCapacity, unitsOf,
 } from '../../engine';
 import type { FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
 import { roundOf } from '../../app/record';
 import { useApp } from '../../app/useApp';
 import { T } from '../text';
-import { indexActions, marksFor, spentUnits } from '../interaction';
+import { marksFor, offered, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
 import { isMuted, play, setMuted, soundFor } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
@@ -22,7 +22,7 @@ import { TilePanel } from '../panels/TilePanel';
 import { UnitPanel } from '../panels/UnitPanel';
 import { Board } from '../board/Board';
 import { Effects } from '../board/Effects';
-import { effectsFor } from '../board/effects';
+import { effectsFor, seenBy } from '../board/effects';
 import { buildScene } from '../board/scene';
 import { FACTION_COLOUR } from './colour';
 import { NoticeLine } from './NoticeLine';
@@ -38,11 +38,12 @@ export interface MatchData {
 
 export function matchData(state: MatchState, viewer: PlayerId, selection: Selection): MatchData {
   const view = playerView(state, viewer);
-  const ix = indexActions(legalActions(state));
+  const ix = offered(state, viewer);
   const capital = view.cities.find((c) => c.owner === viewer && c.capital);
   const first = view.units.find((u) => u.owner === viewer);
   return {
-    view, ix, marks: marksFor(selection, view, ix), spent: spentUnits(view, ix),
+    // Off the viewer's turn (the AI is playing) nothing is offered, and no unit is drawn as spent.
+    view, ix, marks: marksFor(selection, view, ix), spent: state.current === viewer ? spentUnits(view, ix) : new Set(),
     focus: capital?.pos ?? first?.pos ?? null, radius: state.radius,
     factions: [state.players[0]!.faction, state.players[1]!.faction],
   };
@@ -58,6 +59,12 @@ export function turnFocus(held: TurnFocus | null, key: string, focus: HexKey): T
 
 type Sheet = 'none' | 'tech' | 'menu';
 
+// Next unit is greyed, like End turn, while the AI plays, during End turn's lock and while a sheet or overlay is
+// up, and also when none of the viewer's units can still act.
+export function nextUnitDisabled(p: { canAct: number; aiBusy: boolean; locked: boolean; covered: boolean }): boolean {
+  return p.canAct === 0 || p.aiBusy || p.locked || p.covered;
+}
+
 export function Match(): ReactElement | null {
   const state = useApp((s) => s.state);
   const record = useApp((s) => s.record);
@@ -67,22 +74,29 @@ export function Match(): ReactElement | null {
   const last = useApp((s) => s.last);
   const run = useApp((s) => s.run);
   const tap = useApp((s) => s.tap);
+  const nextUnit = useApp((s) => s.nextUnit);
   const arm = useApp((s) => s.arm);
   const goHome = useApp((s) => s.goHome);
   const dismissDigest = useApp((s) => s.dismissDigest);
   const notice = useApp((s) => s.notice);
   const dismissNotice = useApp((s) => s.dismissNotice);
+  const aiBusy = useApp((s) => s.aiBusy);
+  const myTurn = useApp((s) => s.state !== null && s.viewer !== null && s.state.current === s.viewer);
 
   const [sheet, setSheet] = useState<Sheet>('none');
   const [locked, setLocked] = useState(true);
   const [soundOn, setSoundOn] = useState(() => !isMuted());
   const [later, setLater] = useState<number[]>([]);
+  // Each tap on Next unit asks the board, once, to bring the unit it selected into view.
+  const [revealed, setRevealed] = useState(0);
 
   // End turn waits a moment after the screen appears, so the tap that ended the curtain cannot end the turn too.
+  // Against the AI the screen stays up, so it waits again each time the person's turn comes back.
   useEffect(() => {
+    if (!myTurn) { setLocked(true); return undefined; }
     const t = setTimeout(() => setLocked(false), END_TURN_LOCK_MS);
     return () => clearTimeout(t);
-  }, []);
+  }, [myTurn]);
 
   const heard = useRef(last?.seq ?? 0);
   const shownBefore = useRef(last?.seq ?? 0);
@@ -99,11 +113,10 @@ export function Match(): ReactElement | null {
   // The sound is chosen by the same rule, from the same units.
   const fx = useMemo(() => {
     if (last === null || state === null || viewer === null || last.seq === shownBefore.current) return null;
-    const now = playerView(state, viewer);
-    const seenUnits = new Set([...playerView(last.before, viewer).units, ...now.units].map((u) => u.id));
+    const { visible, seenUnits } = seenBy(last.before, state, viewer);
     return {
       seq: last.seq, sound: soundFor(last.events, seenUnits),
-      list: effectsFor(last.events, last.before, state, new Set(now.visible), seenUnits),
+      list: effectsFor(last.events, last.before, state, visible, seenUnits),
     };
   }, [last, state, viewer]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
@@ -170,21 +183,29 @@ export function Match(): ReactElement | null {
   // In landscape the board takes the side column too while nothing is shown there.
   const side = sheet !== 'none' || panel !== null;
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
+  const nextDisabled = nextUnitDisabled({
+    canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
+  });
+  const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
+  const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
 
   return (
     <div className={side ? 'screen match has-side' : 'screen match'} data-testid="match">
       <Hud
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
-        unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked}
+        unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy} thinking={aiBusy}
+        nextDisabled={nextDisabled} onNextUnit={onNextUnit}
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
       <div className="board-slot" data-testid="board-slot">
-        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}>
+        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}
+          reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
+        >
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
       </div>
-      {notice === 'saveFailed' ? (
+      {notice === 'saveFailed' || notice === 'blockedUnseen' || notice === 'aiPassed' ? (
         <div className="match-notice" data-testid="match-notice"><NoticeLine notice={notice} onDismiss={dismissNotice} /></div>
       ) : null}
       {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
@@ -193,7 +214,7 @@ export function Match(): ReactElement | null {
       ) : null}
       {sheet === 'menu' ? (
         <Menu
-          soundOn={soundOn} onToggleSound={toggleSound} onResign={() => run({ type: 'resign' })}
+          soundOn={soundOn} onToggleSound={toggleSound} onResign={() => run({ type: 'resign' })} resignDisabled={aiBusy || !myTurn}
           onHome={goHome} onClose={() => setSheet('none')}
         />
       ) : null}

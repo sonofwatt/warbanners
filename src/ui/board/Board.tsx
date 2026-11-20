@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, TileBase, Veil } from '../art/tiles';
 import { StatusOverlay } from '../art/units';
@@ -14,6 +14,7 @@ import { boardBounds, hexToBoard, tileBox } from './layout';
 import type { Box, Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
+import { sameData } from './same';
 import { useGestures } from './useGestures';
 
 export interface BoardProps {
@@ -24,6 +25,7 @@ export interface BoardProps {
   onTap(hit: { unit: number | null; hex: HexKey | null }): void;
   children?: ReactNode; // effects, drawn inside the camera transform
   viewer?: PlayerId; // whose board this is: only their own cities show a reward waiting
+  reveal?: { n: number; at: HexKey } | null; // each new n pans, the least it must, to bring the tile at `at` into view
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -70,17 +72,22 @@ function variantOf(k: HexKey): number {
 // Pieces drawn smaller toward the back of a tile, and in front of it, when two share a tile.
 const BACK = 'translate(1 -5) scale(0.8)';
 const FRONT = 'translate(2 6) scale(0.72)';
+const BESIDE = 'translate(17 1) scale(0.75)';    // a treasure under a unit: off to the side, clear of the figure
+const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in front of the trees along the back
 
 /**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
  * - a building replaces what it was built on (a farm its cropland, a mine its ore and
- *   mountain); a lumber camp keeps a smaller forest behind it.
+ *   mountain); a lumber camp (only ever built in a forest) stands in front of a grove along
+ *   the back of its forest.
  * - a village replaces the terrain feature; it only stands on field or forest.
- * - game in a forest, ore on a mountain and a treasure in a forest share the tile: the
- *   terrain feature smaller at the back, the resource or chest smaller in front.
+ * - game or a treasure in a forest stands in front of a grove along the back of the tile;
+ *   ore or a treasure on a mountain shares the tile: the mountain smaller at the back,
+ *   the ore or chest smaller in front.
  * - a road is drawn under everything.
+ * - a treasure under a unit is drawn small beside the figure, so a unit waiting to claim it never hides it.
  */
-export function TileArt(p: { k: HexKey; tile: Tile }): ReactElement {
+export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): ReactElement {
   const { tile } = p;
   const v = variantOf(p.k);
   const feature = tile.terrain === 'water' || tile.terrain === 'field' ? null : <TerrainFeature terrain={tile.terrain} variant={v} />;
@@ -89,8 +96,8 @@ export function TileArt(p: { k: HexKey; tile: Tile }): ReactElement {
     art =
       tile.building === 'lumberCamp' ? (
         <>
-          <g transform="translate(-2 -6) scale(0.7)">{feature}</g>
-          <g transform="translate(2 3) scale(0.85)"><BuildingMark building="lumberCamp" /></g>
+          <Grove variant={v} />
+          <g transform={BEFORE_GROVE}><BuildingMark building="lumberCamp" /></g>
         </>
       ) : (
         <BuildingMark building={tile.building} />
@@ -98,8 +105,25 @@ export function TileArt(p: { k: HexKey; tile: Tile }): ReactElement {
   } else if (tile.village) {
     art = <Village />;
   } else {
-    const item = tile.treasure ? <Treasure /> : tile.resource !== null ? <ResourceMark resource={tile.resource} /> : null;
-    if (feature !== null && item !== null) {
+    const beside = tile.treasure && p.occupied === true;
+    const item = tile.treasure
+      ? <g data-treasure={beside ? 'beside' : 'centre'}><Treasure /></g>
+      : tile.resource !== null ? <ResourceMark resource={tile.resource} /> : null;
+    if (beside) {
+      art = (
+        <>
+          {feature}
+          <g transform={BESIDE}>{item}</g>
+        </>
+      );
+    } else if (tile.terrain === 'forest' && item !== null) {
+      art = (
+        <>
+          <Grove variant={v} />
+          <g transform={BEFORE_GROVE}>{item}</g>
+        </>
+      );
+    } else if (feature !== null && item !== null) {
       art = (
         <>
           <g transform={BACK}>{feature}</g>
@@ -133,7 +157,7 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
   );
 }
 
-function TileView(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement {
+function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement {
   const { t } = p;
   const mark = t.mark === null ? null : <g data-mark={t.mark}><Highlight mark={t.mark} /></g>;
   const centre = <circle r={1} fill="none" pointerEvents="none" data-centre={t.key} />;
@@ -152,7 +176,7 @@ function TileView(p: { t: SceneTile; factions: readonly FactionId[]; viewer: Pla
     <>
       <TileBase ground={groundFor(t.tile, t.city !== null)} />
       {t.tile.road && t.city === null ? <Road links={t.roadLinks} /> : null}
-      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} />}
+      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} />}
     </>
   );
   return (
@@ -168,7 +192,7 @@ function TileView(p: { t: SceneTile; factions: readonly FactionId[]; viewer: Pla
   );
 }
 
-function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactElement | null {
+function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
@@ -197,6 +221,12 @@ function UnitView(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactEle
     </g>
   );
 }
+
+// A tile or a unit is drawn again only when what it shows has changed. The scene is rebuilt from a fresh view after
+// every action, so its objects are always new: they are compared by value. Each draw of a whole board is thousands
+// of svg nodes, and on a phone redrawing them all after every action held the screen still for over 100 ms.
+const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && sameData(a.factions, b.factions) && sameData(a.t, b.t));
+const UnitView = memo(UnitViewOf, (a, b) => sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
  * After the slot has changed size with something selected: the least pan that keeps the selected tile in the
@@ -229,10 +259,10 @@ export function Board(p: BoardProps): ReactElement {
   if (cam.current === null) cam.current = startCamera(hexToBoard(p.focus), bounds, vp.current);
 
   // The latest props for the event handlers, which are attached once.
-  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds });
+  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null });
   // A layout effect, so a resize observed in the same frame as a new selection already sees it.
   useLayoutEffect(() => {
-    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds };
+    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null };
   });
 
   const frame = useRef(0);
@@ -303,6 +333,19 @@ export function Board(p: BoardProps): ReactElement {
     cam.current = refit(cam.current!, bounds, vp.current);
     schedule();
   }, [bounds, schedule]);
+
+  // A request to show a tile (Next unit): the least pan that brings it into the slot, none when it is already
+  // there. Keyed on n alone, so a request is served once and a later move of the same unit does not pan again.
+  const revealN = p.reveal?.n ?? 0;
+  useEffect(() => {
+    const { reveal, bounds: b } = latest.current;
+    if (revealN === 0 || reveal === null || cam.current === null || !measured.current) return;
+    const next = keepInView(cam.current, vp.current, tileBox(reveal.at), b);
+    if (next === cam.current) return;
+    cam.current = next;
+    touched.current = true;
+    schedule();
+  }, [revealN, schedule]);
 
   useGestures(svgRef, (out) => {
     const c = cam.current;

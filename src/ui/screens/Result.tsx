@@ -37,6 +37,7 @@ export function Result(): ReactElement | null {
   const resigned = record.actions[record.actions.length - 1]?.type === 'resign';
   const winner = record.players[state.winner]?.name ?? '';
   const faction = state.players[state.winner]!.faction;
+  const adaptive = record.players.find((p) => p.kind === 'ai' && p.level === 'adaptive');
   const colour = playerColour(faction);
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
@@ -54,6 +55,7 @@ export function Result(): ReactElement | null {
       <div className="result-card">
         <p>{fill(T.ui.endedOn, { n: roundOf(state) })}</p>
         <p>{resigned ? T.ui.byResignation : T.ui.byLastCity}</p>
+        {adaptive?.kind === 'ai' ? <p data-testid="ai-settled">{T.ai.settled(Math.round(adaptive.adapt.dial * 10))}</p> : null}
       </div>
       <button type="button" className="primary big" data-testid="result-home" onClick={goHome}><HomeIcon />{T.ui.homeButton}</button>
     </div>

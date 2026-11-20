@@ -1,10 +1,9 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
-import { DIRS, add, distance, key, parseKey, range } from './hex';
+import { DIRS, add, distance, key, parseKey } from './hex';
 import type { HexKey } from './hex';
-import { rngInt } from './rng';
-import { cityAt, cityById, firstFreeNeighbor, hasOwn, hasTrait, isEnterable, spawnUnit, tileAt, unitAt, unitById } from './state';
+import { cityAt, cityById, hasOwn, hasTrait, isEnterable, tileAt, unitAt, unitById } from './state';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 13: half-points of movement a unit starts its turn with
@@ -28,20 +27,24 @@ function hasRoadOrCity(s: MatchState, k: HexKey): boolean {
   return tileAt(s, k)?.road === true || cityAt(s, k) !== undefined;
 }
 
-// rules 2 and 9: tile it may stop on -> half-points left on arrival
+// rules 2, 9 and 13: tile it may stop on -> half-points left on arrival. A move may end on one tile its owner had
+// not explored when the move began, never pass through one; only scouting riders keep movement after it.
 export function reachable(s: MatchState, unitId: number): Record<HexKey, number> {
   const u = unitById(s, unitId);
   if (u === undefined) return {};
   if (u.fresh || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
+  const explored = new Set(s.players[u.owner]!.explored);
+  const keepsMoveInFog = mounted && faction.scoutingRiders;
+  const fog = new Set<HexKey>();                            // unexplored tiles reached: ends of moves only
   const best = new Map<HexKey, number>([[u.pos, u.mp]]);
   const done = new Set<HexKey>();
   for (;;) {
     let from: HexKey | null = null;
     let left = 0;
     for (const [k, v] of best) {
-      if (!done.has(k) && v > 0 && (from === null || v > left)) { from = k; left = v; }
+      if (!done.has(k) && !fog.has(k) && v > 0 && (from === null || v > left)) { from = k; left = v; }
     }
     if (from === null) break;
     done.add(from);
@@ -60,6 +63,8 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
         if (!firstStep) continue;
         cost = left; forced = true;
       } else if (mounted && faction.forestStopsMounted && tile.terrain === 'forest') {
+        // the normal forest cost, unless it is the first step; then the rest of the move is gone
+        if (!firstStep && left < (CONFIG.terrain.forest.enterCost ?? 0)) continue;
         cost = left; forced = true;
       } else {
         cost = CONFIG.terrain[tile.terrain].enterCost ?? left;
@@ -71,6 +76,10 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
         after = 0;
       }
       if (nextToEnemy(s, u.owner, to)) after = 0;
+      if (!explored.has(to)) {
+        fog.add(to);
+        if (!keepsMoveInFog) after = 0;
+      }
       if (after > (best.get(to) ?? -1)) best.set(to, after);
     }
   }
@@ -79,32 +88,6 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
     if (k !== u.pos && unitAt(s, k) === undefined) out[k] = v;
   }
   return out;
-}
-
-// rules 12: called when a unit ends a move on a tile
-export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
-  const tile = tileAt(s, u.pos);
-  if (tile === undefined || !tile.treasure) return;
-  const player = s.players[u.owner]!;
-  const [roll, next] = rngInt(s.rng, CONFIG.treasure.outcomes);
-  s.rng = next;
-  let outcome: 'gold' | 'explore' | 'unit' = 'gold';
-  if (roll === 1) {
-    outcome = 'explore';
-    const seen = new Set<HexKey>(player.explored);
-    for (const h of range(parseKey(u.pos), CONFIG.treasure.exploreRadius)) {
-      if (tileAt(s, key(h)) !== undefined) seen.add(key(h));
-    }
-    player.explored = [...seen].sort();
-  } else if (roll === 2) {
-    const spot = firstFreeNeighbor(s, u.pos);
-    if (spot === null) player.gold += CONFIG.treasure.gold;
-    else { spawnUnit(s, CONFIG.treasure.unit, u.owner, spot, null); outcome = 'unit'; }
-  } else {
-    player.gold += CONFIG.treasure.gold;
-  }
-  tile.treasure = false;
-  ev.push({ type: 'treasure', at: u.pos, outcome });
 }
 
 // rules 13: the lured unit follows the rider by one tile if a tile is free
@@ -140,7 +123,6 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const from = u.pos;
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });
-  collectTreasure(s, u, ev);
   if (u.lure !== null) pullLured(s, u, from, ev);
   u.lure = null;
   return null;

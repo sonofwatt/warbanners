@@ -4,8 +4,8 @@ import { UNITS } from './data/units';
 import { distance, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { isSteadied } from './abilities';
-import { cityAt, hasTrait, removeUnit, tileAt, unitAt, unitById } from './state';
-import { canSeeUnit } from './vision';
+import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
+import { canSeeUnit, visibleTiles } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
@@ -69,8 +69,9 @@ export function attackTargets(s: MatchState, unitId: number): HexKey[] {
   if (hasTrait(u, 'siege') && u.moved) return [];
   const reach = reachOf(u);
   const from = parseKey(u.pos);
+  const visible = visibleTiles(s, u.owner);
   const legal = s.units
-    .filter((t) => t.owner !== u.owner && canSeeUnit(s, u.owner, t) && distance(from, parseKey(t.pos)) <= reach);
+    .filter((t) => t.owner !== u.owner && canSeeUnit(s, u.owner, t, visible) && distance(from, parseKey(t.pos)) <= reach);
   // A taunted unit must pick a phalanx unit when one is in reach.
   const phalanx = u.taunted ? legal.filter((t) => hasTrait(t, 'phalanx')) : [];
   return (phalanx.length > 0 ? phalanx : legal).map((t) => t.pos).sort();
@@ -106,6 +107,11 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     removeUnit(s, target.id);
     ev.push({ type: 'died', unit: target.id });
     if (hasTrait(attacker, 'chain')) attacker.attacks += 1;
+    // rules 10: a melee killer steps into the emptied tile, at no movement cost
+    if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
+      attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
+      ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
+    }
   }
 
   if (hasTrait(attacker, 'splash')) {

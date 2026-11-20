@@ -2,8 +2,29 @@ import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { applyReward, playerIncome } from './economy';
 import { maxMp } from './movement';
-import { cityById, freshAttacks, tileAt } from './state';
-import type { Action, Handler } from './types';
+import { DIRS, add, key, parseKey } from './hex';
+import type { HexKey } from './hex';
+import { cityById, freshAttacks, tileAt, unitAt } from './state';
+import { canSeeUnit, visibleTiles } from './vision';
+import type { Action, Handler, MatchState, Unit } from './types';
+
+// rules 11: what resting would heal the unit where it stands (before the cap at full health): by whose land it
+// is on, and nothing while an enemy unit its owner can see stands on a tile next to it (an unseen one changes
+// nothing, so the healing never gives it away). `visible` is visibleTiles(s, u.owner), passed in by callers
+// that ask about many units.
+export function restHealAt(s: MatchState, u: Unit, visible: ReadonlySet<HexKey> = visibleTiles(s, u.owner)): number {
+  const at = parseKey(u.pos);
+  const seenEnemy = (k: HexKey): boolean => {
+    const o = unitAt(s, k);
+    return o !== undefined && o.owner !== u.owner && canSeeUnit(s, u.owner, o, visible);
+  };
+  if (DIRS.some((d) => seenEnemy(key(add(at, d))))) return 0;
+  const cityId = tileAt(s, u.pos)?.cityId ?? null;
+  if (cityId === null) return CONFIG.restHeal.neutral;
+  const owner = cityById(s, cityId)?.owner;
+  if (owner === undefined) return CONFIG.restHeal.neutral;
+  return owner === u.owner ? CONFIG.restHeal.home : CONFIG.restHeal.enemy;
+}
 
 // rules 5
 export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s, _a, ev) => {
@@ -43,12 +64,10 @@ export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s,
   const player = s.players[next]!;
   if (player.turnsTaken > 0) {
     player.gold += playerIncome(s, next);
+    const visible = visibleTiles(s, next);   // every heal is worked out before any is applied: health changes no vision
     for (const u of s.units) {
       if (u.owner !== next || !u.rested) continue;
-      const cityId = tileAt(s, u.pos)?.cityId ?? null;
-      const inHome = cityId !== null && cityById(s, cityId)?.owner === next;
-      const heal = inHome ? CONFIG.restHeal.home : CONFIG.restHeal.away;
-      u.hp = Math.min(UNITS[u.type].hp, u.hp + heal);
+      u.hp = Math.min(UNITS[u.type].hp, u.hp + restHealAt(s, u, visible));
     }
   }
   for (const u of s.units) {

@@ -281,6 +281,13 @@ input:focus { border-color: var(--blue); }
 .can-act { font-size: var(--t-xs); line-height: 1.2; text-wrap: balance; font-weight: 650; color: var(--ink-soft); text-align: right; min-width: 0; }
 .can-act.some { color: var(--ink); }
 .end-turn { min-width: 116px; min-height: 48px; font-size: var(--t-l); font-weight: 850; flex: none; }
+.next-unit { flex: none; }
+.next-unit .tool-label { white-space: nowrap; }
+/* Next unit keeps only its picture below 1000 wide, so a wide landscape phone still has room for the player's name. */
+@media (max-width: 1000px) {
+  .next-unit { padding: 0 0 var(--thick); width: 46px; }
+  .next-unit .tool-label { display: none; }
+}
 /* Narrow phones, and short landscape ones: the tool buttons keep their pictures, the words go to the reader only. */
 @media (max-width: 460px), (orientation: landscape) and (max-width: 780px) {
   .tool { padding: 0 0 var(--thick); width: 46px; }
@@ -296,9 +303,11 @@ input:focus { border-color: var(--blue); }
   .pill.turn { padding-left: 8px; font-size: var(--t-s); }
   .pill.turn .icon { display: none; }
   .hud-name strong { max-width: 7em; font-size: var(--t-ml); }
-  .end-turn { min-width: 100px; font-size: var(--t-base); padding: 0 var(--s3) var(--thick); }
-  .can-act { font-size: var(--t-2xs); max-width: 70px; }
+  .end-turn { min-width: 92px; font-size: var(--t-base); padding: 0 var(--s2) var(--thick); }
+  .can-act { font-size: var(--t-2xs); max-width: 64px; }
+  .hud-end { gap: 4px; }
   .hud-who { min-width: 100px; }
+  .hud > .hud-status { flex-shrink: 0; }
 }
 
 /* A notice about saving floats over the top of the board, in the board's cell. */
@@ -327,10 +336,16 @@ input:focus { border-color: var(--blue); }
 .stat {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0;
   background: var(--paper-2); border-radius: var(--r-s); padding: 6px 2px 5px; text-align: center;
+  container-type: inline-size;
 }
 .stat dt { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: var(--t-2xs); font-weight: 750; color: var(--ink-soft); letter-spacing: -0.01em; max-width: 100%; overflow-wrap: normal; }
 .stat dt .icon { width: 22px; height: 22px; }
-.stat dd { margin: 0; font-size: var(--t-l); font-weight: 850; font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere; }
+/* A value never breaks inside a word: its type shrinks until its longest word (--chars, set by Stats) fits the card's
+   width, a bold letter being at most about 0.68 of the type size wide. Lines break only between words. */
+.stat dd {
+  margin: 0; font-size: min(var(--t-l), calc(100cqi / (var(--chars, 1) * 0.68))); font-weight: 850;
+  font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: normal; word-break: normal; hyphens: none;
+}
 .traits { list-style: none; margin: var(--s2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .traits li { background: var(--paper-2); border-radius: var(--r-s); padding: 6px var(--s3); font-size: var(--t-m); border-left: 4px solid var(--bronze); }
 .traits strong { display: block; font-weight: 800; }
@@ -459,6 +474,21 @@ input:focus { border-color: var(--blue); }
   .setup-row > * { flex: 1 1 0; min-width: 0; }
   .screen:not(.match) { max-width: 640px; }
 }
+/* A tall portrait phone: Home would float in a short column between two wide empty bands, so the
+   banner stands over the name like a title screen, and the board strip comes nearer: it runs
+   edge to edge and taller, its outer tiles cut by the screen's sides (slice). Not on a tablet,
+   where the cut edges would show in the middle of the screen. */
+@media (orientation: portrait) and (min-height: 760px) and (max-width: 599px) {
+  .screen.home { gap: var(--s4); }
+  .home-hero { flex-direction: column; text-align: center; gap: var(--s2); padding-bottom: var(--s2); }
+  .home-hero .banner-tile { width: 128px; }
+  /* The words take the column's full width, so the title's inline-size container never collapses to zero. */
+  .home-hero > div { align-self: stretch; flex: none; }
+  .home-scene {
+    width: calc(100% + 2 * var(--s4)); max-width: none; aspect-ratio: 220 / 104;
+    margin: var(--s3) calc(-1 * var(--s4)) 0;
+  }
+}
 /* A wide portrait panel: two branches side by side. */
 @media (min-width: 600px) and (orientation: portrait) {
   .branches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -531,3 +561,9 @@ input:focus { border-color: var(--blue); }
 .board-demo { position: fixed; inset: 0; overflow: hidden; touch-action: none; background: var(--sky); }
 .board-demo output { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 6px; background: var(--paper); font-size: 14px; pointer-events: none; }
 .board-demo output:empty { display: none; }
+
+/* Setup: who takes the second seat, as a row of chips. */
+.setup-seat { display: flex; flex-direction: column; gap: var(--s1); font-size: var(--t-m); font-weight: 750; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.chip { flex: 1 1 auto; min-height: 44px; padding: 0 var(--s3); border-radius: 999px; font-weight: 750; }
+.chip.on { background: var(--sea); color: var(--on-colour); }

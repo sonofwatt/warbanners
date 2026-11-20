@@ -1,0 +1,117 @@
+// Bulk AI-against-AI matches with a summary block, for tuning.
+// npm run sim:ai -- --matches 100 --seed 1 --a normal --b hard --max-rounds 60 --swap --jobs 3 [--json out.jsonl]
+// npm run sim:adaptive -- --matches 6 [--seed 1] [--max-rounds 60]
+import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { adaptiveSeries, runMatch, summarize } from '../src/ai/sim';
+import type { SeatSpec, SimOpts, SimResult } from '../src/ai/sim';
+import type { FactionId } from '../src/engine/index';
+
+const argv = process.argv.slice(2);
+const flag = (name: string): boolean => argv.includes(`--${name}`);
+function opt(name: string, fallback: string): string {
+  const i = argv.indexOf(`--${name}`);
+  return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1]! : fallback;
+}
+function seatOf(text: string): SeatSpec {
+  if (text === 'easy' || text === 'normal' || text === 'hard') return { level: text };
+  const dial = Number(text);
+  if (!Number.isFinite(dial)) throw new Error(`a seat is easy, normal, hard or a dial number, not ${text}`);
+  return { dial };
+}
+
+const matches = Number(opt('matches', '100'));
+const seed = Number(opt('seed', '1'));
+const maxRounds = Number(opt('max-rounds', '60'));
+
+if (flag('adaptive')) {
+  for (const opponentDial of [0.2, 0.85]) {
+    const means = adaptiveSeries({ opponentDial, matches, seed, maxRounds });
+    console.log(`adaptive vs dial ${opponentDial}: mean dial over each match's second half: ${means.map((m) => m.toFixed(3)).join(' ')}`);
+  }
+  process.exit(0);
+}
+
+const seats: [SeatSpec, SeatSpec] = [seatOf(opt('a', 'normal')), seatOf(opt('b', 'normal'))];
+const swap = flag('swap');
+const jobs = Math.max(1, Number(opt('jobs', '1')));
+
+// Every match this run plays, in order: each seed, then (with --swap) the same seed with the factions exchanged.
+const all: SimOpts[] = [];
+for (let i = 0; i < matches; i++) {
+  all.push({ seed: seed + i, factions: ['spartans', 'mongols'], seats, maxRounds });
+  if (swap) all.push({ seed: seed + i, factions: ['mongols', 'spartans'] as [FactionId, FactionId], seats, maxRounds });
+}
+
+const shard = opt('shard', '');
+if (shard !== '') {
+  // A child: plays its share and writes one JSON line per match, with its index in the whole run.
+  const [i, n] = shard.split('/').map(Number) as [number, number];
+  all.forEach((o, index) => {
+    if (index % n !== i) return;
+    process.stdout.write(`${JSON.stringify({ index, ...runMatch(o) })}\n`);
+  });
+  process.exit(0);
+}
+
+type Line = SimResult & { index: number };
+
+function runShards(): Promise<Line[]> {
+  const script = process.argv[1]!;
+  const rest = argv.filter((_, k) => !(argv[k] === '--jobs' || argv[k - 1] === '--jobs' || argv[k] === '--json' || argv[k - 1] === '--json'));
+  const children = Array.from({ length: jobs }, (_, i) => new Promise<Line[]>((resolve, reject) => {
+    const child = spawn(process.execPath, [...process.execArgv, script, ...rest, '--shard', `${i}/${jobs}`], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (d: string) => {
+      out += d;
+      process.stderr.write(`\r${(out.match(/\n/g) ?? []).length} matches from shard ${i}   `);
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) { reject(new Error(`shard ${i} exited with ${code}`)); return; }
+      resolve(out.split('\n').filter((l) => l.trim() !== '').map((l) => JSON.parse(l) as Line));
+    });
+  }));
+  return Promise.all(children).then((parts) => parts.flat().sort((a, b) => a.index - b.index));
+}
+
+const pct = (x: number): string => `${(100 * x).toFixed(1)}%`;
+const f2 = (x: number): string => x.toFixed(2);
+
+const lines = await runShards();
+process.stderr.write('\n');
+const json = opt('json', '');
+if (json !== '') writeFileSync(json, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+const results: SimResult[] = lines.map(({ index: _index, ...r }) => r);
+const s = summarize(results);
+const per = s.perFaction;
+const trained = (f: FactionId): string => {
+  const sum: Record<string, number> = {};
+  for (const r of results) for (const p of [0, 1] as const) {
+    if (r.factions[p] !== f) continue;
+    for (const [t, n] of Object.entries(r.sides[p].unitsTrained)) sum[t] = (sum[t] ?? 0) + (n ?? 0);
+  }
+  const played = results.length;
+  return Object.entries(sum).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t} ${f2(n / played)}`).join(', ');
+};
+const refusals = results.reduce((a, r) => a + r.refusals, 0);
+const nonMove = results.reduce((a, r) => a + r.nonMoveRefusals, 0);
+const replans = results.reduce((a, r) => a + r.replans, 0);
+console.log([
+  `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
+  `win share: spartans ${pct(s.winRate.spartans)}  mongols ${pct(s.winRate.mongols)}  (adjudged stalls count half)`,
+  `seat win share: first ${pct(s.seatWinRate[0])}  second ${pct(s.seatWinRate[1])}`,
+  `stalled ${pct(s.stalledShare)}  rounds p10 ${s.rounds.p10}  median ${s.rounds.median}  p90 ${s.rounds.p90}`,
+  `refusals ${refusals} (not moves ${nonMove})  replans ${replans}`,
+  ...(['spartans', 'mongols'] as const).map((f) => {
+    const m = per[f];
+    return `${f}: cities ${f2(m.cities)}  at round 10 ${f2(m.citiesAtRound10)}  trained ${f2(m.unitsTrained)}  attacks ${f2(m.attacks)}  kills ${f2(m.kills)}`
+      + `  mounted attacks ${f2(m.mountedAttacks)}  raid retreats ${f2(m.raidRetreats)}  adjacent ${f2(m.adjacentShare)}`
+      + `  lures ${f2(m.lures)} onto capturable ${f2(m.lureOntoCapturable)} lured captures ${f2(m.luredCaptures)}  forest entries short of mp ${f2(m.forestEntriesWithLittleMp)}`
+      + `\n  trained per match: ${trained(f)}`;
+  }),
+  `spartan adjacent minus mongol ${f2(per.spartans.adjacentShare - per.mongols.adjacentShare)}`
+    + `  mongol cities at round 10 minus spartan ${f2(per.mongols.citiesAtRound10 - per.spartans.citiesAtRound10)}`
+    + `  mongol raid retreats / mounted attacks ${f2(per.mongols.mountedAttacks === 0 ? 0 : per.mongols.raidRetreats / per.mongols.mountedAttacks)}`,
+].join('\n'));

@@ -132,3 +132,15 @@ test('a veiled tile is dimmed whole: its ground and everything standing on it, b
   const unit = html.slice(html.indexOf(`data-unit="${me.id}"`));
   expect(unit.slice(0, unit.search(/data-hex=|$/))).not.toContain('class="veil"');
 });
+
+test('a treasure under a unit is drawn beside the figure, so the unit never hides what it waits on', () => {
+  const view = structuredClone(playerView(s, 0));
+  const k = '-1,4';                                         // explored, not a city, field
+  view.tiles[k]!.treasure = true;
+  const alone = tileMarkup(draw({ view }), k);
+  expect(alone).toContain('data-treasure="centre"');
+  view.units[0]!.pos = k;
+  const under = tileMarkup(draw({ view }), k);
+  expect(under).toContain('data-treasure="beside"');
+  expect(under).not.toContain('data-treasure="centre"');
+});

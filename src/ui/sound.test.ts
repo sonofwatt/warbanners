@@ -70,3 +70,9 @@ test('mute falls back to memory when storage throws', () => {
   setMuted(true);
   expect(isMuted()).toBe(true);
 });
+
+test('a melee advance sounds like a move, but only for a unit the viewer can see', () => {
+  const step = { type: 'advanced', unit: 1, from: '0,0', to: '1,0' } as const;
+  expect(soundFor([step], ALL)).toBe('move');
+  expect(soundFor([step], new Set([2]))).toBeNull();
+});

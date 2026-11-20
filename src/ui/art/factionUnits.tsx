@@ -39,7 +39,7 @@ const BLACK_HORSE_DARK = '#33281F';
 const HORSE_HAIR = '#2A201B';
 const PALE_HORSE = '#EAE3D6';
 const PALE_HORSE_DARK = '#C7BDAC';
-const PALE_MANE = '#A99D8A';
+const PIEBALD = '#6B4A35';
 const FELT = '#F2ECDD';
 const FELT_DARK = '#D8CDB6';
 const FUR = '#7A5230';
@@ -225,20 +225,25 @@ function khansGuard(p: FigureProps): ReactElement {
 
 function skyCaller(p: FigureProps): ReactElement {
   const ink = new Ink();
-  horse(ink, PALE_HORSE, PALE_HORSE_DARK, PALE_MANE);
+  // A piebald horse: pale, with big dark patches, so it never reads as the Knight's grey.
+  horse(ink, PALE_HORSE, PALE_HORSE_DARK, PIEBALD);
+  ink.ellipse(-9, -7.4, 4.6, 3.8, PIEBALD);
+  ink.ellipse(3.6, -4.8, 3.4, 2.4, PIEBALD);
+  ink.poly([7.4, -11.6, 10.4, -17.8, 12.6, -16.2, 10.6, -9.4], PIEBALD);
+  ink.rect(-11.2, -1.2, 2.8, 3.6, PIEBALD, 1);
+  // The staff, held up behind him and topped with a bronze mirror, flies three broad streamers back
+  // over the horse's rump, clear of its head and of the rider.
+  ink.line(-3.6, -9, -11.6, -31.4, WOOD_DARK, 1.6);
+  ink.shape('M -12.2 -31.2 C -15.4 -31 -16 -27.4 -19.8 -26 C -15.8 -25.4 -14.2 -27.4 -11.6 -28.2 Z', p.accent);
+  ink.shape('M -11.6 -28.4 C -14.8 -27 -15 -23.6 -19.2 -21.6 C -15.2 -21.4 -13.4 -23.6 -10.8 -25.4 Z', STRING);
+  ink.shape('M -10.8 -25.6 C -13.6 -23.8 -13.4 -20.6 -17.4 -17.8 C -13.4 -18 -11.8 -20.6 -9.8 -22.6 Z', p.colour.main);
+  ink.circle(-12, -32.6, 3.2, p.accent);
+  ink.circle(-12, -32.6, 1.9, STRING);
+  ink.circle(-12.6, -33.2, 0.8, p.accent);
   rider(ink, p.colour, p.colour.main);
   ink.rect(-5, -13.6, 10, 1.8, p.colour.dark);
-  // The staff, topped with a bronze mirror and hung with long streamers that blow back.
-  ink.line(10, -4, 10, -31.4, WOOD_DARK, 1.5);
-  ink.line(7, -29.4, 13, -29.4, WOOD_DARK, 1);
-  ink.shape('M 7.4 -29.4 C 5 -26 7 -22.6 4.6 -18.4 C 7.8 -21.4 6.4 -25.4 8.8 -29.4 Z', p.colour.main);
-  ink.shape('M 9.4 -29.4 C 7.6 -25 9.4 -21.6 7.6 -16.8 C 10.4 -20.4 9 -25 10.8 -29.4 Z', STRING);
-  ink.shape('M 11.2 -29.4 C 10 -25 12.4 -21 10.8 -15.6 C 13.8 -20 11.6 -24.6 12.6 -29.4 Z', p.colour.dark);
-  ink.shape('M 12.4 -29.4 C 13 -25.6 15.6 -23 15.4 -18 C 17 -22.6 14.4 -25.6 13.8 -29.4 Z', p.colour.main);
-  ink.circle(10, -32.6, 2.4, p.accent);
-  ink.circle(9.4, -33.2, 0.9, STRING);
-  ink.line(4, -16.4, 9, -16.4, p.colour.main, 3);
-  hand(ink, 10, -16.4);
+  ink.line(-3, -17.6, -6.6, -18.6, p.colour.main, 3);
+  hand(ink, -7.2, -18.8);
   head(ink, 0, -25.4, 5.4);
   // A wide felt hat with a low crown and a short fringe over the brow.
   ink.ellipse(0, -29.4, 10.6, 2.2, p.colour.dark);

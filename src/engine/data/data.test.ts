@@ -6,7 +6,7 @@ import { CONFIG } from './config';
 
 test('every unit row matches the rules file spot checks', () => {
   expect(UNITS.warrior).toMatchObject({ atk: 4, def: 3, range: 1, move: 1, hp: 10, sight: 1, cost: 2, tech: null, faction: null });
-  expect(UNITS.hoplite).toMatchObject({ atk: 4, def: 5, hp: 15, cost: 4, tech: 'bronze', faction: 'spartans' });
+  expect(UNITS.hoplite).toMatchObject({ atk: 4, def: 5, hp: 15, cost: 3, tech: 'bronze', faction: 'spartans' });
   expect(UNITS.hoplite.traits).toEqual(['steadfast', 'phalanx']);
   expect(UNITS.kingsGuard.cost).toBeNull();
   expect(UNITS.camp).toMatchObject({ atk: 0, range: 0, cost: 6, tech: 'roads', faction: 'mongols' });

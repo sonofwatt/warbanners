@@ -10,10 +10,12 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:browser": "vite build && cross-env BROWSER=1 vitest run src/browser",
+    "test:browser": "vite build && cross-env BROWSER=1 vitest run src/browser/ai.test.ts && cross-env BROWSER=1 vitest run src/browser --exclude src/browser/ai.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "sim": "tsx scripts/sim.ts",
+    "sim:ai": "tsx scripts/simai.ts",
+    "sim:adaptive": "tsx scripts/simai.ts --adaptive",
     "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {

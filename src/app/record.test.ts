@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 import { applyAction, createMatch, hashState, legalActions, RULES_VERSION } from '../engine';
 import type { MatchSettings, MatchState } from '../engine';
-import { append, newRecord, restore } from './record';
-import type { MatchRecord, Restored } from './record';
+import { append, newRecord, restore, setAdapt } from './record';
+import type { MatchRecord, Restored, Seat } from './record';
 
 const SETTINGS: MatchSettings = { seed: 42, factions: ['spartans', 'mongols'] };
 function playSome(n: number): { rec: MatchRecord; state: MatchState } {
@@ -51,6 +51,7 @@ test('a damaged snapshot is rebuilt from the actions', () => {
 test('another rules version is refused as such', () => {
   const { rec } = playSome(5);
   expect(restore({ ...rec, rulesVersion: RULES_VERSION + 1 })).toEqual({ ok: false, reason: 'version' });
+  expect(restore({ ...rec, rulesVersion: 1 })).toEqual({ ok: false, reason: 'version' });   // a save from before rules version 2
 });
 test('rubbish is refused and nothing throws', () => {
   const { rec } = playSome(5);
@@ -89,4 +90,44 @@ test('a record that cannot be rebuilt either is reported as damaged, not thrown'
   delete r.snapshot.state.players[0].explored; r.snapshot.hash = hashState(r.snapshot.state);
   r.actions[3] = { type: 'move', unit: 999, to: '0,0' };
   expect(restore(r)).toEqual({ ok: false, reason: 'corrupt' });
+});
+const AI_SEAT: Seat = { name: 'Normal AI', kind: 'ai', level: 'normal', salt: 12345, adapt: { dial: 0.5, trend: 0 } };
+test('a solo record keeps its AI seat and restores, by snapshot and by replay', () => {
+  const rec = newRecord('m2', SETTINGS, [{ name: 'Ann', kind: 'human' }, AI_SEAT], 1000);
+  expect(rec.players).toEqual([{ name: 'Ann', kind: 'human' }, AI_SEAT]);
+  const state = createMatch(SETTINGS);
+  const r1 = applyAction(state, legalActions(state).find(a => a.type === 'move')!);
+  if (!r1.ok) throw new Error(r1.reason);
+  const played = append(rec, legalActions(state).find(a => a.type === 'move')!, r1.state, 1001);
+  const back = ok(restore(JSON.parse(JSON.stringify(played))));
+  expect(back.repaired).toBe(false); expect(back.record.players[1]).toEqual(AI_SEAT);
+  const damaged = JSON.parse(JSON.stringify(played)); damaged.snapshot.state.players[1].gold += 9;
+  const fixed = ok(restore(damaged));
+  expect(fixed.repaired).toBe(true); expect(hashState(fixed.state)).toBe(hashState(r1.state));
+});
+test('a plan 2 record with two people restores unchanged', () => {
+  const { rec, state } = playSome(6);
+  expect(rec.players).toEqual([{ name: 'Ann', kind: 'human' }, { name: 'Ben', kind: 'human' }]);
+  const r = ok(restore(JSON.parse(JSON.stringify(rec))));
+  expect(r.record.players).toEqual(rec.players); expect(hashState(r.state)).toBe(hashState(state));
+});
+test('a damaged AI seat makes the save damaged', () => {
+  const rec = newRecord('m2', SETTINGS, [{ name: 'Ann', kind: 'human' }, AI_SEAT], 1000);
+  const damage = (f: (p: any) => void) => { const r = JSON.parse(JSON.stringify(rec)); f(r.players[1]); return r; };
+  const bads = [
+    damage(p => { p.level = 'brutal'; }), damage(p => { delete p.salt; }), damage(p => { p.salt = 'x'; }),
+    damage(p => { delete p.adapt; }), damage(p => { p.adapt.dial = 'x'; }), damage(p => { p.adapt.trend = null; }),
+    damage(p => { p.kind = 'robot'; }), damage(p => { p.kind = 'ai'; p.name = 3; }),
+  ];
+  for (const b of bads) expect(restore(b)).toEqual({ ok: false, reason: 'corrupt' });
+  const noPerson = JSON.parse(JSON.stringify(rec)); noPerson.players[0] = { ...AI_SEAT };
+  expect(restore(noPerson)).toEqual({ ok: false, reason: 'corrupt' });
+});
+test('setAdapt gives a new record with the seat\'s new dial', () => {
+  const rec = newRecord('m2', SETTINGS, [{ name: 'Ann', kind: 'human' }, { ...AI_SEAT, level: 'adaptive' }], 1000);
+  const copy = JSON.stringify(rec);
+  const next = setAdapt(rec, 1, { dial: 0.46, trend: 0.2 });
+  expect(next.players[1]).toMatchObject({ kind: 'ai', adapt: { dial: 0.46, trend: 0.2 } });
+  expect(JSON.stringify(rec)).toBe(copy);
+  expect(setAdapt(rec, 0, { dial: 0.1, trend: 0 }).players[0]).toEqual({ name: 'Ann', kind: 'human' });
 });

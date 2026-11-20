@@ -55,18 +55,18 @@ centre `(0,0)` is always a plain field.
 
 - Each player: their capital (level 1, territory radius 1), one starting unit on
   the capital tile, their faction's starting tech.
-- Player 0 starts with 8 gold, player 1 with 10 (for moving second).
+- Each player starts with 10 gold.
 - Each player has explored whatever their capital and starting unit can see.
 
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, capture, train, harvest, build, lay a road, build
-walls, research, choose a city reward. Then end the turn.
+move, attack, use an ability, capture, claim a treasure, train, harvest, build, lay
+a road, build walls, research, choose a city reward. Then end the turn.
 
 At the start of each of your turns except your first: you are paid income, and your
-units that did nothing at all on your previous turn heal. Then every unit of yours
-gets its movement and attacks back.
+units that did nothing at all on your previous turn heal (see Resting in 11). Then
+every unit of yours gets its movement and attacks back.
 
 At the end of your turn: any city reward you have not chosen takes its first
 option, and statuses on your units (taunted, blinded) wear off.
@@ -82,8 +82,9 @@ option, and statuses on your units (taunted, blinded) wear off.
   Mongol city). Spare points carry over.
 - Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
   city (or by a Camp on its behalf) count, plus the starting unit for the
-  capital. Champions and supports from rewards, and units from treasures, do not
-  count.
+  capital. A unit that captures a village or a city counts against that city from
+  then on, and no longer against the one it came from (see 12). Champions and
+  supports from rewards, and units from treasures, do not count.
 
 Rewards (pick one of two at each new level):
 
@@ -141,27 +142,33 @@ only comes from a city reward.
 | Horseman | any | 4 | 2 | 1 | 2 | 10 | 2 | 3 | riding | retreat, mounted |
 | Knight | any | 6 | 3 | 1 | 3 | 15 | 2 | 6 | chivalry | chain, mounted |
 | Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | engineering | splash, siege |
-| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 4 | bronze | steadfast, phalanx |
+| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
 | Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden |
-| Horse Archer | Mongols | 4 | 2 | 2 | 2 | 10 | 2 | 4 | riding | retreat, mounted |
+| Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
 | Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
 
-Starting unit: Spartans a Warrior, Mongols a Horseman.
+Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
 
 ## 9. Movement
 
 - One unit per tile. You may pass through your own units but not stop on them. You
   may not enter a tile holding an enemy unit.
 - Engagement: entering a tile next to an enemy unit uses up the rest of the move.
+- Into the fog: a single move may enter at most one tile its owner had not explored
+  when the move began, and only as the last tile of the move; a path never passes
+  through an unexplored tile. The unit stops there and its owner explores what it
+  now sees. It then has no movement left this turn, except a Mongol scouting rider
+  (see 13). Costs, engagement, forest, mountain, roads and relay riders apply as
+  usual.
 - After attacking, a unit cannot move, unless it has `retreat`, which keeps
   whatever movement it had left.
 - A unit trained or spawned this turn is fresh until its owner's next turn starts:
   it cannot move, attack, use an ability, capture, be hastened, or (a Camp) train.
-- Stepping onto a treasure collects it at once (see 12).
+- Stepping onto a treasure does not collect it: it is claimed later (see 12).
 
 ## 10. Combat
 
@@ -170,7 +177,7 @@ gets the same answer.
 
 ```
 effAtk  = atk * (hp + maxHp) / (2 * maxHp)        (unbowed: effAtk = atk)
-damage  = max(1, round(2 * effAtk * effAtk / (effAtk + def * cover)))
+damage  = max(1, round(2.5 * effAtk * effAtk / (effAtk + def * cover)))
 ```
 
 `cover` is the defender's terrain cover from section 2. `atk` and `def` include any
@@ -181,26 +188,32 @@ attacker is within the defender's range, it strikes back:
 
 ```
 cAtk    = atk * f * (hp + maxHp) / (2 * maxHp)    (hp after the hit; f = 0.75, or 1.25 with steadfast)
-counter = max(1, round(2 * cAtk * cAtk / (cAtk + attackerDef)))   (the attacker gets no cover)
+counter = max(1, round(2.5 * cAtk * cAtk / (cAtk + attackerDef)))   (the attacker gets no cover)
 ```
 
-A unit at 0 health is removed. An attacker does not move into the tile.
+A unit at 0 health is removed. When an attacker with range 1 kills the defender, it
+moves into the defender's tile. The step costs no movement and changes nothing else:
+the attacker still cannot move after attacking unless it has `retreat`, a Knight's
+`chain` attack is made from the new tile, and the step counts as entering the tile
+this turn (so it cannot capture or claim a treasure there until a later turn).
+Attackers with range 2 or more never move in, and neither does anyone for a unit
+killed by splash.
 
 Worked examples (all at full health on a field unless said):
 
 | Attack | Damage | Counter |
 |---|---|---|
-| Warrior on Warrior | 5 | 2 |
-| Warrior on Warrior in forest | 4 | |
-| Warrior on Warrior in a city | 4 | |
-| Warrior on Warrior in a Spartan city | 3 | |
-| Warrior on Defender | 3 | 1 |
-| Warrior on Spearman | 4 | 5 |
-| Warrior at 5 health on Warrior | 3 | |
-| Knight on Warrior | 8 | |
-| Catapult on Warrior | 8 | none; neighbours take 4 |
+| Warrior on Warrior | 6 | 2 |
+| Warrior on Warrior in forest | 5 | |
+| Warrior on Warrior in a city | 5 | |
+| Warrior on Warrior in a Spartan city | 4 | |
+| Warrior on Defender | 4 | 1 |
+| Warrior on Spearman | 5 | 5 |
+| Warrior at 5 health on Warrior | 4 | |
+| Knight on Warrior | 10 (kills it) | |
+| Catapult on Warrior | 10 (kills it) | none; neighbours take 5 |
 | Warrior on Hoplite with two Hoplites beside it, in a Spartan city | 2 | |
-| King's Guard at 5 health on Warrior | 8 | |
+| King's Guard at 5 health on Warrior | 10 (kills it) | |
 
 ## 11. Traits and abilities
 
@@ -230,19 +243,29 @@ as an attack would):
 | hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
 | dustStorm | Sky Caller | a tile within 2 with at least one enemy unit you can see on it or next to it | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
 
-Resting: a unit that did nothing at all on its owner's previous turn heals 4 at the
-start of the next turn if it stands in its owner's territory, otherwise 2.
+Resting: a unit that did nothing at all on its owner's previous turn heals at the
+start of the next turn: 4 if it stands in its owner's territory, 2 on land no city
+claims, 1 in an enemy's territory, and nothing while an enemy unit its owner can
+see (section 14) stands on a tile next to it. An enemy its owner cannot see changes
+nothing.
 
 ## 12. Treasures, capture, winning
 
-- Treasure: the tile's treasure is removed and `rngInt(3)` decides: 0 gives +5 gold;
-  1 explores every tile within 4; 2 gives a Warrior on the first free enterable
-  neighbour in direction order (or +5 gold if there is none).
+- Treasure: a unit standing on a treasure may claim it if it entered that tile on an
+  earlier turn and has not moved or attacked this turn (so it must still be there
+  when its owner's turn starts). Claiming uses the unit's whole turn. Either
+  player's units may claim it; the first to claim takes it. The tile's treasure is
+  removed and `rngInt(3)` decides: 0 gives +5 gold; 1 explores every tile within 4;
+  2 gives a Warrior on the first free enterable neighbour in direction order (or +5
+  gold if there is none).
 - Capture: a unit standing on a village or an enemy city may capture it if it
   entered that tile on an earlier turn and has not moved or attacked this turn. It
   uses the unit's whole turn. A village becomes a level 1 city of the captor. An
   enemy city changes owner and keeps its level, buildings and territory; units it
-  had trained no longer count against it. Any city reward its previous owner had
+  had trained no longer count against it. The captor counts against the captured
+  city from then on (even past its capacity, which only limits training), and no
+  longer against its old city; a captor that counted against no city still does
+  not. Any city reward its previous owner had
   not yet chosen is dropped. City tribute is paid only by factions that have a
   tribute rule.
 - A player with no cities is eliminated and their units are removed. The last
@@ -261,8 +284,11 @@ Mongols
 
 - Start with `riding`.
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
-- Mounted Mongol units have +1 movement, but entering a forest uses up the rest of
-  their move.
+- Mounted Mongol units have +1 movement. Entering a forest costs them the normal
+  forest cost and then uses up the rest of their move.
+- Scouting riders: a mounted Mongol unit that ends a move on a tile its owner had
+  not explored keeps whatever movement that move left it, and may move again this
+  turn from there under the same rule (see 9).
 - Relay riders: for Mongol units, entering any tile inside Mongol territory costs
   1 half-point.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.

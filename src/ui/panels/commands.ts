@@ -40,6 +40,9 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
   if (ix.captures.includes(unit.id)) {
     out.push({ id: 'capture', label: T.ui.capture, cost: null, enabled: true, why: null, action: { type: 'capture', unit: unit.id }, arm: null });
   }
+  if (ix.claims.includes(unit.id)) {
+    out.push({ id: 'claimTreasure', label: T.ui.claimTreasure, cost: null, enabled: true, why: null, action: { type: 'claimTreasure', unit: unit.id }, arm: null });
+  }
   const per = ix.abilities[unit.id] ?? {};
   for (const ability of abilityIds) {
     if ((per[ability] ?? []).length > 0) out.push(arming(`ability-${ability}`, T.ability[ability].name, null, { kind: 'ability', ability }));

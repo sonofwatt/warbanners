@@ -22,15 +22,28 @@ const ix = indexActions(legalActions(open));
 const noop = vi.fn();
 
 test('the Hud shows who, gold, turn and an end turn button', () => {
-  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} />);
+  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
   expect(html).toContain('Ann'); expect(html).toContain('>8<'); expect(html).toContain('Turn 1'); expect(html).toContain('+2');
   expect(html).toContain('data-testid="end-turn"'); expect(html).toContain('data-testid="open-tech"'); expect(html).toContain('data-testid="tech-dot"');
-  expect(html).toContain('1 unit can still act');
+  expect(html).toContain('1 unit to act');
+});
+test('the Hud has a Next unit button beside End turn, greyed when asked', () => {
+  const hud = (nextDisabled?: boolean) => renderToStaticMarkup(
+    <Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={1} unitsToAct={1} techReady={false}
+      nextDisabled={nextDisabled} onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
+  const button = (html: string) => /<button[^>]*data-testid="next-unit"[^>]*>/.exec(html)?.[0] ?? '';
+  const html = hud();
+  expect(button(html)).toContain(`aria-label="${T.ui.nextUnit}"`);
+  expect(button(html)).not.toContain('disabled');
+  expect(html).toContain(`>${T.ui.nextUnit}<`);
+  expect(html.indexOf('data-testid="next-unit"')).toBeLessThan(html.indexOf('data-testid="end-turn"'));
+  expect(html.slice(html.indexOf('class="hud-end"')).indexOf('data-testid="next-unit"')).toBeGreaterThan(0);   // in End turn's group
+  expect(button(hud(true))).toContain('disabled=""');
 });
 test('the unit panel shows the card and its commands', () => {
   const u = open.units[0]!;
   const html = renderToStaticMarkup(<UnitPanel type={u.type} hp={u.hp} faction="spartans" commands={unitCommands({ kind: 'unit', id: u.id, armed: null, askLure: null }, open, ix)} onCommand={noop} />);
-  expect(html).toContain('Warrior'); expect(html).toContain('10/10');
+  expect(html).toContain('Krypteia Scout'); expect(html).toContain('5/5');   // the Spartans' starting unit
 });
 test('the unit panel movement includes the Mongol mounted bonus for every mounted unit', () => {
   const move = (type: 'horseArcher' | 'khansGuard' | 'horseman', faction: 'mongols' | 'spartans') =>
@@ -39,6 +52,15 @@ test('the unit panel movement includes the Mongol mounted bonus for every mounte
   expect(move('horseArcher', 'mongols')).toContain(`Movement</dt><dd>${UNITS.horseArcher.move + bonus}</dd>`);
   expect(move('khansGuard', 'mongols')).toContain(`Movement</dt><dd>${UNITS.khansGuard.move + bonus}</dd>`);
   expect(move('horseman', 'spartans')).toContain(`Movement</dt><dd>${UNITS.horseman.move}</dd>`);
+});
+test("a Mongol rider's card names the scouting riders rule; a Spartan rider's and a Mongol foot unit's do not", () => {
+  const card = (type: 'horseman' | 'warrior', faction: 'mongols' | 'spartans') =>
+    renderToStaticMarkup(<UnitPanel type={type} hp={10} faction={faction} commands={[]} onCommand={noop} />);
+  expect(card('horseman', 'mongols')).toContain(T.ui.scoutingRidersBlurb);
+  expect(card('horseman', 'mongols')).toContain(T.ui.scoutingRiders);
+  expect(card('horseman', 'spartans')).not.toContain(T.ui.scoutingRiders);
+  expect(card('warrior', 'mongols')).not.toContain(T.ui.scoutingRiders);
+  expect(T.trait.mounted.blurb).not.toContain('Mongol');
 });
 test('the city panel shows growth, units and train commands', () => {
   const c = open.cities[0]!;
@@ -61,6 +83,11 @@ test('the reward sheet shows both rewards and Later', () => {
 test('the menu offers sound, resign and home', () => {
   const html = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
   expect(html).toContain('Sound on'); expect(html).toContain('data-testid="resign"'); expect(html).not.toContain('Resign this match?');
+});
+test('the menu greys Resign while the AI plays', () => {
+  const button = (html: string) => /<button[^>]*data-testid="resign"[^>]*>/.exec(html)?.[0] ?? '';
+  expect(button(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />))).not.toContain('disabled');
+  expect(button(renderToStaticMarkup(<Menu soundOn resignDisabled onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />))).toContain('disabled=""');
 });
 test('the menu shows the same version line as Home', () => {
   const menu = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);

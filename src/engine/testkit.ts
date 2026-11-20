@@ -1,12 +1,16 @@
+import { applyAction, legalActions } from './apply';
 import { UNITS } from './data/units';
 import { key, range } from './hex';
-import { foundCity, freshAttacks, spawnUnit } from './state';
+import { rngInt } from './rng';
+import { createMatch, foundCity, freshAttacks, spawnUnit } from './state';
 import { RULES_VERSION } from './types';
 import type {
-  City, FactionId, MatchState, PlayerId, Result, TechId, Tile, Unit, UnitTypeId,
+  Action, City, FactionId, MatchState, PlayerId, Result, TechId, Tile, Unit, UnitTypeId,
 } from './types';
 
-export function blankMatch(opts?: { radius?: number; factions?: [FactionId, FactionId] }): MatchState {
+// Every tile starts explored by both players (rules 9: a move may not pass through an unexplored tile), unless
+// `unexplored` is set, which leaves both explored sets empty.
+export function blankMatch(opts?: { radius?: number; factions?: [FactionId, FactionId]; unexplored?: boolean }): MatchState {
   const radius = opts?.radius ?? 4;
   const factions = opts?.factions ?? ['spartans', 'mongols'];
   const tiles: Record<string, Tile> = {};
@@ -16,10 +20,11 @@ export function blankMatch(opts?: { radius?: number; factions?: [FactionId, Fact
       treasure: false, cityId: null,
     };
   }
+  const explored = (): string[] => (opts?.unexplored === true ? [] : Object.keys(tiles).sort());
   return {
     rulesVersion: RULES_VERSION, seed: 0, rng: 1, radius, tiles, cities: [], units: [],
     players: factions.map((faction, i) => ({
-      id: i, faction, gold: 20, techs: [], explored: [], alive: true, turnsTaken: 0,
+      id: i, faction, gold: 20, techs: [], explored: explored(), alive: true, turnsTaken: 0,
     })),
     current: 0, stamp: 5, nextUnitId: 0, nextCityId: 0, winner: null,
   };
@@ -58,4 +63,29 @@ export function give(s: MatchState, player: PlayerId, ...techs: TechId[]): void 
 export function must(r: Result): MatchState {
   if (!r.ok) throw new Error(r.reason);
   return r.state;
+}
+
+const MAX_ACTIONS_PER_TURN = 40;
+
+// The same random playout as scripts/sim.ts: up to 40 random non-end actions, then endTurn, for
+// `playerTurns` end-of-turns (fewer if the match ends first). The pick stream starts at the seed.
+export function randomPlayout(seed: number, playerTurns: number): MatchState {
+  let s = createMatch({ seed, factions: ['spartans', 'mongols'] });
+  let pick = seed;
+  const play = (a: Action): void => {
+    const r = applyAction(s, a);
+    if (!r.ok) throw new Error(`engine refused a legal action ${JSON.stringify(a)}: ${r.reason}`);
+    s = r.state;
+  };
+  for (let turns = 0; s.winner === null && turns < playerTurns; turns++) {
+    for (let n = 0; n < MAX_ACTIONS_PER_TURN && s.winner === null; n++) {
+      const acts = legalActions(s).filter((a) => a.type !== 'resign' && a.type !== 'endTurn');
+      if (acts.length === 0) break;
+      const [i, next] = rngInt(pick, acts.length);
+      pick = next;
+      play(acts[i]!);
+    }
+    if (s.winner === null) play({ type: 'endTurn' });
+  }
+  return s;
 }

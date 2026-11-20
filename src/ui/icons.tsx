@@ -129,6 +129,17 @@ export function NextIcon(): ReactElement {
   );
 }
 
+/** A figure with a step ahead of it: on to the next unit that can act. */
+export function NextUnitIcon(): ReactElement {
+  return (
+    <Svg>
+      <circle cx="8" cy="6.6" r="3.6" fill="currentColor" />
+      <path d="M3 21v-3.2a5 5 0 0 1 10 0V21a0.8 0.8 0 0 1-0.8 0.8H3.8A0.8 0.8 0 0 1 3 21z" fill="currentColor" />
+      <path d="M15.4 7.4l5.2 4.6-5.2 4.6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 export function CheckIcon(): ReactElement {
   return (
     <Svg>

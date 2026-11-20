@@ -21,3 +21,11 @@ test('stats keep one dt and dd per number, so a reader announces the pair', () =
   expect(html).toContain('Health</dt><dd>7/10</dd>');
   expect(html).toContain('Range</dt><dd>2</dd>');
 });
+test('each stat carries the length of its value\'s longest word, so the value can shrink to fit unbroken', () => {
+  const html = renderToStaticMarkup(<Stats stats={[
+    { icon: <svg />, label: 'Resource', value: 'Cropland' }, { icon: <svg />, label: 'Building', value: 'Lumber camp' }, { icon: <svg />, label: 'Range', value: 2 },
+  ]} />);
+  expect(html).toContain('<div class="stat" style="--chars:8">');
+  expect(html).toContain('<div class="stat" style="--chars:6">');
+  expect(html).toContain('<div class="stat" style="--chars:1">');
+});

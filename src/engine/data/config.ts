@@ -7,7 +7,7 @@ import type { BuildingId, Resource, RewardId, TechId, Terrain } from '../types';
 export const CONFIG = deepFreeze({
   mapRadius: 6,
   capitals: ['-2,5', '2,-5'],
-  startGold: [8, 10],
+  startGold: [10, 10],
   terrain: {
     field: { enterCost: 2, cover: 1 },
     forest: { enterCost: 4, cover: 1.25 },
@@ -30,8 +30,8 @@ export const CONFIG = deepFreeze({
     rollRange: 100, villageMinDistance: 3, treasureMinCapitalDistance: 3, treasureMinFeatureDistance: 2,
   },
   techBase: [4, 6, 8],
-  counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2, splashDivisor: 2,
-  restHeal: { home: 4, away: 2 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
+  counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2.5, splashDivisor: 2,
+  restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
   treasure: { gold: 5, exploreRadius: 4, unit: 'warrior', outcomes: 3 },
   rewards: {
     2: ['gold', 'scout'],
@@ -62,7 +62,7 @@ export const CONFIG = deepFreeze({
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
-  restHeal: { home: number; away: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
+  restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
   treasure: { gold: number; exploreRadius: number; unit: string; outcomes: number };
   rewards: Record<2 | 3 | 4 | 5, readonly [RewardId, RewardId]>;
   rewardGold: number; rewardScoutRadius: number; rewardBorderRadius: number; rewardCapacity: number;

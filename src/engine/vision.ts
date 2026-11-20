@@ -49,9 +49,12 @@ function hasSpotterNextTo(s: MatchState, player: PlayerId, pos: HexKey): boolean
   return false;
 }
 
-export function canSeeUnit(s: MatchState, player: PlayerId, u: Unit): boolean {
+// `visible` is visibleTiles(s, player); callers checking many units compute it once and pass it in.
+export function canSeeUnit(
+  s: MatchState, player: PlayerId, u: Unit, visible: ReadonlySet<HexKey> = visibleTiles(s, player),
+): boolean {
   if (u.owner === player) return true;
-  if (!visibleTiles(s, player).has(u.pos)) return false;
+  if (!visible.has(u.pos)) return false;
   if (hasTrait(u, 'hidden')) return hasSpotterNextTo(s, player, u.pos);
   return true;
 }
@@ -60,17 +63,19 @@ export interface PlayerView {
   player: PlayerId; tiles: Record<HexKey, Tile>; cities: City[]; units: Unit[]; visible: HexKey[];
 }
 
+// The view is a copy that shares nothing with the match. It is made field by field rather than with structuredClone,
+// which costs several times more and is paid on the phone's main thread after every action.
 export function playerView(s: MatchState, player: PlayerId): PlayerView {
   const explored = s.players[player]?.explored ?? [];
   const tiles: Record<HexKey, Tile> = {};
   for (const k of explored) {
     const t = tileAt(s, k);
-    if (t !== undefined) tiles[k] = structuredClone(t);
+    if (t !== undefined) tiles[k] = { ...t };
   }
   const visible = visibleTiles(s, player);
   const units = s.units
-    .filter((u) => u.owner === player || (visible.has(u.pos) && canSeeUnit(s, player, u)))
-    .map((u) => structuredClone(u));
-  const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => structuredClone(c));
+    .filter((u) => u.owner === player || (visible.has(u.pos) && canSeeUnit(s, player, u, visible)))
+    .map((u) => ({ ...u, lure: u.lure === null ? null : { ...u.lure } }));
+  const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => ({ ...c, pendingRewards: [...c.pendingRewards] }));
   return { player, tiles, cities, units, visible: [...visible].sort() };
 }

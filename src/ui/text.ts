@@ -4,6 +4,7 @@ import type {
   AbilityId, BuildingId, FactionId, Resource, RewardId, TechId, Terrain, Trait, UnitTypeId,
 } from '../engine';
 import type { DigestLine } from '../app/digest';
+import type { AiLevel } from '../ai/types';
 
 type Entry = { name: string; blurb: string };
 
@@ -99,10 +100,10 @@ const reason: Record<string, string> = {
 
 const ui = {
   appName: 'Warbanners', rulesWord: 'rules', versionWord: 'Version', builtWord: 'built',
-  walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture',
+  walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture', claimTreasure: 'Claim treasure',
   attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
-  turn: 'Turn', endTurn: 'End turn', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
-  unitsCanAct: '{n} units can still act', oneUnitCanAct: '1 unit can still act', noUnitsCanAct: 'No units can still act',
+  turn: 'Turn', endTurn: 'End turn', nextUnit: 'Next unit', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
+  unitsCanAct: '{n} units to act', oneUnitCanAct: '1 unit to act', noUnitsCanAct: 'No units to act',
   health: 'Health', attackStat: 'Attack', defence: 'Defence', movement: 'Movement', range: 'Range', traits: 'Traits',
   cityTitle: 'City', capitalTitle: 'Capital', techTitle: 'Technologies',
   level: 'Level', growth: 'Growth', unitsHeld: 'Units', walled: 'Walled', notWalled: 'No walls', yes: 'Yes', no: 'No',
@@ -114,6 +115,7 @@ const ui = {
   digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
   digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',
   digestCity: 'You lost a city.',
+  digestTileTaken: 'The {by} moved into its place.', digestTreasure: 'The enemy claimed a treasure.',
   offlineReady: 'Ready to play offline.',
   updateReady: 'A new version is ready.', updateButton: 'Update',
   installButton: 'Install', installIphone: 'Tap Share, then Add to Home Screen.',
@@ -130,22 +132,33 @@ const ui = {
   dismiss: 'Dismiss', gotIt: 'Got it',
   playerOne: 'Player 1', playerTwo: 'Player 2', nameLabel: 'Name for player {n}', setupTitle: 'New match',
   spartansPlay: '{name} plays Spartans', swapFactions: 'Swap factions',
-  setupLine: '{first} moves first and {second} starts with {n} more gold.', start: 'Start',
+  setupLine: '{first} moves first and {second} starts with {n} more gold.', firstMoves: '{first} moves first.', start: 'Start',
   turnOf: "{name}'s turn", passTo: 'Pass the phone to {name}', imName: "I'm {name}",
   wins: '{name} wins', endedOn: 'The match ended on turn {n}.',
   byResignation: 'The other player resigned.', byLastCity: 'The last city was taken.', homeButton: 'Home',
-  tagline: 'Two rival peoples, one phone, a board of little hills.',
+  tagline: 'Face a friend or the AI on little hills.',
   installHint: 'Keep {name} on your home screen.',
   movesFirst: 'Moves first',
   digestTitle: 'While you were away',
   screenFailed: 'Something went wrong on this screen. Your saved matches are safe.',
+  blockedUnseen: 'Something unseen blocks the way.',
+  aiPassed: 'The AI could not decide and passed its turn.',
+  secondPlayer: 'Second player', person: 'Person',
+  scoutingRiders: 'Scouting riders',
+  scoutingRidersBlurb: 'After stepping into unexplored land it may keep moving with whatever movement it has left.',
 } as const;
 
-export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui } as {
+const ai = {
+  name: { easy: 'Easy AI', normal: 'Normal AI', hard: 'Hard AI', adaptive: 'Adaptive AI' } as Record<AiLevel, string>,
+  thinking: 'Thinking...',
+  settled: (n: number): string => `The AI finished at level ${n} of 10.`,
+};
+
+export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
   unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; ability: Record<AbilityId, Entry>;
   reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
   resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
-  reason: Record<string, string>; ui: typeof ui;
+  reason: Record<string, string>; ui: typeof ui; ai: typeof ai;
 };
 
 export function fill(template: string, values: Record<string, string | number>): string {
@@ -171,6 +184,8 @@ export function unlocks(id: TechId): string[] {
 
 export function digestText(line: DigestLine): string {
   if (line.kind === 'cityLost') return T.ui.digestCity;
+  if (line.kind === 'treasureTaken') return T.ui.digestTreasure;
+  if (line.kind === 'tileTaken') return fill(T.ui.digestTileTaken, { by: T.unit[line.by].name });
   const name = T.unit[line.unitType].name;
   const by = line.by === null ? null : T.unit[line.by].name;
   if (line.kind === 'unitLost') return by === null ? fill(T.ui.digestLost, { unit: name }) : fill(T.ui.digestLostBy, { unit: name, by });

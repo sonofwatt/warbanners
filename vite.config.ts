@@ -47,6 +47,7 @@ export default defineConfig({
       },
     }),
   ],
+  worker: { format: 'es' },
   define: {
     __BUILD__: JSON.stringify((process.env.GITHUB_SHA ?? 'dev').slice(0, 7)),
     __BUILD_DATE__: JSON.stringify(buildDate()),

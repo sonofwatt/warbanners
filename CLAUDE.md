@@ -23,6 +23,8 @@ Warbanners is a new game in the same genre as Hexonia, not a copy of it. All art
 ## Code layout
 
 - The engine lives in `src/engine` and is reached from the app only through its index. Any import from `src/ui`, `src/app`, `src/browser` or `src/main.tsx` that names the engine must end in `/engine` or `/engine/index`. Inside the engine, nothing imports from outside it. `src/boundaries.test.ts` and `src/engine/purity.test.ts` enforce both.
+- The AI lives in `src/ai`. It imports the engine only through its index (plus `src/engine/testkit` in tests and `src/ai/scenarios.ts`) and never imports `src/app` or `src/ui`. It touches no clock, randomness or ambient state, except `src/ai/worker.ts`, which alone may read the clock. `src/boundaries.test.ts` and `src/engine/purity.test.ts` enforce this.
+- The planner takes only an `AiInput`, built by `aiInputFor(state, player)`. Never pass it a `MatchState`, so the AI cannot see what its player could not.
 - No DOM, storage, clock or randomness access when a module loads. Importing a module must have no side effects; touch `document`, `window`, `localStorage` and the like only inside functions that the app calls.
 
 ## Testing and releases

@@ -3,8 +3,9 @@ import { describe, expect, test } from 'vitest';
 import { frames, openApp } from './harness';
 
 // The whole game in a real browser, opened with ?seed=7. Facts about seed 7, checked against the engine:
-// Player 1 (Spartans) moves first with 8 gold and one Warrior (unit 0) on the capital at -2,5, which can
-// move to -1,4. Training a Warrior then costs 2. Player 2 (Mongols) starts its turn with 10 gold.
+// Player 1 (Spartans) moves first with 10 gold and one Krypteia Scout (unit 0) on the capital at -2,5, which can
+// move to -1,4, or use its whole move going to 0,3 in the fog. Training a Warrior then costs 2. Player 2 (Mongols)
+// starts its turn with 10 gold.
 
 const SEED = '?seed=7';
 
@@ -215,18 +216,18 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await startMatch(page);
       await throughCurtain(page, 'Player 1');
 
-      expect(await text(page, 'gold')).toBe('8');
+      expect(await text(page, 'gold')).toBe('10');
       expect(await text(page, 'turn')).toBe('Turn 1');
       expect(await text(page, 'who')).toBe('Player 1');
 
-      await tapTile(page, '-2,5'); // the warrior
+      await tapTile(page, '-2,5'); // the scout
       await expect.poll(() => count(page, '[data-mark="move"]')).toBeGreaterThan(0);
-      await tapTile(page, '-1,4');
-      await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
+      await tapTile(page, '0,3');  // its whole move, so it is no longer selected
+      await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('0,3');
 
       await tapTile(page, '-2,5'); // the city, now free
       await page.locator('[data-testid="cmd-train-warrior"]').tap();
-      await expect.poll(() => text(page, 'gold')).toBe('6');
+      await expect.poll(() => text(page, 'gold')).toBe('8');
       expect(await count(page, '[data-unit]')).toBe(2);
 
       await endTurnReady(page);
@@ -348,6 +349,35 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await throughCurtain(page, 'Player 2');
       expect(await text(page, 'who')).toBe('Player 2');
       expect(await text(page, 'turn')).toBe('Turn 1');
+    } finally {
+      await close();
+    }
+  });
+
+  test('choosing the AI hides the second name, and the match has no curtain', async () => {
+    const { page, close } = await openApp(SEED);
+    try {
+      await page.getByTestId('new-match').tap();
+      expect(await page.getByTestId('second-human').getAttribute('aria-checked')).toBe('true');
+      expect(await count(page, '[data-testid="name-1"]')).toBe(1);
+      await page.getByTestId('second-hard').tap();
+      expect(await page.getByTestId('second-hard').getAttribute('aria-checked')).toBe('true');
+      expect(await page.getByTestId('second-human').getAttribute('aria-checked')).toBe('false');
+      expect(await count(page, '[data-testid="name-1"]')).toBe(0);
+      expect(await bodyText(page)).toContain('Hard AI');
+      await page.getByTestId('second-human').tap();
+      expect(await count(page, '[data-testid="name-1"]')).toBe(1);
+      await page.getByTestId('second-easy').tap();
+      await page.getByTestId('start').tap();
+      await page.getByTestId('match').waitFor();
+      expect(await count(page, '[data-testid="pass"]')).toBe(0);
+      expect(await text(page, 'who')).toBe('Player 1');
+      await endTurnReady(page);
+      await page.getByTestId('end-turn').tap();
+      // The AI plays its turn on this screen and gives the phone straight back.
+      await expect.poll(() => text(page, 'turn'), { timeout: 15_000 }).toBe('Turn 2');
+      expect(await count(page, '[data-testid="thinking"]')).toBe(0);
+      expect(await text(page, 'who')).toBe('Player 1');
     } finally {
       await close();
     }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import { CONFIG } from '../../engine';
 import type { FactionId, UnitTypeId } from '../../engine';
+import type { SecondSeat } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { FIGURES } from '../art/factionUnits';
 import { ACCENT, playerColour } from '../art/palette';
@@ -29,15 +30,23 @@ function FactionCard({ faction, name, first }: { faction: FactionId; name: strin
   );
 }
 
+// Who moves first, and the second player's extra start gold when there is any.
+export const setupLine = (first: string, second: string, extra: number): string =>
+  extra === 0 ? fill(T.ui.firstMoves, { first }) : fill(T.ui.setupLine, { first, second, n: extra });
+
+const SEATS: readonly SecondSeat[] = ['human', 'easy', 'normal', 'hard', 'adaptive'];
+const seatLabel = (s: SecondSeat): string => (s === 'human' ? T.ui.person : T.ai.name[s]);
+
 export function Setup(): ReactElement {
   const startMatch = useApp((s) => s.startMatch);
   const goHome = useApp((s) => s.goHome);
   const [first, setFirst] = useState('');
   const [second, setSecond] = useState('');
+  const [seat, setSeat] = useState<SecondSeat>('human');
   const [swapped, setSwapped] = useState(false);
 
   const a = first.trim() === '' ? T.ui.playerOne : first.trim();
-  const b = second.trim() === '' ? T.ui.playerTwo : second.trim();
+  const b = seat !== 'human' ? T.ai.name[seat] : second.trim() === '' ? T.ui.playerTwo : second.trim();
   const factions: [FactionId, FactionId] = swapped ? ['mongols', 'spartans'] : ['spartans', 'mongols'];
   const spartanName = swapped ? b : a;
   const extra = CONFIG.startGold[1] - CONFIG.startGold[0];
@@ -49,10 +58,23 @@ export function Setup(): ReactElement {
           <span>{fill(T.ui.nameLabel, { n: 1 })}</span>
           <input data-testid="name-0" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerOne} value={first} onChange={(e) => setFirst(e.target.value)} />
         </label>
-        <label>
-          <span>{fill(T.ui.nameLabel, { n: 2 })}</span>
-          <input data-testid="name-1" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={second} onChange={(e) => setSecond(e.target.value)} />
-        </label>
+        {seat === 'human' ? (
+          <label>
+            <span>{fill(T.ui.nameLabel, { n: 2 })}</span>
+            <input data-testid="name-1" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={second} onChange={(e) => setSecond(e.target.value)} />
+          </label>
+        ) : null}
+      </div>
+      <div className="setup-seat">
+        <span id="second-label">{T.ui.secondPlayer}</span>
+        <div className="chips" role="radiogroup" aria-labelledby="second-label">
+          {SEATS.map((s) => (
+            <button
+              key={s} type="button" role="radio" aria-checked={s === seat} className={s === seat ? 'chip on' : 'chip'}
+              data-testid={`second-${s}`} onClick={() => setSeat(s)}
+            >{seatLabel(s)}</button>
+          ))}
+        </div>
       </div>
       <div className="setup-factions">
         <FactionCard faction="spartans" name={spartanName} first={!swapped} />
@@ -62,9 +84,9 @@ export function Setup(): ReactElement {
         <FactionCard faction="mongols" name={swapped ? a : b} first={swapped} />
       </div>
       <p className="vh" data-testid="spartans-line" aria-live="polite">{fill(T.ui.spartansPlay, { name: spartanName })}</p>
-      <p className="setup-line">{fill(T.ui.setupLine, { first: a, second: b, n: extra })}</p>
+      <p className="setup-line">{setupLine(a, b, extra)}</p>
       <div className="setup-row">
-        <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions })}>{T.ui.start}</button>
+        <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions, second: seat })}>{T.ui.start}</button>
         <button type="button" data-testid="setup-back" onClick={goHome}><HomeIcon />{T.ui.home}</button>
       </div>
     </div>
