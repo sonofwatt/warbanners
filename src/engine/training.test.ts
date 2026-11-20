@@ -18,7 +18,7 @@ describe('training', () => {
     const s = blankMatch(); const c = addCity(s, 0, 0, 0); give(s, 0, 'bronze');
     const r = applyAction(s, { type: 'train', city: c.id, unitType: 'hoplite' }); const t = must(r);
     expect(unitAt(t, '0,0')).toMatchObject({ type: 'hoplite', owner: 0, home: c.id, mp: 0, attacks: 0, hp: 15 });
-    expect(t.players[0]!.gold).toBe(16);
+    expect(t.players[0]!.gold).toBe(17);
     expect(r.ok && r.events).toEqual([{ type: 'trained', unit: unitAt(t, '0,0')!.id, at: '0,0' }]);
     expect(applyAction(t, { type: 'train', city: c.id, unitType: 'warrior' }).ok).toBe(false);       // tile occupied
     expect(applyAction(s, { type: 'train', city: c.id, unitType: 'archer' }).ok).toBe(false);        // no tech

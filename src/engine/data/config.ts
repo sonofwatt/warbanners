@@ -7,7 +7,7 @@ import type { BuildingId, Resource, RewardId, TechId, Terrain } from '../types';
 export const CONFIG = deepFreeze({
   mapRadius: 6,
   capitals: ['-2,5', '2,-5'],
-  startGold: [8, 10],
+  startGold: [10, 10],
   terrain: {
     field: { enterCost: 2, cover: 1 },
     forest: { enterCost: 4, cover: 1.25 },
@@ -30,7 +30,7 @@ export const CONFIG = deepFreeze({
     rollRange: 100, villageMinDistance: 3, treasureMinCapitalDistance: 3, treasureMinFeatureDistance: 2,
   },
   techBase: [4, 6, 8],
-  counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2, splashDivisor: 2,
+  counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2.5, splashDivisor: 2,
   restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
   treasure: { gold: 5, exploreRadius: 4, unit: 'warrior', outcomes: 3 },
   rewards: {

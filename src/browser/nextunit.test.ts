@@ -71,8 +71,8 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
       expect(await page.locator('[data-hex="-2,5"] [data-mark="selected"]').count()).toBe(1);
       await expect.poll(() => page.locator('[data-mark="move"]').count()).toBeGreaterThan(0);
 
-      await tapTile(page, '-1,4');
-      await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
+      await tapTile(page, '0,3');                   // the starting Scout's whole move, into the fog
+      await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('0,3');
       await expect.poll(() => page.getByTestId('can-act').textContent()).toBe('No units can still act');
       expect(await nextEnabled(page)).toBe(false);
     } finally {
@@ -130,13 +130,12 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
       await tapTile(page, '-1,4');
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
       await page.waitForTimeout(300);
-      await tapTile(page, '-1,4');
-      await page.locator('.selection .unit-panel').waitFor();
+      await page.locator('.selection .unit-panel').waitFor();   // the Scout has movement left, so it stays selected
       expect(await brokenStats(page)).toEqual([]);
       await tapTile(page, '-1,4');
       await page.locator('.selection .tile-panel').waitFor();
       expect(await page.locator('.selection .unit-panel').count()).toBe(0);
-      expect(await brokenStats(page)).toEqual([]);   // Cropland, on the tile the Warrior moved to
+      expect(await brokenStats(page)).toEqual([]);   // Cropland, on the tile the Scout moved to
       await tapTile(page, '-1,4');
       await expect.poll(() => page.locator('.selection').count()).toBe(0);
       await tapTile(page, '-2,5');   // the capital, now free

@@ -55,7 +55,7 @@ centre `(0,0)` is always a plain field.
 
 - Each player: their capital (level 1, territory radius 1), one starting unit on
   the capital tile, their faction's starting tech.
-- Player 0 starts with 8 gold, player 1 with 10 (for moving second).
+- Each player starts with 10 gold.
 - Each player has explored whatever their capital and starting unit can see.
 
 ## 5. Turn
@@ -142,16 +142,16 @@ only comes from a city reward.
 | Horseman | any | 4 | 2 | 1 | 2 | 10 | 2 | 3 | riding | retreat, mounted |
 | Knight | any | 6 | 3 | 1 | 3 | 15 | 2 | 6 | chivalry | chain, mounted |
 | Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | engineering | splash, siege |
-| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 4 | bronze | steadfast, phalanx |
+| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
 | Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden |
-| Horse Archer | Mongols | 4 | 2 | 2 | 2 | 10 | 2 | 4 | riding | retreat, mounted |
+| Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
 | Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
 
-Starting unit: Spartans a Warrior, Mongols a Horseman.
+Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
 
 ## 9. Movement
 
@@ -177,7 +177,7 @@ gets the same answer.
 
 ```
 effAtk  = atk * (hp + maxHp) / (2 * maxHp)        (unbowed: effAtk = atk)
-damage  = max(1, round(2 * effAtk * effAtk / (effAtk + def * cover)))
+damage  = max(1, round(2.5 * effAtk * effAtk / (effAtk + def * cover)))
 ```
 
 `cover` is the defender's terrain cover from section 2. `atk` and `def` include any
@@ -188,7 +188,7 @@ attacker is within the defender's range, it strikes back:
 
 ```
 cAtk    = atk * f * (hp + maxHp) / (2 * maxHp)    (hp after the hit; f = 0.75, or 1.25 with steadfast)
-counter = max(1, round(2 * cAtk * cAtk / (cAtk + attackerDef)))   (the attacker gets no cover)
+counter = max(1, round(2.5 * cAtk * cAtk / (cAtk + attackerDef)))   (the attacker gets no cover)
 ```
 
 A unit at 0 health is removed. When an attacker with range 1 kills the defender, it
@@ -203,17 +203,17 @@ Worked examples (all at full health on a field unless said):
 
 | Attack | Damage | Counter |
 |---|---|---|
-| Warrior on Warrior | 5 | 2 |
-| Warrior on Warrior in forest | 4 | |
-| Warrior on Warrior in a city | 4 | |
-| Warrior on Warrior in a Spartan city | 3 | |
-| Warrior on Defender | 3 | 1 |
-| Warrior on Spearman | 4 | 5 |
-| Warrior at 5 health on Warrior | 3 | |
-| Knight on Warrior | 8 | |
-| Catapult on Warrior | 8 | none; neighbours take 4 |
+| Warrior on Warrior | 6 | 2 |
+| Warrior on Warrior in forest | 5 | |
+| Warrior on Warrior in a city | 5 | |
+| Warrior on Warrior in a Spartan city | 4 | |
+| Warrior on Defender | 4 | 1 |
+| Warrior on Spearman | 5 | 5 |
+| Warrior at 5 health on Warrior | 4 | |
+| Knight on Warrior | 10 (kills it) | |
+| Catapult on Warrior | 10 (kills it) | none; neighbours take 5 |
 | Warrior on Hoplite with two Hoplites beside it, in a Spartan city | 2 | |
-| King's Guard at 5 health on Warrior | 8 | |
+| King's Guard at 5 health on Warrior | 10 (kills it) | |
 
 ## 11. Traits and abilities
 

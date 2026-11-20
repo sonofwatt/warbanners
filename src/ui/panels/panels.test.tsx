@@ -41,7 +41,7 @@ test('the Hud has a Next unit button beside End turn, greyed when asked', () => 
 test('the unit panel shows the card and its commands', () => {
   const u = open.units[0]!;
   const html = renderToStaticMarkup(<UnitPanel type={u.type} hp={u.hp} faction="spartans" commands={unitCommands({ kind: 'unit', id: u.id, armed: null, askLure: null }, open, ix)} onCommand={noop} />);
-  expect(html).toContain('Warrior'); expect(html).toContain('10/10');
+  expect(html).toContain('Krypteia Scout'); expect(html).toContain('5/5');   // the Spartans' starting unit
 });
 test('the unit panel movement includes the Mongol mounted bonus for every mounted unit', () => {
   const move = (type: 'horseArcher' | 'khansGuard' | 'horseman', faction: 'mongols' | 'spartans') =>

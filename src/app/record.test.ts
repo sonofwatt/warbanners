@@ -51,6 +51,7 @@ test('a damaged snapshot is rebuilt from the actions', () => {
 test('another rules version is refused as such', () => {
   const { rec } = playSome(5);
   expect(restore({ ...rec, rulesVersion: RULES_VERSION + 1 })).toEqual({ ok: false, reason: 'version' });
+  expect(restore({ ...rec, rulesVersion: 1 })).toEqual({ ok: false, reason: 'version' });   // a save from before rules version 2
 });
 test('rubbish is refused and nothing throws', () => {
   const { rec } = playSome(5);

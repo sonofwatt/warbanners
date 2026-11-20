@@ -37,7 +37,7 @@ test('the enemy capital is always an objective until it is taken', () => {
 
 test('a unit is worth its gold cost, or 8 when it has none', () => {
   expect(unitWorth('warrior')).toBe(2);
-  expect(unitWorth('hoplite')).toBe(4);
+  expect(unitWorth('hoplite')).toBe(3);
   expect(unitWorth('kingsGuard')).toBe(8);
   expect(unitWorth('skyCaller')).toBe(8);
 });
@@ -112,10 +112,10 @@ test('the value rewards a capture and punishes standing in danger', () => {
   const raid = believedState(aiInputFor(riderRaid(), 1));
   const rctx = makeCtx(raid, 1, 1);
   const archer = raid.units.find(u => u.owner === 1)!;
-  expect(rctx.danger['0,-1']).toBe(5);
+  expect(rctx.danger['0,-1']).toBe(6);
   const at = (danger: Record<string, number>) => moveScore(raid, { ...rctx, danger }, archer.id, '0,-1', 0);
-  expect(at({}) - at({ '0,-1': 5 })).toBeCloseTo(4 * 5 / 10, 9);    // worth 4, danger 5 on 10 hp
-  expect(at({}) - at({ '0,-1': 50 })).toBeCloseTo(4, 9);            // never more than its worth
+  expect(at({}) - at({ '0,-1': 6 })).toBeCloseTo(5 * 6 / 10, 9);    // worth 5, danger 6 on 10 hp
+  expect(at({}) - at({ '0,-1': 50 })).toBeCloseTo(5, 9);            // never more than its worth
 });
 
 test('an own city left empty within an enemy\'s move costs half its worth', () => {

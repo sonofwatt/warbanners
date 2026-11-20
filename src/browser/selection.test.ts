@@ -118,13 +118,15 @@ describe.runIf(process.env.BROWSER === '1')('the board when a selection panel op
         const tileBefore = await box(page, '[data-hex="-2,5"]');
         const r = await selectAt(page, unit, ['[data-centre="-2,5"]', '[data-centre="0,0"]'], `panel-${w}x${h}`);
         expect(await page.locator('[data-hex="-2,5"] [data-mark="selected"]').count()).toBe(1);
-        // Before the panel opened, the Warrior's tile reached past where the slot now ends.
+        // Before the panel opened, the Scout's tile reached past where the slot now ends.
         expect(inside(tileBefore, r.slot)).toBe(false);
         // Now its tile and its figure are wholly in the slot.
         expect(inside(await box(page, '[data-hex="-2,5"]'), r.slot)).toBe(true);
         expect(inside(await box(page, '[data-unit="0"]'), r.slot)).toBe(true);
-        // The board moved, but only as far as it had to: the marked tile nearest the panel (the Warrior's or one
+        // The board moved, but only as far as it had to: the marked tile nearest the panel (the unit's or one
         // it can move to) now ends just inside the slot, no more than a tile's side wall and a small margin short.
+        // The starting Krypteia Scout moves 2, so in portrait its nearest marks are on the board's last row, where
+        // the camera stops at the board's edge and a mark's outline may overhang the slot by a few pixels.
         expect(r.moved).toBeGreaterThan(0);
         const marks = await page.locator('[data-mark]').evaluateAll((els) => els.map((e) => {
           const b = e.getBoundingClientRect();
@@ -132,7 +134,7 @@ describe.runIf(process.env.BROWSER === '1')('the board when a selection panel op
         }));
         const reach = portrait ? Math.max(...marks.map((m) => m.bottom)) : Math.max(...marks.map((m) => m.right));
         const edge = portrait ? r.slot.y + r.slot.height : r.slot.x + r.slot.width;
-        expect(reach).toBeLessThanOrEqual(edge);
+        expect(reach).toBeLessThanOrEqual(edge + 4);
         expect(edge - reach).toBeLessThan(56);
       } finally {
         await close();

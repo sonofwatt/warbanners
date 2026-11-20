@@ -35,9 +35,9 @@ test('tribute and slow growth', () => {
   expect(must(applyAction(s, { type: 'capture', unit: v.id })).players[0]!.gold).toBe(26);
   expect(growthNeeded(s, addCity(s, 0, 0, 3))).toBe(3); void c;
 });
-test('inspire: a horseman beside the Khan\'s Guard deals 6 to a warrior', () => {
+test('inspire: a horseman beside the Khan\'s Guard deals 8 to a warrior', () => {
   const s = mongols(); const h = addUnit(s, 'horseman', 0, 0, 0); addUnit(s, 'khansGuard', 0, -1, 0); const d = addUnit(s, 'warrior', 1, 1, 0);
-  expect(unitById(must(applyAction(s, { type: 'attack', unit: h.id, target: '1,0' })), d.id)!.hp).toBe(4);
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: h.id, target: '1,0' })), d.id)!.hp).toBe(2);
   const w = addUnit(s, 'warrior', 0, -1, 1); expect(attackOf(s, w)).toBe(4);
 });
 test('inspire also lifts the counter-attack, and an enemy Guard does not inspire', () => {

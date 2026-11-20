@@ -71,7 +71,7 @@ test('Next unit selects a unit that can still act, and does nothing when none ca
   expect(get().selection).toEqual({ kind: 'unit', id: 0, armed: null, askLure: null });
   get().nextUnit();                                                           // the only one: it stays selected
   expect(get().selection).toEqual({ kind: 'unit', id: 0, armed: null, askLure: null });
-  get().run({ type: 'move', unit: 0, to: '-1,4' });
+  get().run({ type: 'move', unit: 0, to: '0,3' });                            // the starting Scout's whole move
   expect(offered(get().state!, 0).activeUnits).toEqual([]);
   get().select({ kind: 'tile', at: '-2,4' });
   get().nextUnit();

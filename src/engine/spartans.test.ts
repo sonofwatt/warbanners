@@ -24,14 +24,14 @@ test('our men are our walls: a hoplite line in a Spartan city takes 2 from a war
   const a = addUnit(s, 'warrior', 0, 0, 0);
   expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), h.id)!.hp).toBe(13);
 });
-test('a lone warrior in a Spartan city takes 3', () => {
+test('a lone warrior in a Spartan city takes 4', () => {
   const s = blankMatch({ factions: ['mongols', 'spartans'] }); addCity(s, 1, 1, 0); const d = addUnit(s, 'warrior', 1, 1, 0);
   const a = addUnit(s, 'warrior', 0, 0, 0);
-  expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), d.id)!.hp).toBe(7);
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), d.id)!.hp).toBe(6);
 });
-test('unbowed: the King\'s Guard at 5 health still deals 8', () => {
-  const s = blankMatch(); const g = addUnit(s, 'kingsGuard', 0, 0, 0, { hp: 5 }); const d = addUnit(s, 'warrior', 1, 1, 0);
-  expect(unitById(must(applyAction(s, { type: 'attack', unit: g.id, target: '1,0' })), d.id)!.hp).toBe(2);
+test('unbowed: the King\'s Guard at 5 health still deals 7 to a Defender', () => {
+  const s = blankMatch(); const g = addUnit(s, 'kingsGuard', 0, 0, 0, { hp: 5 }); const d = addUnit(s, 'defender', 1, 1, 0);
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: g.id, target: '1,0' })), d.id)!.hp).toBe(8);   // 3 if it were not unbowed
 });
 test('unbowed: its counter-attack is not reduced by lost health', () => {
   const s = blankMatch(); const a = addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'kingsGuard', 1, 1, 0, { hp: 12 });

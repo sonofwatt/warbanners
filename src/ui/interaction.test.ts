@@ -11,7 +11,7 @@ const unitSel = (id: number, o: Partial<Extract<Selection, { kind: 'unit' }>> = 
 const seeAll = (s: MatchState) => { for (const p of s.players) p.explored = Object.keys(s.tiles).sort(); return s; };
 
 test('the index groups what the engine allows', () => {
-  expect([...IX.moves[0]!].sort()).toEqual(['-1,4', '-1,5', '-2,4', '-2,6', '-3,5', '-3,6']);
+  expect([...IX.moves[0]!].sort()).toEqual(['-1,3', '-1,4', '-1,5', '-1,6', '-2,4', '-2,6', '-3,5', '-3,6', '-4,5', '-4,6', '0,3']);   // the starting Krypteia Scout moves 2
   expect(IX.build['-2,4']).toEqual(['mine']);
   expect(IX.research).toEqual(['foraging', 'riding', 'hunting', 'shieldwork']);
   expect(IX.activeUnits).toEqual([0]);
@@ -93,7 +93,7 @@ test('other taps change the selection and never act', () => {
 test('marks for a selected unit', () => {
   const m = marksFor(unitSel(0), V, IX);
   expect(m['-2,5']).toBe('selected'); expect(m['-1,4']).toBe('move');
-  expect(Object.values(m).filter(x => x === 'move')).toHaveLength(6);
+  expect(Object.values(m).filter(x => x === 'move')).toHaveLength(11);
 });
 test('an attack that can lure asks first', () => {
   const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));

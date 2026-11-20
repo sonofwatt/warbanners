@@ -49,7 +49,7 @@ test('the match screen draws the viewer\'s view only', () => {
   const html = render(store, <Match />);
   expect(html.match(/data-hex=/g)?.length).toBe(127);
   expect(html.match(/data-unit=/g)?.length).toBe(1);
-  expect(html).toContain('data-testid="gold">8<');
+  expect(html).toContain('data-testid="gold">10<');
   expect(html).toContain('Turn 1');
   expect(html).toContain('data-testid="end-turn"');
 });
