@@ -22,6 +22,9 @@ export const FINISHED_SWEEP_MS = 86_400_000;
 export const MAX_ACTION_CHARS = 512;
 export const MAX_SNAP_CHARS = 200_000;
 export const MAX_NAME = 16;
+export const MAX_UID = 128; // Firebase uids are at most 128 characters
+export const MAX_BUILD = 64; // mirrored in the rules
+export const MAX_ACTIONS = 10_000; // a longer list is refused as corrupt
 export const SEATS = 2;
 
 export type Phase = 'lobby' | 'playing' | 'over';
@@ -69,7 +72,7 @@ export function isRoomCode(v: unknown): v is string {
 
 // base = origin + import.meta.env.BASE_URL
 export function inviteLink(base: string, code: string): string {
-  return `${base}?room=${code}`;
+  return `${base.endsWith('/') ? base : `${base}/`}?room=${code}`;
 }
 
 export function codeFromSearch(search: string): string | null {
@@ -92,7 +95,8 @@ export function decodeAction(s: unknown): Action | null {
   if (typeof s !== 'string' || s.length > MAX_ACTION_CHARS) return null;
   try {
     const v: unknown = JSON.parse(s);
-    return isObject(v) && typeof v.type === 'string' ? (v as unknown as Action) : null;
+    // Only the canonical spelling is accepted, as the rules only match canonical strings.
+    return isObject(v) && typeof v.type === 'string' && canonical(v) === s ? (v as unknown as Action) : null;
   } catch {
     return null;
   }
@@ -106,9 +110,9 @@ export function decodeSettings(v: unknown): MatchSettings | null {
   if (typeof v !== 'string') return null;
   try {
     const o: unknown = JSON.parse(v);
-    if (!isObject(o) || !Number.isInteger(o.seed)) return null;
+    if (!isObject(o) || !Number.isSafeInteger(o.seed) || (o.seed as number) < 0) return null;
     const f = o.factions;
-    if (!Array.isArray(f) || f.length !== 2 || !isFaction(f[0]) || !isFaction(f[1])) return null;
+    if (!Array.isArray(f) || f.length !== 2 || !isFaction(f[0]) || !isFaction(f[1]) || f[0] === f[1]) return null;
     return { seed: o.seed as number, factions: [f[0], f[1]] };
   } catch {
     return null;
@@ -120,9 +124,11 @@ export function readActions(raw: unknown): string[] | null {
   if (raw === null || raw === undefined) return [];
   let list: unknown[];
   if (Array.isArray(raw)) {
+    if (raw.length > MAX_ACTIONS) return null;
     list = Array.from({ length: raw.length }, (_, i) => raw[i]);
   } else if (isObject(raw)) {
     const keys = Object.keys(raw);
+    if (keys.length > MAX_ACTIONS) return null;
     list = [];
     for (let i = 0; i < keys.length; i++) {
       if (!Object.hasOwn(raw, String(i))) return null;
@@ -132,9 +138,18 @@ export function readActions(raw: unknown): string[] | null {
   return list.every((x) => typeof x === 'string') ? (list as string[]) : null;
 }
 
+const isUid = (x: unknown): x is string => typeof x === 'string' && x.length >= 1 && x.length <= MAX_UID;
+
+// Cut to at most `max` UTF-16 units without leaving half of a surrogate pair.
+function cut(s: string, max: number): string {
+  const t = s.slice(0, max);
+  const last = t.charCodeAt(t.length - 1);
+  return s.length > max && last >= 0xd800 && last <= 0xdbff ? t.slice(0, -1) : t;
+}
+
 function readSeat(v: unknown): RoomSeat | null {
-  if (!isObject(v) || typeof v.uid !== 'string' || typeof v.name !== 'string') return null;
-  const name = v.name.slice(0, MAX_NAME);
+  if (!isObject(v) || !isUid(v.uid) || typeof v.name !== 'string') return null;
+  const name = cut(v.name, MAX_NAME);
   if (v.kind === 'human') return { uid: v.uid, name, kind: 'human', rules: num(v.rules) };
   if (v.kind !== 'ai' || !LEVELS.includes(v.level as AiLevel) || !finite(v.salt)) return null;
   const a = v.adapt;
@@ -156,20 +171,21 @@ function readSeats(raw: unknown): (RoomSeat | null)[] {
 function readMeta(v: unknown): RoomMeta | null {
   if (!isObject(v)) return null;
   const { creatorId, createdAt, phase, hostFaction, clock, schema } = v;
-  if (typeof creatorId !== 'string' || typeof createdAt !== 'number') return null;
+  if (!isUid(creatorId) || typeof createdAt !== 'number') return null;
   if (!PHASES.includes(phase as Phase) || !isFaction(hostFaction)) return null;
   if (!CLOCK_CHOICES.includes(clock as ClockSec)) return null;
   if (typeof schema !== 'number' || !Number.isInteger(schema) || schema < 1) return null;
   return {
-    createdAt: num(createdAt), creatorId, hostId: typeof v.hostId === 'string' ? v.hostId : creatorId, schema,
-    rulesVersion: num(v.rulesVersion), build: typeof v.build === 'string' ? v.build : '',
+    createdAt: num(createdAt), creatorId, hostId: isUid(v.hostId) ? v.hostId : creatorId, schema,
+    rulesVersion: num(v.rulesVersion), build: typeof v.build === 'string' ? cut(v.build, MAX_BUILD) : '',
     clock: clock as ClockSec, hostFaction, phase: phase as Phase,
   };
 }
 
 function readHead(v: unknown): Head | null {
   if (!isObject(v) || typeof v.hash !== 'string') return null;
-  return { n: num(v.n), seat: num(v.seat), hash: v.hash, at: num(v.at), turnAt: num(v.turnAt), paused: num(v.paused) };
+  if (!(typeof v.n === 'number' && Number.isInteger(v.n) && v.n >= 0) || (v.seat !== 0 && v.seat !== 1)) return null;
+  return { n: v.n, seat: v.seat, hash: v.hash, at: num(v.at), turnAt: num(v.turnAt), paused: num(v.paused) };
 }
 
 // Own keys only, and never `__proto__`.
@@ -184,12 +200,12 @@ export function normalizeRoom(code: string, raw: unknown): Room | null {
     const meta = readMeta(raw.meta);
     if (!meta) return null;
     const members: Record<string, PlayerId> = {};
-    for (const [uid, p] of entries(raw.members)) if (p === 0 || p === 1) members[uid] = p;
+    for (const [uid, p] of entries(raw.members)) if (isUid(uid) && (p === 0 || p === 1)) members[uid] = p;
     const presence: Record<string, Presence> = {};
-    for (const [uid, p] of entries(raw.presence)) if (isObject(p) && typeof p.on === 'boolean') presence[uid] = { on: p.on, at: num(p.at) };
+    for (const [uid, p] of entries(raw.presence)) if (isUid(uid) && isObject(p) && typeof p.on === 'boolean') presence[uid] = { on: p.on, at: num(p.at) };
     const desync: Record<string, Desync> = {};
     for (const [uid, d] of entries(raw.desync)) {
-      if (isObject(d) && typeof d.hash === 'string') desync[uid] = { n: num(d.n), hash: d.hash, build: typeof d.build === 'string' ? d.build : '' };
+      if (isUid(uid) && isObject(d) && typeof d.hash === 'string') desync[uid] = { n: num(d.n), hash: d.hash, build: typeof d.build === 'string' ? cut(d.build, MAX_BUILD) : '' };
     }
     return { code, meta, seats: readSeats(raw.seats), members, presence, head: readHead(raw.head), desync };
   } catch {
