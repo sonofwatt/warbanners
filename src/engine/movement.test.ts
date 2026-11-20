@@ -109,11 +109,22 @@ test('a Mongol horseman entering a forest loses the rest of its move', () => {
   const r = reachable(s, h.id);
   expect(r['1,0']).toBe(0); expect(r['-1,0']).toBe(4);
   const moved = addUnit(s, 'horseman', 1, 0, 2, { mp: 1, moved: true }); setTile(s, 1, 2, { terrain: 'forest' });
-  expect(reachable(s, moved.id)['1,2']).toBe(0);                    // needs 1 point left, has it
+  expect(reachable(s, moved.id)['1,2']).toBeUndefined();            // after a step it needs the full forest cost
   const w = addUnit(s, 'warrior', 1, 0, -2, { mp: 4 }); setTile(s, 1, -2, { terrain: 'forest' });
   expect(reachable(s, w.id)['1,-2']).toBe(0);                       // plain cost 4
   const k = addUnit(s, 'knight', 0, 3, -3); setTile(s, 2, -3, { terrain: 'forest' });
   expect(reachable(s, k.id)['2,-3']).toBe(2);                       // Spartan knight: forest costs 4 of 6
+});
+test('a moved Mongol rider needs the full forest cost', () => {
+  const at = (patch: { mp: number; moved: boolean }): number | undefined => {
+    const s = blankMatch(); addCity(s, 1, 0, -3); addCity(s, 0, 0, 3);
+    setTile(s, 1, 0, { terrain: 'forest' }); s.current = 1;
+    const h = addUnit(s, 'horseman', 1, 0, 0, patch);
+    return reachable(s, h.id)['1,0'];
+  };
+  expect(at({ mp: 2, moved: true })).toBeUndefined();               // was 0 before this rule
+  expect(at({ mp: 4, moved: true })).toBe(0);                       // the full cost: it enters and stops
+  expect(at({ mp: 2, moved: false })).toBe(0);                      // a first step is always allowed
 });
 test('engagement counts enemies the mover cannot see, and sets mp to 0 on arrival', () => {
   const s = blankMatch(); const w = addUnit(s, 'warrior', 0, 0, 0, { mp: 4 });

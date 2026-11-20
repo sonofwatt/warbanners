@@ -59,6 +59,8 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
         if (!firstStep) continue;
         cost = left; forced = true;
       } else if (mounted && faction.forestStopsMounted && tile.terrain === 'forest') {
+        // the normal forest cost, unless it is the first step; then the rest of the move is gone
+        if (!firstStep && left < (CONFIG.terrain.forest.enterCost ?? 0)) continue;
         cost = left; forced = true;
       } else {
         cost = CONFIG.terrain[tile.terrain].enterCost ?? left;

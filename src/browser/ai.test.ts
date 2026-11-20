@@ -44,12 +44,12 @@ async function installed(page: Page): Promise<void> {
 
 /**
  * A saved match written the way the app writes one (real record helpers and save writer, into a map standing in
- * for localStorage): the position after `playerTurns` random turns of seed 7 (the person's move when it is even, so
+ * for localStorage): the position after `playerTurns` random turns of seed 2 (the person's move when it is even, so
  * ending the turn hands the AI the board), with the second seat a hard AI.
  */
 function savedHardMatch(playerTurns: number): { entries: [string, string][]; state: MatchState } {
-  const state = randomPlayout(7, playerTurns);
-  const settings = { seed: 7, factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
+  const state = randomPlayout(2, playerTurns);
+  const settings = { seed: 2, factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
   const base = newRecord('crowded', settings, ['Person', {
     name: T.ai.name.hard, kind: 'ai', level: 'hard', salt: 12345, adapt: { dial: LEVEL_DIAL.hard, trend: 0 },
   }], 1_000_000);
@@ -86,15 +86,15 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
 }
 
 /**
- * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 180
- * random turns of seed 7 (25 units under rules version 2; 160 turns now leave 23), so it is the person's move and
+ * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 192
+ * random turns of seed 2 (25 units; seed 7 no longer reaches 24 once Mongol riders pay the forest cost), so it is the person's move and
  * tapping End turn hands the AI the board (with an odd count the AI would start on Continue, and the board-opening
  * render would land inside its first think). Times are milliseconds
  * on the page's clock; `sleeps` are the store's waits between the AI's visible actions, as it asked for them.
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(180);
+  const { entries, state } = savedHardMatch(192);
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {

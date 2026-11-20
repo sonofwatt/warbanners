@@ -278,8 +278,8 @@ Mongols
 
 - Start with `riding`.
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
-- Mounted Mongol units have +1 movement, but entering a forest uses up the rest of
-  their move.
+- Mounted Mongol units have +1 movement. Entering a forest costs them the normal
+  forest cost and then uses up the rest of their move.
 - Relay riders: for Mongol units, entering any tile inside Mongol territory costs
   1 half-point.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.

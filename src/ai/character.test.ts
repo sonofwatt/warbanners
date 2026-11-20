@@ -221,9 +221,10 @@ function aiMatch(seed: number, factions: [FactionId, FactionId], dial: number, m
 }
 
 describe('matches between two AIs end', () => {
-  // Measured: seed 7, Spartans first, at hard, ends in round 13 (Mongols win).
+  // Measured: seed 7, Spartans first, at hard, ends in round 24 (Mongols win; round 13 before Mongol riders paid
+  // the full forest cost).
   test('at hard on a seeded map, the match reaches a winner within the measured bound', () => {
-    expect(aiMatch(7, ['spartans', 'mongols'], LEVEL_DIAL.hard, 20).winner).not.toBeNull();
+    expect(aiMatch(7, ['spartans', 'mongols'], LEVEL_DIAL.hard, 30).winner).not.toBeNull();
   }, 60_000);
 
   // Measured on seeds 1 to 8 with both seatings: at normal every match ends by round 48 (seed 1 with the
