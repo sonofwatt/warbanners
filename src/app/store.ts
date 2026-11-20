@@ -20,7 +20,7 @@ import type { SessionView } from '../online/session';
 import { codeFromSearch } from '../online/wire';
 import type { ClockSec } from '../online/wire';
 import { createAiClient, isSuperseded } from './aiClient';
-import { createOnlineSide, realTimer, setRoomInUrl } from './onlineStore';
+import { createOnlineSide, onPageVisible, realTimer, setRoomInUrl } from './onlineStore';
 import type { AiClient } from './aiClient';
 import { readDial, writeDial } from './aiMemory';
 import { digestFor } from './digest';
@@ -47,6 +47,7 @@ export interface Deps {
   setTimer?: (fn: () => void, ms: number) => () => void;
   pause?: () => Promise<void>;                  // the session's pause between replay chunks; tests pass their own
   netReady?: () => boolean;                     // this build has a Firebase backend to talk to
+  onVisible?: (fn: () => void) => () => void;   // fn on each return of the page to view; returns the unsubscribe
 }
 export type SecondSeat = 'human' | AiLevel;
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId]; second?: SecondSeat }   // second: 'human' if left out
@@ -411,7 +412,6 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
   return store;
 }
 
-
 // Real storage, clock and randomness; each is touched only when called, and Node falls back to keeping nothing.
 export function browserDeps(): Deps {
   const none: KeyValue = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
@@ -444,6 +444,6 @@ export function browserDeps(): Deps {
     inviteBase: () => `${location.origin}${import.meta.env.BASE_URL}`,
     build: BUILD,
     setTimer: realTimer,
-    netReady,
+    netReady, onVisible: onPageVisible,
   };
 }

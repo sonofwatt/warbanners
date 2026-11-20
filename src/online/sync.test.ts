@@ -4,7 +4,7 @@ import type { MatchSettings, MatchState } from '../engine';
 import { must } from '../engine/testkit';
 import { encodeAction } from './wire';
 import type { Head, Snap } from './wire';
-import { applyLocal, follow, fromSnapshot, opening, rebuild, replay, REPLAY_CHUNK } from './sync';
+import { applyLocal, follow, fromSnapshot, opening, rebuildFrom, replay, REPLAY_CHUNK } from './sync';
 import type { Follow } from './sync';
 
 const SETTINGS: MatchSettings = { seed: 42, factions: ['spartans', 'mongols'] };
@@ -16,6 +16,7 @@ function script(n: number): { list: string[]; states: MatchState[] } {
   }
   return { list, states };
 }
+const now = (): Promise<void> => Promise.resolve();
 const headAt = (k: number, states: MatchState[]): Head => ({ n: k, seat: states[k]!.current, hash: hashState(states[k]!), at: 0, turnAt: 0, paused: 0 });
 
 test('new actions are applied in order with their events', () => {
@@ -32,18 +33,23 @@ test('a list ahead of its head, or behind it, waits', () => {
   expect(follow(opening(SETTINGS), list.slice(0, 5), headAt(4, states))).toEqual({ kind: 'wait' });
   expect(follow(opening(SETTINGS), list.slice(0, 3), headAt(4, states))).toEqual({ kind: 'wait' });
 });
-test('our own write that lost a race is replaced by the winner', () => {
+test('our own write that lost a race is replaced by the winner', async () => {
   const { list, states } = script(10);
   const mine = follow(opening(SETTINGS), list.slice(0, 6), headAt(6, states)) as Extract<Follow, { kind: 'advanced' }>;
   const other = legalActions(mine.followed.state).find(a => encodeAction(a) !== list[6])!;
   const ahead = applyLocal(mine.followed, other)!;                         // we played something else at index 6
-  const r = follow(ahead.followed, list.slice(0, 7), headAt(7, states));
+  expect(follow(ahead.followed, list.slice(0, 7), headAt(7, states))).toEqual({ kind: 'diverged' });
+  const r = (await rebuildFrom(ahead.followed, list.slice(0, 7), headAt(7, states), now))!;
   expect(r.kind).toBe('rebuilt');
-  expect(r.kind === 'rebuilt' && hashState(r.followed.state)).toBe(hashState(states[7]!));
+  if (r.kind !== 'rebuilt') return;
+  expect(hashState(r.followed.state)).toBe(hashState(states[7]!)); expect(r.followed.actions).toEqual(list.slice(0, 7));
+  expect(r.parted.map(st => encodeAction(st.action))).toEqual([list[6]]);   // the record's steps from where the lists part
 });
-test('a hash that disagrees after a full rebuild breaks the match at that point', () => {
+test('a hash that disagrees after a full rebuild breaks the match at that point', async () => {
   const { list, states } = script(10);
-  expect(follow(opening(SETTINGS), list, { ...headAt(10, states), hash: '0000000000000000' })).toEqual({ kind: 'broken', at: 10, reason: 'hash' });
+  const head = { ...headAt(10, states), hash: '0000000000000000' };
+  expect(follow(opening(SETTINGS), list, head)).toEqual({ kind: 'diverged' });
+  expect(await rebuildFrom(opening(SETTINGS), list, head, now)).toEqual({ kind: 'broken', at: 10, reason: 'hash' });
 });
 test('an action this phone refuses breaks the match at its index', () => {
   const { list, states } = script(5);
@@ -67,7 +73,6 @@ test('rejoin: a good snapshot gives the quick look, a bad one gives none', () =>
   // A real state, hashed honestly, but filed at the wrong index: the actions after it do not fit it.
   expect(fromSnapshot(SETTINGS, list, { n: 30, hash: hashState(states[0]!), state: JSON.stringify(states[0]) }, {})).toBeNull();
 });
-const now = (): Promise<void> => Promise.resolve();
 test('a forged snapshot whose check and hash agree with it is caught by the replay', async () => {
   // The review's demonstration: the turn ends with a doctored state (1,000 more gold) as the snapshot, and its hash as
   // the check. The quick look shows it; the replay of the actions does not agree, and its state is the honest one.
@@ -98,16 +103,28 @@ test('the replay stops at an action it refuses, and when it is no longer wanted'
   expect(hashState(r.followed.state)).toBe(hashState(states[33]!));
   expect(await replay(SETTINGS, list, {}, now, () => false)).toBeNull();
 });
-test('a check that disagrees breaks a rebuild at its index', () => {
-  const { list, states } = script(20);
-  expect(rebuild(SETTINGS, list, { 8: hashState(states[8]!), 12: '0000000000000000' })).toEqual({ ok: false, at: 12, reason: 'hash' });
+test('a rebuild replays from the opening a chunk at a time, and stops when it is no longer wanted', async () => {
+  const { list, states } = script(3 * REPLAY_CHUNK);
+  const mine = follow(opening(SETTINGS), list.slice(0, 2 * REPLAY_CHUNK), headAt(2 * REPLAY_CHUNK, states)) as Extract<Follow, { kind: 'advanced' }>;
+  const other = legalActions(mine.followed.state).find(a => encodeAction(a) !== list[2 * REPLAY_CHUNK])!;
+  const ahead = applyLocal(mine.followed, other)!.followed;
+  let pauses = 0;
+  const r = (await rebuildFrom(ahead, list, headAt(3 * REPLAY_CHUNK, states), async () => { pauses++; }))!;
+  expect(r.kind === 'rebuilt' && hashState(r.followed.state)).toBe(hashState(states[3 * REPLAY_CHUNK]!));
+  expect(r.kind === 'rebuilt' && r.parted).toHaveLength(REPLAY_CHUNK);
+  expect(pauses).toBe(2);
+  expect(await rebuildFrom(ahead, list, headAt(3 * REPLAY_CHUNK, states), now, () => false)).toBeNull();
+  const bad = [...list.slice(0, 33), '{"to":"9,9","type":"move","unit":0}'];
+  expect(await rebuildFrom(ahead, bad, headAt(34, states), now)).toEqual({ kind: 'broken', at: 33, reason: 'refused' });
 });
-test('follow rebuilds when the same list carries a hash this phone disagrees with only through its own state', () => {
+test('follow rebuilds when the same list carries a hash this phone disagrees with only through its own state', async () => {
   const { list, states } = script(10);
   const mine = follow(opening(SETTINGS), list, headAt(10, states)) as Extract<Follow, { kind: 'advanced' }>;
   const drifted = { ...mine.followed, state: states[9]! };               // the right list, but a state that went astray
-  const r = follow(drifted, list, headAt(10, states));
+  expect(follow(drifted, list, headAt(10, states))).toEqual({ kind: 'diverged' });
+  const r = (await rebuildFrom(drifted, list, headAt(10, states), now))!;
   expect(r.kind === 'rebuilt' && hashState(r.followed.state)).toBe(hashState(states[10]!));
+  expect(r.kind === 'rebuilt' && r.parted).toEqual([]);
 });
 test('applyLocal refuses what the engine refuses and encodes what it accepts', () => {
   expect(applyLocal(opening(SETTINGS), { type: 'move', unit: 99, to: '0,0' })).toBeNull();

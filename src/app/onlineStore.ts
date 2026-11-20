@@ -61,6 +61,7 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
   let netLoad: Promise<Net> | null = null;
   let net: Net | null = null;
   let session: Session | null = null;
+  let stopVisible: (() => void) | null = null;   // the page-visible listener, held while a session is open
   let sessionGen = 0;               // which session (or session being opened) may still change the store
   let stepsSeen = -1;               // the session's lastSteps.seq already handled
   let acting = false;               // inside session.act from run or tap: the store applies that step itself
@@ -87,6 +88,8 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
 
   function closeSession(): void {
     sessionGen += 1;
+    stopVisible?.();
+    stopVisible = null;
     session?.close();
     session = null;
     onlineLog = [];
@@ -199,7 +202,8 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
         if (patch.selection === undefined) patch.selection = back ? NONE : keepLooking(cur.selection, f.state, seat);
       }
     }
-    if (resignPending && !v.sending) {
+    // A lost resign is known once its write is answered and the rebuild that follows has replaced the board.
+    if (resignPending && !v.sending && !v.verifying) {
       resignPending = false;
       if (f === null || f.state.winner === null) patch.notice = 'resignLost';
     }
@@ -213,10 +217,13 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
 
   const openSessionFor = (code: string, n: Net, gen: number): void => {
     stepsSeen = -1;
-    session = openSession(code, { net: n, ai: deps.ai, build: deps.build ?? BUILD, setTimer: deps.setTimer ?? realTimer, ...(deps.pause ? { pause: deps.pause } : {}) }, v => {
+    const opened = openSession(code, { net: n, ai: deps.ai, build: deps.build ?? BUILD, setTimer: deps.setTimer ?? realTimer, ...(deps.pause ? { pause: deps.pause } : {}) }, v => {
       if (gen === sessionGen) onView(v);
     });
-    set({ online: session.view() });
+    session = opened;
+    // A page made visible again may hold a dead socket the SDK still believes in: the session's return runs at once.
+    stopVisible = deps.onVisible?.(() => { if (session === opened) opened.wake(); }) ?? null;
+    set({ online: opened.view() });
   };
 
   // The player's own action online: the session applies it at once and writes it; nothing goes to the saves.
@@ -277,15 +284,17 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
     },
 
     openRoom: code => {
+      // The last known board at once, while the session connects; the database wins as soon as it answers. With no
+      // connection that board is still shown, and the session waits for one; without a board this build can play
+      // (none cached, or cached under other rules), there is nothing to show and the player is told why.
+      const entry = listOnline(kv).find(e => e.code === code);
+      const cached = entry !== undefined ? readOnlineCache(kv, code) : null;
       const why = notReady();
-      if (why !== null) { set({ notice: why }); return; }
+      if (why !== null && !(why === 'needsConnection' && cached !== null && cached.ok)) { set({ notice: why }); return; }
       local.resetTurnLog();
       local.bumpAiRun();
       closeSession();
       const gen = sessionGen;
-      // The last known board at once, while the session connects; the database wins as soon as it answers.
-      const entry = listOnline(kv).find(e => e.code === code);
-      const cached = entry !== undefined ? readOnlineCache(kv, code) : null;
       const shown: Partial<AppState> = cached !== null && cached.ok && entry !== undefined
         ? { screen: cached.state.winner !== null ? 'result' : 'match', record: cached.record, state: cached.state, viewer: entry.seat }
         : { screen: 'join', record: null, state: null, viewer: null };
@@ -333,4 +342,12 @@ export function setRoomInUrl(code: string | null): void {
   else params.set('room', code);
   const query = params.toString();
   history.replaceState(history.state, '', `${location.pathname}${query === '' ? '' : `?${query}`}${location.hash}`);
+}
+
+// Calls fn each time the page becomes visible again. Returns the unsubscribe; nothing listens until it is called.
+export function onPageVisible(fn: () => void): () => void {
+  if (typeof document === 'undefined') return () => {};
+  const seen = (): void => { if (document.visibilityState === 'visible') fn(); };
+  document.addEventListener('visibilitychange', seen);
+  return () => document.removeEventListener('visibilitychange', seen);
 }
