@@ -1,6 +1,6 @@
 # Plan 3 (AI opponents): outcome and follow-ups
 
-Date: 2026-11-20. Built on branch `plan-3-ai`, head faf751f at the time of writing (cut from plan 2's branch, with
+Date: 2026-11-20. Built on branch `plan-3-ai`, head faf751f at the time of writing, then the final review's fix wave (cut from plan 2's branch, with
 plan 2, the Warbanners rename, the version line and the art polish merged in). Not merged into `main` yet and not pushed.
 
 ## Outcome
@@ -42,7 +42,8 @@ Not done yet
 
 - The Pixel check. The Pixel 10 Pro was not on ADB, so the 100 ms and 3 s bounds were checked only by browser tests
   with the CPU slowed four times. A hard turn there took about 1.05 to 1.1 s of thinking and the longest task was
-  53 to 56 ms. A real phone may differ, and the main-thread fallback has no wall-clock cutoff.
+  53 to 56 ms. A real phone may differ. The main-thread fallback now reads the clock and honours its deadline, but it still plans
+  in one task, so on a slow phone it can hold the screen past 100 ms (planning in slices belongs with the Pixel check).
 - The final whole-branch review (Fable) and the merge into `main`, then the push and deploy.
 - A third-seed-set confirmation of the ladder (the review recommends one 200-match run; hard over easy sits on the
   80% line).
@@ -123,13 +124,16 @@ There are 35 rulings in the build ledger, listed here in order. Each says what i
     `.worktrees/art`, and a revision of the plan 4 draft kept git-ignored. If wrong, one merge and one draft.
 32. The inverted difficulty ladder breaks spec 7 and could not ship, so Task 12b fixed the skill ladder first, then
     the Spartan formation gap while keeping faction balance between 40 and 60 percent. If wrong, one more task.
-33. The Spartan starting Krypteia Scout stays. It was the biggest single balance lever (+13 points) and is told to
-    David as a visible rule change he may veto. If wrong, one data line.
+33. The Spartans' starting unit is a Krypteia Scout instead of a Warrior (it replaces the Warrior; they do not get
+    both). It stays. It was the biggest single balance lever (+13 points) and is told to David as a visible rule
+    change he may veto: a new Spartan player starts with a 5-health hidden scout and no fighter. If wrong, one data
+    line.
 34. In the merge of `main` and the art branch, main's Home title fix (container query) wins, the art branch's two `vw`
     font lines are dropped, its tall-phone layout is kept, and `.home-hero > div { align-self: stretch; flex: none; }`
     stops the container collapsing. If wrong, one CSS rule.
 35. The first-seat edge and the hard AI never luring are carried here as the first items of a later tuning pass, not
-    fixed now. If wrong, the player who moves first wins more often in the alpha.
+    fixed now. If wrong, the player who moves first wins more often in the alpha: in solo play that is always the
+    person, and between two people it is whoever moves first.
 
 ## Final tuning
 
@@ -153,7 +157,7 @@ every run and its hypothesis, is `docs/superpowers/plans/2026-11-18-plan-3-tunin
 
 Where it started: the faction gap was 3% against 93% (Spartans against Mongols). Ten tuning runs in Task 12 brought it
 to 36.5% against 52%: the Horse Archer's attack 4 to 3 and cost 4 to 5, the Hoplite cost 4 to 3, start gold 10 each,
-damage scale 2 to 2.5 and the Spartans' starting Scout. Village tribute and Mongol city cover moved nothing. Task 12b
+damage scale 2 to 2.5 and a Krypteia Scout in place of the Spartans' starting Warrior. Village tribute and Mongol city cover moved nothing. Task 12b
 then found the ladder was inverted because the danger weight rose with skill and made harder Mongols timid. It now
 falls with skill (1.3 at dial 0, 0 at dial 1, normal still 0.65), the Spartan hold went 1 to 0.6 and the Mongol
 formation weight 0.3 to -0.25. No rules numbers changed in 12b.
@@ -163,7 +167,9 @@ Known balance issues to carry forward, in this order:
 1. The first seat wins more. Normal against normal on seeds 1001 to 1050 (both faction orders, 100 matches): first
    seat 58.5%, second 30.5%, 22% stalled, about three standard errors from even. On the fresh seeds it is 50.0% against
    39.3%. Task 12 removed the second player's two extra gold, which is the likely cause. Ladder runs use both seat
-   orders so they cancel it, but a person who plays second against the AI is at a real disadvantage.
+   orders so they cancel it. In solo play the person always moves first (the AI only takes the second seat), so the
+   edge favours the person against the AI. Between two people on one phone it favours whoever moves first. With
+   equal start gold Setup now says only who moves first.
 2. The hard AI never lures. In `src/ai/plan.ts` a lure gets exactly its plain twin's score, the sort breaks the tie
    by index and hard's `topK` of 1 keeps the plain attack. Hard with normal's randomness lured about 21 times a match
    and won no more, so it costs no measured strength, but hard Mongols lose their character move. Fix: break the tie
