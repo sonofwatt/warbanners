@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { applyAction, createMatch } from '../engine';
-import { randomPlayout } from '../engine/testkit';
+import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
+import type { MatchState } from '../engine';
 import { aiInputFor, believedState, viewKey } from './input';
 import { planTurn } from './plan';
 import { hiddenScout, hopelessCharge, lureFromCity } from './scenarios';
@@ -48,10 +49,38 @@ test('the deadline ends the turn early with legal actions', () => {
   expect(plan.cutShort).toBe(true);
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 30_000);
-test('a hard plan on the 24-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(7, 160), 0);
+test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
+  const input = aiInputFor(randomPlayout(7, 180), 0);         // rules version 2: (7, 160) now ends with 23 units
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);
   expect(plan.cutShort).toBe(false);
 }, 30_000);
+
+// Player 1's warrior stands on a treasure it reached on an earlier turn; a second treasure lies one step away.
+function treasureWait(): MatchState {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); s.current = 1;
+  setTile(s, 1, 0, { treasure: true }); setTile(s, -2, 0, { treasure: true });
+  addUnit(s, 'warrior', 1, 1, 0);
+  addUnit(s, 'warrior', 1, -1, 0);
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  return s;
+}
+test('a treasure is claimed by the unit that waited on it, and another unit steps onto the next one, at every level', () => {
+  for (const dial of [0, 0.2, 0.5, 1]) for (let seed = 0; seed < 10; seed++) {
+    const plan = planTurn(aiInputFor(treasureWait(), 1), { dial, seed, refused: [] });
+    expect(plan.actions).toContainEqual({ type: 'claimTreasure', unit: 0 });
+    if (dial >= 0.5) expect(plan.actions).toContainEqual({ type: 'move', unit: 1, to: '-2,0' });
+  }
+});
+test('a melee kill is scored with the step into the tile: the kill that lands on a village is chosen', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 4); addCity(s, 1, 0, -4); s.current = 1;
+  addUnit(s, 'warrior', 1, 0, 0);
+  addUnit(s, 'warrior', 0, -1, 0, { hp: 1 }); addUnit(s, 'warrior', 0, 1, 0, { hp: 1 });
+  setTile(s, 1, 0, { village: true });                             // under the later target in the listed order
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  for (const seed of [0, 1, 2, 3]) {
+    const plan = planTurn(aiInputFor(s, 1), { dial: 1, seed, refused: [] });
+    expect(plan.actions.find(a => a.type === 'attack')).toEqual({ type: 'attack', unit: 0, target: '1,0' });
+  }
+});

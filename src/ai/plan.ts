@@ -1,7 +1,7 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
   CONFIG, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
+  canCapture, canClaimTreasure, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
   parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
@@ -36,6 +36,7 @@ interface Cand {
   score: number;                     // with what the unit would do after it
   result?: Applied;                  // the probe of this exact action on the state it was listed for
   enemyCity?: boolean;
+  treasure?: boolean;                // a treasure claim, always taken (its draw is unknown, so it cannot be scored)
 }
 
 class OutOfTime extends Error {}
@@ -415,6 +416,16 @@ class TurnPlanner {
       }
     }
 
+    if (canClaimTreasure(s, id)) {
+      const a: Action = { type: 'claimTreasure', unit: id };
+      if (this.allowed(a)) {
+        const r = this.probe(s, a);
+        const score = this.scoreAfter(s, base, r, null);
+        push({ action: a, base: score, score, result: r, treasure: true });
+      }
+    }
+
+    // An attack is scored on the state its probe leaves, so a melee kill's step into the tile is in the score.
     for (const target of attackTargets(s, id)) {
       const plain: Action = { type: 'attack', unit: id, target };
       const victim = s.units.find((t) => t.pos === target)!;
@@ -479,6 +490,8 @@ class TurnPlanner {
     const cands = this.candidates(this.b, id, true);
     const city = cands.find((c) => c.enemyCity === true);
     if (city !== undefined) return city;                       // an enemy city is always taken
+    const treasure = cands.find((c) => c.treasure === true);
+    if (treasure !== undefined) return treasure;               // and so is a treasure the unit has waited on
     const { lookahead, topK } = this.ctx.skill;
     if (lookahead > 0) {
       const top = cands.map((c, i) => ({ c, i })).sort((x, y) => y.c.score - x.c.score || x.i - y.i).slice(0, topK + 1);

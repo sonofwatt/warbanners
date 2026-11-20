@@ -93,7 +93,6 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
     let checked = 0;
     for (const u of b.units.filter(x => x.owner === s.current)) {
       for (const [to, mp] of Object.entries(reachable(b, u.id))) {
-        if (b.tiles[to]!.treasure) continue;      // a treasure roll changes more than the unit
         const r = applyAction(b, { type: 'move', unit: u.id, to });
         expect(r.ok).toBe(true); if (!r.ok) continue;
         if (r.events.some(e => e.type === 'lured')) continue;
@@ -160,4 +159,24 @@ test('the follow credit goes to a step the line can keep up with, and not to one
   expect(followCredit(s, ctx, rider.id, '1,0', 0)).toBeCloseTo(0.75 * bond, 9);   // one ahead: the hoplite keeps up
   expect(followCredit(s, ctx, rider.id, '1,-1', 0)).toBe(0);                     // two ahead: it cannot
   expect(followCredit(s, ctx, rider.id, '0,1', 0)).toBe(0);                      // still beside it: no bond broken
+});
+
+test('a hurt unit is worth more where resting heals more: own land, then unclaimed, then enemy land, never next to an enemy', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const u = addUnit(s, 'warrior', 0, 1, 2, { hp: 4, attacks: 0 }); // in its own territory; no strike term
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = { ...makeCtx(s, 0, 1), danger: {}, goals: [] };  // only the rest term differs between these tiles
+  const at = (pos: string): number => { const c = structuredClone(s); c.units.find(x => x.id === u.id)!.pos = pos; return valueOf(c, ctx); };
+  const home = at('1,2'); const open = at('2,0'); const enemy = at('1,-3');
+  expect(home - open).toBeCloseTo(0.5 * 2 * (4 - 2) / 10, 9);        // worth 2: heals 4 at home, 2 on open land
+  expect(open - enemy).toBeCloseTo(0.5 * 2 * (2 - 1) / 10, 9);       // 1 in enemy land
+  addUnit(s, 'warrior', 1, 0, 2);                                     // an enemy beside the home tile, 2 from the open one
+  expect(at('1,2') - at('2,0')).toBeCloseTo(-0.5 * 2 * 2 / 10, 9);    // heals nothing there now, still 2 out in the open
+});
+test('a unit standing on a treasure is worth more than one beside it', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); setTile(s, 2, 0, { treasure: true });
+  const u = addUnit(s, 'warrior', 0, 1, 0);
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = { ...makeCtx(s, 0, 1), danger: {}, goals: [] };
+  expect(moveScore(s, ctx, u.id, '2,0', 0) - moveScore(s, ctx, u.id, '2,-1', 0)).toBeCloseTo(6, 9);
 });

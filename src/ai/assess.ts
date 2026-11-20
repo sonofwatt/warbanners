@@ -1,6 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
   CONFIG, UNITS, attackOf, coverAt, damageFor, defenceOf, distance, key, maxMp, mirror, parseKey, playerIncome, range,
+  restHealAt,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -12,7 +13,8 @@ const TREASURE_VALUE = 6;
 const DEFEND_VALUE = 15;
 const EXPLORE_VALUE = 3;
 const DEFEND_RADIUS = 3;
-const STANDING_ON_PRIZE = 6;
+const STANDING_ON_PRIZE = 6;       // a unit on a village, an enemy city or a treasure: it can take it next turn
+const REST_SHARE = 0.5;           // share of the health a hurt unit would heal where it stands, in worth
 const EXPLORED_WEIGHT = 0.1;
 const OBJECTIVE_PULL = 0.8;         // per tile nearer the most attractive objective (value less distance)
 const NO_COST_WORTH = 8;
@@ -205,6 +207,11 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit): number {
   if ((city !== undefined && city.owner !== me) || (city === undefined && tile?.village === true)) {
     v += STANDING_ON_PRIZE * (1 + persona.spread / 6);
   }
+  if (tile?.treasure === true) v += STANDING_ON_PRIZE;
+
+  // Rest: a hurt unit is worth more where resting would heal it more (own land, away from enemies).
+  const missing = UNITS[u.type].hp - u.hp;
+  if (missing > 0) v += REST_SHARE * worth * Math.min(missing, restHealAt(b, u)) / UNITS[u.type].hp;
 
   const threat = danger[u.pos] ?? 0;
   v -= skill.danger * worth * Math.min(1, threat / u.hp);
