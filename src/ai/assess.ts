@@ -209,9 +209,10 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit): number {
   }
   if (tile?.treasure === true) v += STANDING_ON_PRIZE;
 
-  // Rest: a hurt unit is worth more where resting would heal it more (own land, away from enemies).
+  // Rest: a hurt unit is worth more where resting would heal it more (own land, away from seen enemies). Only one
+  // that has neither moved nor acted this turn: any other will not heal when its next turn starts.
   const missing = UNITS[u.type].hp - u.hp;
-  if (missing > 0) v += REST_SHARE * worth * Math.min(missing, restHealAt(b, u)) / UNITS[u.type].hp;
+  if (missing > 0 && !u.moved && !u.acted) v += REST_SHARE * worth * Math.min(missing, restHealAt(b, u)) / UNITS[u.type].hp;
 
   const threat = danger[u.pos] ?? 0;
   v -= skill.danger * worth * Math.min(1, threat / u.hp);
