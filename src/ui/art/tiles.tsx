@@ -149,8 +149,9 @@ export function Highlight(p: { mark: Mark }): ReactElement {
               every figure stays within x -20 to 20), so streamers, bows and tails never cover it. */}
           <ellipse cx={-22.5} cy={2} rx={3.4} ry={1.5} fill="#000000" fillOpacity={0.2} />
           <line x1={-22.5} y1={2} x2={-22.5} y2={-29} stroke="#4A3220" strokeWidth={1.8} strokeLinecap="round" />
-          <polygon points="-22.9,-30.2 -35,-27.4 -30.6,-24.4 -35,-21.4 -22.9,-18.8" fill={UNDER} fillOpacity={0.55} />
-          <polygon points="-23.1,-29.2 -33.4,-27 -29.2,-24.4 -33.4,-21.8 -23.1,-19.8" fill="#FFC81A" />
+          {/* Flat two-tone cloth, no outline: the lower half is a darker gold, so it reads on pale sand. */}
+          <polygon points="-23.1,-29.2 -34,-27 -29.6,-24.4 -23.1,-24.4" fill="#FFC81A" />
+          <polygon points="-23.1,-24.4 -29.6,-24.4 -34,-21.6 -23.1,-19.6" fill="#D98E04" />
         </g>
       );
   }
