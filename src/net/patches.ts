@@ -1,4 +1,3 @@
-import { serverTimestamp } from 'firebase/database';
 import type { FactionId, MatchSettings, PlayerId } from '../engine';
 import { encodeSettings, SCHEMA, type ClockSec, type RoomSeat } from '../online/wire';
 
@@ -7,6 +6,10 @@ import { encodeSettings, SCHEMA, type ClockSec, type RoomSeat } from '../online/
 // own (database.rules.json has no cascading grant), so a patch never writes a whole `meta`, `seats/<s>` or `head`.
 
 export type Patch = Record<string, unknown>;
+
+// The server's clock, as the SDK's serverTimestamp() spells it. Written out here so this module, and the in-memory
+// fakeNet built on it, load without the Firebase SDK. firebaseNet's emulator suite checks it is the SDK's own value.
+export const serverTimestamp = (): { '.sv': 'timestamp' } => ({ '.sv': 'timestamp' });
 type AiSeat = Extract<RoomSeat, { kind: 'ai' }>;
 type AdaptState = AiSeat['adapt'];
 
@@ -53,8 +56,10 @@ export function aiSeatPatch(seat: PlayerId, s: AiSeat): Patch {
   };
 }
 
-export function lobbyPatch(p: { clock?: ClockSec; hostFaction?: FactionId }): Patch {
+// `mine` is the writer's own seat, needed only to rename it.
+export function lobbyPatch(p: { clock?: ClockSec; hostFaction?: FactionId; name?: string }, mine?: PlayerId): Patch {
   const out: Patch = {};
+  if (p.name !== undefined && mine !== undefined) out[`seats/${mine}/name`] = p.name;
   if (p.clock !== undefined) out['meta/clock'] = p.clock;
   if (p.hostFaction !== undefined) out['meta/hostFaction'] = p.hostFaction;
   return out;

@@ -179,6 +179,25 @@ export function contract(name: string, make: () => Promise<ContractKit>): void {
       const { room } = await latest(a, code, r => r?.members[bu] === undefined);
       expect(room!.desync).toEqual({});
     });
+    test('closing a watch says the phone has gone only after present(), and only when its last watch closes', async () => {
+      await started(code);
+      const au = await a.uid(); const cu = await c.uid();
+      const quiet = { room: () => {}, actions: () => {}, connected: () => {} };
+      const one = a.watch(code, quiet); const two = a.watch(code, quiet);
+      await latest(b, code, r => r?.presence[au]?.on === true);
+      one();
+      const still = await a.readLive(code);
+      expect(typeof still === 'object' && still.presence?.on).toBe(true);                         // another watch is open
+      two();
+      await latest(b, code, r => r?.presence[au]?.on === false);                                    // the last one closed
+      const peek = c.watch(code, quiet);
+      await latest(c, code, r => r !== null);
+      peek();
+      const none = await c.readLive(code);
+      expect(typeof none === 'object' && none.presence).toBe(null);                                  // never present: writes nothing
+      const { room } = await latest(a, code, r => r !== null);
+      expect(room!.presence[cu]).toBeUndefined();
+    });
     test('the creator can remove a room; a stranger cannot', async () => {
       await ann(code);
       expect(await b.remove(code)).toBe(false);

@@ -1,7 +1,9 @@
 import { isRoomCode, normalizeRoom, readActions, type Room } from '../online/wire';
-import { joinDecision, readStartNodes, ROOM_NODES } from './firebaseNet';
+import { joinDecision, readStartNodes, ROOM_NODES } from './read';
 import type { Net, Refusal, Watcher } from './net';
-import { aiSeatPatch, appendPatch, createPatch, joinPatch, lobbyPatch, presentPatch, startPatch, takeoverPatch, type Patch } from './patches';
+import {
+  aiSeatPatch, appendPatch, createPatch, joinPatch, lobbyPatch, presentPatch, serverTimestamp, startPatch, takeoverPatch, type Patch,
+} from './patches';
 
 // An in-memory server for the Net contract. Every write is built by patches.ts and judged by `allowed`, a port of
 // database.rules.json for the paths the app writes, so a test on the fake fails where the deployed rules would.
@@ -89,6 +91,10 @@ const str = (x: unknown): string => (x === null ? 'null' : String(x));
 const num = (x: unknown): number => (typeof x === 'number' ? x : Number.NaN);   // rules arithmetic on null fails
 const isNum = (x: unknown): x is number => typeof x === 'number';
 const has = (v: unknown, keys: string[]): boolean => isObj(v) && keys.every((k) => v[k] !== undefined && v[k] !== null);
+
+// The SHA-256 of the database.rules.json that `allowed` was checked against, clause by clause. fakeNet.test.ts fails
+// when the file changes: re-check `allowed` against every changed clause, then update this hash.
+export const RULES_SHA256 = 'a7b61d476a0b8c7620fff1df365577d7f2fd4327626733b8cd921d51f3eabed8';
 
 /**
  * database.rules.json, ported for one update of rooms/<code>. R is the room before, N after (null when absent),
@@ -395,6 +401,8 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
     const tick = (): Promise<void> => new Promise((res) => queueMicrotask(res));
     const room = (code: string): Room | null => reading(code).room;
     const offline = (): boolean => !c.online;
+    const presented = new Set<string>();          // codes this Net has called present() for
+    const open = new Map<string, number>();       // open watches per code
     // The shape every call but append shares: offline at once when dropped, refused when the rules say no.
     const write = async (code: string, patch: Patch): Promise<true | 'refused' | 'offline'> => {
       const r = await submit(uid, code, patch, false);
@@ -434,12 +442,13 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
       async setLobby(code, p) {
         await tick();
         if (offline()) return 'offline';
-        const patch = lobbyPatch(p);
+        let mine: 0 | 1 | undefined;
         if (p.name !== undefined) {
-          const mine = getAt(roomOf(code), `members/${uid}`);
-          if (mine !== 0 && mine !== 1) return 'refused';
-          patch[`seats/${mine}/name`] = p.name;
+          const m = getAt(roomOf(code), `members/${uid}`);
+          if (m !== 0 && m !== 1) return 'refused';
+          mine = m;
         }
+        const patch = lobbyPatch(p, mine);
         return Object.keys(patch).length === 0 ? true : write(code, patch);
       },
       async setAiSeat(code, seat, s) {
@@ -464,6 +473,7 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
       async present(code, pausedTo) {
         await tick();
         if (offline()) return 'offline';
+        presented.add(code);
         if (getAt(roomOf(code), 'meta') === null) return 'refused';   // the rules refuse to arm presence in no room
         c.armed.add(code);
         return write(code, presentPatch(uid, pausedTo));
@@ -487,6 +497,7 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
       watch(code, w) {
         const wt: Watch = { code, w, live: true };
         c.watches.add(wt);
+        open.set(code, (open.get(code) ?? 0) + 1);
         const online = c.online;
         later(() => { if (wt.live) w.connected(online); });
         if (online) send(c, wt);
@@ -494,8 +505,13 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
           if (!wt.live) return;
           wt.live = false;
           c.watches.delete(wt);
-          c.armed.delete(code);
-          void submit(uid, code, { [`presence/${uid}`]: { on: false, at: { '.sv': 'timestamp' } } }, false);
+          const left = (open.get(code) ?? 1) - 1;
+          if (left > 0) open.set(code, left); else open.delete(code);
+          // As firebaseNet: only after present(), and only when the last watch on the room closes.
+          if (left <= 0 && presented.delete(code)) {
+            c.armed.delete(code);
+            void submit(uid, code, { [`presence/${uid}`]: { on: false, at: serverTimestamp() } }, false);
+          }
         };
       },
       async remove(code) {
@@ -515,7 +531,7 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
       if (!c.online) return;
       for (const wt of c.watches) later(() => { if (wt.live) wt.w.connected(false); });
       c.online = false;   // the dropped phone's own data callbacks stop here, so its cache still shows it present
-      for (const code of c.armed) apply(uid, code, { [`presence/${uid}`]: { on: false, at: { '.sv': 'timestamp' } } });
+      for (const code of c.armed) apply(uid, code, { [`presence/${uid}`]: { on: false, at: serverTimestamp() } });
       c.armed.clear();    // an onDisconnect fires once
     },
     async back(uid) {

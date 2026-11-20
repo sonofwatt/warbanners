@@ -1,8 +1,11 @@
+/// <reference types="node" />
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { RULES_VERSION, type MatchSettings } from '../engine';
 import { makeRoomCode } from '../online/wire';
 import { contract, type ContractKit } from './contract';
-import { allowed, fakeServer, patched, type FakeServer } from './fakeNet';
+import { allowed, fakeServer, patched, RULES_SHA256, type FakeServer } from './fakeNet';
 import type { Append, Net } from './net';
 import { appendPatch } from './patches';
 
@@ -152,3 +155,16 @@ describe('fakeNet mirrors the deployed rules', () => {
   });
 });
 
+
+describe('the fake stays tied to the deployed rules', () => {
+  test('database.rules.json is the file allowed() was checked against', () => {
+    const now = createHash('sha256').update(readFileSync('database.rules.json')).digest('hex');
+    expect(now, 'database.rules.json changed: re-check allowed() in src/net/fakeNet.ts against every changed clause, '
+      + 'add a fakeNet test for it, then set RULES_SHA256 to the new hash').toBe(RULES_SHA256);
+  });
+  test('the fake and its readings load without the Firebase SDK', () => {
+    for (const f of ['fakeNet.ts', 'read.ts', 'patches.ts', 'contract.ts', 'net.ts']) {
+      expect(readFileSync(`src/net/${f}`, 'utf8'), f).not.toMatch(/from\s+['"](?:firebase|@firebase)\/|from\s+['"]\.\/(?:firebase|firebaseNet)['"]/);
+    }
+  });
+});

@@ -1,6 +1,6 @@
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { setLogLevel } from 'firebase/app';
-import { get, ref, set, type Database } from 'firebase/database';
+import { get, ref, serverTimestamp as sdkServerTimestamp, set, type Database } from 'firebase/database';
 import { afterAll, describe, expect, test } from 'vitest';
 import { RULES_VERSION } from '../engine';
 import { makeRoomCode } from '../online/wire';
@@ -8,6 +8,7 @@ import { contract, type ContractKit } from './contract';
 import { EMU, ensureSignedIn, fb, setOnline, watchConnected } from './firebase';
 import { firebaseNet } from './firebaseNet';
 import type { Net } from './net';
+import { serverTimestamp } from './patches';
 
 const emu = describe.runIf(process.env.EMULATOR === '1');
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -71,6 +72,10 @@ emu('firebaseNet on the emulator', () => {
       wait: sleep,
     };
     return kit;
+  });
+
+  test("the patches' server time is the SDK's own placeholder", () => {
+    expect(serverTimestamp()).toEqual(sdkServerTimestamp());
   });
 
   test('a create on another schema is refused as schema', async () => {

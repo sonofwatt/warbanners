@@ -1,46 +1,12 @@
 import {
-  get, onDisconnect, onValue, ref, remove, runTransaction, serverTimestamp, set, update, type Database,
+  get, onDisconnect, onValue, ref, remove, runTransaction, set, update, type Database,
 } from 'firebase/database';
 import type { PlayerId } from '../engine';
-import {
-  decodeSettings, isRoomCode, NET_TIMEOUT_MS, normalizeRoom, readActions, type Room, type Snap,
-} from '../online/wire';
+import { isRoomCode, NET_TIMEOUT_MS, normalizeRoom, readActions, type Room } from '../online/wire';
 import { configMissing, ensureSignedIn, fb, reconnect, serverOffset, watchConnected, type Fb } from './firebase';
-import type { Live, Net, Refusal, StartRead } from './net';
-import { aiSeatPatch, appendPatch, createPatch, joinPatch, lobbyPatch, presentPatch, startPatch, takeoverPatch, type Patch } from './patches';
-
-// The nodes of a room that `watch` listens to one by one and folds into normalizeRoom (never the whole room).
-export const ROOM_NODES = ['meta', 'seats', 'members', 'presence', 'head', 'desync'] as const;
-
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const HEX16 = /^[0-9a-f]{16}$/;
-
-/** What `join` answers for a room read once, before any write: a seat to take, or the answer itself. */
-export function joinDecision(room: Room | null, uid: string, rules: number): { take: PlayerId } | { seat: PlayerId } | Refusal {
-  if (!room) return 'notFound';
-  const mine = room.members[uid];
-  if (mine !== undefined) return { seat: mine };
-  if (room.meta.rulesVersion !== rules) return 'version';
-  if (room.meta.phase !== 'lobby') return 'started';
-  const free = room.seats.findIndex((s) => s === null);
-  return free === 0 || free === 1 ? { take: free } : 'full';
-}
-
-/** Reads `match`, `snap` and `checks` as fetched once: missing match is 'notFound', unreadable settings 'schema'. */
-export function readStartNodes(match: unknown, snap: unknown, checks: unknown): StartRead | Refusal {
-  if (!isObject(match)) return 'notFound';
-  const settings = decodeSettings(match.settings);
-  if (!settings) return 'schema';
-  let s: Snap | null = null;
-  if (isObject(snap) && Number.isInteger(snap.n) && (snap.n as number) >= 0 && typeof snap.hash === 'string'
-    && HEX16.test(snap.hash) && typeof snap.state === 'string') s = { n: snap.n as number, hash: snap.hash, state: snap.state };
-  const out: Record<number, string> = {};
-  // Firebase hands back integer keys as an array when they are dense enough, and as an object otherwise.
-  const pairs: [string, unknown][] = Array.isArray(checks) ? Array.from(checks, (v: unknown, i) => [String(i), v])
-    : isObject(checks) ? Object.entries(checks) : [];
-  for (const [k, v] of pairs) if (/^(0|[1-9]\d{0,8})$/.test(k) && typeof v === 'string' && HEX16.test(v)) out[Number(k)] = v;
-  return { settings, snap: s, checks: out };
-}
+import type { Live, Net } from './net';
+import { joinDecision, readStartNodes, ROOM_NODES } from './read';
+import { aiSeatPatch, appendPatch, createPatch, joinPatch, lobbyPatch, presentPatch, startPatch, takeoverPatch, serverTimestamp, type Patch } from './patches';
 
 const denied = (e: unknown): boolean => {
   const o = e as { code?: unknown; message?: unknown } | null;
@@ -51,13 +17,13 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
   const limit = opts?.timeoutMs ?? NET_TIMEOUT_MS;
   let offset = 0;
   let made: Fb | null = null;
+  let offsetOff: (() => void) | null = null;
+  const presented = new Set<string>();          // codes this Net has called present() for
+  const open = new Map<string, number>();       // open watches per code
   // Created on the first call, never when firebaseNet() itself runs.
-  const f = (): Fb => {
-    if (made) return made;
-    made = fb(name);
-    serverOffset(made, (ms) => { offset = ms; });
-    return made;
-  };
+  const f = (): Fb => (made ??= fb(name));
+  // The server offset is listened to from the first serverNow() or watch, and let go when the last watch closes.
+  const listenOffset = (): void => { offsetOff ??= serverOffset(f(), (ms) => { offset = ms; }); };
   const db = (): Database => f().db;
   const at = (code: string, path = ''): ReturnType<typeof ref> => ref(db(), path ? `rooms/${code}/${path}` : `rooms/${code}`);
   const signIn = (): Promise<string> => ensureSignedIn(f());
@@ -83,7 +49,7 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
   return {
     uid: signIn,
     serverNow() {
-      if (!configMissing()) f();
+      if (!configMissing()) listenOffset();
       return Date.now() + offset;
     },
     create(input) {
@@ -124,12 +90,13 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
       if (!isRoomCode(code)) return Promise.resolve('notFound');
       return timed(async () => {
         const uid = await signIn();
-        const patch = lobbyPatch(p);
+        let mine: PlayerId | undefined;
         if (p.name !== undefined) {
-          const mine: unknown = await val(code, `members/${uid}`);
-          if (mine !== 0 && mine !== 1) return 'refused' as const;
-          patch[`seats/${mine}/name`] = p.name;
+          const m: unknown = await val(code, `members/${uid}`);
+          if (m !== 0 && m !== 1) return 'refused' as const;
+          mine = m;
         }
+        const patch = lobbyPatch(p, mine);
         return Object.keys(patch).length === 0 ? true as const : send(code, patch);
       });
     },
@@ -145,13 +112,10 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
     async append(code, a) {
       if (configMissing()) return 'notSetUp';
       if (!isRoomCode(code)) return 'refused';
-      try {
-        await signIn();
-        await update(at(code), appendPatch(a));
-        return true;
-      } catch {
-        return 'refused';
-      }
+      await signIn();
+      // Only the rules' refusal is a lost race. Anything else (a malformed patch, a failed sign-in) is a bug or a
+      // broken session, and is thrown rather than dressed up as 'refused'.
+      return send(code, appendPatch(a));
     },
     readLive(code) {
       if (!isRoomCode(code)) return Promise.resolve('notFound');
@@ -166,6 +130,7 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
       if (!isRoomCode(code)) return Promise.resolve('notFound');
       return timed(async () => {
         const uid = await signIn();
+        presented.add(code);
         // An onDisconnect fires once: it is armed again on every return, before the presence it will undo.
         await onDisconnect(at(code, `presence/${uid}`)).set({ on: false, at: serverTimestamp() });
         return send(code, presentPatch(uid, pausedTo));
@@ -197,8 +162,13 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
     watch(code, w) {
       let stopped = false;
       const offs: (() => void)[] = [];
-      if (configMissing() || !isRoomCode(code)) return () => { stopped = true; };
+      if (configMissing() || !isRoomCode(code)) {
+        queueMicrotask(() => { if (!stopped) w.connected(false); });   // never set up: the caller hears it is offline
+        return () => { stopped = true; };
+      }
       const g = f();
+      listenOffset();
+      open.set(code, (open.get(code) ?? 0) + 1);
       let online = false;
       const onVisible = (): void => {
         if (!stopped && !online && document.visibilityState === 'visible') reconnect(g);
@@ -226,8 +196,13 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
         if (stopped) return;
         stopped = true;
         for (const off of offs) off();
+        const left = (open.get(code) ?? 1) - 1;
+        if (left > 0) open.set(code, left); else open.delete(code);
+        if (open.size === 0 && offsetOff) { offsetOff(); offsetOff = null; }
+        // Leaving the room: only a phone that said it was here says it has gone, and only when its last watch on
+        // the room closes, so a short-lived watch never turns off the presence of a match still being played.
         const uid = g.auth.currentUser?.uid;
-        if (uid) {
+        if (uid && left <= 0 && presented.delete(code)) {
           const p = at(code, `presence/${uid}`);
           onDisconnect(p).cancel().catch(() => {});
           set(p, { on: false, at: serverTimestamp() }).catch(() => {});   // best effort; refused when the room is gone
