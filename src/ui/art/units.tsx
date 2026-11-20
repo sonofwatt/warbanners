@@ -239,11 +239,11 @@ function knight(p: FigureProps): ReactElement {
   ink.rect(-5, -32, 10, 9.6, STEEL, 3);
   ink.rect(-5, -28.4, 10, 1.4, '#2B2B2A');
   ink.rect(-0.6, -26.2, 1.2, 3, STEEL_DARK);
-  // A long lance couched under the arm, reaching past the horse's head.
-  ink.line(-14, -10, 16, -26, WOOD, 2);
-  ink.poly([20, -28.2, 15, -27.8, 16.8, -24.6], STEEL_DARK);
-  ink.poly([-4.4, -14, 1.4, -20.4, 2.6, -16.8], p.accent);
-  hand(ink, -1, -16.9);
+  // A long lance couched under the arm and raised, passing above the horse's head so the head stays clear.
+  ink.line(-12, -8, 16.2, -32.4, WOOD, 2);
+  ink.poly([19.6, -35.4, 14.6, -32.6, 16.6, -30.2], STEEL_DARK);
+  ink.poly([-4.2, -12.6, 0.2, -18.8, 2.4, -15.4], p.accent);
+  hand(ink, -1, -17.2);
   return <g>{[<Shadow key="s" wide />, ...ink.items]}</g>;
 }
 
