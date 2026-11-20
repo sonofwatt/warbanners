@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { applyAction, createMatch } from '../engine';
+import { applyAction, createMatch, visibleTiles } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
 import type { MatchState } from '../engine';
 import { aiInputFor, believedState, viewKey } from './input';
@@ -82,5 +82,16 @@ test('a melee kill is scored with the step into the tile: the kill that lands on
   for (const seed of [0, 1, 2, 3]) {
     const plan = planTurn(aiInputFor(s, 1), { dial: 1, seed, refused: [] });
     expect(plan.actions.find(a => a.type === 'attack')).toEqual({ type: 'attack', unit: 0, target: '1,0' });
+  }
+});
+test('a Mongol rider scouts: a move into the fog, then another move from the new edge (rules 9 and 13)', () => {
+  const s = blankMatch({ radius: 6 }); addCity(s, 0, 0, 5); addCity(s, 1, 0, -5); s.current = 1;
+  const rider = addUnit(s, 'khansGuard', 1, 0, -4, { mp: 8 }).id;                // 4 tiles of movement, sight 2
+  for (const p of s.players) p.explored = [...visibleTiles(s, p.id)].sort();
+  const seen = new Set(s.players[1]!.explored);
+  for (const dial of [0, 0.5, 1]) for (const seed of [1, 2, 3]) {
+    const moves = planTurn(aiInputFor(s, 1), { dial, seed, refused: [] }).actions.filter((a) => a.type === 'move' && a.unit === rider);
+    expect(moves.length, `dial ${dial} seed ${seed}`).toBe(2);
+    expect(moves[0]!.type === 'move' && seen.has(moves[0]!.to)).toBe(false);   // the first ends in the fog
   }
 });
