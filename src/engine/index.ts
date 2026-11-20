@@ -1,7 +1,7 @@
 // The public face of the engine. Nothing inside the engine imports from here.
 export { createMatch } from './state';
 export { applyAction, legalActions, replay } from './apply';
-export { hashState } from './hash';
+export { hashState, canonical } from './hash';
 export { rngNext, rngInt } from './rng';
 export { playerView, visibleTiles } from './vision';
 export { reachable, maxMp } from './movement';

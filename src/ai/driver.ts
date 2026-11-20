@@ -7,6 +7,9 @@ import { planTurn } from './plan';
 import type { Plan } from './plan';
 
 export const MAX_REPLANS = 6;
+// The planner's safety-net deadlines: the first plan of an AI turn, and each plan after a surprise.
+export const FIRST_THINK_MS = 2500;
+export const REPLAN_MS = 1000;
 
 export interface AiSeat { player: PlayerId; dial: number; salt: number }
 

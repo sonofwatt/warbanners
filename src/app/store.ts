@@ -4,7 +4,7 @@ import { applyAction, createMatch, hashState, playerView } from '../engine';
 import type { Action, FactionId, GameEvent, MatchState, PlayerId } from '../engine';
 import { adaptStep, betweenMatches, gapOf } from '../ai/adapt';
 import type { AdaptState } from '../ai/adapt';
-import { afterAct, afterThink, aiStep, START } from '../ai/driver';
+import { afterAct, afterThink, aiStep, FIRST_THINK_MS, REPLAN_MS, START } from '../ai/driver';
 import type { Cursor } from '../ai/driver';
 import { aiInputFor } from '../ai/input';
 import { LEVEL_DIAL } from '../ai/types';
@@ -35,9 +35,7 @@ export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnread
 
 // The least time the person gets to watch an AI action they can see.
 export const AI_STEP_MS = 450;
-// The planner's safety-net deadlines: the first plan of an AI turn, and each plan after a surprise.
-export const FIRST_THINK_MS = 2500;
-export const REPLAN_MS = 1000;
+export { FIRST_THINK_MS, REPLAN_MS };
 
 export interface AppState {
   screen: Screen;

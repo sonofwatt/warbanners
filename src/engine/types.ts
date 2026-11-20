@@ -70,7 +70,7 @@ export type Action =
   | { type: 'research'; tech: TechId }
   | { type: 'chooseReward'; city: number; choice: 0 | 1 }
   | { type: 'endTurn' }
-  | { type: 'resign' };
+  | { type: 'resign'; player?: PlayerId };
 
 export type GameEvent =
   | { type: 'moved'; unit: number; from: HexKey; to: HexKey }
