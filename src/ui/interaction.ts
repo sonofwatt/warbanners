@@ -141,6 +141,8 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
       return { selection: keep(), action: null };
     }
     if ((ix.attacks[id] ?? []).includes(hex)) {
+      // A second tap on the enemy the panel is already asking about takes the primary option: a plain attack.
+      if (sel.askLure === hex) return { selection: sel, action: { type: 'attack', unit: id, target: hex } };
       if ((ix.lures[id] ?? []).includes(hex)) return { selection: { kind: 'unit', id, armed: null, askLure: hex }, action: null };
       return { selection: sel, action: { type: 'attack', unit: id, target: hex } };
     }

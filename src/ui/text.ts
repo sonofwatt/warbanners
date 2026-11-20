@@ -38,6 +38,7 @@ const trait: Record<Trait, Entry> = {
   phalanx: { name: 'Phalanx', blurb: 'Gains 1 defence for each friendly Hoplite beside it, up to 2.' },
   unbowed: { name: 'Unbowed', blurb: 'Its attack is not weakened by lost health.' },
   hidden: { name: 'Hidden', blurb: 'Enemies see it only from the tile next to it.' },
+  noCityCapture: { name: 'No city capture', blurb: 'Cannot capture cities. It can still capture villages.' },
   steady: { name: 'Steady', blurb: 'Friendly units beside it cannot be lured away.' },
   inspire: { name: 'Inspire', blurb: 'Friendly riders beside it have 1 more attack.' },
   camp: { name: 'Camp', blurb: 'Cannot attack, but can train units.' },

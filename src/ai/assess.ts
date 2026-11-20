@@ -167,7 +167,7 @@ export interface Ctx {
 function exposed(b: MatchState, c: City): boolean {
   if (b.units.some((u) => u.pos === c.pos)) return false;
   const at = parseKey(c.pos);
-  return b.units.some((e) => e.owner !== c.owner && UNITS[e.type].move > 0 && distance(at, parseKey(e.pos)) <= maxMp(b, e) / 2);
+  return b.units.some((e) => e.owner !== c.owner && UNITS[e.type].move > 0 && !UNITS[e.type].traits.includes('noCityCapture') && distance(at, parseKey(e.pos)) <= maxMp(b, e) / 2);
 }
 
 // What valueOf takes off for this own city while it stands exposed, or 0 when it does not.
@@ -212,7 +212,7 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   const hpShare = u.hp / UNITS[u.type].hp;
   let v = worth * hpShare;
 
-  if ((city !== undefined && city.owner !== me) || (city === undefined && tile?.village === true)) {
+  if ((city !== undefined && city.owner !== me && !UNITS[u.type].traits.includes('noCityCapture')) || (city === undefined && tile?.village === true)) {
     v += STANDING_ON_PRIZE * (1 + persona.spread / 6);
   }
   if (tile?.treasure === true) v += STANDING_ON_PRIZE;
@@ -244,9 +244,11 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   // reach only cities (to take or to defend) still pull, so a fight never makes the army forget them.
   const reach = threatReach(b, u);
   const engaged = b.units.some((e) => e.owner !== me && distance(at, parseKey(e.pos)) <= reach);
+  const noCapture = UNITS[u.type].traits.includes('noCityCapture');
   let pull = -Infinity;
   for (const g of goals) {
     if (engaged && g.kind !== 'enemyCity' && g.kind !== 'enemyCapital' && g.kind !== 'defend') continue;
+    if (noCapture && (g.kind === 'enemyCity' || g.kind === 'enemyCapital')) continue;   // it can never take one
     pull = Math.max(pull, g.value - distance(at, parseKey(g.at)));
   }
   if (pull > -Infinity) v += OBJECTIVE_PULL * pull;

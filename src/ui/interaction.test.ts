@@ -105,6 +105,16 @@ test('an attack that can lure asks first', () => {
   expect(r).toEqual({ selection: unitSel(rider.id, { askLure: '1,0' }), action: null });
   expect(marksFor(r.selection, v, ix)).toEqual({ '0,0': 'selected', '1,0': 'attack' });
 });
+test('a second tap on the same lure-able enemy attacks plainly', () => {
+  const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const rider = addUnit(s, 'horseArcher', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0);
+  const v = playerView(s, 0), ix = indexActions(legalActions(s));
+  const r = tap(unitSel(rider.id, { askLure: '1,0' }), { unit: null, hex: '1,0' }, v, ix);
+  expect(r.action).toEqual({ type: 'attack', unit: rider.id, target: '1,0' });
+  // a tap elsewhere still just changes the ask
+  expect(tap(unitSel(rider.id, { askLure: '1,0' }), { unit: null, hex: '-1,0' }, v, ix).action).not.toEqual(r.action);
+});
 test('an armed ability fires on a target and disarms on anything else', () => {
   const s = seeAll(blankMatch());
   addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);

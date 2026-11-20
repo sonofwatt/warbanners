@@ -50,6 +50,15 @@ describe('capture, elimination and resigning', () => {
     expect(canCapture(s, m.id)).toBe(false);
   });
 
+  test('a scout cannot take a city but can still take a village', () => {
+    const s = blankMatch(); addCity(s, 1, 0, 0); addCity(s, 1, 6, 0); const u = addUnit(s, 'scout', 0, 0, 0);
+    expect(canCapture(s, u.id)).toBe(false);
+    expect(applyAction(s, { type: 'capture', unit: u.id }).ok).toBe(false);
+    expect(legalActions(s).some(a => a.type === 'capture')).toBe(false);
+    setTile(s, 3, 0, { village: true }); const v = addUnit(s, 'scout', 0, 3, 0);
+    expect(canCapture(s, v.id)).toBe(true);
+  });
+
   test('resigning hands the win to the other player', () => {
     const s = blankMatch(); const mine = addCity(s, 0, 0, 0); addCity(s, 1, 3, 0); addUnit(s, 'warrior', 0, 1, 0);
     const r = applyAction(s, { type: 'resign' }); const t = must(r);

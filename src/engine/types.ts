@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 2;
+export const RULES_VERSION = 3;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -11,7 +11,7 @@ export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'ar
   | 'knight' | 'catapult' | 'hoplite' | 'kingsGuard' | 'piper' | 'scout'
   | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp';
 export type Trait = 'steadfast' | 'doubleStrike' | 'retreat' | 'chain' | 'splash' | 'siege' | 'mounted'
-  | 'phalanx' | 'unbowed' | 'hidden' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm';
+  | 'phalanx' | 'unbowed' | 'hidden' | 'noCityCapture' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm';
 export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm';
 // Every ability, in the order legalActions lists them.
 export const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
