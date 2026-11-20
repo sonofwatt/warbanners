@@ -69,13 +69,16 @@ const MAX_ACTIONS_PER_TURN = 40;
 
 // The same random playout as scripts/sim.ts: up to 40 random non-end actions, then endTurn, for
 // `playerTurns` end-of-turns (fewer if the match ends first). The pick stream starts at the seed.
-export function randomPlayout(seed: number, playerTurns: number): MatchState {
+// Also returns every action played, so a test can replay the playout.
+export function randomPlayoutLog(seed: number, playerTurns: number): { state: MatchState; actions: Action[] } {
   let s = createMatch({ seed, factions: ['spartans', 'mongols'] });
+  const actions: Action[] = [];
   let pick = seed;
   const play = (a: Action): void => {
     const r = applyAction(s, a);
     if (!r.ok) throw new Error(`engine refused a legal action ${JSON.stringify(a)}: ${r.reason}`);
     s = r.state;
+    actions.push(a);
   };
   for (let turns = 0; s.winner === null && turns < playerTurns; turns++) {
     for (let n = 0; n < MAX_ACTIONS_PER_TURN && s.winner === null; n++) {
@@ -87,5 +90,9 @@ export function randomPlayout(seed: number, playerTurns: number): MatchState {
     }
     if (s.winner === null) play({ type: 'endTurn' });
   }
-  return s;
+  return { state: s, actions };
+}
+
+export function randomPlayout(seed: number, playerTurns: number): MatchState {
+  return randomPlayoutLog(seed, playerTurns).state;
 }
