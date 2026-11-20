@@ -4,6 +4,7 @@ import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
 import { claimTerritory, unitById } from './state';
 import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
+import { visibleTiles } from './vision';
 
 test('warrior on fields reaches its six neighbours', () => {
   const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0);
@@ -160,13 +161,17 @@ test('a move may end on one unexplored tile but never pass through one (rules 9)
   expect(Object.keys(r).filter((h) => !s.players[0]!.explored.includes(h)).every((h) => r[h] === 0)).toBe(true);
 });
 test('a Spartan unit that steps into the fog has no movement left', () => {
-  const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 4 });
-  s.players[0]!.explored = ['0,0'];
-  expect(reachable(s, h.id)).toEqual({ '-1,0': 0, '-1,1': 0, '0,-1': 0, '0,1': 0, '1,-1': 0, '1,0': 0 });
-  const t = must(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }));
-  expect(unitById(t, h.id)).toMatchObject({ pos: '1,0', mp: 0 });
-  expect(t.players[0]!.explored).toContain('2,0');                              // it looked around
-  expect(reachable(t, h.id)).toEqual({});
+  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0);              // Spartan knight: 6 half-points, sight 2
+  for (const q of [0, 1, 2, 3, 4]) setTile(s, q, 0, { road: true });
+  s.players[0]!.explored = [...visibleTiles(s, 0)].sort();                      // what it sees: up to 2 tiles away
+  const r = reachable(s, k.id);
+  expect(r['2,0']).toBe(4);                                                     // two road steps
+  expect(r['3,0']).toBe(0);                                                     // the third is in the fog: 3 left on the road, gone
+  expect(r['4,0']).toBeUndefined();                                             // only through 3,0
+  const t = must(applyAction(s, { type: 'move', unit: k.id, to: '3,0' }));
+  expect(unitById(t, k.id)).toMatchObject({ pos: '3,0', mp: 0 });
+  expect(t.players[0]!.explored).toContain('4,0');                              // it looked around
+  expect(reachable(t, k.id)).toEqual({});
 });
 test('the explored set is the one from before the move: a second fog step needs a second move', () => {
   const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 4 });

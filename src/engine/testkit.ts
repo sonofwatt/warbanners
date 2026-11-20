@@ -20,10 +20,11 @@ export function blankMatch(opts?: { radius?: number; factions?: [FactionId, Fact
       treasure: false, cityId: null,
     };
   }
+  const explored = (): string[] => (opts?.unexplored === true ? [] : Object.keys(tiles).sort());
   return {
     rulesVersion: RULES_VERSION, seed: 0, rng: 1, radius, tiles, cities: [], units: [],
     players: factions.map((faction, i) => ({
-      id: i, faction, gold: 20, techs: [], explored: opts?.unexplored === true ? [] : Object.keys(tiles).sort(), alive: true, turnsTaken: 0,
+      id: i, faction, gold: 20, techs: [], explored: explored(), alive: true, turnsTaken: 0,
     })),
     current: 0, stamp: 5, nextUnitId: 0, nextCityId: 0, winner: null,
   };

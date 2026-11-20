@@ -120,7 +120,7 @@ const claim = (unit: number): Action => ({ type: 'claimTreasure', unit });
 describe('claiming a treasure (rules 12)', () => {
   test('outcomes follow rngInt(3): explore on rng state 1', () => {
     // with rng state 1 the first draw is 2693262067 % 3 = 1: explore
-    const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
+    const s = blankMatch({ unexplored: true }); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
     const r = applyAction(s, claim(u.id)); const t = must(r);
     expect(t.tiles['1,0']!.treasure).toBe(false);
     expect(r.ok && r.events).toEqual([{ type: 'treasure', at: '1,0', outcome: 'explore' }]);
