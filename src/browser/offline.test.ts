@@ -6,19 +6,12 @@ import type { Page } from 'playwright';
 import { build } from 'vite';
 import { describe, expect, test } from 'vitest';
 import { T } from '../ui/text';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // The installed game with no connection, in a real browser with its service worker running.
 // Seed 7 facts (see flow.test.ts): Player 1 moves first with one Warrior (unit 0) on -2,5, which can move to -1,4.
 
 const SEED = '?seed=7';
-
-async function tapTile(page: Page, hex: string): Promise<void> {
-  const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-  if (box === null) throw new Error(`tile ${hex} has no box`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await frames(page);
-}
 
 const text = async (page: Page, id: string): Promise<string> => (await page.getByTestId(id).textContent()) ?? '';
 
@@ -92,6 +85,9 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
 
       expect(requests.length).toBeGreaterThan(0);
       expect(requests.filter((u) => new URL(u).origin !== origin)).toEqual([]);
+      // Pass-the-phone play never talks to Firebase. (The worker precaches every chunk, the lazy Firebase one
+      // included, by design, so which scripts were fetched says nothing; the hosts asked are what counts.)
+      expect(requests.filter((u) => /firebaseio\.com|identitytoolkit|securetoken/.test(u))).toEqual([]);
     } finally {
       await close();
     }

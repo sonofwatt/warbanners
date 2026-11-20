@@ -62,6 +62,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # Builds dist under the Pages base, then tests that same build.
       - run: npm run test:browser
+      # Two browser phones play one online match against the emulator, from an emulator build in dist-emu
+      # (never uploaded). Java and Chromium are both installed by now.
+      - run: npm run test:online
       # The offline suite makes a second build in a temp folder, not in dist, but
       # rebuild anyway so the artifact is certainly the plain Pages build.
       - run: npm run build

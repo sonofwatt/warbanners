@@ -23,6 +23,10 @@ describe('the browser suites cannot skip silently in CI', () => {
     expect(runs).toContain('npm run test:browser');
   });
 
+  test('the workflow runs exactly `npm run test:online`', () => {
+    expect(runs).toContain('npm run test:online');
+  });
+
   test('the workflow installs Chromium', () => {
     expect(runs.some((c) => c.includes('playwright install'))).toBe(true);
   });

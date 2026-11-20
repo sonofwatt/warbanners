@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:browser": "vite build && cross-env BROWSER=1 vitest run src/browser/ai.test.ts && cross-env BROWSER=1 vitest run src/browser --exclude src/browser/ai.test.ts",
+    "test:online": "vite build --mode emu --outDir dist-emu && firebase emulators:exec --only database,auth --project demo-banners \"cross-env BROWSER=1 EMULATOR=1 vitest run src/browser/online.test.ts\"",
     "typecheck": "tsc --noEmit",
     "emu": "firebase emulators:start --only database,auth --project demo-banners",
     "test:emu": "firebase emulators:exec --only database,auth --project demo-banners \"cross-env EMULATOR=1 vitest run\"",
