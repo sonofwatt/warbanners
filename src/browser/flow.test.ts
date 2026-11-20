@@ -181,6 +181,20 @@ async function expectTidy(page: Page, screen: string): Promise<void> {
   expect(problems, screen).toEqual([]);
 }
 
+/** The Home title sits on one line: no word is split and nothing spills past its box. */
+async function expectTitleOnOneLine(page: Page): Promise<void> {
+  const title = await page.evaluate(() => {
+    const h = document.querySelector('.home-hero h1');
+    if (!(h instanceof HTMLElement)) return null;
+    const lineHeight = parseFloat(getComputedStyle(h).lineHeight);
+    return { scrollWidth: h.scrollWidth, clientWidth: h.clientWidth, height: h.getBoundingClientRect().height, lineHeight };
+  });
+  expect(title).not.toBeNull();
+  if (title === null) return;
+  expect(title.scrollWidth, 'the title spills sideways').toBeLessThanOrEqual(title.clientWidth);
+  expect(title.height, 'the title wraps onto a second line').toBeLessThan(title.lineHeight * 1.5);
+}
+
 /** End turn is on screen and nothing covers its centre. */
 async function expectEndTurnUncovered(page: Page): Promise<void> {
   const ok = await page.evaluate(() => {
@@ -250,6 +264,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
     try {
       await page.getByTestId('new-match').waitFor();
       await expectTidy(page, 'home');
+      await expectTitleOnOneLine(page);
       await page.getByTestId('new-match').tap();
       await page.getByTestId('start').waitFor();
       await expectTidy(page, 'setup');

@@ -3,12 +3,14 @@ import { expect, test, vi } from 'vitest';
 import { FACTIONS, UNITS, createMatch, legalActions } from '../../engine';
 import type { DigestLine } from '../../app/digest';
 import { roundOf } from '../../app/record';
+import { App } from '../App';
 import { indexActions } from '../interaction';
 import { T } from '../text';
 import { cityCommands, techRows, unitCommands } from './commands';
 import { CityPanel } from './CityPanel';
 import { DigestCard } from './DigestCard';
 import { Hud } from './Hud';
+import { versionLine } from '../Version';
 import { Menu } from './Menu';
 import { RewardSheet } from './RewardSheet';
 import { TechSheet } from './TechSheet';
@@ -81,6 +83,14 @@ test('the reward sheet shows both rewards and Later', () => {
 test('the menu offers sound, resign and home', () => {
   const html = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
   expect(html).toContain('Sound on'); expect(html).toContain('data-testid="resign"'); expect(html).not.toContain('Resign this match?');
+});
+test('the menu shows the same version line as Home', () => {
+  const menu = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
+  const home = renderToStaticMarkup(<App />);
+  const line = versionLine();
+  expect(line).toMatch(/^Version \S+ \(\S+\), rules \d+, built \S+$/);
+  expect(menu).toContain(`>${line}</p>`);
+  expect(home).toContain(`>${line}</footer>`);
 });
 test('the digest card shows six lines and counts the rest', () => {
   const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost' }));

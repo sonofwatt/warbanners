@@ -1,8 +1,6 @@
 import type { ReactElement } from 'react';
-import { RULES_VERSION } from '../engine';
 import { useApp } from '../app/useApp';
-import { APP_VERSION, BUILD } from '../version';
-import { T } from './text';
+import { Version } from './Version';
 import { ArtSheet } from './art/ArtSheet';
 import { BoardDemo } from './board/BoardDemo';
 import { Home } from './screens/Home';
@@ -39,7 +37,7 @@ export function App(home: HomeProps = {}): ReactElement {
 // Shows the screen the store names. Home's updater and install hooks come from main.tsx.
 function Screens(home: HomeProps): ReactElement {
   const screen = useApp((s) => s.screen);
-  const version = <footer className="version">v{APP_VERSION} ({BUILD}) {T.ui.rulesWord} {RULES_VERSION}</footer>;
+  const version = <Version as="footer" />;
   if (screen === 'home') return <main className="app"><Home {...home} />{version}</main>;
   if (screen === 'setup') return <main className="app"><Setup /></main>;
   if (screen === 'pass') return <main className="app"><Pass /></main>;

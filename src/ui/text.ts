@@ -99,7 +99,7 @@ const reason: Record<string, string> = {
 };
 
 const ui = {
-  appName: 'Warbanners', rulesWord: 'rules',
+  appName: 'Warbanners', rulesWord: 'rules', versionWord: 'Version', builtWord: 'built',
   walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture', claimTreasure: 'Claim treasure',
   attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
   turn: 'Turn', endTurn: 'End turn', nextUnit: 'Next unit', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
