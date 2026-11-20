@@ -32,3 +32,10 @@ Warbanners is a new game in the same genre as Hexonia, not a copy of it. All art
 - The browser suites in `src/browser` gate on `BROWSER=1` (`describe.runIf(process.env.BROWSER === '1')`) and otherwise skip, which reports green. `npm run test:browser` sets it. CI must run that script and install Chromium first; `src/browser/coverage.test.ts` fails if the workflow stops doing so or a browser test file loses its gate.
 - A new version of the app is never applied mid-match. The service worker waits, and the update is offered and applied only from Home, after the match has ended or been left.
 - The deployed site lives under `/warbanners/`, so browser tests are run with `GITHUB_PAGES_BASE=/warbanners/` to check it under the sub-path.
+
+## Online play
+
+- Details are in `docs/online.md`. Run `npm run test:emu` before pushing anything that touches `src/net`, `src/online` or `database.rules.json`.
+- After editing `database.rules.json`, the controller deploys it (`npx firebase deploy --only database --project banners-game`) and checks it is live. Never a subagent.
+- Never deploy a `RULES_VERSION` bump while an online match is being played.
+- Never run `firebase init` in the repo: it rewrites `firebase.json` and `database.rules.json`.

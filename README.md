@@ -11,7 +11,18 @@ Open https://sonofwatt.github.io/warbanners/ in a phone browser.
 
 Once it has been opened online one time, the game plays offline, installed or not. A new version waits until you tap Update on the home screen, and is never swapped in during a match.
 
-This stage includes two players on one phone, passing it between turns, or one player against the computer at four levels (easy, normal, hard and adaptive), with a saved match you can resume. It does not yet include online play.
+This stage includes two players on one phone, passing it between turns, or one player against the computer at four levels (easy, normal, hard and adaptive), with a saved match you can resume. It also includes online play for two phones (see below).
+
+## Play online
+
+Online play needs a connection; solo and pass-the-phone play never contact the network.
+
+1. Tap Play online, enter your name, pick your side and a turn clock (off, 1, 2, 3 or 5 minutes), and open a lobby.
+2. Tap Send the invite and send the link (or read out the 6-character room code) to the other player.
+3. They open the link, or tap Join with a code, and join. You tap Start the match.
+4. If a connection drops, the match is safe and the clock pauses; when the player is back the turn carries on with the lost time credited. Close the game and reopen the link to resume. A player on a new browser or an iPhone home-screen app can take their absent seat back from the join screen.
+
+How it works, the database rules and the known gaps are in `docs/online.md`.
 
 ## Development
 
@@ -38,3 +49,6 @@ The rules engine (`src/engine`, plain deterministic TypeScript) has its public A
 
 - Design spec: `docs/superpowers/specs`. Plans: `docs/superpowers/plans`.
 - Rules, the authority for game behaviour: `docs/rules/stage1-rules.md`.
+- `npm run test:emu` runs the whole unit suite plus the Firebase emulator suites (rules, the net layer, the online session). It starts the database and auth emulators itself and needs Java. Run it before pushing anything that touches `src/net`, `src/online` or `database.rules.json`.
+- `npm run test:online` builds an emulator build into `dist-emu` and plays an online match between two phone-sized Chromium browsers against the emulators.
+- `npm run emu` starts the emulators and leaves them running (database 9010, auth 9110). Stop them when done; run one emulator suite at a time.
