@@ -142,7 +142,8 @@ input:focus { border-color: var(--blue); }
 /* Home */
 .home-hero { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) 0 var(--s1); }
 .home-hero .banner-tile { width: 92px; height: auto; flex: none; }
-.home-hero h1 { font-size: var(--t-hero); }
+/* The name never breaks inside the word: on a narrow phone it shrinks to fit beside the banner (it is about 6.7 em wide). */
+.home-hero h1 { font-size: clamp(26px, calc((100vw - 138px) / 6.8), var(--t-hero)); overflow-wrap: normal; white-space: nowrap; }
 .tagline { font-size: var(--t-ml); font-weight: 600; margin-top: 2px !important; }
 .empty { font-weight: 600; }
 .notice {
