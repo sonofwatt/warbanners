@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 import { Hud } from '../ui/panels/Hud';
 import { T, fill } from '../ui/text';
 import { frames, openApp } from './harness';
@@ -34,9 +34,14 @@ interface Measure {
 }
 
 describe.runIf(process.env.BROWSER === '1')('the online Hud with long names', () => {
+  // Read the built CSS when the suite runs, not when it is collected: a skipped suite is still collected,
+  // and the unit run in CI comes before any build exists.
   const dir = 'dist/assets';
-  const cssFile = readdirSync(dir).find((f) => f.endsWith('.css'));
-  const css = cssFile === undefined ? '' : readFileSync(`${dir}/${cssFile}`, 'utf8');
+  let css = '';
+  beforeAll(() => {
+    const cssFile = readdirSync(dir).find((f) => f.endsWith('.css'));
+    css = cssFile === undefined ? '' : readFileSync(`${dir}/${cssFile}`, 'utf8');
+  });
 
   test.each(SIZES)('the turn sentence and both names stay readable at %i by %i', async (width, height) => {
     expect(css.length).toBeGreaterThan(0);
