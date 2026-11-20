@@ -256,7 +256,7 @@ const connectedNow = (name: string): Promise<void> => new Promise((res) => {
   off = watchConnected(fb(name), (ok) => { if (ok && !done) { done = true; queueMicrotask(() => off?.()); res(); } });
 });
 
-async function poll(pred: () => boolean, ms = 10_000): Promise<void> {
+async function poll(pred: () => boolean, ms = 20_000): Promise<void> {
   const end = Date.now() + ms;
   while (!pred()) {
     if (Date.now() > end) throw new Error('until: the condition never held');

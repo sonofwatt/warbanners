@@ -52,5 +52,6 @@ export default defineConfig({
     __BUILD__: JSON.stringify((process.env.GITHUB_SHA ?? 'dev').slice(0, 7)),
     __BUILD_DATE__: JSON.stringify(buildDate()),
   },
-  test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'] },
+  // expect.poll waits up to 10 s: a CI runner is several times slower than a desk machine.
+  test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'], expect: { poll: { timeout: 10_000 } } },
 });

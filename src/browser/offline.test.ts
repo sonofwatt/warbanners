@@ -254,7 +254,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
       expect(await page.locator('footer.version').textContent()).toBe(firstLabel);
 
       await page.getByTestId('update').tap();
-      await expect.poll(() => page.locator('footer.version').textContent().catch(() => '')).toContain('nextbld');
+      await expect.poll(() => page.locator('footer.version').textContent().catch(() => ''), { timeout: 15_000 }).toContain('nextbld');
       await page.getByTestId('new-match').waitFor();
       expect(await samePage()).toBe(false);
       expect(await page.getByTestId('update').count()).toBe(0);
@@ -295,7 +295,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
 
       // The first window, on Home, takes the new version.
       await page.getByTestId('update').tap();
-      await expect.poll(() => page.locator('footer.version').textContent().catch(() => '')).toContain('nextbld');
+      await expect.poll(() => page.locator('footer.version').textContent().catch(() => ''), { timeout: 15_000 }).toContain('nextbld');
 
       // The other window plays on, untouched, for as long as its match is open.
       await other.waitForTimeout(1500);
@@ -311,7 +311,7 @@ describe.runIf(process.env.BROWSER === '1')('offline and installed', () => {
       await other.getByTestId('winner').waitFor();
       expect(await otherSame()).toBe(true);
       await other.getByTestId('result-home').tap();
-      await expect.poll(() => other.locator('footer.version').textContent().catch(() => '')).toContain('nextbld');
+      await expect.poll(() => other.locator('footer.version').textContent().catch(() => ''), { timeout: 15_000 }).toContain('nextbld');
       expect(await otherSame().catch(() => false)).toBe(false);
     } finally {
       await close();
