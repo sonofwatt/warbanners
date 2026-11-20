@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import type { StoreApi } from 'zustand/vanilla';
-import { applyAction, createMatch, hashState, playerView } from '../engine';
+import { applyAction, createMatch, hashState, playerView, RULES_VERSION } from '../engine';
 import type { Action, FactionId, GameEvent, MatchState, PlayerId } from '../engine';
 import { adaptStep, betweenMatches, gapOf } from '../ai/adapt';
 import type { AdaptState } from '../ai/adapt';
@@ -10,16 +10,26 @@ import { aiInputFor } from '../ai/input';
 import { LEVEL_DIAL } from '../ai/types';
 import type { AiLevel } from '../ai/types';
 import { watchMs } from '../ui/board/effects';
-import { afterAction, isOffered, NONE, nextUnit as nextUnitOf, offered, tap as tapLogic } from '../ui/interaction';
+import { afterAction, indexActions, isOffered, NONE, nextUnit as nextUnitOf, offered, tap as tapLogic } from '../ui/interaction';
 import type { Armed, Hit, Selection } from '../ui/interaction';
 import { T } from '../ui/text';
+import { netReady } from '../netReady';
+import { BUILD } from '../version';
+import type { Net } from '../net/net';
+import { openSession } from '../online/session';
+import type { Session, SessionView } from '../online/session';
+import type { Step } from '../online/sync';
+import { codeFromSearch, decodeAction, factionsFor, inviteLink as inviteLinkFor, makeRoomCode, toRecordSeat } from '../online/wire';
+import type { ClockSec, Room } from '../online/wire';
 import { createAiClient, isSuperseded } from './aiClient';
 import type { AiClient } from './aiClient';
 import { readDial, writeDial } from './aiMemory';
 import { digestFor } from './digest';
 import type { DigestLine, TurnStep } from './digest';
-import { append, newRecord, restore, setAdapt } from './record';
+import { append, newRecord, restore, roundOf, setAdapt } from './record';
 import type { MatchRecord, Seat } from './record';
+import { dueForSweep, forgetOnline, listOnline, readOnlineCache, rememberOnline, setPendingRoom, takePendingRoom } from './onlineList';
+import type { OnlineEntry } from './onlineList';
 import { deleteSave, listSaves, readSave, withSave, writeSave } from './saves';
 import type { KeyValue, SaveSummary } from './saves';
 import type { UpdateState, Updater } from './update';
@@ -27,11 +37,22 @@ import type { UpdateState, Updater } from './update';
 export interface Deps {
   kv: KeyValue; now(): number; newSeed(): number; newId(): string; updater?: Updater;
   ai: AiClient; sleep(ms: number): Promise<void>;
+  // Online play. All optional, so plan 2's and 3's deps stand as they are; without openNet and netReady there is none.
+  openNet?: () => Promise<Net>;                 // loads src/net on first use: Firebase never loads for local play
+  online?: () => boolean;                       // the platform says it has a connection
+  roomFromUrl?: () => string | null;            // ?room= in the address the app was opened with
+  clearRoomFromUrl?: () => void;                // so a reload does not reopen a room the player has left
+  inviteBase?: () => string;                    // origin plus the base path, for the invite link
+  build?: string;
+  setTimer?: (fn: () => void, ms: number) => () => void;
+  netReady?: () => boolean;                     // this build has a Firebase backend to talk to
 }
 export type SecondSeat = 'human' | AiLevel;
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId]; second?: SecondSeat }   // second: 'human' if left out
-export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result';
-export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion' | 'blockedUnseen' | 'aiPassed';
+export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result' | 'onlineSetup' | 'lobby' | 'join';
+export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion' | 'blockedUnseen' | 'aiPassed'
+  | 'needsConnection' | 'notSetUp' | 'serverOutOfDate' | 'roomGone' | 'updateDuringOnline'
+  | 'onlineListDropped' | 'onlineListFailed' | 'resignLost';
 
 // The least time the person gets to watch an AI action they can see.
 export const AI_STEP_MS = 450;
@@ -52,13 +73,40 @@ export interface AppState {
   ready(): void;                    // the player named on the curtain now has the phone
   tap(hit: Hit): void; run(action: Action): void; arm(armed: Armed | null): void; select(sel: Selection): void;
   nextUnit(): void;                 // selects the next of the viewer's units that can still act
-  setUpdate(s: UpdateState): void; applyUpdate(): void;   // a new build is applied only from home
+  setUpdate(s: UpdateState): void;
+  applyUpdate(confirmed?: boolean): void;   // a new build is applied only from home; with an unfinished online match, only once confirmed === true
   goHome(): void; dismissNotice(): void; dismissDigest(): void;
   recover(): void;                  // back to home after a screen failed to draw, keeping every save
+
+  mode: 'local' | 'online';
+  online: SessionView | null;       // the open session's view; null in local mode
+  onlineList: OnlineEntry[];        // this phone's online matches, for Home
+  inviteLink: string | null;        // for the lobby's share button
+  openOnline(): void;               // the online setup screen
+  openJoin(): void;                 // the join screen, with a code field
+  createRoom(input: { name: string; faction: FactionId; clock: ClockSec }): Promise<void>;
+  openRoom(code: string): void;     // from a link, a typed code, or Continue on Home
+  joinAs(name: string): Promise<void>;
+  takeSeat(seat: PlayerId): Promise<void>;
+  setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): void;
+  startOnline(): void;
+  resignOnline(): void;             // on either player's turn: the Menu's Resign in online mode
+  forgetRoom(code: string): void;   // Home's remove: forget it here, and delete the room when made here and over
+  updateForRoom(): void;            // the join screen on a newer room: remember the room, then Home to update
 }
 
 type AiSeat = Extract<Seat, { kind: 'ai' }>;
 const END_TURN: Action = { type: 'endTurn' };
+const ROOM_TRIES = 5;             // a new code is drawn this many times when the one drawn is taken
+
+const realTimer = (fn: () => void, ms: number): (() => void) => {
+  const id = setTimeout(fn, ms);
+  return () => clearTimeout(id);
+};
+
+// A selection that survives a change the player did not make: the unit is still in view, or it is not a unit.
+const keepLooking = (sel: Selection, state: MatchState, viewer: PlayerId): Selection =>
+  sel.kind !== 'unit' ? sel : playerView(state, viewer).units.some(u => u.id === sel.id) ? { kind: 'unit', id: sel.id, armed: null, askLure: null } : NONE;
 
 // The one person's seat in a match against the AI, or null in a match between two people.
 export function soloSeat(record: MatchRecord): PlayerId | null {
@@ -83,17 +131,32 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
   let aiRun = 0;                    // which AI loop may still act; opening or leaving a match stops the one running
   const kv = deps.kv;
 
-  return createStore<AppState>((set, get) => {
+  // Online play. src/net arrives through deps.openNet (a dynamic import in the browser) the first time it is needed.
+  let netLoad: Promise<Net> | null = null;
+  let net: Net | null = null;
+  let session: Session | null = null;
+  let sessionGen = 0;               // which session (or session being opened) may still change the store
+  let stepsSeen = -1;               // the session's lastSteps.seq already handled
+  let acting = false;               // inside session.act from run or tap: the store applies that step itself
+  let onlineLog: TurnStep[] = [];   // the other side's steps since this phone's last turn, for the digest
+  let resignPending = false;        // a resign is on its way; if it is refused the player is told
+  let rememberedAs = '';            // what was last written to the online list, so a clock tick writes nothing
+  let built: { actions: string[]; record: MatchRecord } | null = null;   // the record built from the session, kept to extend
+  const createdHere = new Set<string>();
+
+  const store = createStore<AppState>((set, get) => {
     // Opens a match. Between two people it opens behind the curtain: nobody's view is drawn until ready(). Against
     // the AI there is no curtain: the person's view is drawn at once, and the AI plays at once if it is to move.
     const openMatch = (record: MatchRecord, state: MatchState, extra: Partial<AppState> = {}): void => {
       turnLog = [];
       aiRun += 1;
+      closeSession();
       const solo = soloSeat(record);
       const over = state.winner !== null;
       set({
         screen: over ? 'result' : solo !== null ? 'match' : 'pass', record, state, viewer: over ? null : solo,
-        selection: NONE, last: null, digest: [], saves: listSaves(kv), aiBusy: false, ...extra,
+        selection: NONE, last: null, digest: [], saves: listSaves(kv), aiBusy: false,
+        mode: 'local', online: null, inviteLink: null, ...extra,
       });
       if (!over && solo !== null && state.current !== solo) void playAi();
     };
@@ -131,6 +194,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
     const accept = (action: Action): void => {
       const { record, state, viewer, selection, aiBusy } = get();
       if (get().screen !== 'match' || record === null || state === null || viewer === null || viewer !== state.current || aiBusy) return;
+      if (get().mode === 'online') { acceptOnline(action); return; }
       const res = applyAction(state, action);
       if (!res.ok) {
         // The screen offered this from what the person knows, so something they cannot see is in the way.
@@ -158,6 +222,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
     const playAi = async (): Promise<void> => {
       const run = ++aiRun;
       const start = get();
+      if (start.mode !== 'local') return;   // an online AI seat is played by the session's host, never here
       if (start.record === null || start.state === null || start.viewer === null) return;
       const id = start.record.id;
       const viewer = start.viewer;
@@ -244,13 +309,186 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       }
     };
 
-    const leave = (): void => {
+    const leave = (why: Notice | null = null): void => {
       turnLog = [];
       aiRun += 1;
-      const notice = get().notice === 'blockedUnseen' || get().notice === 'aiPassed' ? null : get().notice;
-      set({ screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv), aiBusy: false, notice });
+      closeSession();
+      const kept = get().notice === 'blockedUnseen' || get().notice === 'aiPassed' || get().notice === 'resignLost' ? null : get().notice;
+      set({
+        screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv), aiBusy: false,
+        notice: why ?? kept, mode: 'local', online: null, inviteLink: null, onlineList: listOnline(kv),
+      });
+      sweep();
       deps.updater?.homeReached();
     };
+
+    // ---- online ----
+
+    // Why online play cannot start now, checked before src/net is loaded; null when it can.
+    const notReady = (): Notice | null => {
+      if (deps.openNet === undefined || !(deps.netReady?.() ?? false)) return 'notSetUp';
+      return (deps.online?.() ?? true) ? null : 'needsConnection';
+    };
+
+    const loadNet = (): Promise<Net> => {
+      if (netLoad === null) {
+        netLoad = deps.openNet!().then(n => { net = n; return n; });
+        netLoad.catch(() => { netLoad = null; });
+      }
+      return netLoad;
+    };
+
+    function closeSession(): void {
+      sessionGen += 1;
+      session?.close();
+      session = null;
+      onlineLog = [];
+      resignPending = false;
+      rememberedAs = '';
+      built = null;
+    }
+
+    // Rooms made here that are long finished or idle are deleted, best effort, once src/net has been loaded for
+    // online play: reaching Home never loads it, so local play never contacts the server.
+    const sweep = (): void => {
+      if (net === null) return;
+      const n = net;
+      for (const code of dueForSweep(listOnline(kv), deps.now())) {
+        void n.remove(code).catch(() => false).then(() => {
+          forgetOnline(kv, code);
+          if (get().screen === 'home') set({ onlineList: listOnline(kv) });
+        });
+      }
+    };
+
+    // The session's match as a record, for the screens and the cache. Extended action by action, rebuilt when the
+    // session rebuilt its list.
+    const recordOf = (v: SessionView): MatchRecord | null => {
+      const f = v.followed;
+      const room = v.room;
+      if (f === null || room === null) return null;
+      const prior = built !== null && built.actions.length <= f.actions.length && built.actions.every((a, i) => a === f.actions[i]) ? built : null;
+      const fresh = f.actions.slice(prior?.actions.length ?? 0).map(decodeAction);
+      if (fresh.some(a => a === null)) return null;
+      const base = prior?.record ?? newRecord(v.code, f.settings, [seatOf(room, 0), seatOf(room, 1)], room.meta.createdAt);
+      const actions = [...(prior?.record.actions ?? []), ...(fresh as Action[])];
+      const record: MatchRecord = {
+        ...base, actions, snapshot: { count: actions.length, hash: hashState(f.state), state: f.state }, updatedAt: deps.now(),
+      };
+      built = { actions: f.actions, record };
+      return record;
+    };
+
+    // This phone's entry on Home and its cached record, written when something Home shows changes. What became of
+    // the write is told: the player never loses the way back to a match without a word.
+    const rememberHere = (v: SessionView, record: MatchRecord | null): Notice | null => {
+      const room = v.room;
+      const seat = v.mySeat;
+      if (room === null || seat === null) return null;
+      const state = v.followed?.state ?? null;
+      const names: [string, string] = [room.seats[0]?.name ?? '', room.seats[1]?.name ?? ''];
+      const factions = v.followed?.settings.factions ?? factionsFor(room.meta.hostFaction);
+      const round = state !== null ? roundOf(state) : 1;
+      const current = state?.current ?? 0;
+      const over = state !== null && state.winner !== null;
+      const key = JSON.stringify([v.code, seat, names, factions, round, current, over, v.followed?.actions.length ?? -1]);
+      if (key === rememberedAs) return null;
+      rememberedAs = key;
+      const before = listOnline(kv).find(e => e.code === v.code);
+      const entry: OnlineEntry = {
+        code: v.code, seat, names, factions, round, current, over, rulesVersion: room.meta.rulesVersion,
+        createdHere: createdHere.has(v.code) || before?.createdHere === true, updatedAt: deps.now(),
+      };
+      const out = rememberOnline(kv, entry, record);
+      return !out.saved ? 'onlineListFailed' : out.droppedUnfinished ? 'onlineListDropped' : null;
+    };
+
+    // Every change the session reports. The session's state is the match: the screen follows its phase.
+    const onView = (v: SessionView): void => {
+      if (v.phase === 'notFound') {
+        forgetOnline(kv, v.code);
+        leave('roomGone');
+        return;
+      }
+      const cur = get();
+      const patch: Partial<AppState> = { online: v };
+      if (v.phase === 'join' || v.phase === 'version') {
+        if (cur.screen !== 'join') Object.assign(patch, { screen: 'join', record: null, state: null, viewer: null, selection: NONE });
+      } else if (v.phase === 'lobby') {
+        if (cur.screen !== 'lobby') Object.assign(patch, { screen: 'lobby', record: null, state: null, viewer: null, selection: NONE });
+      }
+      const f = v.followed;
+      const seat = v.mySeat;
+      let record: MatchRecord | null = null;
+      if (f !== null && seat !== null && (v.phase === 'playing' || v.phase === 'over' || v.phase === 'desync')) {
+        record = recordOf(v);
+        const over = f.state.winner !== null;
+        Object.assign(patch, { state: f.state, viewer: seat, screen: over ? 'result' : 'match' });
+        if (record !== null) patch.record = record;
+        if (over && cur.screen !== 'result') patch.selection = NONE;
+        const ls = v.lastSteps;
+        if (ls !== null && ls.seq !== stepsSeen) {
+          stepsSeen = ls.seq;
+          // A step this phone's own run or tap made is handled there. Everything else (the other phone's, an AI seat
+          // this phone hosts, a timeout) plays its effects here and goes into the digest.
+          if (!acting && ls.steps.length > 0) {
+            seq += 1;
+            patch.last = { seq, events: ls.steps.flatMap(st => st.events), before: ls.steps[0]!.before };
+            for (const st of ls.steps) {
+              if (st.before.current === seat) onlineLog = [];
+              else onlineLog.push(stepOf(st));
+            }
+          }
+        }
+        if (!acting && cur.state !== f.state) {
+          const back = !over && f.state.current === seat && cur.state !== null && cur.state.current !== seat;
+          if (back && onlineLog.length > 0) {
+            patch.digest = digestFor(seat, onlineLog);
+            onlineLog = [];
+          }
+          if (patch.selection === undefined) patch.selection = back ? NONE : keepLooking(cur.selection, f.state, seat);
+        }
+      }
+      if (resignPending && !v.sending) {
+        resignPending = false;
+        if (f === null || f.state.winner === null) patch.notice = 'resignLost';
+      }
+      const listed = rememberHere(v, record);
+      if (listed !== null) patch.notice = listed;
+      set(patch);
+    };
+
+    const openSessionFor = (code: string, n: Net, gen: number): void => {
+      stepsSeen = -1;
+      session = openSession(code, { net: n, ai: deps.ai, build: deps.build ?? BUILD, setTimer: deps.setTimer ?? realTimer }, v => {
+        if (gen === sessionGen) onView(v);
+      });
+      set({ online: session.view() });
+    };
+
+    // The player's own action online: the session applies it at once and writes it; nothing goes to the saves.
+    const acceptOnline = (action: Action): void => {
+      const { state, viewer, selection, online } = get();
+      if (session === null || state === null || viewer === null || online === null || !online.myTurn) return;
+      let step: Step | null;
+      acting = true;
+      try { step = session.act(action); } finally { acting = false; }
+      if (step === null) {
+        if (isOffered(state, viewer, action)) set({ notice: 'blockedUnseen' });
+        return;
+      }
+      onlineLog = [];
+      seq += 1;
+      const patch: Partial<AppState> = { state: step.after, last: { seq, events: step.events, before: step.before }, online: session.view() };
+      if (get().notice === 'blockedUnseen') patch.notice = null;
+      if (step.after.winner !== null) set({ ...patch, screen: 'result', selection: NONE });
+      else if (action.type === 'endTurn') set({ ...patch, selection: NONE, digest: [] });
+      else set({ ...patch, selection: afterAction(selection, playerView(step.after, viewer), offered(step.after, viewer)) });
+    };
+
+    // Whether the viewer may act now: their turn, and online also the session's word that it is.
+    const canAct = (state: MatchState, viewer: PlayerId): boolean =>
+      viewer === state.current && (get().mode === 'local' || get().online?.myTurn === true);
 
     return {
       screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [],
@@ -290,10 +528,13 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       },
 
       tap: hit => {
-        const { screen, state, viewer, selection, aiBusy } = get();
-        if (screen !== 'match' || state === null || viewer === null || viewer !== state.current || aiBusy) return;
-        const out = tapLogic(selection, hit, playerView(state, viewer), offered(state, viewer));
-        if (out.action !== null) accept(out.action);
+        const { screen, state, viewer, selection, aiBusy, mode } = get();
+        if (screen !== 'match' || state === null || viewer === null || aiBusy) return;
+        const acts = canAct(state, viewer);
+        // Online, the waiting player may still look: the selection moves, with nothing offered, so no action comes of it.
+        if (!acts && mode === 'local') return;
+        const out = tapLogic(selection, hit, playerView(state, viewer), acts ? offered(state, viewer) : indexActions([]));
+        if (out.action !== null && acts) accept(out.action);
         else set({ selection: out.selection });
       },
 
@@ -301,7 +542,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
 
       nextUnit: () => {
         const { screen, state, viewer, selection, aiBusy } = get();
-        if (screen !== 'match' || state === null || viewer === null || viewer !== state.current || aiBusy) return;
+        if (screen !== 'match' || state === null || viewer === null || !canAct(state, viewer) || aiBusy) return;
         const next = nextUnitOf(selection, offered(state, viewer));
         if (next !== null) set({ selection: next });
       },
@@ -309,6 +550,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       arm: armed => {
         const { screen, state, viewer, selection, aiBusy } = get();
         if (screen !== 'match' || state === null || viewer === null || selection.kind !== 'unit' || aiBusy) return;
+        if (get().mode === 'online' && !canAct(state, viewer)) return;
         const unit = state.units.find(u => u.id === selection.id);
         if (unit === undefined || unit.owner !== viewer) return;
         set({ selection: { kind: 'unit', id: selection.id, armed, askLure: null } });
@@ -317,21 +559,120 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       select: sel => { if (get().screen === 'match' && !get().aiBusy) set({ selection: sel }); },
 
       goHome: () => {
-        const { record, state } = get();
-        if (record !== null && state !== null && state.winner !== null) deleteSave(kv, record.id);
+        const { record, state, mode } = get();
+        // Online the match stays in the database and on Home; only a local save is this phone's to delete.
+        if (mode === 'local' && record !== null && state !== null && state.winner !== null) deleteSave(kv, record.id);
         leave();
       },
 
       recover: () => leave(),
 
       setUpdate: update => set({ update }),
-      applyUpdate: () => { if (get().screen === 'home' && get().update.updateReady) void deps.updater?.apply(); },
+      // `confirmed === true`, never just truthy: a button that passes its click event must not confirm.
+      applyUpdate: confirmed => {
+        if (get().screen !== 'home' || !get().update.updateReady) return;
+        if (confirmed !== true && listOnline(kv).some(e => !e.over)) { set({ notice: 'updateDuringOnline' }); return; }
+        void deps.updater?.apply();
+      },
+
+      mode: 'local', online: null, onlineList: listOnline(kv), inviteLink: null,
+
+      openOnline: () => set({ screen: 'onlineSetup' }),
+      openJoin: () => { closeSession(); set({ screen: 'join', mode: 'local', online: null, inviteLink: null }); },
+
+      createRoom: async input => {
+        set({ screen: 'onlineSetup' });
+        const why = notReady();
+        if (why !== null) { set({ notice: why }); return; }
+        closeSession();
+        const gen = sessionGen;
+        let n: Net;
+        try { n = await loadNet(); } catch { if (gen === sessionGen) set({ notice: 'needsConnection' }); return; }
+        if (gen !== sessionGen) return;
+        let failed: Notice = 'serverOutOfDate';
+        for (let i = 0; i < ROOM_TRIES; i++) {
+          const code = makeRoomCode();
+          const r = await n.create({ code, name: input.name, hostFaction: input.faction, clock: input.clock, rulesVersion: RULES_VERSION, build: deps.build ?? BUILD });
+          if (gen !== sessionGen) return;
+          if (r === true) {
+            createdHere.add(code);
+            set({
+              screen: 'lobby', mode: 'online', notice: null, record: null, state: null, viewer: null, selection: NONE, last: null, digest: [],
+              inviteLink: deps.inviteBase ? inviteLinkFor(deps.inviteBase(), code) : null,
+            });
+            openSessionFor(code, n, gen);
+            return;
+          }
+          if (r === 'refused') continue;          // the code is taken: draw another
+          failed = r === 'offline' ? 'needsConnection' : r === 'notSetUp' ? 'notSetUp' : 'serverOutOfDate';
+          break;
+        }
+        set({ notice: failed });
+      },
+
+      openRoom: code => {
+        const why = notReady();
+        if (why !== null) { set({ notice: why }); return; }
+        turnLog = [];
+        aiRun += 1;
+        closeSession();
+        const gen = sessionGen;
+        // The last known board at once, while the session connects; the database wins as soon as it answers.
+        const entry = listOnline(kv).find(e => e.code === code);
+        const cached = entry !== undefined ? readOnlineCache(kv, code) : null;
+        const shown: Partial<AppState> = cached !== null && cached.ok && entry !== undefined
+          ? { screen: cached.state.winner !== null ? 'result' : 'match', record: cached.record, state: cached.state, viewer: entry.seat }
+          : { screen: 'join', record: null, state: null, viewer: null };
+        set({ ...shown, mode: 'online', online: null, inviteLink: null, selection: NONE, last: null, digest: [], aiBusy: false });
+        loadNet().then(n => { if (gen === sessionGen) openSessionFor(code, n, gen); }, () => { if (gen === sessionGen) leave('needsConnection'); });
+      },
+
+      joinAs: async name => { if (session !== null) await session.join(name); },
+      takeSeat: async seat => { if (session !== null) await session.takeOver(seat); },
+      setLobby: patch => { if (session !== null) void session.setLobby(patch); },
+      startOnline: () => { if (session !== null) void session.start(deps.newSeed()); },
+
+      resignOnline: () => {
+        if (session === null || get().mode !== 'online') return;
+        resignPending = true;
+        if (!session.resign()) resignPending = false;
+      },
+
+      forgetRoom: code => {
+        const entry = listOnline(kv).find(e => e.code === code);
+        forgetOnline(kv, code);
+        set({ onlineList: listOnline(kv) });
+        if (entry === undefined || !entry.createdHere || !entry.over || notReady() !== null) return;
+        loadNet().then(n => n.remove(code)).catch(() => {});
+      },
+
+      updateForRoom: () => {
+        const code = get().online?.code;
+        if (code === undefined) return;
+        setPendingRoom(kv, code);
+        leave();
+      },
 
       dismissNotice: () => set({ notice: null }),
       dismissDigest: () => set({ digest: [] }),
     };
   });
+
+  // A room named in the address, or one remembered before an update's reload, opens at once.
+  const fromUrl = deps.roomFromUrl?.() ?? null;
+  const code = fromUrl ?? takePendingRoom(kv);
+  if (code !== null) {
+    store.getState().openRoom(code);
+    if (fromUrl !== null) deps.clearRoomFromUrl?.();
+  }
+  return store;
 }
+
+const seatOf = (room: Room, p: PlayerId): Seat => {
+  const s = room.seats[p];
+  return s ? toRecordSeat(s) : { name: '', kind: 'human' };
+};
+const stepOf = (st: Step): TurnStep => ({ before: st.before, after: st.after, events: st.events });
 
 // Real storage, clock and randomness; each is touched only when called, and Node falls back to keeping nothing.
 export function browserDeps(): Deps {
@@ -357,5 +698,20 @@ export function browserDeps(): Deps {
       : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`),
     ai: createAiClient(),
     sleep: ms => new Promise(resolve => { setTimeout(resolve, ms); }),
+    openNet: () => import('../net/firebaseNet').then(m => m.firebaseNet()),
+    online: () => (typeof navigator === 'undefined' ? true : navigator.onLine),
+    roomFromUrl: () => (typeof location === 'undefined' ? null : codeFromSearch(location.search)),
+    clearRoomFromUrl: () => {
+      if (typeof location === 'undefined' || typeof history === 'undefined') return;
+      const params = new URLSearchParams(location.search);
+      if (!params.has('room')) return;
+      params.delete('room');
+      const query = params.toString();
+      history.replaceState(history.state, '', `${location.pathname}${query === '' ? '' : `?${query}`}${location.hash}`);
+    },
+    inviteBase: () => `${location.origin}${import.meta.env.BASE_URL}`,
+    build: BUILD,
+    setTimer: realTimer,
+    netReady,
   };
 }

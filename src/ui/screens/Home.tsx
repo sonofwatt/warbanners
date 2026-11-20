@@ -81,7 +81,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
           <p className="notice" data-testid="update-ready">
             <InfoIcon />
             <span>{T.ui.updateReady}</span>
-            <button type="button" className="primary" data-testid="update" onClick={applyUpdate}>{T.ui.updateButton}</button>
+            <button type="button" className="primary" data-testid="update" onClick={() => applyUpdate()}>{T.ui.updateButton}</button>
           </p>
         ) : null}
         {update.offlineReady ? <p data-testid="offline-ready" className="hint">{T.ui.offlineReady}</p> : null}
