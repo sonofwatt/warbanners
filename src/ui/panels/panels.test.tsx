@@ -23,7 +23,7 @@ test('the Hud shows who, gold, turn and an end turn button', () => {
   const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
   expect(html).toContain('Ann'); expect(html).toContain('>8<'); expect(html).toContain('Turn 1'); expect(html).toContain('+2');
   expect(html).toContain('data-testid="end-turn"'); expect(html).toContain('data-testid="open-tech"'); expect(html).toContain('data-testid="tech-dot"');
-  expect(html).toContain('1 unit can still act');
+  expect(html).toContain('1 unit to act');
 });
 test('the Hud has a Next unit button beside End turn, greyed when asked', () => {
   const hud = (nextDisabled?: boolean) => renderToStaticMarkup(
