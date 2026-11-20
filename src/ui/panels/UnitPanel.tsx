@@ -15,7 +15,9 @@ export interface UnitPanelProps {
 // An enemy unit gets the same card with an empty command list.
 export function UnitPanel({ type, hp, faction, commands, onCommand }: UnitPanelProps): ReactElement {
   const def = UNITS[type];
-  const move = def.move + (def.traits.includes('mounted') ? FACTIONS[faction].mountedMoveBonus : 0);
+  const mounted = def.traits.includes('mounted');
+  const move = def.move + (mounted ? FACTIONS[faction].mountedMoveBonus : 0);
+  const scouts = mounted && FACTIONS[faction].scoutingRiders;      // rules 13, a faction rule rather than a trait
   return (
     <section className="panel unit-panel">
       <CardHead picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}>
@@ -31,6 +33,7 @@ export function UnitPanel({ type, hp, faction, commands, onCommand }: UnitPanelP
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>
           {def.traits.map((t) => <li key={t}><strong>{T.trait[t].name}</strong><span>{T.trait[t].blurb}</span></li>)}
+          {scouts ? <li key="scoutingRiders"><strong>{T.ui.scoutingRiders}</strong><span>{T.ui.scoutingRidersBlurb}</span></li> : null}
         </ul>
       ) : null}
       <CommandList commands={commands} onCommand={onCommand} />

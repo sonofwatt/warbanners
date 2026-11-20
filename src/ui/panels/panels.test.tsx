@@ -51,6 +51,15 @@ test('the unit panel movement includes the Mongol mounted bonus for every mounte
   expect(move('khansGuard', 'mongols')).toContain(`Movement</dt><dd>${UNITS.khansGuard.move + bonus}</dd>`);
   expect(move('horseman', 'spartans')).toContain(`Movement</dt><dd>${UNITS.horseman.move}</dd>`);
 });
+test("a Mongol rider's card names the scouting riders rule; a Spartan rider's and a Mongol foot unit's do not", () => {
+  const card = (type: 'horseman' | 'warrior', faction: 'mongols' | 'spartans') =>
+    renderToStaticMarkup(<UnitPanel type={type} hp={10} faction={faction} commands={[]} onCommand={noop} />);
+  expect(card('horseman', 'mongols')).toContain(T.ui.scoutingRidersBlurb);
+  expect(card('horseman', 'mongols')).toContain(T.ui.scoutingRiders);
+  expect(card('horseman', 'spartans')).not.toContain(T.ui.scoutingRiders);
+  expect(card('warrior', 'mongols')).not.toContain(T.ui.scoutingRiders);
+  expect(T.trait.mounted.blurb).not.toContain('Mongol');
+});
 test('the city panel shows growth, units and train commands', () => {
   const c = open.cities[0]!;
   const html = renderToStaticMarkup(<CityPanel level={c.level} growth={c.growth} growthNeeded={2} units={1} capacity={2} income={2} walls={false} commands={cityCommands(0, open, ix)} onCommand={noop} />);
