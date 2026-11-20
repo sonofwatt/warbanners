@@ -40,7 +40,7 @@ desync   { <uid>: { n, hash, build } }
 The rules never trust a client. Every leaf that may be written has its own `.write`; no grant sits at `rooms/$code`, `head` or `seats/$s` except the delete-only grant on the room, so nothing cascades to a child it did not mean to open. Reads need a signed-in user. Everything else is closed.
 
 - **Create.** One update writes `meta`, `seats/0` and `members/<creator>` together. `meta.createdAt` must equal `now`, `schema` must be 1 (see the tripwire below), the creator is also host and seat 0, and `phase` is `lobby`.
-- **Lobby.** Only the host changes `clock` and `hostFaction`, and only in the lobby. A guest takes seat 1 only when it is empty and writes its own `members` entry in the same update, with a `rules` equal to `meta.rulesVersion`. The host may fill a seat with an AI (`uid` is `ai_<s>`, with `name`, `level`, `salt`, `adapt` all present and no `rules`). Names are 1 to 16 characters.
+- **Lobby.** Only the host changes `clock` and `hostFaction`, and only in the lobby. Any member may write `meta/hostId` to a human seat's uid, its own included, so a guest can make itself host (this is how the stand-in host works; see "AI seats online"). A guest takes seat 1 only when it is empty and writes its own `members` entry in the same update, with a `rules` equal to `meta.rulesVersion`. The host may fill a seat with an AI (`uid` is `ai_<s>`, with `name`, `level`, `salt`, `adapt` all present and no `rules`). Names are 1 to 16 characters.
 - **Start.** Only the host, only from `lobby`, only once both seats exist. One update writes `match`, the opening `head` (`n` 0, `seat` 0, `at` and `turnAt` equal to `now`, `paused` 0) and `meta/phase` as `playing`.
 - **Actions.** `actions/<n>` is written once, as a string up to 512 characters, only while `phase` is `playing`, only at index `head.n`, and only together with `head.n` moving to `n + 1`. The writer must be the current seat's human, or the host when the current seat is an AI, or any member for a timeout `endTurn` (see below). Two phones writing the same index: the second is refused.
 - **What an action may contain.** Anything that holds `player` or a backslash is refused unless it is exactly the writer's own resign, `{"player":<seat>,"type":"resign"}`. This closes forging a resign for the opponent (task 4 added this rule beyond the plan). A waiting member may resign for their own seat at any time.
@@ -48,7 +48,7 @@ The rules never trust a client. Every leaf that may be written has its own `.wri
 - **Both of those two rules assume two seats.** `1 - seat` and the "resign moves the turn only when it ends the match" clause are wrong for three or more players. Stage 4 (more players) must revisit them.
 - **Timeout.** With a clock on, any member may append `{"type":"endTurn"}` once `now >= head.turnAt + clock * 1000 + head.paused`. The server's `now` decides, never a phone's clock.
 - **Head pins.** Every `head` field is pinned: a write that does not move `head.n` must leave the field as it was. When `head.n` moves, `hash` is free, `at` must be `now`, `seat` and `turnAt` follow the `endTurn` rules above, and `paused` resets to 0. Every head write also needs a signed-in writer. This is why a phone cannot edit the clock, the turn or the hash on its own.
-- **Return credit.** A dropped phone's presence is written off by the server (`onDisconnect`). When the current player returns, `head/paused` may grow, in the same update that writes `presence/<uid>/on: true`, by at most the time the server saw them away: the increase is at most `now - presence.at` and at most `now - head.turnAt`, the whole `paused` is at most 180 000 ms (`DROP_PAUSE_MS`), only for the same turn (`turnAt` unchanged), and only for the current seat's own uid. Anyone may write `paused` back to 0 once `turnAt` has moved.
+- **Return credit.** A dropped phone's presence is written off by the server (`onDisconnect`). When the current player returns, `head/paused` may grow, in the same update that writes `presence/<uid>/on: true`, by at most the time the server saw them away: the increase is at most `now - presence.at` and at most `now - head.turnAt`, the whole `paused` is at most 180 000 ms (`DROP_PAUSE_MS`), only for the same turn (`turnAt` unchanged), and only for the current seat's own uid. `paused` goes back to 0 only in the update that moves `turnAt` (the `endTurn`).
 - **Checks and snap.** `checks/<n>` is written once, as `head.n` moves, and must be 16 hex characters. `snap` may be replaced by any member; its `n` cannot pass `head.n`.
 - **Desync.** A member writes `desync/<own uid>`. Their own entry, or any non-member's entry, may be cleared by any member. The room must exist (a write under an unknown code would leave a node nothing can delete).
 - **Presence.** Each user writes only their own, and only for a room that exists.
@@ -57,7 +57,7 @@ The rules never trust a client. Every leaf that may be written has its own `.wri
 - **Phase.** Moves `lobby` to `playing` only through the start update, and `playing` to `over` by any member.
 - **Delete.** The room may be deleted by its creator, or by anyone once it has been idle 30 days (`ROOM_IDLE_TTL_MS`, measured from `head.at`, or `meta.createdAt` for a room never started). A room with no `meta` may be deleted by anyone.
 
-`src/net/rulesMirror.test.ts` guards the constants the rules mirror (`SCHEMA`, `DROP_PAUSE_MS`, `ROOM_IDLE_TTL_MS`, `MAX_BUILD`, the action cap). `src/net/fakeNet.ts` is a hand copy of the rules; a SHA-256 of `database.rules.json` is pinned beside it, so any rules change fails the fake's tests until the copy has been looked at.
+`src/net/rulesMirror.test.ts` guards the constants the rules mirror (`SCHEMA`, the clock choices, `DROP_PAUSE_MS`, `ROOM_IDLE_TTL_MS` and the size limits). The rules set no limit on the number of actions; `MAX_ACTIONS` (100 000) is the client's own bound on what it reads, and a longer or malformed list stops the match on both phones with a sentence (`recordUnreadable`), never silently. `src/net/fakeNet.ts` is a hand copy of the rules; a SHA-256 of `database.rules.json` is pinned beside it, so any rules change fails the fake's tests until the copy has been looked at.
 
 ## Why every engine value is a JSON string
 
@@ -75,6 +75,19 @@ Every value from the database goes through `normalizeRoom`, `readActions`, `deco
 - The SDK holds writes made while offline and sends them on reconnect; it does not reject them. `append` may stay pending as long as the phone is offline. Every other `Net` call answers `'offline'` after `NET_TIMEOUT_MS` (10 seconds). A held write that lands late is checked by the rules like any other: a held move that lost its index is refused and the phone rebuilds from the database.
 - `.info/connected` turns true before fresh data arrives. So a return reads `head` and its own presence once with `get()` (from the server, not the cache) before deciding anything. A phone that has just reconnected takes no clock decision until its return write (`present`) has landed.
 - On a return the database wins: the board shows what was stored, nothing is deleted or overwritten.
+- A phone whose tab slept (a locked phone, a hidden page whose timers were held back) can wake with a dead socket that the SDK still believes in, and a cache that still shows it present. So a tick more than 5 seconds after the one before (`SLEPT_MS`) starts the return first, exactly as a reconnect does, and no clock decision is taken until the return write has landed. Without this the phone could end its own turn as "time ran out" while it was owed the drop pause.
+
+## Reopening a match: the snapshot is never trusted
+
+`snap`, `checks/<n>` and `head/hash` are all written by the phone that ended the turn, and the rules cannot run the engine, so a hand-written client could write a doctored state with hashes that agree with it. A reopening phone therefore uses the snapshot only to draw the board at once (`fromSnapshot` in `sync.ts`), with `verifying` set: no move, no resign, no clock decision and no AI turn while it is. It then replays every action from the opening (`replay`), 20 actions at a time with a pause between, so no task on the main thread runs long. Measured in Chromium on a 3 000-action match: about 2.2 s in all with the longest chunk 14 to 23 ms, and about 7 s with the longest chunk 62 to 74 ms with the CPU slowed four times. If the replay is refused anywhere or disagrees with the snapshot or any check, the replay's state is the match, the phone reports a desync against the record, and it never withdraws that report for this record, whatever the head hash says. A rebuild after a lost race still replays the list in one go, without the pauses.
+
+## Finished, on this phone and on the server
+
+A winning move or a resign shows the result at once, but Home's entry for the match is marked finished only once the write has landed (`sending` false), and the result screen says "Sending..." until then. The sweep and Remove delete only rooms made here whose entry is finished, so a room whose last write never reached the server is never deleted from this phone.
+
+## A desync on both phones
+
+The phone that finds the disagreement writes `desync/<uid>` and shows the desync card. The other phone sees the entry in the room (`blocked`) and shows the same card. On both, moves and resigning wait until the phones agree (the card says so), and Home is the way out.
 
 ## Rules are deployed by hand
 
@@ -114,7 +127,7 @@ This phone's own list of online matches lives under `warbanners.online.*` and is
 
 ## AI seats online
 
-An AI seat records its `level`, its `salt` (a number fixed when the host fills the seat) and its `adapt` (`{ dial, trend }`) inside the seat, in the lobby, and not afterwards. The host's phone plays the AI turns. If the host drops, the other phone steps in after a short wait (a host with no presence entry counts as away). Every phone that plays an AI turn takes the dial and salt from the seat, so two phones plan the same move for the same state. The adaptive dial moves once, as the turn starts, and is sent with the turn's first action (the rules let the host write `seats/<s>/adapt` only together with an append for that seat). A phone that takes over midway reads the stored dial, which already moved. If a think fails, the host retries and then passes the turn.
+An AI seat records its `level`, its `salt` (a number fixed when the host fills the seat) and its `adapt` (`{ dial, trend }`) inside the seat, in the lobby, and not afterwards. The host's phone plays the AI turns. If the host drops, the other phone steps in after 30 seconds (`HOST_AWAY_MS`); a host that never wrote presence is measured from the room's creation (`meta.createdAt`). Every phone that plays an AI turn takes the dial and salt from the seat, so two phones plan the same move for the same state. The adaptive dial moves once, as the turn starts, and is sent with the turn's first action (the rules let the host write `seats/<s>/adapt` only together with an append for that seat). A phone that takes over midway reads the stored dial, which already moved. If a think fails, the host retries and then passes the turn.
 
 ## Trust model: what the rules accept by design
 
@@ -129,6 +142,12 @@ This is a game for a family. These gaps are known and left open.
 - **The turn handover rules assume two seats** (see "Who may write what"). They are correct today and must be reopened for stage 4.
 - **The host may move an AI seat's `adapt`** with any append, not only its own.
 - A resign may move `head.seat` and `head.turnAt` only with `phase` going to `over`; harmless with two seats.
+- **The creator may delete the room at any time**, mid-match included.
+- **Anyone holding the room code may take an absent player's seat** while the match is playing (see "iPhone storage and seat takeover"), and then play or resign for it. The room code is the credential. A seat taken this way has no stored presence, so it gets no drop credit: a player who comes back on a new identity after their deadline has their turn ended at once.
+- **A member can freeze a match** with a desync entry, or with an action the engine refuses. No server can run the engine; the other phone shows the desync card.
+- **A snapshot or a check can be forged** by a hand-written client (it writes `snap`, `checks/<n>` and `head/hash` itself). A phone never trusts them: it replays the actions and reports a desync (see "Reopening a match").
+- **Any signed-in user may write their own `presence`** under any existing room, member or not.
+- **There is no App Check**, so anyone with the public config can sign in anonymously and create rooms.
 
 ## One-time Firebase setup (F1 to F6)
 
