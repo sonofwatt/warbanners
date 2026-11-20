@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
   CONFIG, UNITS, attackOf, coverAt, damageFor, defenceOf, distance, key, maxMp, mirror, parseKey, playerIncome, range,
-  restHealAt,
+  restHealAt, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -15,6 +15,7 @@ const EXPLORE_VALUE = 3;
 const DEFEND_RADIUS = 3;
 const STANDING_ON_PRIZE = 6;       // a unit on a village, an enemy city or a treasure: it can take it next turn
 const REST_SHARE = 0.5;           // share of the health a hurt unit would heal where it stands, in worth
+const LATE_REST_SHARE = 0.5;      // part of that credit for a unit that moved or acted: it heals the turn after next
 const EXPLORED_WEIGHT = 0.1;
 const OBJECTIVE_PULL = 0.8;         // per tile nearer the most attractive objective (value less distance)
 const NO_COST_WORTH = 8;
@@ -194,8 +195,15 @@ function formationTotal(b: MatchState, units: readonly Unit[], me: PlayerId): nu
   return total / 2;
 }
 
+// The visible-tile set the rest term needs, computed at most once per evaluation of a state and only if asked for.
+type Visible = () => ReadonlySet<HexKey>;
+function lazyVisible(b: MatchState, me: PlayerId): Visible {
+  let set: ReadonlySet<HexKey> | undefined;
+  return () => (set ??= visibleTiles(b, me));
+}
+
 // Every value term that belongs to one own unit, except formation (a pair term) and exploring.
-function unitTerms(b: MatchState, ctx: Ctx, u: Unit): number {
+function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   const { persona, skill, danger, goals, me } = ctx;
   const at = parseKey(u.pos);
   const tile = b.tiles[u.pos];
@@ -209,10 +217,14 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit): number {
   }
   if (tile?.treasure === true) v += STANDING_ON_PRIZE;
 
-  // Rest: a hurt unit is worth more where resting would heal it more (own land, away from seen enemies). Only one
-  // that has neither moved nor acted this turn: any other will not heal when its next turn starts.
+  // Rest: a hurt unit is worth more where resting would heal it more (own land, away from seen enemies). One that
+  // moved or acted this turn will not heal when its next turn starts, only the turn after if it rests then, so it
+  // gets part of the credit: enough that a hurt unit walks to better healing ground.
   const missing = UNITS[u.type].hp - u.hp;
-  if (missing > 0 && !u.moved && !u.acted) v += REST_SHARE * worth * Math.min(missing, restHealAt(b, u)) / UNITS[u.type].hp;
+  if (missing > 0) {
+    const share = u.moved || u.acted ? REST_SHARE * LATE_REST_SHARE : REST_SHARE;
+    v += share * worth * Math.min(missing, restHealAt(b, u, visible())) / UNITS[u.type].hp;
+  }
 
   const threat = danger[u.pos] ?? 0;
   v -= skill.danger * worth * Math.min(1, threat / u.hp);
@@ -258,9 +270,10 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
   v += skill.economy * (3 * playerIncome(b, me) + GOLD_WEIGHT * self.gold + 3 * self.techs.length + growth);
   v += EXPLORED_WEIGHT * self.explored.length;
 
+  const visible = lazyVisible(b, me);
   for (const u of b.units) {
     if (u.owner !== me) { v -= enemyWorth(b, u) * u.hp / UNITS[u.type].hp; continue; }
-    v += unitTerms(b, ctx, u);
+    v += unitTerms(b, ctx, u, visible);
   }
   v += persona.formation * formationTotal(b, b.units, me);
   return v;
@@ -273,8 +286,8 @@ export function moveScore(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, m
   if (u === undefined) throw new Error(`no unit ${unitId}`);
   const moved: Unit = { ...u, pos: to, mp: mpLeft, moved: true };
   const there = parseKey(to);
-  let score = unitTerms(b, ctx, moved) - unitTerms(b, ctx, u);
   const after = b.units.map((x) => (x.id === unitId ? moved : x));
+  let score = unitTerms(b, ctx, moved, lazyVisible({ ...b, units: after }, ctx.me)) - unitTerms(b, ctx, u, lazyVisible(b, ctx.me));
   score += ctx.persona.formation * (formationTotal(b, after, ctx.me) - formationTotal(b, b.units, ctx.me));
   for (const c of b.cities) {
     if (c.pos === u.pos || c.pos === to) score -= exposureCost({ ...b, units: after }, ctx, c) - exposureCost(b, ctx, c);

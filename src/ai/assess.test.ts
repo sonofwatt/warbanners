@@ -180,16 +180,18 @@ test('a unit standing on a treasure is worth more than one beside it', () => {
   const ctx = { ...makeCtx(s, 0, 1), danger: {}, goals: [] };
   expect(moveScore(s, ctx, u.id, '2,0', 0) - moveScore(s, ctx, u.id, '2,-1', 0)).toBeCloseTo(6, 9);
 });
-test('a hurt unit that moved or acted this turn gets no rest credit: it will not heal next turn', () => {
+test('a hurt unit that moved or acted this turn gets half the rest credit: it heals the turn after next, not next turn', () => {
   const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
   const u = addUnit(s, 'warrior', 0, 1, 2, { hp: 4, attacks: 0 });  // in its own territory: rest would heal 4
   for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
   const ctx = { ...makeCtx(s, 0, 1), danger: {}, goals: [] };
-  const with_ = (patch: { moved?: boolean; acted?: boolean }): number => {
+  const with_ = (patch: { moved?: boolean; acted?: boolean; pos?: string }): number => {
     const c = structuredClone(s); Object.assign(c.units.find(x => x.id === u.id)!, patch); return valueOf(c, ctx);
   };
   const rest = 0.5 * 2 * 4 / 10;                                      // worth 2, heals 4 of 10
-  expect(with_({}) - with_({ moved: true })).toBeCloseTo(rest, 9);
-  expect(with_({}) - with_({ acted: true })).toBeCloseTo(rest, 9);
-  expect(moveScore(s, ctx, u.id, '1,2', 0)).toBeCloseTo(-rest, 9);    // moving onto the same tile still gives it up
+  expect(with_({}) - with_({ moved: true })).toBeCloseTo(rest / 2, 9);
+  expect(with_({}) - with_({ acted: true })).toBeCloseTo(rest / 2, 9);
+  expect(moveScore(s, ctx, u.id, '1,2', 0)).toBeCloseTo(-rest / 2, 9);  // moving onto the same tile gives up half
+  // a hurt unit walking to better healing ground is credited half the difference: 4 at home, 2 on open land
+  expect(with_({ moved: true }) - with_({ moved: true, pos: '2,0' })).toBeCloseTo(0.5 * 0.5 * 2 * (4 - 2) / 10, 9);
 });
