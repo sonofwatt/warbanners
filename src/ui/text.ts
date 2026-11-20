@@ -103,7 +103,7 @@ const ui = {
   walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture', claimTreasure: 'Claim treasure',
   attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
   turn: 'Turn', endTurn: 'End turn', nextUnit: 'Next unit', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
-  unitsCanAct: '{n} units can still act', oneUnitCanAct: '1 unit can still act', noUnitsCanAct: 'No units can still act',
+  unitsCanAct: '{n} units to act', oneUnitCanAct: '1 unit to act', noUnitsCanAct: 'No units to act',
   health: 'Health', attackStat: 'Attack', defence: 'Defence', movement: 'Movement', range: 'Range', traits: 'Traits',
   cityTitle: 'City', capitalTitle: 'Capital', techTitle: 'Technologies',
   level: 'Level', growth: 'Growth', unitsHeld: 'Units', walled: 'Walled', notWalled: 'No walls', yes: 'Yes', no: 'No',

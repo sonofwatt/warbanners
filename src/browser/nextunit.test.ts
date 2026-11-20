@@ -73,7 +73,7 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
 
       await tapTile(page, '0,3');                   // the starting Scout's whole move, into the fog
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('0,3');
-      await expect.poll(() => page.getByTestId('can-act').textContent()).toBe('No units can still act');
+      await expect.poll(() => page.getByTestId('can-act').textContent()).toBe('No units to act');
       expect(await nextEnabled(page)).toBe(false);
     } finally {
       await close();

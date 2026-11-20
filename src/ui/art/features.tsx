@@ -128,6 +128,20 @@ function forest(variant: number): ReactElement {
   return ink.done();
 }
 
+// A forest that shares its tile with a resource, a building or a chest: the trees stand along the back
+// edge, leaving the front of the tile clear for what stands there.
+const GROVES: readonly (readonly [number, number, number])[][] = [
+  [[-11, -4, 0.8], [0, -9, 0.85], [11, -5, 0.75]],
+  [[-12, -6, 0.85], [-2, -9.5, 0.75], [10, -6, 0.85]],
+  [[-10, -7, 0.8], [3, -9, 0.8], [13, -2, 0.7]],
+];
+
+export function Grove(p: { variant: number }): ReactElement {
+  const ink = new Ink();
+  for (const [x, y, s] of [...GROVES[Math.abs(Math.trunc(p.variant)) % 3]!].sort((a, b) => a[1] - b[1])) tree(ink, x, y, s);
+  return ink.done();
+}
+
 function mountain(variant: number): ReactElement {
   const ink = new Ink();
   const v = variant % 3;
@@ -300,27 +314,22 @@ function farm(): ReactElement {
 
 function lumberCamp(): ReactElement {
   const ink = new Ink(1.1);
-  // A lean-to at the back: a sloping roof on two posts, dark inside.
-  ink.shadow(-4, 1, 12, 3, 0.14);
-  ink.poly([-15, -13, -12, 1, -17, 0], '#4A3220');
-  ink.poly([-15, -13, 3, -16, 6, -2, -12, 1], '#A87545');
-  ink.poly([3, -16, 6, -2, 7, -3, 4, -16], '#7A5230');
-  ink.line(5, -2, 5, 1, WOOD_DARK, 1.4);
-  // A stump with an axe.
-  ink.rect(-9, 3, 5, 4, '#8A5A33');
-  ink.ellipse(-6.5, 3, 2.5, 1.2, '#E2C08A');
-  ink.line(-6.5, 3, -3.5, -2.5, WOOD_DARK, 1);
-  ink.poly([-4.4, -3.4, -2.2, -4.2, -1.8, -1.6, -3.2, -2], '#C9D1D8');
-  // A log pile, front right, ends toward the viewer.
-  const log = (x: number, y: number): void => {
-    ink.rect(x, y - 2.6, 9, 5.2, '#7A4E2C', 1);
-    ink.circle(x, y, 2.6, '#E2C08A');
-    ink.circle(x, y, 1.1, '#C49A5E');
-  };
-  ink.shadow(9, 7, 9, 2.4);
-  log(3, 5);
-  log(8.4, 5);
-  log(5.7, 0.6);
+  // A chopping stump at the back left, a big axe bitten into its top.
+  ink.shadow(-9, -1, 6, 2, 0.14);
+  ink.rect(-12.6, -6.4, 7.2, 5.6, '#8A5A33', 1);
+  ink.rect(-9, -6.4, 3.6, 5.6, '#6E4528', 1);
+  ink.ellipse(-9, -6.4, 3.6, 1.6, '#E2C08A');
+  ink.line(-9.4, -6.6, -4.4, -15.4, WOOD_DARK, 1.4);
+  ink.poly([-6.4, -18.4, -0.6, -17.6, -1.8, -11.4, -5, -13.6], '#C9D1D8');
+  ink.poly([-1.8, -17.8, -0.6, -17.6, -1.8, -11.4, -2.8, -12.2], '#9AA2AC');
+  // A stack of cut logs, front right, ends toward the viewer: three, two and one.
+  const logs: [number, number][] = [[4.4, -8.4], [1.2, -3], [7.6, -3], [-2, 2.4], [4.4, 2.4], [10.8, 2.4]];
+  ink.shadow(6, 6.2, 12, 2.6);
+  for (const [x, y] of logs) ink.rect(x, y - 3, 7.4, 6, '#7A4E2C', 1.4);
+  for (const [x, y] of logs) {
+    ink.circle(x, y, 3, '#E9C98F');
+    ink.circle(x, y, 1.5, '#C9995A');
+  }
   return ink.done();
 }
 
