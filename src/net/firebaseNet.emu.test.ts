@@ -70,6 +70,7 @@ emu('firebaseNet on the emulator', () => {
       drop: (net) => setOnline(fb(names.get(net)!), false),
       async back(net) { const name = names.get(net)!; setOnline(fb(name), true); await connected(name); },
       wait: sleep,
+      forge: (code, path, value) => adminDo(async (db) => { await set(ref(db, `rooms/${code}/${path}`), value); }),
     };
     return kit;
   });

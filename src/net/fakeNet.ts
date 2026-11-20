@@ -494,6 +494,11 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
         if (offline()) return;
         await submit(uid, code, { [`desync/${uid}`]: d ? { n: d.n, hash: d.hash, build: d.build } : null }, false);
       },
+      async clearDesync(code, other) {
+        await tick();
+        if (offline()) return;
+        await submit(uid, code, { [`desync/${other}`]: null }, false);
+      },
       watch(code, w) {
         const wt: Watch = { code, w, live: true };
         c.watches.add(wt);
@@ -507,10 +512,11 @@ export function fakeServer(start = 1_700_000_000_000): FakeServer {
           c.watches.delete(wt);
           const left = (open.get(code) ?? 1) - 1;
           if (left > 0) open.set(code, left); else open.delete(code);
-          // As firebaseNet: only after present(), and only when the last watch on the room closes.
+          // As firebaseNet: only after present(), only when the last watch on the room closes, and only while
+          // connected: offline, the drop has already written presence off, and its time must stand.
           if (left <= 0 && presented.delete(code)) {
             c.armed.delete(code);
-            void submit(uid, code, { [`presence/${uid}`]: { on: false, at: serverTimestamp() } }, false);
+            if (c.online) void submit(uid, code, { [`presence/${uid}`]: { on: false, at: serverTimestamp() } }, false);
           }
         };
       },

@@ -14,6 +14,7 @@ export interface ContractKit {
   ageTurn(code: string, ms: number): Promise<void>;        // moves head/turnAt back by ms, past the rules
   stopPresence(net: Net, code: string): Promise<void>;     // the owner's presence goes off, and the phone comes back
   drop(net: Net): void; back(net: Net): Promise<void>; wait(ms: number): Promise<void>;
+  forge(code: string, path: string, value: unknown): Promise<void>;   // a rules-free write under rooms/<code>
 }
 
 const SETTINGS: MatchSettings = { seed: 42, factions: ['spartans', 'mongols'] };
@@ -35,6 +36,7 @@ export function contract(name: string, make: () => Promise<ContractKit>): void {
     const drop = (net: Net): void => kit.drop(net);
     const back = (net: Net): Promise<void> => kit.back(net);
     const wait = (ms: number): Promise<void> => kit.wait(ms);
+    const quiet = { room: () => {}, actions: () => {}, connected: () => {} };
 
     const ann = (cd: string) => a.create({ code: cd, name: 'Ann', hostFaction: 'spartans', clock: 120, rulesVersion: RULES_VERSION, build: 't' });
 
@@ -182,7 +184,6 @@ export function contract(name: string, make: () => Promise<ContractKit>): void {
     test('closing a watch says the phone has gone only after present(), and only when its last watch closes', async () => {
       await started(code);
       const au = await a.uid(); const cu = await c.uid();
-      const quiet = { room: () => {}, actions: () => {}, connected: () => {} };
       const one = a.watch(code, quiet); const two = a.watch(code, quiet);
       await latest(b, code, r => r?.presence[au]?.on === true);
       one();
@@ -197,6 +198,45 @@ export function contract(name: string, make: () => Promise<ContractKit>): void {
       expect(typeof none === 'object' && none.presence).toBe(null);                                  // never present: writes nothing
       const { room } = await latest(a, code, r => r !== null);
       expect(room!.presence[cu]).toBeUndefined();
+    });
+    test('a watch closed while offline leaves the presence the drop wrote, so the time away still counts from the drop', async () => {
+      await started(code);
+      const au = await a.uid();
+      const w = a.watch(code, quiet);
+      drop(a);
+      const { room } = await latest(b, code, r => r?.presence[au]?.on === false);
+      const off = room!.presence[au]!;
+      w();
+      await wait(1_200);
+      await back(a);
+      await wait(500);
+      const live = await a.readLive(code);
+      expect(typeof live === 'object' && live.presence).toEqual(off);
+    });
+    test('readLive is fresh after a drop even while a watch is open', async () => {
+      await started(code);
+      const au = await a.uid();
+      const w = a.watch(code, quiet);
+      await latest(a, code, r => r?.head !== null && r?.presence[au]?.on === true);   // the cache holds this phone present
+      drop(a);
+      await latest(b, code, r => r?.presence[au]?.on === false);
+      await back(a);
+      const live = await a.readLive(code);
+      expect(typeof live === 'object' && live.presence?.on).toBe(false);   // not the cached presence from before the drop
+      w();
+    });
+    test("a member may clear a desync entry left by someone who is no longer a member, never a member's", async () => {
+      await started(code);
+      const bu = await b.uid();
+      await kit.forge(code, 'desync/ghost', { n: 0, hash: '0'.repeat(16), build: 'x' });
+      await b.reportDesync(code, { n: 0, hash: '0'.repeat(16), build: 'x' });
+      await c.clearDesync(code, 'ghost');                                                            // not a member: refused
+      await a.clearDesync(code, bu);                                                                 // Ben is a member: refused
+      expect(Object.keys((await latest(a, code, r => r !== null && Object.keys(r.desync).length === 2)).room!.desync).sort())
+        .toEqual([bu, 'ghost'].sort());
+      await a.clearDesync(code, 'ghost');
+      const { room } = await latest(b, code, r => r !== null && !('ghost' in r.desync));
+      expect(Object.keys(room!.desync)).toEqual([bu]);
     });
     test('the creator can remove a room; a stranger cannot', async () => {
       await ann(code);

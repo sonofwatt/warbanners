@@ -39,7 +39,7 @@ function applyFrom(state: MatchState, encoded: string[], from: number, checks: R
 // A hash proves a snapshot is the one written, not that this build can read it: it is used only if the
 // views and the legal actions can be computed from it.
 function readSnap(snap: Snap | null, length: number, checks: Record<number, string>): MatchState | null {
-  if (snap === null || !(snap.n <= length)) return null;
+  if (snap === null || !Number.isInteger(snap.n) || snap.n < 0 || snap.n > length) return null;
   try {
     const state = JSON.parse(snap.state) as MatchState;
     if (hashState(state) !== snap.hash) return null;

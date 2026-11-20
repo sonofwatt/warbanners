@@ -121,6 +121,11 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
       if (!isRoomCode(code)) return Promise.resolve('notFound');
       return timed(async (): Promise<Live | 'notFound'> => {
         const uid = await signIn();
+        // get() answers from the cache for any path under an open listener, and after a reconnect that cache still
+        // shows this phone present and the old head until the listens are answered again. A get on `match`, which
+        // no listener covers, goes to the server on the same connection, behind the listens the SDK re-sent on
+        // reconnecting, so once it is back the cache holds what the server holds.
+        await get(at(code, 'match'));
         const [meta, head, presence] = await Promise.all([val(code, 'meta'), val(code, 'head'), val(code, `presence/${uid}`)]);
         const room = normalizeRoom(code, { meta, head, presence: { [uid]: presence } });
         return room ? { head: room.head, presence: room.presence[uid] ?? null } : 'notFound';
@@ -158,6 +163,10 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
         const r = at(code, `desync/${uid}`);
         await (d ? set(r, { n: d.n, hash: d.hash, build: d.build }) : remove(r));
       });
+    },
+    async clearDesync(code, other) {
+      if (!isRoomCode(code)) return;
+      await timed(async () => { await signIn(); await remove(at(code, `desync/${other}`)); });
     },
     watch(code, w) {
       let stopped = false;
@@ -201,11 +210,13 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
         if (open.size === 0 && offsetOff) { offsetOff(); offsetOff = null; }
         // Leaving the room: only a phone that said it was here says it has gone, and only when its last watch on
         // the room closes, so a short-lived watch never turns off the presence of a match still being played.
+        // Offline, the server has already run the onDisconnect: a write held until the return would move the time
+        // of the drop to the time of the return, and with it the pause and the credit.
         const uid = g.auth.currentUser?.uid;
         if (uid && left <= 0 && presented.delete(code)) {
           const p = at(code, `presence/${uid}`);
           onDisconnect(p).cancel().catch(() => {});
-          set(p, { on: false, at: serverTimestamp() }).catch(() => {});   // best effort; refused when the room is gone
+          if (online) set(p, { on: false, at: serverTimestamp() }).catch(() => {});   // best effort; refused when the room is gone
         }
       };
     },

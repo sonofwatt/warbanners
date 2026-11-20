@@ -58,10 +58,33 @@ test('rejoin: a good snapshot is used, a bad one is ignored', () => {
   const tampered = { ...good, state: JSON.stringify({ ...states[30], stamp: 999 }) };
   const r2 = rebuild(SETTINGS, list, tampered, {});
   expect(r2.ok && r2.fromSnap).toBe(false); expect(r2.ok && hashState(r2.followed.state)).toBe(hashState(states[40]!));
-  expect(rebuild(SETTINGS, list, { ...good, state: '{' }, {}).ok).toBe(true);
-  expect(rebuild(SETTINGS, list, { ...good, n: 41 }, {}).ok).toBe(true);
+  const fellBack = (r: ReturnType<typeof rebuild>): unknown => r.ok && !r.fromSnap && hashState(r.followed.state);
+  const full = hashState(states[40]!);
+  expect(fellBack(rebuild(SETTINGS, list, { ...good, state: '{' }, {}))).toBe(full);
+  expect(fellBack(rebuild(SETTINGS, list, { ...good, n: 41 }, {}))).toBe(full);
+  expect(fellBack(rebuild(SETTINGS, list, { ...good, n: -1 }, {}))).toBe(full);
+  expect(fellBack(rebuild(SETTINGS, list, { ...good, n: 29.5 }, {}))).toBe(full);
+  expect(fellBack(rebuild(SETTINGS, list, good, { 30: '0000000000000000' }))).toBe(false);   // the check disagrees: not used, and the replay breaks
   const unreadable = { units: 'x' };
-  expect(rebuild(SETTINGS, list, { n: 30, hash: hashState(unreadable as never), state: JSON.stringify(unreadable) }, {}).ok && 'fallback').toBe('fallback');
+  expect(fellBack(rebuild(SETTINGS, list, { n: 30, hash: hashState(unreadable as never), state: JSON.stringify(unreadable) }, {}))).toBe(full);
+});
+test('a snapshot that leads to a refusal falls back to the full replay, which decides', () => {
+  const { list, states } = script(40);
+  // A real state, hashed honestly, but filed at the wrong index: the actions after it do not fit it.
+  const misfiled: Snap = { n: 30, hash: hashState(states[0]!), state: JSON.stringify(states[0]) };
+  const r = rebuild(SETTINGS, list, misfiled, {});
+  expect(r.ok && !r.fromSnap && hashState(r.followed.state)).toBe(hashState(states[40]!));
+});
+test('a check that disagrees breaks a rebuild at its index', () => {
+  const { list, states } = script(20);
+  expect(rebuild(SETTINGS, list, null, { 8: hashState(states[8]!), 12: '0000000000000000' })).toEqual({ ok: false, at: 12, reason: 'hash' });
+});
+test('follow rebuilds when the same list carries a hash this phone disagrees with only through its own state', () => {
+  const { list, states } = script(10);
+  const mine = follow(opening(SETTINGS), list, headAt(10, states)) as Extract<Follow, { kind: 'advanced' }>;
+  const drifted = { ...mine.followed, state: states[9]! };               // the right list, but a state that went astray
+  const r = follow(drifted, list, headAt(10, states));
+  expect(r.kind === 'rebuilt' && hashState(r.followed.state)).toBe(hashState(states[10]!));
 });
 test('applyLocal refuses what the engine refuses and encodes what it accepts', () => {
   expect(applyLocal(opening(SETTINGS), { type: 'move', unit: 99, to: '0,0' })).toBeNull();

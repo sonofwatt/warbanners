@@ -26,6 +26,7 @@ contract('fakeNet', async () => {
     drop: (net) => server.drop(uids.get(net)!),
     back: (net) => server.back(uids.get(net)!),
     async wait(ms) { server.setNow(server.now() + ms); await flush(); },
+    async forge(code, path, value) { server.write(`rooms/${code}/${path}`, value); await flush(); },
   };
   return kit;
 });

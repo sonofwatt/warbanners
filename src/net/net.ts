@@ -38,6 +38,7 @@ export interface Net {
   claimHost(code: string): Promise<void>;                                                   // does nothing when already host
   readStart(code: string): Promise<StartRead | Refusal>;
   reportDesync(code: string, d: Desync | null): Promise<void>;
-  watch(code: string, w: Watcher): () => void;                                              // listens only; writes nothing
+  clearDesync(code: string, uid: string): Promise<void>;                                    // another uid's entry, once it is no longer a member; best effort
+  watch(code: string, w: Watcher): () => void;                                              // listens only; closing it may write presence off
   remove(code: string): Promise<boolean>;
 }
