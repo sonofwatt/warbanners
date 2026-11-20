@@ -41,7 +41,8 @@ export interface Deps {
   openNet?: () => Promise<Net>;                 // loads src/net on first use: Firebase never loads for local play
   online?: () => boolean;                       // the platform says it has a connection
   roomFromUrl?: () => string | null;            // ?room= in the address the app was opened with
-  clearRoomFromUrl?: () => void;                // so a reload does not reopen a room the player has left
+  roomToUrl?: (code: string) => void;           // the room the player is in, kept in the address so a reload comes back
+  clearRoomFromUrl?: () => void;                // on leaving, so a reload does not reopen a room the player has left
   inviteBase?: () => string;                    // origin plus the base path, for the invite link
   build?: string;
   setTimer?: (fn: () => void, ms: number) => () => void;
@@ -319,6 +320,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [], saves: listSaves(kv), aiBusy: false,
         notice: why ?? kept, mode: 'local', online: null, inviteLink: null, onlineList: listOnline(kv),
       });
+      deps.clearRoomFromUrl?.();
       sweep();
       deps.updater?.homeReached();
     };
@@ -579,7 +581,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       mode: 'local', online: null, onlineList: listOnline(kv), inviteLink: null,
 
       openOnline: () => set({ screen: 'onlineSetup' }),
-      openJoin: () => { closeSession(); set({ screen: 'join', mode: 'local', online: null, inviteLink: null }); },
+      openJoin: () => { closeSession(); deps.clearRoomFromUrl?.(); set({ screen: 'join', mode: 'local', online: null, inviteLink: null }); },
 
       createRoom: async input => {
         set({ screen: 'onlineSetup' });
@@ -597,6 +599,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
           if (gen !== sessionGen) return;
           if (r === true) {
             createdHere.add(code);
+            deps.roomToUrl?.(code);
             set({
               screen: 'lobby', mode: 'online', notice: null, record: null, state: null, viewer: null, selection: NONE, last: null, digest: [],
               inviteLink: deps.inviteBase ? inviteLinkFor(deps.inviteBase(), code) : null,
@@ -625,6 +628,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
           ? { screen: cached.state.winner !== null ? 'result' : 'match', record: cached.record, state: cached.state, viewer: entry.seat }
           : { screen: 'join', record: null, state: null, viewer: null };
         set({ ...shown, mode: 'online', online: null, inviteLink: null, selection: NONE, last: null, digest: [], aiBusy: false });
+        deps.roomToUrl?.(code);
         loadNet().then(n => { if (gen === sessionGen) openSessionFor(code, n, gen); }, () => { if (gen === sessionGen) leave('needsConnection'); });
       },
 
@@ -661,13 +665,10 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
     };
   });
 
-  // A room named in the address, or one remembered before an update's reload, opens at once.
-  const fromUrl = deps.roomFromUrl?.() ?? null;
-  const code = fromUrl ?? takePendingRoom(kv);
-  if (code !== null) {
-    store.getState().openRoom(code);
-    if (fromUrl !== null) deps.clearRoomFromUrl?.();
-  }
+  // A room named in the address, or one remembered before an update's reload, opens at once. The address keeps the
+  // room while the player is in it (a reload comes back to it) and loses it when they leave (a reload then goes Home).
+  const code = deps.roomFromUrl?.() ?? takePendingRoom(kv);
+  if (code !== null) store.getState().openRoom(code);
   return store;
 }
 
@@ -704,17 +705,22 @@ export function browserDeps(): Deps {
     openNet: () => import('../net/firebaseNet').then(m => m.firebaseNet()),
     online: () => (typeof navigator === 'undefined' ? true : navigator.onLine),
     roomFromUrl: () => (typeof location === 'undefined' ? null : codeFromSearch(location.search)),
-    clearRoomFromUrl: () => {
-      if (typeof location === 'undefined' || typeof history === 'undefined') return;
-      const params = new URLSearchParams(location.search);
-      if (!params.has('room')) return;
-      params.delete('room');
-      const query = params.toString();
-      history.replaceState(history.state, '', `${location.pathname}${query === '' ? '' : `?${query}`}${location.hash}`);
-    },
+    roomToUrl: code => setRoomInUrl(code),
+    clearRoomFromUrl: () => setRoomInUrl(null),
     inviteBase: () => `${location.origin}${import.meta.env.BASE_URL}`,
     build: BUILD,
     setTimer: realTimer,
     netReady,
   };
+}
+
+// Puts ?room= in the address, or takes it out, keeping every other parameter, without a new history entry.
+function setRoomInUrl(code: string | null): void {
+  if (typeof location === 'undefined' || typeof history === 'undefined') return;
+  const params = new URLSearchParams(location.search);
+  if (params.get('room') === code || (code === null && !params.has('room'))) return;
+  if (code === null) params.delete('room');
+  else params.set('room', code);
+  const query = params.toString();
+  history.replaceState(history.state, '', `${location.pathname}${query === '' ? '' : `?${query}`}${location.hash}`);
 }

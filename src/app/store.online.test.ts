@@ -33,11 +33,13 @@ function online(over: Over) {
   const server = given ?? fakeServer(1_000_000);
   const kv = rest.kv ?? memoryKv();
   let cleared = 0;
+  const inUrl: string[] = [];
   let code: string | null = null;
   const deps: Deps = {
     kv, now: () => server.now(), newSeed: () => 7, newId: () => 'm1', ai: thinker(), sleep: async () => {},
     openNet: async () => server.as(uid), online: () => true, netReady: () => true,
     setTimer: timersFor(server).setTimerFor(uid), build: 't', inviteBase: () => 'https://sonofwatt.github.io/warbanners/',
+    roomToUrl: (c) => { inUrl.push(c); },
     clearRoomFromUrl: () => { cleared += 1; },
     ...rest,
   };
@@ -48,6 +50,7 @@ function online(over: Over) {
   return {
     get: store.getState, subscribe: store.subscribe, server, kv, deps,
     get cleared() { return cleared; },
+    inUrl,
     get code() { return code!; },
   };
 }
@@ -85,10 +88,17 @@ async function startedPair(opts: { second?: 'human' | AiLevel; ai?: AiClient } =
   return { host, guest, server };
 }
 
-test('a link with a room code opens that room, once', async () => {
+test('a link with a room code opens that room, once: the address keeps it until the player leaves', async () => {
   const { server } = await lobbyOnServer('ABC234');
   const g = online({ uid: 'u1', server, roomFromUrl: () => 'ABC234' }); await settle(server);
-  expect(g.get().screen).toBe('join'); expect(g.cleared).toBe(1);
+  expect(g.get().screen).toBe('join'); expect(g.cleared).toBe(0); expect(g.inUrl).toEqual(['ABC234']);
+  g.get().goHome();
+  expect(g.get().screen).toBe('home'); expect(g.cleared).toBe(1);
+});
+test('a room made here goes in the address too, so a reload comes back to the lobby', async () => {
+  const { host } = twoStores();
+  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  expect(host.get().screen).toBe('lobby'); expect(host.inUrl).toEqual([host.get().online!.code]);
 });
 test('host: create, wait, start, and play with no curtain', async () => {
   const { host, guest, server } = twoStores();
