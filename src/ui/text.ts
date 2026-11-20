@@ -34,7 +34,7 @@ const trait: Record<Trait, Entry> = {
   chain: { name: 'Chain', blurb: 'Gets one more attack this turn for every kill.' },
   splash: { name: 'Splash', blurb: 'Enemy units beside the target take half the damage the target takes.' },
   siege: { name: 'Siege', blurb: 'Cannot attack after moving or move after attacking, and never strikes back.' },
-  mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders.' },
+  mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders; a Mongol rider may keep moving after stepping into unexplored land.' },
   phalanx: { name: 'Phalanx', blurb: 'Gains 1 defence for each friendly Hoplite beside it, up to 2.' },
   unbowed: { name: 'Unbowed', blurb: 'Its attack is not weakened by lost health.' },
   hidden: { name: 'Hidden', blurb: 'Enemies see it only from the tile next to it.' },
