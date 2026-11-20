@@ -46,9 +46,21 @@ describe('endTurn', () => {
   test('an enemy unit on a tile next to it stops resting from healing, wherever it is', () => {
     const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, -3);
     const home = addUnit(s, 'warrior', 0, 1, 0, { hp: 3 }); const away = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
-    addUnit(s, 'warrior', 1, 2, 0); addUnit(s, 'scout', 1, -3, 1);   // a hidden scout counts too
+    addUnit(s, 'warrior', 1, 2, 0); addUnit(s, 'scout', 1, -3, 1);   // a hidden scout right beside it is seen, so it counts
     const t = must(applyAction(must(applyAction(s, end)), end));
     expect([home, away].map((u) => unitById(t, u.id)!.hp)).toEqual([3, 3]);
+  });
+  test('only an enemy its owner can see stops the healing: a blinded unit beside a hidden scout still heals', () => {
+    const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, -3);
+    // Blinded on player 1's turn, so still blinded when player 0's turn starts and the heal runs.
+    const hid = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 }); const seen = addUnit(s, 'warrior', 0, 0, 2, { hp: 3 });
+    addUnit(s, 'scout', 1, -3, 1);                                     // hidden; only a seeing unit next to it reveals it
+    addUnit(s, 'warrior', 1, -1, 2);                                   // beside the other one, and in sight of player 0's city
+    const t1 = must(applyAction(s, end));
+    for (const u of t1.units) if (u.owner === 0) u.blinded = true;
+    const t = must(applyAction(t1, end));
+    expect(unitById(t, hid.id)!.hp).toBe(5);                           // the scout is unseen: it heals 2 on open land
+    expect(unitById(t, seen.id)!.hp).toBe(3);                          // the warrior is seen (by the city): no healing
   });
   test('an unchosen reward takes its first option, and statuses wear off', () => {
     const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 2, pendingRewards: [2] }); addCity(s, 1, 3, 0);

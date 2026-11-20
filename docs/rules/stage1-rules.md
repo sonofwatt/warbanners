@@ -66,8 +66,7 @@ a road, build walls, research, choose a city reward. Then end the turn.
 
 At the start of each of your turns except your first: you are paid income, and your
 units that did nothing at all on your previous turn heal (see Resting in 11). Then
-every unit of yours
-gets its movement and attacks back.
+every unit of yours gets its movement and attacks back.
 
 At the end of your turn: any city reward you have not chosen takes its first
 option, and statuses on your units (taunted, blinded) wear off.
@@ -190,8 +189,9 @@ A unit at 0 health is removed. When an attacker with range 1 kills the defender,
 moves into the defender's tile. The step costs no movement and changes nothing else:
 the attacker still cannot move after attacking unless it has `retreat`, a Knight's
 `chain` attack is made from the new tile, and the step counts as entering the tile
-this turn (so it cannot capture there until a later turn). Attackers with range 2 or
-more never move in, and neither does anyone for a unit killed by splash.
+this turn (so it cannot capture or claim a treasure there until a later turn).
+Attackers with range 2 or more never move in, and neither does anyone for a unit
+killed by splash.
 
 Worked examples (all at full health on a field unless said):
 
@@ -239,8 +239,9 @@ as an attack would):
 
 Resting: a unit that did nothing at all on its owner's previous turn heals at the
 start of the next turn: 4 if it stands in its owner's territory, 2 on land no city
-claims, 1 in an enemy's territory, and nothing while any enemy unit stands on a tile
-next to it.
+claims, 1 in an enemy's territory, and nothing while an enemy unit its owner can
+see (section 14) stands on a tile next to it. An enemy its owner cannot see changes
+nothing.
 
 ## 12. Treasures, capture, winning
 

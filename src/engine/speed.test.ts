@@ -28,5 +28,5 @@ test('legalActions on a 25-unit position is fast', () => {
     for (let i = 0; i < 20; i++) legalActions(s);
     fastest = Math.min(fastest, (performance.now() - t0) / 20);
   }
-  expect(fastest).toBeLessThan(5); // about 9.4 ms before, 2.7 ms after, in Node on ClaudeComputer
+  expect(fastest).toBeLessThan(5); // about 3.6 ms on this position in Node on ClaudeComputer (rules version 2)
 }, 30_000);
