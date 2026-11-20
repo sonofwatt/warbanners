@@ -84,6 +84,11 @@ test('the menu offers sound, resign and home', () => {
   const html = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
   expect(html).toContain('Sound on'); expect(html).toContain('data-testid="resign"'); expect(html).not.toContain('Resign this match?');
 });
+test('the menu greys Resign while the AI plays', () => {
+  const button = (html: string) => /<button[^>]*data-testid="resign"[^>]*>/.exec(html)?.[0] ?? '';
+  expect(button(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />))).not.toContain('disabled');
+  expect(button(renderToStaticMarkup(<Menu soundOn resignDisabled onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />))).toContain('disabled=""');
+});
 test('the menu shows the same version line as Home', () => {
   const menu = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
   const home = renderToStaticMarkup(<App />);

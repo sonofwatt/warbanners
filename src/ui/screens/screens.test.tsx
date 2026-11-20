@@ -10,12 +10,12 @@ import { planTurn } from '../../ai/plan';
 import type { KeyValue } from '../../app/saves';
 import { StoreContext } from '../../app/useApp';
 import { App } from '../App';
-import { T } from '../text';
+import { T, fill } from '../text';
 import { Home } from './Home';
 import { Match, nextUnitDisabled, turnFocus } from './Match';
 import { Pass } from './Pass';
 import { Result, resultSound } from './Result';
-import { Setup } from './Setup';
+import { Setup, setupLine } from './Setup';
 import { Hud } from '../panels/Hud';
 
 const thinker = (): AiClient => ({ think: async (input, opts) => planTurn(input, opts), dispose: () => {} });
@@ -183,6 +183,20 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   expect(chosen(html)).toEqual(['human']);
   expect(html).toContain('data-testid="name-1"');
   // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
+});
+
+test('with equal start gold, setup says only who moves first; a gold difference is still told', () => {
+  const { store } = fakeStore();
+  const html = render(store, <Setup />);
+  expect(html).not.toContain('more gold');
+  expect(html).toContain(`>${fill(T.ui.firstMoves, { first: T.ui.playerOne })}<`);
+  expect(setupLine('Ann', 'Ben', 0)).toBe('Ann moves first.');
+  expect(setupLine('Ann', 'Ben', 2)).toBe('Ann moves first and Ben starts with 2 more gold.');
+});
+
+test('the Home tagline fits play against a friend or the AI', () => {
+  expect(T.ui.tagline).not.toMatch(/two rival peoples/i);
+  expect(T.ui.tagline.length).toBeLessThanOrEqual(45);   // one line on Home at 412 wide
 });
 
 test('Next unit is greyed when no unit can act, while the AI plays, during the End turn lock, and under a sheet', () => {

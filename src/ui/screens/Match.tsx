@@ -214,7 +214,7 @@ export function Match(): ReactElement | null {
       ) : null}
       {sheet === 'menu' ? (
         <Menu
-          soundOn={soundOn} onToggleSound={toggleSound} onResign={() => run({ type: 'resign' })}
+          soundOn={soundOn} onToggleSound={toggleSound} onResign={() => run({ type: 'resign' })} resignDisabled={aiBusy || !myTurn}
           onHome={goHome} onClose={() => setSheet('none')}
         />
       ) : null}

@@ -30,6 +30,10 @@ function FactionCard({ faction, name, first }: { faction: FactionId; name: strin
   );
 }
 
+// Who moves first, and the second player's extra start gold when there is any.
+export const setupLine = (first: string, second: string, extra: number): string =>
+  extra === 0 ? fill(T.ui.firstMoves, { first }) : fill(T.ui.setupLine, { first, second, n: extra });
+
 const SEATS: readonly SecondSeat[] = ['human', 'easy', 'normal', 'hard', 'adaptive'];
 const seatLabel = (s: SecondSeat): string => (s === 'human' ? T.ui.person : T.ai.name[s]);
 
@@ -80,7 +84,7 @@ export function Setup(): ReactElement {
         <FactionCard faction="mongols" name={swapped ? a : b} first={swapped} />
       </div>
       <p className="vh" data-testid="spartans-line" aria-live="polite">{fill(T.ui.spartansPlay, { name: spartanName })}</p>
-      <p className="setup-line">{fill(T.ui.setupLine, { first: a, second: b, n: extra })}</p>
+      <p className="setup-line">{setupLine(a, b, extra)}</p>
       <div className="setup-row">
         <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions, second: seat })}>{T.ui.start}</button>
         <button type="button" data-testid="setup-back" onClick={goHome}><HomeIcon />{T.ui.home}</button>
