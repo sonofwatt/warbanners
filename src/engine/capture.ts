@@ -1,4 +1,5 @@
 import { CONFIG } from './data/config';
+import { UNITS } from './data/units';
 import { FACTIONS } from './data/factions';
 import { key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
@@ -21,7 +22,7 @@ export function canCapture(s: MatchState, unitId: number): boolean {
   const u = settled(s, unitId);
   if (u === undefined) return false;
   const city = cityAt(s, u.pos);
-  if (city !== undefined) return city.owner !== u.owner;
+  if (city !== undefined) return city.owner !== u.owner && !UNITS[u.type].traits.includes('noCityCapture');
   return tileAt(s, u.pos)?.village === true;
 }
 
