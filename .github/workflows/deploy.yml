@@ -71,8 +71,11 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+  # Only main deploys (the github-pages environment allows main alone). A manual run on any other
+  # branch tests it and skips this job, so it shows as skipped rather than a failed deploy.
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write

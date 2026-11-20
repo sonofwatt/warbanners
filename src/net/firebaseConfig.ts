@@ -4,8 +4,8 @@ import { FIREBASE_API_KEY } from '../netReady';
 // None of them is a secret: every web client ships them, and the database rules decide what a client may do.
 export const firebaseConfig: { apiKey: string; authDomain: string; databaseURL: string; projectId: string; appId: string } = {
   apiKey: FIREBASE_API_KEY,
-  authDomain: 'PASTE_ME',
-  databaseURL: 'PASTE_ME',
-  projectId: 'PASTE_ME',
-  appId: 'PASTE_ME',
+  authDomain: 'banners-game.firebaseapp.com',
+  databaseURL: 'https://banners-game-default-rtdb.firebaseio.com',
+  projectId: 'banners-game',
+  appId: '1:377540570036:web:19c0a764aa8a8dbfb7a0e1',
 };

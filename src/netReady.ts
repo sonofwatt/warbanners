@@ -3,7 +3,7 @@
 
 // The Firebase web API key. Firebase setup F1 replaces the placeholder. It is public by design: it names the
 // project to Google's servers and grants nothing on its own; the database rules decide who may read and write.
-export const FIREBASE_API_KEY: string = 'PASTE_ME';
+export const FIREBASE_API_KEY: string = 'AIzaSyB_SJs6kgFkOtsLEJOR1NodLuIs6ZcknDQ';
 
 /** True when this build can reach a Firebase backend: a real key, an emulator build, or a dev server. */
 export function netReady(): boolean {
