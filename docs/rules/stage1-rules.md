@@ -137,7 +137,7 @@ only comes from a city reward.
 | Warrior | any | 4 | 3 | 1 | 1 | 10 | 1 | 2 | | |
 | Spearman | any | 4 | 4 | 1 | 1 | 10 | 1 | 3 | bronze | steadfast |
 | Swordsman | any | 5 | 4 | 1 | 1 | 15 | 1 | 5 | smithing | doubleStrike |
-| Defender | any | 2 | 7 | 1 | 1 | 15 | 1 | 3 | shieldwork | |
+| Defender | any | 2 | 9 | 1 | 1 | 20 | 1 | 3 | shieldwork | |
 | Archer | any | 4 | 2 | 2 | 1 | 10 | 2 | 3 | hunting | |
 | Horseman | any | 4 | 2 | 1 | 2 | 10 | 2 | 3 | riding | retreat, mounted |
 | Knight | any | 6 | 3 | 1 | 3 | 15 | 2 | 6 | chivalry | chain, mounted |
@@ -145,7 +145,7 @@ only comes from a city reward.
 | Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
-| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden, noCityCapture |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
@@ -207,7 +207,7 @@ Worked examples (all at full health on a field unless said):
 | Warrior on Warrior in forest | 5 | |
 | Warrior on Warrior in a city | 5 | |
 | Warrior on Warrior in a Spartan city | 4 | |
-| Warrior on Defender | 4 | 1 |
+| Warrior on Defender | 3 | 1 |
 | Warrior on Spearman | 5 | 5 |
 | Warrior at 5 health on Warrior | 4 | |
 | Knight on Warrior | 10 (kills it) | |
@@ -229,6 +229,7 @@ Worked examples (all at full health on a field unless said):
 | phalanx | +1 defence for each friendly Hoplite next to it, at most +2 |
 | unbowed | Attack is not reduced by lost health, when attacking and when striking back |
 | hidden | Enemies see it only from a tile next to it (their unit or their city) |
+| noCityCapture | Cannot capture an enemy city (villages are still allowed) |
 | steady | Friendly units next to it cannot be lured |
 | inspire | Friendly mounted units next to it have +1 attack |
 | camp | Cannot attack. May train units (see 13) |
@@ -258,7 +259,8 @@ nothing.
   removed and `rngInt(3)` decides: 0 gives +5 gold; 1 explores every tile within 4;
   2 gives a Warrior on the first free enterable neighbour in direction order (or +5
   gold if there is none).
-- Capture: a unit standing on a village or an enemy city may capture it if it
+- Capture: a unit standing on a village or an enemy city may capture it (a unit with
+  `noCityCapture`, the Krypteia Scout, may take a village but never a city) if it
   entered that tile on an earlier turn and has not moved or attacked this turn. It
   uses the unit's whole turn. A village becomes a level 1 city of the captor. An
   enemy city changes owner and keeps its level, buildings and territory; units it
@@ -299,7 +301,8 @@ Mongols
   or onto the tile between them for distance 2 (the first shared neighbour in
   direction order that is free and enterable). If no such tile is free, nothing
   happens. Asking for a lure where none can apply is allowed and simply has no
-  effect.
+  effect. On the client, a second tap on the same enemy while the lure choice is
+  showing makes the plain attack (no lure).
 - The Camp: on its turn, if it has not moved, it may train one unit per turn onto a
   free enterable tile next to it. The unit counts against the Mongol city with the
   most free capacity (lowest id on a tie). If no city has room it cannot train.

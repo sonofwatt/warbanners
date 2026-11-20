@@ -7,11 +7,11 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules version 2 (treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
+  // re-pinned for rules version 3 (Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 141, '064107ca6264ba73', '01acfbf291ea1289', '3fd27cc9951b828c'],
-  [1, 200, 233, '2b2fc8079fade2d8', 'b14ce4ffa93f5500', '3bfdfdb74ddd98fa'],
-  [3, 90, 36, '62f188c8cf3f9cff', '01d48ac042a2138f', '29f7b371850fd6c0'],
+  [7, 160, 135, '055c9ddf5d30bd44', '2a4ad2187fac3e9f', '9e8f2b190371ac46'],
+  [1, 200, 221, '6374e506b658ed17', '6462b63b2ae58512', 'ae927f4d0a90590c'],
+  [3, 90, 36, '62f188c8cf3f9cff', '01d48ac042a2138f', 'ec1d2740c2ea62f1'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
