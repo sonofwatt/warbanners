@@ -3,7 +3,7 @@ import { hashState, legalActions, RULES_VERSION } from '../engine';
 import { planTurn } from '../ai/plan';
 import type { AiClient } from '../app/aiClient';
 import {
-  bareServer, fakeKit, hanging, headOf, meta, pair, playTurns, settle, sharedBodies, spyReadStart, until,
+  bareServer, fakeKit, fakePause, hanging, headOf, meta, pair, playTurns, settle, sharedBodies, spyReadStart, until,
 } from '../net/sessionKit';
 import { openSession } from './session';
 import { encodeAction, SCHEMA } from './wire';
@@ -75,6 +75,25 @@ test('back from a drop past the deadline but inside the allowance: nobody ends t
   timers.tick(1_000); await settle(server);              // 239 s: Ann's own phone ends the turn
   expect(b!.view().followed!.state.current).toBe(1);
   expect(server.log().find(w => w.paths.includes('actions/0'))!.uid).toBe('u0');
+});
+test('a phone waking from sleep with a dead socket it still believes in does not end its own turn', async () => {
+  // The locked phone's tab froze: no tick, and the SDK has not yet noticed its socket is dead, so the session still
+  // believes it is connected and its cache still shows it present. The server saw the socket close and wrote presence
+  // off, so Ben's phone shows the clock paused. Ann wakes past her deadline, inside the allowance: her first tick
+  // must start the return (fresh read, presence and the credit), not end her turn on the stale cache.
+  const { a, b, server, timers } = await pair();
+  timers.tick(30_000); await settle(server);
+  timers.freeze('u0'); server.hold('u0');
+  server.write('rooms/ABC234/presence/u0', { on: false, at: server.now() }); await settle(server);
+  expect(b!.view().clock).toMatchObject({ kind: 'paused' });
+  timers.tick(120_000); await settle(server);            // 150 s: past the 120 s deadline, 120 s into the allowance
+  expect(a.view().connected).toBe(true); expect(a.view().returning).toBe(false);
+  timers.thaw('u0'); timers.tick(1_000); await settle(server);
+  server.release('u0'); await settle(server);
+  expect(server.log().filter(w => w.paths.some(p => p.startsWith('actions/')))).toEqual([]);
+  expect(headOf(server).paused).toBeGreaterThan(100_000);
+  expect(a.view().returning).toBe(false); expect(a.view().myTurn).toBe(true);
+  expect(b!.view().followed!.actions).toEqual([]);
 });
 test('a returning phone takes no clock decision from a cache that still shows it present', async () => {
   // On a real phone the SDK's cache keeps this phone present after a drop: it never saw its own presence go off.
@@ -177,13 +196,24 @@ test('a reload mid-turn loses nothing that reached the database, and the clock r
   expect(again.view().myTurn).toBe(true);
   expect(again.view().clock).toEqual({ kind: 'running', endsAt: 1_000_000 + 120_000 + 8_000 });
 });
-test('rejoin uses the snapshot and matches the other phone', async () => {
-  const { a, b, open, server } = await pair();
-  await playTurns(a, b!, 8);
-  b!.close(); const spy = spyReadStart(server);
-  const again = await open('u1'); await settle(server);
-  expect(hashState(again.view().followed!.state)).toBe(hashState(a.view().followed!.state));
+test('rejoin shows the snapshot at once, then the replay confirms it before the phone may act', async () => {
+  const { a, b, server, timers } = await pair();
+  await playTurns(a, b!, 7);                             // Ben's turn next
+  b!.close(); await settle(server); const spy = spyReadStart(server);
+  let release!: () => void;
+  const held = new Promise<void>((r) => { release = r; });
+  const again = openSession('ABC234', { net: server.as('u1'), ai: hanging(), build: 't', setTimer: timers.setTimerFor('u1'), pause: () => held }, () => {});
+  await settle(server);
   expect(spy.usedSnap).toBe(true);
+  expect(again.view().verifying).toBe(true);
+  expect(hashState(again.view().followed!.state)).toBe(hashState(a.view().followed!.state));
+  expect(again.view().phase).toBe('playing');
+  expect(again.view().myTurn).toBe(false); expect(again.resign()).toBe(false);
+  release(); await settle(server);
+  expect(again.view().verifying).toBe(false);
+  expect(hashState(again.view().followed!.state)).toBe(hashState(a.view().followed!.state));
+  expect(again.view().phase).toBe('playing'); expect(again.view().myTurn).toBe(true);
+  again.close();
 });
 test('an append that throws is a broken session, not a crash', async () => {
   const { a, server, open } = await pair();
@@ -211,7 +241,7 @@ test('a member reopening on another rules version is refused too, and writes not
   const { a, server, timers } = await pair();
   a.close(); await settle(server);
   const before = JSON.stringify(server.tree());
-  const s = openSession('ABC234', { net: server.as('u0'), ai: hanging(), build: 't', rulesVersion: RULES_VERSION + 1, setTimer: timers.setTimerFor('u0') }, () => {});
+  const s = openSession('ABC234', { net: server.as('u0'), ai: hanging(), build: 't', rulesVersion: RULES_VERSION + 1, setTimer: timers.setTimerFor('u0'), pause: fakePause }, () => {});
   await settle(server);
   expect(s.view().phase).toBe('version'); expect(s.view().remoteVersion).toBe(RULES_VERSION);
   expect(JSON.stringify(server.tree())).toBe(before);
@@ -223,6 +253,7 @@ test('a hash that disagrees pauses both phones', async () => {
   server.write('rooms/ABC234/head', { ...headOf(server), n: 1, hash: '0000000000000000' });
   await settle(server);
   expect(b!.view().phase).toBe('desync'); expect(a.view().myTurn).toBe(false);
+  expect(a.view().blocked).toBe(true); expect(b!.view().blocked).toBe(true);   // both phones show the desync card
   expect((server.tree() as any).rooms.ABC234.desync).toHaveProperty('u1');
 });
 test('a desync entry left by someone who is no longer in the match freezes nothing', async () => {
@@ -244,6 +275,15 @@ test('a stale desync entry that nobody manages to clear still blocks nothing', a
   expect(a.view().myTurn).toBe(true);
 });
 test('resign from the waiting phone ends the match on both', async () => { await sharedBodies['resign out of turn']!(fakeKit()); });
+test('a forged snapshot never becomes the match', async () => { await sharedBodies['a forged snapshot never becomes the match']!(fakeKit()); });
+test('an action list this phone cannot read is a worded failure on both phones, never a silent stop', async () => {
+  const { a, b, server } = await pair();
+  server.write('rooms/ABC234/actions', { 0: '{"type":"endTurn"}', 2: '{"type":"endTurn"}' });   // a gap: not a list
+  await settle(server);
+  for (const s of [a, b!]) {
+    expect(s.view().phase).toBe('failed'); expect(s.view().failure).toBe('unreadable'); expect(s.view().myTurn).toBe(false);
+  }
+});
 test('a newcomer can take an absent seat and play on', async () => {
   const { a, b, server, openAs } = await pair(); b!.close(); await settle(server);
   const c = await openAs('u7', 'ABC234'); await settle(server);

@@ -4,7 +4,7 @@ import type { MatchSettings, MatchState } from '../engine';
 import { must } from '../engine/testkit';
 import { encodeAction } from './wire';
 import type { Head, Snap } from './wire';
-import { applyLocal, follow, opening, rebuild } from './sync';
+import { applyLocal, follow, fromSnapshot, opening, rebuild, replay, REPLAY_CHUNK } from './sync';
 import type { Follow } from './sync';
 
 const SETTINGS: MatchSettings = { seed: 42, factions: ['spartans', 'mongols'] };
@@ -50,34 +50,57 @@ test('an action this phone refuses breaks the match at its index', () => {
   const bad = [...list.slice(0, 3), '{"to":"9,9","type":"move","unit":0}'];
   expect(follow(opening(SETTINGS), bad, headAt(4, states))).toEqual({ kind: 'broken', at: 3, reason: 'refused' });
 });
-test('rejoin: a good snapshot is used, a bad one is ignored', () => {
+test('rejoin: a good snapshot gives the quick look, a bad one gives none', () => {
   const { list, states } = script(40);
   const good: Snap = { n: 30, hash: hashState(states[30]!), state: JSON.stringify(states[30]) };
-  const r1 = rebuild(SETTINGS, list, good, { 30: good.hash });
-  expect(r1.ok && r1.fromSnap).toBe(true); expect(r1.ok && hashState(r1.followed.state)).toBe(hashState(states[40]!));
+  const quick = fromSnapshot(SETTINGS, list, good, { 30: good.hash });
+  expect(quick && hashState(quick.state)).toBe(hashState(states[40]!));
   const tampered = { ...good, state: JSON.stringify({ ...states[30], stamp: 999 }) };
-  const r2 = rebuild(SETTINGS, list, tampered, {});
-  expect(r2.ok && r2.fromSnap).toBe(false); expect(r2.ok && hashState(r2.followed.state)).toBe(hashState(states[40]!));
-  const fellBack = (r: ReturnType<typeof rebuild>): unknown => r.ok && !r.fromSnap && hashState(r.followed.state);
-  const full = hashState(states[40]!);
-  expect(fellBack(rebuild(SETTINGS, list, { ...good, state: '{' }, {}))).toBe(full);
-  expect(fellBack(rebuild(SETTINGS, list, { ...good, n: 41 }, {}))).toBe(full);
-  expect(fellBack(rebuild(SETTINGS, list, { ...good, n: -1 }, {}))).toBe(full);
-  expect(fellBack(rebuild(SETTINGS, list, { ...good, n: 29.5 }, {}))).toBe(full);
-  expect(fellBack(rebuild(SETTINGS, list, good, { 30: '0000000000000000' }))).toBe(false);   // the check disagrees: not used, and the replay breaks
+  expect(fromSnapshot(SETTINGS, list, tampered, {})).toBeNull();
+  expect(fromSnapshot(SETTINGS, list, { ...good, state: '{' }, {})).toBeNull();
+  expect(fromSnapshot(SETTINGS, list, { ...good, n: 41 }, {})).toBeNull();
+  expect(fromSnapshot(SETTINGS, list, { ...good, n: -1 }, {})).toBeNull();
+  expect(fromSnapshot(SETTINGS, list, { ...good, n: 29.5 }, {})).toBeNull();
+  expect(fromSnapshot(SETTINGS, list, good, { 30: '0000000000000000' })).toBeNull();
   const unreadable = { units: 'x' };
-  expect(fellBack(rebuild(SETTINGS, list, { n: 30, hash: hashState(unreadable as never), state: JSON.stringify(unreadable) }, {}))).toBe(full);
-});
-test('a snapshot that leads to a refusal falls back to the full replay, which decides', () => {
-  const { list, states } = script(40);
+  expect(fromSnapshot(SETTINGS, list, { n: 30, hash: hashState(unreadable as never), state: JSON.stringify(unreadable) }, {})).toBeNull();
   // A real state, hashed honestly, but filed at the wrong index: the actions after it do not fit it.
-  const misfiled: Snap = { n: 30, hash: hashState(states[0]!), state: JSON.stringify(states[0]) };
-  const r = rebuild(SETTINGS, list, misfiled, {});
-  expect(r.ok && !r.fromSnap && hashState(r.followed.state)).toBe(hashState(states[40]!));
+  expect(fromSnapshot(SETTINGS, list, { n: 30, hash: hashState(states[0]!), state: JSON.stringify(states[0]) }, {})).toBeNull();
+});
+const now = (): Promise<void> => Promise.resolve();
+test('a forged snapshot whose check and hash agree with it is caught by the replay', async () => {
+  // The review's demonstration: the turn ends with a doctored state (1,000 more gold) as the snapshot, and its hash as
+  // the check. The quick look shows it; the replay of the actions does not agree, and its state is the honest one.
+  const list = ['{"type":"endTurn"}'];
+  const honest = must(applyAction(createMatch(SETTINGS), { type: 'endTurn' }));
+  const forged = { ...honest, players: honest.players.map((p, i) => (i === 0 ? { ...p, gold: p.gold + 1000 } : p)) };
+  const F = hashState(forged);
+  const snap: Snap = { n: 1, hash: F, state: JSON.stringify(forged) };
+  expect(fromSnapshot(SETTINGS, list, snap, { 1: F })!.state.players[0]!.gold).toBe(honest.players[0]!.gold + 1000);
+  const r = (await replay(SETTINGS, list, { 1: F }, now))!;
+  expect(r.disagreesAt).toBe(1); expect(r.refusedAt).toBeNull();
+  expect(r.followed.state.players[0]!.gold).toBe(honest.players[0]!.gold);
+  expect(hashState(r.followed.state)).toBe(hashState(honest));
+});
+test('the replay agrees with an honest record, and pauses between chunks', async () => {
+  const { list, states } = script(60);
+  let pauses = 0;
+  const r = (await replay(SETTINGS, list, { 30: hashState(states[30]!), 60: hashState(states[60]!) }, async () => { pauses++; }))!;
+  expect(r).toMatchObject({ refusedAt: null, disagreesAt: null });
+  expect(hashState(r.followed.state)).toBe(hashState(states[60]!)); expect(r.followed.actions).toEqual(list);
+  expect(pauses).toBe(Math.ceil(60 / REPLAY_CHUNK) - 1);
+});
+test('the replay stops at an action it refuses, and when it is no longer wanted', async () => {
+  const { list, states } = script(40);
+  const bad = [...list.slice(0, 33), '{"to":"9,9","type":"move","unit":0}', ...list.slice(34)];
+  const r = (await replay(SETTINGS, bad, {}, now))!;
+  expect(r.refusedAt).toBe(33); expect(r.followed.actions).toEqual(list.slice(0, 33));
+  expect(hashState(r.followed.state)).toBe(hashState(states[33]!));
+  expect(await replay(SETTINGS, list, {}, now, () => false)).toBeNull();
 });
 test('a check that disagrees breaks a rebuild at its index', () => {
   const { list, states } = script(20);
-  expect(rebuild(SETTINGS, list, null, { 8: hashState(states[8]!), 12: '0000000000000000' })).toEqual({ ok: false, at: 12, reason: 'hash' });
+  expect(rebuild(SETTINGS, list, { 8: hashState(states[8]!), 12: '0000000000000000' })).toEqual({ ok: false, at: 12, reason: 'hash' });
 });
 test('follow rebuilds when the same list carries a hash this phone disagrees with only through its own state', () => {
   const { list, states } = script(10);

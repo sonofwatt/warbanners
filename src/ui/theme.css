@@ -649,6 +649,18 @@ input:focus { border-color: var(--blue); }
 .hud-turn .status-name { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 /* Plain text after the name, so the sentence wraps at its own space ("Ann's / turn") when that fits. */
 .hud-turn .status-rest { display: inline; }
+/* A status with a short form ("Your turn, once online"): the short one where the turn line is too narrow for the
+   sentence in two lines (every landscape Hud, and narrow phones); the whole sentence stays for screen readers. */
+.hud-turn.has-short::after { content: attr(data-short); display: none; }
+@media (orientation: landscape), (max-width: 400px) {
+  .hud-turn.has-short > .status-long {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .hud-turn.has-short::after { display: inline; }
+  /* As wide as the short word, no wider: the rest of the Hud keeps the room the sentence would have taken. */
+  .can-act.hud-turn.has-short { min-width: 0; flex-shrink: 0; }
+}
 /* The round number in a word, or, where the Hud is short of room, the hourglass and the number alone. */
 .turn-short { display: none; }
 /* A short, narrow landscape phone keeps its one-row Hud with the clock in it: the clock keeps only its numbers and

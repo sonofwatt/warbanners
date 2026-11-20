@@ -3,7 +3,7 @@ import { hashState, legalActions, RULES_VERSION } from '../engine';
 import type { AiLevel } from '../ai/types';
 import { fakeServer } from '../net/fakeNet';
 import type { FakeServer } from '../net/fakeNet';
-import { manualTimers, settle, thinker, until } from '../net/sessionKit';
+import { fakePause, manualTimers, settle, thinker, until } from '../net/sessionKit';
 import type { ManualTimers } from '../net/sessionKit';
 import type { AiClient } from './aiClient';
 import { digestFor } from './digest';
@@ -38,7 +38,7 @@ function online(over: Over) {
   const deps: Deps = {
     kv, now: () => server.now(), newSeed: () => 7, newId: () => 'm1', ai: thinker(), sleep: async () => {},
     openNet: async () => server.as(uid), online: () => true, netReady: () => true,
-    setTimer: timersFor(server).setTimerFor(uid), build: 't', inviteBase: () => 'https://sonofwatt.github.io/warbanners/',
+    setTimer: timersFor(server).setTimerFor(uid), pause: fakePause, build: 't', inviteBase: () => 'https://sonofwatt.github.io/warbanners/',
     roomToUrl: (c) => { inUrl.push(c); },
     clearRoomFromUrl: () => { cleared += 1; },
     ...rest,
@@ -293,4 +293,63 @@ test('Home sweeps a finished room made here once the network is open', async () 
   host.get().openOnline(); host.get().goHome(); await settle(server);
   expect(host.get().onlineList).toEqual([]);
   expect((server.tree() as { rooms?: Record<string, unknown> }).rooms?.[code]).toBeUndefined();
+});
+
+// ---- the final review's fix wave ----
+
+test('a resign whose write has not landed is not marked over on Home, and neither Remove nor the sweep deletes the room', async () => {
+  const server = fakeServer(1_000_000);
+  let stall = false;
+  const host = online({ uid: 'u0', server, openNet: async () => {
+    const n = server.as('u0');
+    return { ...n, append: (code, a) => (stall ? new Promise(() => {}) : n.append(code, a)) };   // the socket died unnoticed
+  } });
+  const guest = online({ uid: 'u1', server });
+  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  const code = host.code;
+  guest.get().openRoom(code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
+  host.get().startOnline(); await settle(server);
+  stall = true;
+  host.get().resignOnline(); await settle(server);
+  expect(host.get().screen).toBe('result'); expect(host.get().online!.sending).toBe(true);
+  expect(listOnline(host.kv).find(e => e.code === code)!.over).toBe(false);
+  host.get().goHome();
+  server.setNow(server.now() + 2 * 86_400_000);
+  host.get().openOnline(); host.get().goHome(); await settle(server);            // the sweep runs
+  expect(host.get().onlineList.map(e => e.code)).toEqual([code]);
+  expect((server.tree() as { rooms?: Record<string, unknown> }).rooms?.[code]).toBeDefined();
+  host.get().forgetRoom(code); await settle(server);                            // Remove
+  expect((server.tree() as { rooms?: Record<string, unknown> }).rooms?.[code]).toBeDefined();
+  expect(guest.get().state!.winner).toBeNull();
+});
+test('the Home entry is marked over once the last write has landed', async () => {
+  const { host, server } = await startedPair();
+  host.get().resignOnline();
+  expect(host.get().online!.sending).toBe(true);
+  expect(listOnline(host.kv).find(e => e.code === host.code)!.over).toBe(false);
+  await settle(server);
+  expect(host.get().online!.sending).toBe(false);
+  expect(listOnline(host.kv).find(e => e.code === host.code)!.over).toBe(true);
+});
+test('a failed write of the online list is told once a session, and never over a lost resign', async () => {
+  const server = fakeServer(1_000_000);
+  const brokenKv = (): KeyValue => {
+    const kv = memoryKv();
+    return { ...kv, setItem: (k, v) => { if (k === 'warbanners.online.v1') throw new Error('quota'); kv.setItem(k, v); } };
+  };
+  const host = online({ uid: 'u0', server, kv: brokenKv() });
+  const guest = online({ uid: 'u1', server, kv: brokenKv() });
+  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  expect(host.get().notice).toBe('onlineListFailed');
+  host.get().dismissNotice();
+  guest.get().openRoom(host.code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
+  host.get().startOnline(); await settle(server);
+  const move = legalActions(host.get().state!).find(a => a.type === 'move')!;
+  host.get().run(move); await settle(server);
+  host.get().run({ type: 'endTurn' }); await settle(server);
+  expect(host.get().notice).toBeNull();                    // not back on every move once dismissed
+  guest.get().dismissNotice();
+  server.failNext('u1');
+  guest.get().resignOnline(); await settle(server);
+  expect(guest.get().notice).toBe('resignLost');
 });

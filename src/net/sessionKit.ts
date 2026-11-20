@@ -10,6 +10,7 @@ import type { AiLevel } from '../ai/types';
 import { planTurn } from '../ai/plan';
 import type { AiClient } from '../app/aiClient';
 import { openSession, type Session, type SessionDeps, type SessionPhase, type SessionView } from '../online/session';
+import { applyLocal } from '../online/sync';
 import { DROP_PAUSE_MS, encodeAction, makeRoomCode, type ClockSec, type Head, type RoomMeta } from '../online/wire';
 import { fakeServer, type FakeServer } from './fakeNet';
 import { EMU, fb, setOnline, watchConnected } from './firebase';
@@ -58,12 +59,19 @@ export function manualTimers(server: FakeServer): ManualTimers {
 
 const turn = (): Promise<void> => new Promise((r) => setImmediate(r));
 
-/** Awaits setImmediate until server.idle() twice in a row, at most 200 rounds. */
+// The session's pause between replay chunks, on the fake: one setImmediate, counted so settle() waits for a replay.
+let pausing = 0;
+export const fakePause = (): Promise<void> => {
+  pausing++;
+  return new Promise((r) => setImmediate(() => { pausing--; r(); }));
+};
+
+/** Awaits setImmediate until server.idle() (and no replay is paused) twice in a row, at most 200 rounds. */
 export async function settle(server: FakeServer): Promise<void> {
   let quiet = 0;
   for (let i = 0; i < 200 && quiet < 2; i++) {
     await turn();
-    quiet = server.idle() ? quiet + 1 : 0;
+    quiet = server.idle() && pausing === 0 ? quiet + 1 : 0;
   }
 }
 
@@ -104,7 +112,7 @@ function roomLog(raw: FakeServer): FakeServer {
 
 function opener(server: FakeServer, timers: ManualTimers, ai?: Partial<Record<string, AiClient>>) {
   return async (uid: string, code: string): Promise<Session> => {
-    const deps: SessionDeps = { net: server.as(uid), ai: ai?.[uid] ?? thinker(), build: 't', setTimer: timers.setTimerFor(uid) };
+    const deps: SessionDeps = { net: server.as(uid), ai: ai?.[uid] ?? thinker(), build: 't', setTimer: timers.setTimerFor(uid), pause: fakePause };
     const s = recorded((onChange) => openSession(code, deps, onChange));
     await settle(server);
     return s;
@@ -157,11 +165,7 @@ export async function playTurns(a: Session, b: Session, n: number): Promise<void
   }
 }
 
-/**
- * Watches every readStart from Nets made after the call. When it offers a snapshot, `usedSnap` turns true and the
- * settings are swapped for another seed: a replay from the start then builds a different map and never agrees with
- * the record, so a session can only reach the other phone's hash by starting from the snapshot.
- */
+/** Watches every readStart from Nets made after the call: `usedSnap` turns true when one offers a snapshot past index 1. */
 export function spyReadStart(server: FakeServer): { usedSnap: boolean } {
   const spy = { usedSnap: false };
   const as = server.as;
@@ -173,7 +177,7 @@ export function spyReadStart(server: FakeServer): { usedSnap: boolean } {
         const r = await net.readStart(code);
         if (typeof r !== 'object' || r.snap === null || r.snap.n < 2) return r;
         spy.usedSnap = true;
-        return { ...r, settings: { ...r.settings, seed: r.settings.seed + 1 } };
+        return r;
       },
     };
   };
@@ -195,6 +199,7 @@ export interface SessionKit {
   head(): Promise<Head | null>;
   until(pred: () => boolean, ms?: number): Promise<void>;
   closeAll(): void;                                            // closes every session the kit opened
+  net(who: 'a' | 'b'): Net;                                    // that identity's own Net, for a hand-written client's writes
 }
 
 export function fakeKit(): SessionKit {
@@ -232,6 +237,7 @@ export function fakeKit(): SessionKit {
       }
     },
     closeAll: () => { for (const s of opened.splice(0)) s.close(); },
+    net: (who) => P().server.as(uid(who)),
   };
 }
 
@@ -300,6 +306,7 @@ export function firebaseKit(k: number): SessionKit {
     },
     until: poll,
     closeAll: () => { for (const s of opened.splice(0)) s.close(); },
+    net: (who) => firebaseNet(names[who]),
   };
 }
 
@@ -386,6 +393,31 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
   'a move held across a drop is refused, rolled back and rebuilt': (kit) => heldAgainstTimeout(kit, (s) => {
     expect(s.act(legalActions(s.view().followed!.state).find(x => x.type === 'move')!)).not.toBeNull();
   }),
+  // A hand-written client ends its turn with a doctored state (1,000 more gold) as the snapshot, and that state's hash
+  // as the check and the head hash: the rules cannot run the engine, so they accept it. The honest phone reopens: the
+  // snapshot may be shown, but the replay of the actions decides, and the match is a desync reported against the
+  // record, which the honest phone never withdraws, not even on a second reopen.
+  'a forged snapshot never becomes the match': async (kit) => {
+    const { a, b } = await kit.start();
+    await kit.until(() => a.view().myTurn && !b.view().returning);
+    const code = a.view().code;
+    const honest = applyLocal(a.view().followed!, { type: 'endTurn' })!.followed.state;
+    const forged = { ...honest, players: honest.players.map((p, i) => (i === 0 ? { ...p, gold: p.gold + 1000 } : p)) };
+    a.close(); b.close();
+    expect(await kit.net('a').append(code, {
+      n: 0, action: '{"type":"endTurn"}', seatAfter: 1, hash: hashState(forged), turnPassed: true, over: false,
+      snap: JSON.stringify(forged), adapt: null,
+    })).toBe(true);
+    for (let reopen = 0; reopen < 2; reopen++) {
+      const again = await kit.reopen('b');
+      await kit.until(() => again.view().phase === 'desync' && again.view().room !== null
+        && Object.hasOwn(again.view().room!.desync, again.view().me!), 10_000);
+      expect(again.view().followed!.state.players[0]!.gold).toBe(honest.players[0]!.gold);
+      expect(hashState(again.view().followed!.state)).toBe(hashState(honest));
+      expect(again.view().myTurn).toBe(false);
+      again.close();
+    }
+  },
   'back from a drop keeps the turn': async (kit) => {
     const { a, b } = await kit.start();
     await kit.until(() => a.view().myTurn);

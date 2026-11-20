@@ -46,6 +46,7 @@ export interface Deps {
   inviteBase?: () => string;                    // origin plus the base path, for the invite link
   build?: string;
   setTimer?: (fn: () => void, ms: number) => () => void;
+  pause?: () => Promise<void>;                  // the session's pause between replay chunks; tests pass their own
   netReady?: () => boolean;                     // this build has a Firebase backend to talk to
 }
 export type SecondSeat = 'human' | AiLevel;
@@ -143,6 +144,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
   let onlineLog: TurnStep[] = [];   // the other side's steps since this phone's last turn, for the digest
   let resignPending = false;        // a resign is on its way; if it is refused the player is told
   let rememberedAs = '';            // what was last written to the online list, so a clock tick writes nothing
+  let listFailTold = false;         // onlineListFailed is told once a session, not on every move after it is dismissed
   let built: { actions: string[]; record: MatchRecord } | null = null;   // the record built from the session, kept to extend
   const createdHere = new Set<string>();
 
@@ -348,6 +350,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       onlineLog = [];
       resignPending = false;
       rememberedAs = '';
+      listFailTold = false;
       built = null;
     }
 
@@ -393,7 +396,9 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       const factions = v.followed?.settings.factions ?? factionsFor(room.meta.hostFaction);
       const round = state !== null ? roundOf(state) : 1;
       const current = state?.current ?? 0;
-      const over = state !== null && state.winner !== null;
+      // Over only once the server holds it: a winning move or a resign still on its way may never land, and an entry
+      // marked over can be deleted from the server by the sweep or Remove.
+      const over = state !== null && state.winner !== null && !v.sending;
       const key = JSON.stringify([v.code, seat, names, factions, round, current, over, v.followed?.actions.length ?? -1]);
       if (key === rememberedAs) return null;
       rememberedAs = key;
@@ -456,14 +461,17 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         resignPending = false;
         if (f === null || f.state.winner === null) patch.notice = 'resignLost';
       }
+      // What became of the list write is told, but never over a lost resign, and a failure only once a session.
       const listed = rememberHere(v, record);
-      if (listed !== null) patch.notice = listed;
+      const repeat = listed === 'onlineListFailed' && listFailTold;
+      if (listed !== null && patch.notice !== 'resignLost' && !repeat) patch.notice = listed;
+      if (listed === 'onlineListFailed' && patch.notice === listed) listFailTold = true;
       set(patch);
     };
 
     const openSessionFor = (code: string, n: Net, gen: number): void => {
       stepsSeen = -1;
-      session = openSession(code, { net: n, ai: deps.ai, build: deps.build ?? BUILD, setTimer: deps.setTimer ?? realTimer }, v => {
+      session = openSession(code, { net: n, ai: deps.ai, build: deps.build ?? BUILD, setTimer: deps.setTimer ?? realTimer, ...(deps.pause ? { pause: deps.pause } : {}) }, v => {
         if (gen === sessionGen) onView(v);
       });
       set({ online: session.view() });

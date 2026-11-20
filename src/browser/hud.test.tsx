@@ -13,12 +13,14 @@ import { frames, openApp } from './harness';
 const LONG = 'Bartholomew Oxl';
 const SIZES: [number, number][] = [[360, 640], [412, 915], [915, 412], [568, 320]];
 
-function hudPage(css: string, clock: string, paused: boolean): string {
+// `waits`: the player's own turn while the connection is down, "Your turn, once online", which names nobody.
+function hudPage(css: string, clock: string, paused: boolean, waits = false): string {
   const noop = (): void => {};
   const hud = renderToStaticMarkup(
     <Hud
       name={LONG} colour="#2D6DB5" faction="mongols" gold={10} income={2} round={12} unitsToAct={0} techReady={false}
-      endDisabled nextDisabled status={fill(T.ui.theirTurn, { name: LONG })} statusName={LONG} clock={clock} clockPaused={paused}
+      endDisabled nextDisabled status={waits ? T.ui.yourTurnWaits : fill(T.ui.theirTurn, { name: LONG })} statusName={waits ? undefined : LONG}
+      statusShort={waits ? T.ui.yourTurnWaitsShort : undefined} clock={clock} clockPaused={paused}
       onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop}
     />,
   );
@@ -27,7 +29,7 @@ function hudPage(css: string, clock: string, paused: boolean): string {
 }
 
 interface Measure {
-  sentenceCut: boolean; nameLines: number; nameEllipsis: boolean; restVisible: boolean;
+  sentenceCut: boolean; statusLines: number; nameLines: number; nameEllipsis: boolean; restVisible: boolean;
   whoWidth: number; turnShown: boolean; rows: number; hudHeight: number; overlaps: string[]; small: string[];
 }
 
@@ -40,16 +42,18 @@ describe.runIf(process.env.BROWSER === '1')('the online Hud with long names', ()
     expect(css.length).toBeGreaterThan(0);
     const { page, close } = await openApp('', { width, height });
     try {
-      for (const [clock, paused] of [['1:59', false], [T.ui.clockPaused, true]] as const) {
-        await page.setContent(hudPage(css, clock, paused));
+      for (const [clock, paused, waits] of [['1:59', false, false], [T.ui.clockPaused, true, false], ['1:59', false, true]] as const) {
+        await page.setContent(hudPage(css, clock, paused, waits));
         await frames(page);
         const m: Measure = await page.evaluate(() => {
           const box = (el: Element) => el.getBoundingClientRect();
           const status = document.querySelector('[data-testid="hud-status"]') as HTMLElement;
-          const name = status.querySelector('.status-name') as HTMLElement;
-          const rest = status.querySelector('.status-rest') as HTMLElement;
+          // "Your turn, once online" has no name in it: the whole sentence stands in for both parts.
+          const name = (status.querySelector('.status-name') ?? status) as HTMLElement;
+          const rest = (status.querySelector('.status-rest') ?? status) as HTMLElement;
           const sr = box(status), rr = box(rest), nr = box(name);
           const lh = parseFloat(getComputedStyle(name).lineHeight) || nr.height;
+          const statusLh = parseFloat(getComputedStyle(status).lineHeight) || sr.height;
           const who = document.querySelector('.hud-name strong') as HTMLElement;
           const hud = document.querySelector('.hud') as HTMLElement;
           const parts = Array.from(hud.querySelectorAll('button, .pill, .hud-who, [data-testid="hud-status"]')) as HTMLElement[];
@@ -69,6 +73,7 @@ describe.runIf(process.env.BROWSER === '1')('the online Hud with long names', ()
           const small = shown.filter((e) => e.matches('button') && (box(e).width < 44 || box(e).height < 44)).map((e) => e.dataset.testid ?? '?');
           return {
             sentenceCut: status.scrollHeight > status.clientHeight + 1 || rr.right > sr.right + 1 || rr.left < sr.left - 1 || rr.bottom > sr.bottom + 1,
+            statusLines: Math.round(sr.height / statusLh),
             nameLines: Math.round(nr.height / lh),
             nameEllipsis: name.scrollWidth <= name.clientWidth || getComputedStyle(name).textOverflow === 'ellipsis',
             restVisible: rr.width > 0 && rr.height > 0 && rr.right <= window.innerWidth,
@@ -77,11 +82,14 @@ describe.runIf(process.env.BROWSER === '1')('the online Hud with long names', ()
             rows: rows.size, hudHeight: box(hud).height, overlaps, small,
           };
         });
-        const when = `${width}x${height}${paused ? ' paused' : ''}`;
+        const when = `${width}x${height}${paused ? ' paused' : ''}${waits ? ' waiting for the connection' : ''}`;
         expect(m.sentenceCut, `${when}: the turn sentence is cut`).toBe(false);
         expect(m.restVisible, `${when}: "'s turn" is not shown`).toBe(true);
-        expect(m.nameLines, `${when}: the name breaks over lines`).toBe(1);
-        expect(m.nameEllipsis, `${when}: a cut name has no ellipsis`).toBe(true);
+        expect(m.statusLines, `${when}: the turn sentence takes more than two lines`).toBeLessThanOrEqual(2);
+        if (!waits) {
+          expect(m.nameLines, `${when}: the name breaks over lines`).toBe(1);
+          expect(m.nameEllipsis, `${when}: a cut name has no ellipsis`).toBe(true);
+        }
         expect(m.whoWidth, `${when}: the viewer's own name is squeezed`).toBeGreaterThanOrEqual(36);
         expect(m.overlaps, when).toEqual([]);
         expect(m.small, when).toEqual([]);
@@ -89,7 +97,7 @@ describe.runIf(process.env.BROWSER === '1')('the online Hud with long names', ()
         const landscape = width > height;
         expect(m.rows, `${when}: Hud rows`).toBeLessThanOrEqual(landscape ? 1 : 2);
         // The full sentence is there for the reader and for tests, however it is drawn.
-        expect(await page.getByTestId('hud-status').textContent()).toBe(fill(T.ui.theirTurn, { name: LONG }));
+        expect(await page.getByTestId('hud-status').textContent()).toBe(waits ? T.ui.yourTurnWaits : fill(T.ui.theirTurn, { name: LONG }));
       }
     } finally {
       await close();

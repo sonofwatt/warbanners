@@ -11,7 +11,7 @@ import { playAiSeat } from './aiSeat';
 import { clockView, creditOnReturn, secondsLeft, timeoutDue } from './clock';
 import type { ClockView } from './clock';
 import { aiSeatToPlay, hostMove } from './host';
-import { applyLocal, follow, opening, rebuild } from './sync';
+import { applyLocal, follow, fromSnapshot, rebuild, replay } from './sync';
 import type { Followed, Step } from './sync';
 import { decodeAction, factionsFor, liveDesync, SCHEMA, TIMEOUT_RETRY_MS } from './wire';
 import type { ClockSec, Presence, Room } from './wire';
@@ -22,8 +22,10 @@ export interface SessionView {
   followed: Followed | null;              // null before the match starts
   connected: boolean;
   returning: boolean;                     // connected again, but the return write (presence and credit) has not landed yet
+  verifying: boolean;                     // the board shown came from the snapshot; the replay of the actions is still running
+  blocked: boolean;                       // a member's desync entry is in the room: nobody moves or resigns until it goes
   clock: ClockView; secondsLeft: number | null;
-  myTurn: boolean;                        // connected, not returning, playing, my seat is current, no live desync, nothing being rebuilt, not sending an endTurn
+  myTurn: boolean;                        // connected, not returning, not verifying, playing, my seat is current, no live desync, nothing being rebuilt, not sending an endTurn
   sending: boolean;                       // a write is on its way (it stays true while offline: the SDK holds it)
   hostIsMe: boolean;
   absent: PlayerId[];                     // human seats whose presence is off
@@ -31,11 +33,14 @@ export interface SessionView {
   remoteSchema: number | null;            // meta.schema when it is newer than this phone's SCHEMA
   lastSteps: { seq: number; steps: Step[]; mine: boolean } | null;   // what just arrived or was just played, for effects and the digest
   timedOut: number | null;                // index of the endTurn with which the clock ended this phone's own turn, for the timeUp line
-  failure: Refusal | null;                // the last refused join, takeover or start
+  failure: SessionFailure | null;         // the last refused join, takeover or start, or why the match stopped
 }
+// A refusal from the Net, or 'unreadable': the action list is too long for this build or not a list at all.
+export type SessionFailure = Refusal | 'unreadable';
 export interface SessionDeps {
   net: Net; ai: AiClient; build: string; rulesVersion?: number;   // defaults to RULES_VERSION; tests vary it
   setTimer(fn: () => void, ms: number): () => void;
+  pause?: () => Promise<void>;            // lets the main thread breathe between replay chunks; defaults to a 0 ms timer
 }
 export interface Session {
   view(): SessionView;
@@ -60,6 +65,10 @@ const TIMEOUT_TRIES = 2;     // a refused timeout is tried once more
 // multi-node write a backup sees with presence in it is a return (presence on plus head/paused), and in either
 // order the server already holds what the backup misread, so the rules refuse it.
 const SETTLE_MS = 250;
+// A tick this much later than the one before means the tab slept (a locked phone, a hidden page whose timers were
+// held back). Its socket may be dead though the SDK has not noticed, and its cache still shows it present: the return
+// runs first, so no clock decision is taken from that cache.
+const SLEPT_MS = 5_000;
 
 // One action on its way to the database: applied locally already, written in order, one at a time.
 interface Out {
@@ -87,11 +96,14 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
   let returnRunning = false;
   let followed: Followed | null = null;
   let loading = false;
+  let verifying = false;          // the snapshot's board is shown; the replay that decides is still running
+  let recordForged = false;       // the replay disagreed with the record's own hashes: a desync this phone never withdraws
+  let brokenOn: string | null = null;   // the reading a desync was last judged on: the same reading is not replayed again
   let checkOwnEntry = false;      // after a load: a desync entry of mine that the fresh state agrees with is removed
   let desyncReported = false;
   let remoteVersion: number | null = null;
   let remoteSchema: number | null = null;
-  let failure: Refusal | null = null;
+  let failure: SessionFailure | null = null;
   let lastSteps: SessionView['lastSteps'] = null;
   let seq = 0;
   let timedOut: number | null = null;
@@ -136,7 +148,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
   };
   const myTurn = (): boolean => {
     const seat = mySeat();
-    return connected && !returning && phase === 'playing' && followed !== null && seat !== null
+    return connected && !returning && !verifying && phase === 'playing' && followed !== null && seat !== null
       && followed.state.current === seat && followed.state.winner === null && !blocked() && !endTurnPending();
   };
 
@@ -144,7 +156,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     const now = net.serverNow();
     const clock = clockNow(now);
     return {
-      phase, code, me, mySeat: mySeat(), room, followed, connected, returning, clock, secondsLeft: secondsLeft(clock, now),
+      phase, code, me, mySeat: mySeat(), room, followed, connected, returning, verifying, blocked: blocked(), clock, secondsLeft: secondsLeft(clock, now),
       myTurn: myTurn(), sending: sending(), hostIsMe: room !== null && me !== null && room.meta.hostId === me,
       absent: absent(), remoteVersion, remoteSchema, lastSteps, timedOut, failure,
     };
@@ -155,7 +167,10 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
 
   const watcher: Watcher = {
     room(r) { room = r; roomSeen = true; reading(); },
-    actions(list) { remote = list; reading(); },
+    actions(list) {
+      if (list === null) { unreadable(); return; }
+      remote = list; reading();
+    },
     connected(ok) { onConnected(ok); },
   };
 
@@ -189,27 +204,49 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     emit();
   }
 
-  // Reads the start once and rebuilds from the snapshot, then follows.
+  const pause = deps.pause ?? ((): Promise<void> => new Promise((res) => { deps.setTimer(res, 0); }));
+
+  // Reads the start once. A usable snapshot gives the board at once, but it is never trusted: the snapshot, its check
+  // and the head hash are all written by the phone that ended the turn. The actions are replayed from the opening, a
+  // chunk at a time, and the replay decides: if it disagrees with any hash the record claims, the replay's state is
+  // the match and the record is reported as a desync.
   async function load(): Promise<void> {
     if (loading || followed || closed) return;
     loading = true;
     emit();
     const r = await net.readStart(code);
-    loading = false;
-    if (closed || followed) return;
+    if (closed || followed) { loading = false; return; }
     if (typeof r !== 'object') {
+      loading = false;
       if (r !== 'offline') { phase = 'failed'; failure = r; }   // offline: the next connected(true) or tick tries again
       emit();
       return;
     }
-    const built = rebuild(r.settings, remote ?? [], r.snap, r.checks);
-    if (built.ok) {
-      followed = built.followed;
-      phase = followed.state.winner !== null ? 'over' : 'playing';
-      checkOwnEntry = true;
-    } else {
-      followed = opening(r.settings);
+    const list = remote ?? [];
+    const claimed = { ...r.checks };
+    const quick = fromSnapshot(r.settings, list, r.snap, r.checks);
+    if (quick !== null && r.snap !== null) {
+      claimed[r.snap.n] = r.snap.hash;
+      followed = quick;
+      phase = quick.state.winner !== null ? 'over' : 'playing';
+      verifying = true;
+      update();
+    }
+    await pause();
+    const done = closed ? null : await replay(r.settings, list, claimed, pause, () => !closed);
+    loading = false;
+    verifying = false;
+    if (done === null) return;
+    if (done.refusedAt !== null || done.disagreesAt !== null) {
+      recordForged = true;
+      followed = done.followed;
       broken();
+    } else {
+      if (followed === null) {
+        followed = done.followed;
+        phase = followed.state.winner !== null ? 'over' : 'playing';
+      }
+      checkOwnEntry = true;
     }
     update();
   }
@@ -229,12 +266,14 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     const list = remote!;
     // Our own writes not yet in the list: the list is behind us, not against us.
     if (sending() && list.length < local.actions.length && isPrefix(list, local.actions)) return;
+    const on = `${local.actions.length}:${list.length}:${head.n}:${head.hash}`;
+    if (phase === 'desync' && on === brokenOn) return;     // judged already: a long replay is not run on every reading
     const f = follow(local, list, head);
     if (f.kind === 'wait') return;
     // While a write of ours is pending, the SDK's cache mixes it with what the server sent (our head beside their
     // list, say): a disagreement then is the write losing its race, not a broken match. Its answer decides.
     if (f.kind === 'broken' && sending()) return;
-    if (f.kind === 'broken') { broken(); return; }
+    if (f.kind === 'broken') { broken(); brokenOn = on; return; }
     if (f.kind === 'advanced') {
       const from = local.actions.length;
       const seat = mySeat();
@@ -263,7 +302,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     let k = 0;
     while (k < list.length && k < local.actions.length && list[k] === local.actions[k]) k++;
     if (seat === null || !list.slice(k).includes('{"type":"endTurn"}')) return;
-    const base = rebuild(local.settings, list.slice(0, k), null, {});
+    const base = rebuild(local.settings, list.slice(0, k), {});
     if (!base.ok) return;
     let state = base.followed;
     for (let i = k; i < list.length; i++) {
@@ -275,6 +314,15 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     }
   }
 
+  // The action list cannot be read (longer than MAX_ACTIONS, or not a list): the match stops, in words, never silently.
+  function unreadable(): void {
+    if (closed) return;
+    phase = 'failed';
+    failure = 'unreadable';
+    dropQueue();
+    emit();
+  }
+
   // This phone's state disagrees with the record: say so, and stop acting.
   function broken(): void {
     if (phase !== 'desync') phase = 'desync';
@@ -284,8 +332,11 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     void net.reportDesync(code, { n: followed.actions.length, hash: hashState(followed.state), build: deps.build });
   }
 
-  // This phone agrees with the record: a desync it reported, or one left from before a reload, is withdrawn.
+  // This phone agrees with the record: a desync it reported, or one left from before a reload, is withdrawn. Never
+  // after the replay disagreed with the record's own hashes: those are written once, and a head that agrees with a
+  // forged state proves nothing.
   function agreed(): void {
+    if (recordForged) return;
     const mine = me !== null && room !== null && Object.hasOwn(room.desync, me);
     if (phase === 'desync') {
       phase = followed!.state.winner !== null ? 'over' : 'playing';
@@ -461,7 +512,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
   }
 
   function clock(): void {
-    if (phase !== 'playing' || !connected || returning || sending() || blocked() || !followed || followed.state.winner !== null) return;
+    if (phase !== 'playing' || !connected || returning || verifying || sending() || blocked() || !followed || followed.state.winner !== null) return;
     const head = room!.head;
     const seat = mySeat();
     if (!head || seat === null || room!.meta.clock <= 0 || followed.actions.length !== head.n) return;
@@ -477,11 +528,11 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     enqueue({ type: 'endTurn' }, { timeout: true });
   }
 
-  const aiLive = (seat: PlayerId): boolean => !closed && !returning && phase === 'playing' && room !== null && followed !== null
+  const aiLive = (seat: PlayerId): boolean => !closed && !returning && !verifying && phase === 'playing' && room !== null && followed !== null
     && me !== null && aiSeatToPlay(room, followed.state, me) === seat && (room.head?.n ?? 0) <= aiN;
 
   function ai(): void {
-    if (aiRunning || phase !== 'playing' || !connected || returning || sending() || blocked() || !followed) return;
+    if (aiRunning || phase !== 'playing' || !connected || returning || verifying || sending() || blocked() || !followed) return;
     const head = room!.head;
     if (!head || followed.actions.length !== head.n) return;
     const seat = aiSeatToPlay(room!, followed.state, me!);
@@ -515,11 +566,15 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     });
   }
 
+  let lastTickAt = Number.NEGATIVE_INFINITY;
   function tick(): void {
     if (closed) return;
     stopTick = deps.setTimer(tick, TICK_MS);
+    const now = net.serverNow();
+    const slept = now - lastTickAt > SLEPT_MS;
+    lastTickAt = now;
     if (connected && member() && phase !== 'join') {
-      if (returning && !returnRunning) startReturn();
+      if ((returning && !returnRunning) || (slept && !returning)) startReturn();
       if (phase === 'connecting' && !followed && !loading && room && room.meta.phase !== 'lobby') void load();
     }
     kick(true);
@@ -543,6 +598,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     }
     if (closed) return;
     stopWatch = net.watch(code, watcher);
+    lastTickAt = net.serverNow();
     stopTick = deps.setTimer(tick, TICK_MS);
   })();
 
@@ -560,7 +616,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     },
     resign() {
       const seat = mySeat();
-      if (!connected || returning || phase !== 'playing' || blocked() || seat === null || !followed) return false;
+      if (!connected || returning || verifying || phase !== 'playing' || blocked() || seat === null || !followed) return false;
       return enqueue({ type: 'resign', player: seat }) !== null;
     },
     async join(name) {

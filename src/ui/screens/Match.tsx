@@ -224,21 +224,24 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   // Online: whose turn, the clock, the line over the board, and the sheet a desync puts over it all.
   let status: string | undefined;
   let statusName: string | undefined;
+  let statusShort: string | undefined;
   let clock: string | undefined;
   let line: OnlineLine = null;
   if (isOnline) {
-    const settled = online !== null && online.connected && !online.returning;
+    const linked = online !== null && online.connected && !online.returning;
     // Whose turn, always. On the player's own turn while the connection is down (or the return has not landed), End
     // turn is greyed, so the status says the turn waits for the connection; the line over the board says why.
     status = state.current !== viewer ? fill(T.ui.theirTurn, { name: nameOf(state.current) })
-      : settled ? T.ui.yourTurn : T.ui.yourTurnWaits;
+      : linked ? T.ui.yourTurn : T.ui.yourTurnWaits;
     if (state.current !== viewer) statusName = nameOf(state.current);
+    else if (!linked) statusShort = T.ui.yourTurnWaitsShort;
     if (online !== null && online.clock.kind !== 'off' && online.secondsLeft !== null && state.winner === null) {
       clock = online.clock.kind === 'paused' ? T.ui.clockPaused : formatClock(online.secondsLeft);
     }
     const away = online?.absent.find((p) => p !== viewer);
     if (online === null) line = { text: T.ui.connecting, testid: 'online-connecting' };
-    else if (!settled) line = { text: T.ui.reconnecting, testid: 'online-reconnecting' };
+    else if (!linked) line = { text: T.ui.reconnecting, testid: 'online-reconnecting' };
+    else if (online.verifying) line = { text: T.ui.checking, testid: 'online-checking' };
     else if (online.phase === 'failed') line = { text: online.failure !== null ? failureText(online.failure, online) : T.ui.openFailed, testid: 'online-failed' };
     else if (away !== undefined && state.winner === null) {
       const clockOff = (online.room?.meta.clock ?? 0) === 0;
@@ -246,9 +249,10 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       line = { text: fill(words, { name: nameOf(away) }), testid: 'online-dropped' };
     } else if (timeUp) line = { text: T.ui.timeUp, testid: 'online-time-up' };
   }
-  const desync = isOnline && online?.phase === 'desync';
+  // Either phone: the one that found the disagreement, and the one whose match it froze.
+  const desync = isOnline && (online?.phase === 'desync' || online?.blocked === true);
   const resignDisabled = aiBusy || (online === null && !myTurn)
-    || (online !== null && (!online.connected || online.returning || online.phase !== 'playing'));
+    || (online !== null && (!online.connected || online.returning || online.verifying || online.blocked || online.phase !== 'playing'));
   const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
   const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
 
@@ -258,7 +262,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
         unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting} thinking={aiBusy && !isOnline}
-        status={status} statusName={statusName} clock={clock} clockPaused={online?.clock.kind === 'paused'}
+        status={status} statusName={statusName} statusShort={statusShort} clock={clock} clockPaused={online?.clock.kind === 'paused'}
         nextDisabled={nextDisabled} onNextUnit={onNextUnit}
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
@@ -294,7 +298,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       ) : null}
       {desync ? (
         <div className="overlay desync" data-testid="desync">
-          <div className="digest desync-card"><p>{T.ui.desync}</p></div>
+          <div className="digest desync-card"><p>{T.ui.desync}</p><p>{T.ui.desyncWaits}</p></div>
           <button type="button" className="primary" data-testid="desync-home" onClick={goHome}>{T.ui.home}</button>
         </div>
       ) : null}

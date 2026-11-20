@@ -10,7 +10,8 @@ export interface HudProps {
   // Online: whose turn it is, in place of the units-to-act line, and the turn clock as m:ss (or Paused).
   // `statusName`, when the status names a player, is drawn on a line of its own and cut with an ellipsis if it is
   // long, so the rest of the sentence ("'s turn") is never cut.
-  status?: string; statusName?: string; clock?: string; clockPaused?: boolean;
+  // `statusShort` stands in for the status where the Hud is short of room (the full words stay for screen readers).
+  status?: string; statusName?: string; statusShort?: string; clock?: string; clockPaused?: boolean;
   onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void; onNextUnit: () => void;
 }
 
@@ -79,9 +80,17 @@ export function Hud(p: HudProps): ReactElement {
           {p.status !== undefined
             ? (
               // The sentence is drawn in two parts; the reader hears it whole.
-              <small data-testid="hud-status" className="can-act some hud-turn" role="status" aria-label={p.status}>
-                {statusParts(p.status, p.statusName)}
-              </small>
+              p.statusShort !== undefined
+                ? (
+                  <small data-testid="hud-status" className="can-act some hud-turn has-short" role="status" aria-label={p.status} data-short={p.statusShort}>
+                    <span className="status-long">{p.status}</span>
+                  </small>
+                )
+                : (
+                  <small data-testid="hud-status" className="can-act some hud-turn" role="status" aria-label={p.status}>
+                    {statusParts(p.status, p.statusName)}
+                  </small>
+                )
             )
             : p.thinking === true
             ? <small data-testid="thinking" className="can-act some" role="status">{T.ai.thinking}</small>

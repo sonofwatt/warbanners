@@ -2,15 +2,15 @@ import { useState } from 'react';
 import type { ReactElement } from 'react';
 import { RULES_VERSION } from '../../engine';
 import { useApp } from '../../app/useApp';
-import type { Refusal } from '../../net/net';
-import type { SessionView } from '../../online/session';
+import type { SessionFailure, SessionView } from '../../online/session';
 import { CODE_LENGTH, isRoomCode, MAX_NAME } from '../../online/wire';
 import { HomeIcon, InfoIcon } from '../icons';
 import { T, fill } from '../text';
 import { NoticeLine } from './NoticeLine';
 
 /** A sentence for every refusal the session can report, naming both rules numbers where it knows them. */
-export function failureText(f: Refusal, v: SessionView | null): string {
+export function failureText(f: SessionFailure, v: SessionView | null): string {
+  if (f === 'unreadable') return T.ui.recordUnreadable;
   if (f === 'notFound') return T.ui.noSuchRoom;
   if (f === 'full') return T.ui.roomFull;
   if (f === 'started') return T.ui.roomStarted;

@@ -24,7 +24,7 @@ export const MAX_SNAP_CHARS = 200_000;
 export const MAX_NAME = 16;
 export const MAX_UID = 128; // Firebase uids are at most 128 characters
 export const MAX_BUILD = 64; // mirrored in the rules
-export const MAX_ACTIONS = 10_000; // a longer list is refused as corrupt
+export const MAX_ACTIONS = 100_000; // a longer list is refused as unreadable, and the player is told
 export const SEATS = 2;
 
 export type Phase = 'lobby' | 'playing' | 'over';

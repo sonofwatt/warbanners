@@ -77,6 +77,7 @@ function room(o: { phase?: 'lobby' | 'playing' | 'over'; guest?: boolean; absent
 function view(r: Room | null, over: Partial<SessionView> = {}): SessionView {
   return {
     phase: 'playing', code: 'ABC234', me: 'u0', mySeat: 0, room: r, followed: null, connected: true, returning: false,
+    verifying: false, blocked: false,
     clock: r !== null && r.meta.clock > 0 ? { kind: 'running', endsAt: 120_000 } : { kind: 'off' },
     secondsLeft: r !== null && r.meta.clock > 0 ? 120 : null,
     myTurn: false, sending: false, hostIsMe: true, absent: [], remoteVersion: null, remoteSchema: null,
@@ -117,7 +118,10 @@ function versionRoom(o: { rules: number; schema?: number }): StoreApi<AppState> 
   return store;
 }
 
-interface MatchOpts { absent?: PlayerId[]; current?: PlayerId; clock?: ClockSec; connected?: boolean; returning?: boolean; menuOpen?: boolean; phase?: SessionView['phase'] }
+interface MatchOpts {
+  absent?: PlayerId[]; current?: PlayerId; clock?: ClockSec; connected?: boolean; returning?: boolean; menuOpen?: boolean; phase?: SessionView['phase'];
+  verifying?: boolean; desyncBy?: string;   // desyncBy: a member whose live desync entry is in the room
+}
 function matchFor(seat: PlayerId, o: MatchOpts = {}): Scene {
   const store = storeWith();
   const settings = { seed: 7, factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
@@ -125,12 +129,15 @@ function matchFor(seat: PlayerId, o: MatchOpts = {}): Scene {
   const base = newRecord('ABC234', settings, ['Ann', 'Ben'], 0);
   const record = { ...base, snapshot: { count: 0, hash: hashState(state), state } };
   const r = room({ absent: o.absent ?? [], current: o.current ?? 0, clock: o.clock ?? 120 });
+  if (o.desyncBy !== undefined) r.desync = { [o.desyncBy]: { n: 0, hash: '0'.repeat(16), build: 't' } };
   const connected = o.connected ?? true;
   const returning = o.returning ?? false;
+  const verifying = o.verifying ?? false;
+  const blocked = o.desyncBy !== undefined;
   const v = view(r, {
-    phase: o.phase ?? 'playing', me: seat === 0 ? 'u0' : 'u1', mySeat: seat, hostIsMe: seat === 0, connected, returning,
+    phase: o.phase ?? 'playing', me: seat === 0 ? 'u0' : 'u1', mySeat: seat, hostIsMe: seat === 0, connected, returning, verifying, blocked,
     followed: { settings, actions: [], state }, absent: o.absent ?? [],
-    myTurn: connected && !returning && state.current === seat && (o.phase ?? 'playing') === 'playing',
+    myTurn: connected && !returning && !verifying && !blocked && state.current === seat && (o.phase ?? 'playing') === 'playing',
   });
   store.setState({ screen: 'match', mode: 'online', online: v, record, state, viewer: seat });
   return { store, el: o.menuOpen === true ? <Match openSheet="menu" /> : <App /> };
@@ -252,5 +259,43 @@ test('a version refusal with no rules number says so without a made-up number', 
 });
 test('the turn line keeps the name apart from the sentence, and the own turn waits for the connection', () => {
   expect(render(guestMatch())).toMatch(/data-testid="hud-status"[^>]*><span class="status-name">Ann<\/span><span class="status-rest">'s turn<\/span>/);
-  expect(render(hostMatch({ connected: false }))).toMatch(new RegExp(`data-testid="hud-status"[^>]*>${T.ui.yourTurnWaits}<`));
+  expect(render(hostMatch({ connected: false }))).toMatch(new RegExp(`data-testid="hud-status"[^>]*><span class="status-long">${T.ui.yourTurnWaits}<`));
+});
+
+// ---- the final review's fix wave ----
+
+const resignOff = /<button[^>]*disabled=""[^>]*data-testid="resign"|<button[^>]*data-testid="resign"[^>]*disabled=""/;
+test('a board shown from the snapshot says it is being checked, and End turn waits', () => {
+  const html = render(hostMatch({ verifying: true }));
+  expect(html).toContain(T.ui.checking); expect(html).toContain('data-testid="online-checking"');
+  expect(html).toMatch(new RegExp(`data-testid="hud-status"[^>]*>${T.ui.yourTurn}<`));
+  expect(html).toMatch(/data-testid="end-turn"[^>]*disabled/);
+  expect(render(hostMatch({ verifying: true, menuOpen: true }))).toMatch(resignOff);
+});
+test('a desync reported by the other phone puts the same card on this phone, and says why nobody can resign', () => {
+  for (const scene of [hostMatch({ desyncBy: 'u1' }), guestMatch({ desyncBy: 'u1' }), guestMatch({ phase: 'desync', desyncBy: 'u1' })]) {
+    const html = render(scene);
+    expect(html).toContain(T.ui.desync); expect(html).toContain(T.ui.desyncWaits); expect(html).toContain('data-testid="desync-home"');
+  }
+  const menu = render(hostMatch({ desyncBy: 'u1', menuOpen: true }));
+  expect(menu).toMatch(resignOff); expect(menu).toContain(T.ui.desyncWaits);
+});
+test('the result says the last move is still being sent, until it lands', () => {
+  const store = storeWith();
+  const settings = { seed: 7, factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
+  const before = createMatch(settings);
+  const state = { ...before, winner: 0 as PlayerId };
+  const record = { ...newRecord('ABC234', settings, ['Ann', 'Ben'], 0), snapshot: { count: 0, hash: hashState(state), state } };
+  const followed = { settings, actions: [], state };
+  store.setState({ screen: 'result', mode: 'online', record, state, viewer: 0, online: view(room({ phase: 'over' }), { phase: 'over', followed, sending: true }) });
+  const html = render(store);
+  expect(html).toContain(T.ui.sending); expect(html).toContain('data-testid="result-sending"');
+  store.setState({ online: view(room({ phase: 'over' }), { phase: 'over', followed, sending: false }) });
+  expect(render(store)).not.toContain('data-testid="result-sending"');
+});
+test('an action list this phone cannot read says so in words', () => {
+  const scene = hostMatch({ phase: 'failed' });
+  scene.store.setState({ online: { ...scene.store.getState().online!, failure: 'unreadable' } });
+  const html = render(scene);
+  expect(html).toContain(T.ui.recordUnreadable); expect(html).toContain('data-testid="online-failed"');
 });

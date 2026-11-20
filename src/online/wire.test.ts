@@ -131,6 +131,7 @@ test('settings refuse equal factions and seeds that are not safe non-negative in
   expect(decodeSettings('{"factions":["mongols","spartans"],"seed":0}')).toEqual({ seed: 0, factions: ['mongols', 'spartans'] });
 });
 test('the action list is capped', () => {
+  expect(MAX_ACTIONS).toBe(100_000);   // the rules have no turn limit: a long clock-off match must still be read
   expect(readActions(Array.from({ length: MAX_ACTIONS }, () => 'a'))).toHaveLength(MAX_ACTIONS);
   expect(readActions(Array.from({ length: MAX_ACTIONS + 1 }, () => 'a'))).toBeNull();
   const o: Record<string, string> = {};
