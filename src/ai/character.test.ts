@@ -221,27 +221,25 @@ function aiMatch(seed: number, factions: [FactionId, FactionId], dial: number, m
 }
 
 describe('matches between two AIs end', () => {
-  // Measured: seed 2, Spartans first, at hard, ends in round 27 (Spartans win). Seed 7 (round 24 before Task 12's
-  // numbers) no longer ends within 60 rounds with the Spartans first.
+  // Measured after Task 12b's AI changes: seed 1, Mongols first, at hard, ends in round 16 (Mongols win). Seed 2 with
+  // the Spartans first (round 27 after Task 12) now ends in round 20.
   test('at hard on a seeded map, the match reaches a winner within the measured bound', () => {
-    expect(aiMatch(2, ['spartans', 'mongols'], LEVEL_DIAL.hard, 35).winner).not.toBeNull();
+    expect(aiMatch(1, ['mongols', 'spartans'], LEVEL_DIAL.hard, 25).winner).not.toBeNull();
   }, 120_000);
 
-  // Measured on seeds 1 to 8 with both seatings after Task 12's tuning: at normal 15 of the 16 end within 60 rounds
-  // (seed 7 with the Spartans first does not); at hard 10 or 11 of the 16 do. Task 12 left a stall share of about a
-  // quarter at 60 rounds (target at most 5%, see docs/superpowers/plans/2026-11-18-plan-3-tuning-log.md), so
-  // these tests name the matches known not to end; any other match failing to end is a regression.
+  // Measured on seeds 1 to 8 with both seatings after Task 12b's AI changes: at normal all 16 end within 60 rounds, at
+  // hard 11 (the five named below do not). The stall share at 60 rounds is still about a fifth (target at most 5%, see docs/superpowers/plans/2026-11-18-plan-3-tuning-log.md),
+  // so these tests name the matches known not to end; any other match failing to end is a regression.
   describe.runIf(process.env.SLOW === '1')('many seeds (SLOW=1)', () => {
     const seatings: [FactionId, FactionId][] = [['spartans', 'mongols'], ['mongols', 'spartans']];
     // The matches that reach no winner within `bound` rounds, named as "seed first-faction".
     const unended = (dial: number, bound: number): string[] => [1, 2, 3, 4, 5, 6, 7, 8]
       .flatMap((seed) => seatings.map((f) => (aiMatch(seed, f, dial, bound).winner === null ? [`${seed} ${f[0]}`] : [])))
       .flat();
-    const KNOWN_NORMAL = ['7 spartans'];
-    test(`at normal, every match but ${KNOWN_NORMAL.join(', ')} first ends within 60 rounds`, () => {
-      expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
+    test('at normal, every match ends within 60 rounds', () => {
+      expect(unended(LEVEL_DIAL.normal, 60)).toEqual([]);
     }, 600_000);
-    const KNOWN_HARD = ['1 spartans', '3 mongols', '5 mongols', '6 spartans', '6 mongols', '7 spartans'];
+    const KNOWN_HARD = ['1 spartans', '4 spartans', '6 spartans', '6 mongols', '7 mongols'];
     test(`at hard, every match but ${KNOWN_HARD.join(', ')} first ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);

@@ -110,12 +110,14 @@ test('the value rewards a capture and punishes standing in danger', () => {
   const rider = b.units.find(u => u.owner === 1)!;
   expect(moveScore(b, ctx, rider.id, '2,-2', 0)).toBeGreaterThan(moveScore(b, ctx, rider.id, '1,-2', 0));
   const raid = believedState(aiInputFor(riderRaid(), 1));
-  const rctx = makeCtx(raid, 1, 1);
+  const rctx = makeCtx(raid, 1, 0.5);
+  const w = rctx.skill.danger;                       // the danger weight at this dial
+  expect(w).toBeGreaterThan(0);
   const archer = raid.units.find(u => u.owner === 1)!;
   expect(rctx.danger['0,-1']).toBe(6);
   const at = (danger: Record<string, number>) => moveScore(raid, { ...rctx, danger }, archer.id, '0,-1', 0);
-  expect(at({}) - at({ '0,-1': 6 })).toBeCloseTo(5 * 6 / 10, 9);    // worth 5, danger 6 on 10 hp
-  expect(at({}) - at({ '0,-1': 50 })).toBeCloseTo(5, 9);            // never more than its worth
+  expect(at({}) - at({ '0,-1': 6 })).toBeCloseTo(w * 5 * 6 / 10, 9);    // worth 5, danger 6 on 10 hp, times the weight
+  expect(at({}) - at({ '0,-1': 50 })).toBeCloseTo(w * 5, 9);            // never more than its worth times the weight
 });
 
 test('an own city left empty within an enemy\'s move costs half its worth', () => {
