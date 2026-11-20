@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, TileBase, Veil } from '../art/tiles';
 import { StatusOverlay } from '../art/units';
@@ -73,14 +73,16 @@ function variantOf(k: HexKey): number {
 const BACK = 'translate(1 -5) scale(0.8)';
 const FRONT = 'translate(2 6) scale(0.72)';
 const BESIDE = 'translate(17 1) scale(0.75)';    // a treasure under a unit: off to the side, clear of the figure
+const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in front of the trees along the back
 
 /**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
  * - a building replaces what it was built on (a farm its cropland, a mine its ore and
- *   mountain); a lumber camp keeps a smaller forest behind it.
+ *   mountain); a lumber camp stands in front of a grove along the back of its forest.
  * - a village replaces the terrain feature; it only stands on field or forest.
- * - game in a forest, ore on a mountain and a treasure in a forest share the tile: the
- *   terrain feature smaller at the back, the resource or chest smaller in front.
+ * - game or a treasure in a forest stands in front of a grove along the back of the tile;
+ *   ore or a treasure on a mountain shares the tile: the mountain smaller at the back,
+ *   the ore or chest smaller in front.
  * - a road is drawn under everything.
  * - a treasure under a unit is drawn small beside the figure, so a unit waiting to claim it never hides it.
  */
@@ -93,8 +95,8 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
     art =
       tile.building === 'lumberCamp' ? (
         <>
-          <g transform="translate(-2 -6) scale(0.7)">{feature}</g>
-          <g transform="translate(2 3) scale(0.85)"><BuildingMark building="lumberCamp" /></g>
+          {tile.terrain === 'forest' ? <Grove variant={v} /> : feature}
+          <g transform={BEFORE_GROVE}><BuildingMark building="lumberCamp" /></g>
         </>
       ) : (
         <BuildingMark building={tile.building} />
@@ -111,6 +113,13 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
         <>
           {feature}
           <g transform={BESIDE}>{item}</g>
+        </>
+      );
+    } else if (tile.terrain === 'forest' && item !== null) {
+      art = (
+        <>
+          <Grove variant={v} />
+          <g transform={BEFORE_GROVE}>{item}</g>
         </>
       );
     } else if (feature !== null && item !== null) {

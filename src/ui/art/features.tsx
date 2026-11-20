@@ -128,6 +128,20 @@ function forest(variant: number): ReactElement {
   return ink.done();
 }
 
+// A forest that shares its tile with a resource, a building or a chest: the trees stand along the back
+// edge, leaving the front of the tile clear for what stands there.
+const GROVES: readonly (readonly [number, number, number])[][] = [
+  [[-11, -4, 0.8], [0, -9, 0.85], [11, -5, 0.75]],
+  [[-12, -6, 0.85], [-2, -9.5, 0.75], [10, -6, 0.85]],
+  [[-10, -7, 0.8], [3, -9, 0.8], [13, -2, 0.7]],
+];
+
+export function Grove(p: { variant: number }): ReactElement {
+  const ink = new Ink();
+  for (const [x, y, s] of [...GROVES[Math.abs(Math.trunc(p.variant)) % 3]!].sort((a, b) => a[1] - b[1])) tree(ink, x, y, s);
+  return ink.done();
+}
+
 function mountain(variant: number): ReactElement {
   const ink = new Ink();
   const v = variant % 3;

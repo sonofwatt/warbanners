@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
-import type { FactionId, HexKey, UnitTypeId } from '../../engine';
+import type { FactionId, HexKey, Terrain, Tile, UnitTypeId } from '../../engine';
+import { TileArt } from '../board/Board';
 import { hexToBoard } from '../board/layout';
 import { FACTION_FIGURES, FIGURES } from './factionUnits';
 import type { FactionFigure } from './factionUnits';
@@ -16,6 +17,13 @@ import { ACCENT } from './palette';
 // board unit, each with a small label. Open it with ?sheet=1.
 
 const PX = 2; // pixels per board unit
+
+/** A tile key for each of the board's three terrain looks (variantOf in Board.tsx). */
+const VARIANT_KEYS: readonly HexKey[] = ['0,0', '1,0', '2,0'];
+
+function tile(terrain: Terrain, o: Partial<Tile> = {}): Tile {
+  return { terrain, resource: null, building: null, road: false, village: false, treasure: false, cityId: null, ...o };
+}
 const VIEW = { x: -40, y: -44, w: 80, h: 76 };
 
 function Cell(p: { label: string; ground: Ground; children?: ReactNode; veil?: boolean; tall?: boolean }): ReactElement {
@@ -208,18 +216,18 @@ export function ArtSheet(): ReactElement {
         <Cell label="cropland" ground="grass"><ResourceMark resource="cropland" /></Cell>
         <Cell label="game" ground="grass"><ResourceMark resource="game" /></Cell>
         <Cell label="ore" ground="rock"><ResourceMark resource="ore" /></Cell>
-        <Cell label="game in forest" ground="grass">
-          <TerrainFeature terrain="forest" variant={2} />
-          <ResourceMark resource="game" />
-        </Cell>
-        <Cell label="ore on mountain" ground="rock">
-          <TerrainFeature terrain="mountain" variant={0} />
-          <ResourceMark resource="ore" />
-        </Cell>
+        {/* Shared tiles are drawn by the board's own TileArt, so the sheet shows what a match shows. */}
+        {[0, 1, 2].map((v) => (
+          <Cell key={`g${v}`} label={`game in forest ${v}`} ground="grass"><TileArt k={VARIANT_KEYS[v]!} tile={tile('forest', { resource: 'game' })} /></Cell>
+        ))}
+        <Cell label="ore on mountain" ground="rock"><TileArt k="0,0" tile={tile('mountain', { resource: 'ore' })} /></Cell>
       </Section>
       <Section title="Buildings">
         <Cell label="farm" ground="grass"><BuildingMark building="farm" /></Cell>
         <Cell label="lumber camp" ground="grass"><BuildingMark building="lumberCamp" /></Cell>
+        {[0, 1, 2].map((v) => (
+          <Cell key={`l${v}`} label={`lumber camp in forest ${v}`} ground="grass"><TileArt k={VARIANT_KEYS[v]!} tile={tile('forest', { building: 'lumberCamp' })} /></Cell>
+        ))}
         <Cell label="mine" ground="rock"><BuildingMark building="mine" /></Cell>
         <Cell label="market" ground="grass"><BuildingMark building="market" /></Cell>
       </Section>
@@ -232,6 +240,7 @@ export function ArtSheet(): ReactElement {
       <Section title="Places">
         <Cell label="village" ground="grass"><Village /></Cell>
         <Cell label="treasure" ground="grass"><Treasure /></Cell>
+        <Cell label="treasure in forest" ground="grass"><TileArt k="0,0" tile={tile('forest', { treasure: true })} /></Cell>
         <Cell label="fog" ground="fog" />
         <Cell label="veiled forest" ground="grass" veil>
           <TerrainFeature terrain="forest" variant={0} />
