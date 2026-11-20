@@ -93,29 +93,36 @@ export function Veil(p: { children: ReactNode }): ReactElement {
 }
 
 const RING = { rx: 17, ry: 17 * 0.62 };
+const UNDER = '#1E2833'; // a dark band under every ring, so it reads on grass, sand, water and snow alike
+
+/** A ring on the tile's top face: a tint, a dark band, then the colour on top. */
+function ring(colour: string, fill: number): ReactElement {
+  return (
+    <>
+      <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill={colour} fillOpacity={fill} />
+      <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke={UNDER} strokeOpacity={0.45} strokeWidth={5} />
+      <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke={colour} strokeWidth={3.2} />
+    </>
+  );
+}
 
 export function Highlight(p: { mark: Mark }): ReactElement {
   switch (p.mark) {
     case 'move':
       return (
         <g>
-          <ellipse cx={0} cy={1.2} rx={8.6} ry={5.6} fill="#1E2833" fillOpacity={0.4} />
-          <ellipse cx={0} cy={0} rx={7.6} ry={4.8} fill="#FFFFFF" fillOpacity={0.95} />
+          <ellipse cx={0} cy={1.4} rx={10.4} ry={6.8} fill={UNDER} fillOpacity={0.45} />
+          <ellipse cx={0} cy={0} rx={9.2} ry={5.8} fill="#FFFFFF" fillOpacity={0.95} />
         </g>
       );
     case 'attack':
-      return (
-        <g>
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="#E0382B" fillOpacity={0.18} />
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#E0382B" strokeWidth={2.6} />
-        </g>
-      );
+      return <g>{ring('#F0402F', 0.22)}</g>;
     case 'ability':
+      // Violet, so it never reads as a capture's gold or an attack's red; dashed white over it.
       return (
         <g>
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="#F2C230" fillOpacity={0.3} />
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#3D2C00" strokeOpacity={0.45} strokeWidth={4.4} />
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#FFC81A" strokeWidth={2.8} strokeDasharray="5 3" />
+          {ring('#9B5CF6', 0.22)}
+          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#FFFFFF" strokeWidth={1.4} strokeDasharray="4 4" />
         </g>
       );
     case 'selected':
@@ -132,11 +139,12 @@ export function Highlight(p: { mark: Mark }): ReactElement {
     case 'capture':
       return (
         <g>
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#3D2C00" strokeOpacity={0.45} strokeWidth={4.4} />
-          <ellipse cx={0} cy={0} rx={RING.rx} ry={RING.ry} fill="none" stroke="#FFC81A" strokeWidth={2.8} />
-          <ellipse cx={-2} cy={2} rx={4} ry={1.8} fill="#000000" fillOpacity={0.16} />
-          <line x1={-2} y1={2} x2={-2} y2={-19} stroke="#6B4A2B" strokeWidth={1.5} strokeLinecap="round" />
-          <polygon points="-1.3,-19 11,-16 6.5,-13.5 11,-11 -1.3,-11" fill="#F2B705" />
+          {ring('#FFC81A', 0.2)}
+          {/* The flag stands at the ring's left edge, so a unit on the tile does not hide it. */}
+          <ellipse cx={-15} cy={1.4} rx={3.4} ry={1.5} fill="#000000" fillOpacity={0.2} />
+          <line x1={-15} y1={1.4} x2={-15} y2={-29} stroke="#4A3220" strokeWidth={1.8} strokeLinecap="round" />
+          <polygon points="-15.4,-30.2 -30,-27 -24.6,-24 -30,-21 -15.4,-18.8" fill={UNDER} fillOpacity={0.55} />
+          <polygon points="-15.6,-29.2 -28.4,-26.6 -23.4,-24 -28.4,-21.4 -15.6,-19.8" fill="#FFC81A" />
         </g>
       );
   }
