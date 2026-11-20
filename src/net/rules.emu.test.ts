@@ -4,7 +4,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { setLogLevel } from 'firebase/app';
-import { get, ref, remove, serverTimestamp, set, update, type Database } from 'firebase/database';
+import { get, goOffline, onDisconnect, ref, remove, serverTimestamp, set, update, type Database } from 'firebase/database';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { createMatch, hashState, type MatchSettings, type PlayerId } from '../engine';
 import {
@@ -13,6 +13,14 @@ import {
 
 // The project id is deliberately not the app's namespace (demo-banners), so loading rules here can never mask a
 // broken app namespace: src/net/firebase.emu.test.ts has its own canary for that one.
+//
+// What the rules accept by design (the trust model; docs/online.md, Task 14, repeats these):
+// - The server cannot tell a real drop from a claimed one. The current player may write their own presence off,
+//   wait, and come back with a return credit, stretching any turn by up to 3 minutes (DROP_PAUSE_MS).
+// - Stage 1 has no lobby leave and no way to clear an AI seat back to empty. A guest who comes back on a new
+//   identity before the start finds the room full; once the match has started, a takeover lets them back in.
+// - The endTurn and resign clauses assume two seats: an endTurn hands the turn to `1 - seat`, and a resign may
+//   move the turn only when it ends the match. Stage 4 (more players) must revisit them.
 
 const emu = describe.runIf(process.env.EMULATOR === '1');
 
@@ -22,6 +30,11 @@ const anon = (): Database => env.unauthenticatedContext().database() as unknown 
 const seed = (tree: Record<string, unknown>): Promise<void> =>
   env.withSecurityRulesDisabled((ctx) => update(ref(ctx.database() as unknown as Database), tree));
 const clear = (): Promise<void> => env.clearDatabase();
+async function adminGet(path: string): Promise<unknown> {
+  let out: unknown = null;
+  await env.withSecurityRulesDisabled(async (ctx) => { out = (await get(ref(ctx.database() as unknown as Database, path))).val(); });
+  return out;
+}
 
 const room = (db: Database) => ref(db, 'rooms/ABC234');
 const move = '{"to":"1,0","type":"move","unit":0}';
@@ -292,7 +305,7 @@ emu('database rules', () => {
     await playing(); await seed({ 'rooms/ABC234/head/turnAt': Date.now() - 100_000 }); await awayFor('u0', 60_000);
     await assertFails(update(room(as('u0')), { 'head/paused': 20_000 }));                                // no presence with it
     await assertFails(update(room(as('u0')), presentPatch('u0', 70_000)));                               // more than 60 s away
-    await assertFails(update(room(as('u0')), { ...presentPatch('u0', 20_000), 'head/turnAt': Date.now() })); // moves the turn start
+    await assertFails(update(room(as('u0')), { ...presentPatch('u0', 20_000), 'head/turnAt': Date.now() })); // moves the turn start (the turnAt pin refuses it first)
     await assertFails(update(room(as('u1')), presentPatch('u1', 20_000)));                               // not the current player
     await assertSucceeds(update(room(as('u0')), presentPatch('u0', 50_000)));
     await assertFails(update(room(as('u0')), presentPatch('u0', 55_000)));                               // already back: no more credit
@@ -321,6 +334,12 @@ emu('database rules', () => {
     await assertFails(update(room(as('u1')), resignAs(2, 0)));
     await assertSucceeds(update(room(as('u1')), resignAs(2, 1)));
   });
+  test('a resign moves the turn only when it ends the match', async () => {
+    await playing();
+    const passing = step(2, '{"player":0,"type":"resign"}', { seatAfter: 1, turnPassed: true, snap: '{}' });
+    await assertFails(update(room(as('u0')), passing));                                                  // the room still playing
+    await assertSucceeds(update(room(as('u0')), { ...passing, 'meta/phase': 'over' }));
+  });
   test('an AI seat is played by the host alone, and only the host moves its dial', async () => {
     await playing();
     await seed({ 'rooms/ABC234/seats/1': { ...BOT, level: 'adaptive' }, 'rooms/ABC234/head/seat': 1 });
@@ -331,6 +350,7 @@ emu('database rules', () => {
     await assertFails(update(room(as('u0')), step(2, move, { adapt: { seat: 0, value: { dial: 0.55, trend: 0.05 } } })));
     await assertSucceeds(update(room(as('u0')), aiMove));
     await assertSucceeds(update(room(as('u0')), endTurnAt(3, 0)));
+    await assertFails(update(room(as('u0')), step(4, move, { adapt: { seat: 1, value: { dial: 0.1, trend: 0 } } }))); // the host's own move
   });
   test('an absent player\'s seat can be taken over, a present one cannot', async () => {
     await playing();
@@ -400,6 +420,42 @@ emu('database rules', () => {
     await seed({ 'rooms/ABC234/desync/gone': { n: 1, hash: '0123456789abcdef', build: 'x' } });
     await assertFails(remove(ref(as('u9'), 'rooms/ABC234/desync/gone')));                                 // not a member
     await assertSucceeds(remove(ref(as('u0'), 'rooms/ABC234/desync/gone')));
+    const entry = { n: 2, hash: '0123456789abcdef', build: 'x' };
+    await assertFails(set(ref(as('u9'), 'rooms/ABC234/desync/u9'), entry));                               // not a member
+    await assertFails(set(ref(as('u9'), 'rooms/XYZ789/desync/u9'), entry));                               // no such room
+    await assertFails(set(ref(as('u9'), 'rooms/XYZ789/presence/u9'), { on: true, at: serverTimestamp() }));
+    expect(await adminGet('rooms/XYZ789')).toBe(null);
+  });
+  test('presence: an onDisconnect armed with serverTimestamp() passes the rules and stores the time of the drop', async () => {
+    await playing();
+    const db = as('u0');
+    const armedAt = Date.now();
+    await assertSucceeds(onDisconnect(ref(db, 'rooms/ABC234/presence/u0')).set({ on: false, at: serverTimestamp() }));
+    await new Promise((r) => setTimeout(r, 1_500));
+    goOffline(db);
+    let seen = null as { on?: boolean; at?: number } | null;
+    for (let i = 0; i < 50 && seen?.on !== false; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      seen = (await adminGet('rooms/ABC234/presence/u0')) as typeof seen;
+    }
+    expect(seen?.on).toBe(false);
+    expect(seen?.at ?? 0).toBeGreaterThanOrEqual(armedAt + 1_400);                                      // the drop, not the arming
+    await seed({ 'rooms/ABC234/head/turnAt': Date.now() - 100_000 });
+    await new Promise((r) => setTimeout(r, 1_000));
+    await assertFails(update(room(as('u0')), presentPatch('u0', 5_000)));                                // more than the time away
+    await assertSucceeds(update(room(as('u0')), presentPatch('u0', 500)));
+  });
+  test('a leftover with no meta never blocks a code: anyone may remove it, and a create lands over it', async () => {
+    const leftover = { 'rooms/ABC234/desync/u9': { n: 1, hash: '0123456789abcdef', build: 'x' } };
+    await seed(leftover);
+    await assertFails(remove(ref(anon(), 'rooms/ABC234')));
+    await assertSucceeds(remove(ref(as('u8'), 'rooms/ABC234')));
+    await seed({ ...leftover, 'rooms/ABC234/presence/u9': { on: false, at: 1 } });
+    await assertSucceeds(update(room(as('u0')), create('u0')));
+    await assertFails(update(room(as('u9')), create('u9')));                                              // now taken
+    await assertFails(remove(ref(as('u8'), 'rooms/ABC234')));
+    await clear(); await seed({ 'rooms/ABC234/members/u9': 0 });                                          // a forged meta-less member
+    await assertFails(set(ref(as('u9'), 'rooms/ABC234/desync/u9'), { n: 1, hash: HASH, build: 'x' }));
   });
   test('delete: the creator, or anyone once the room is idle for 30 days; never a child write', async () => {
     await playing();
@@ -423,6 +479,7 @@ emu('database rules', () => {
     for (const path of ['actions/2', 'head/n', 'seats/1/uid', 'match/settings', 'checks/9', 'meta/phase']) {
       await assertFails(set(ref(as('u9'), `rooms/ABC234/${path}`), 'x'));
     }
+    await assertFails(update(room(anon()), { 'head/hash': HASH }));                                        // an unchanged value, signed out
     for (const path of ['actions/1', 'seats/1', 'members/u1', 'match', 'meta', 'head', 'presence/u1']) {
       await assertFails(remove(ref(as('u0'), `rooms/ABC234/${path}`)));                                  // even the creator
     }
