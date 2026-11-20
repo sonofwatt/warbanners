@@ -16,10 +16,10 @@ export const NONE: Selection = { kind: 'none' };
 export interface ActionIndex {
   moves: Record<number, HexKey[]>; attacks: Record<number, HexKey[]>; lures: Record<number, HexKey[]>;
   abilities: Record<number, Partial<Record<AbilityId, HexKey[]>>>;
-  captures: number[]; campTrain: Record<number, Partial<Record<UnitTypeId, HexKey[]>>>;
+  captures: number[]; claims: number[]; campTrain: Record<number, Partial<Record<UnitTypeId, HexKey[]>>>;
   train: Record<number, UnitTypeId[]>; walls: number[]; rewards: number[];
   harvest: HexKey[]; build: Record<HexKey, BuildingId[]>; road: HexKey[]; research: TechId[];
-  activeUnits: number[];   // own units with a move, attack, ability, capture or camp training left
+  activeUnits: number[];   // own units with a move, attack, ability, capture, treasure claim or camp training left
 }
 
 // What the screen offers the viewer: the legal actions of the state the viewer can believe in, built from what the
@@ -46,7 +46,7 @@ function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): v
 
 export function indexActions(actions: readonly Action[]): ActionIndex {
   const ix: ActionIndex = {
-    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], campTrain: {}, train: {},
+    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], claims: [], campTrain: {}, train: {},
     walls: [], rewards: [], harvest: [], build: {}, road: [], research: [], activeUnits: [],
   };
   const active = new Set<number>();
@@ -64,6 +64,7 @@ export function indexActions(actions: readonly Action[]): ActionIndex {
         active.add(a.unit); break;
       }
       case 'capture': if (!ix.captures.includes(a.unit)) ix.captures.push(a.unit); active.add(a.unit); break;
+      case 'claimTreasure': if (!ix.claims.includes(a.unit)) ix.claims.push(a.unit); active.add(a.unit); break;
       case 'campTrain': {
         const per = ix.campTrain[a.unit] ?? (ix.campTrain[a.unit] = {});
         const list = per[a.unitType] ?? (per[a.unitType] = []);
@@ -96,7 +97,7 @@ function armedTargets(sel: Extract<Selection, { kind: 'unit' }>, ix: ActionIndex
 export function marksFor(sel: Selection, view: PlayerView, ix: ActionIndex): Record<HexKey, Mark> {
   const marks: Record<HexKey, Mark> = {};
   if (sel.kind === 'none') {
-    for (const id of ix.captures) {
+    for (const id of [...ix.captures, ...ix.claims]) {
       const u = unitById(view, id);
       if (isMine(view, u) && u !== undefined) marks[u.pos] = 'capture';
     }

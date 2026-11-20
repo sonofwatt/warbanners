@@ -41,7 +41,7 @@ export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId):
 export function watchMs(events: readonly GameEvent[], before: MatchState, after: MatchState, viewer: PlayerId): number {
   const { visible, seenUnits } = seenBy(before, after, viewer);
   const list = effectsFor(events, before, after, visible, seenUnits);
-  const moved = events.some((e) => (e.type === 'moved' || e.type === 'lured') && seenUnits.has(e.unit));
+  const moved = events.some((e) => (e.type === 'moved' || e.type === 'lured' || e.type === 'advanced') && seenUnits.has(e.unit));
   if (list.length === 0) return moved ? EFFECT_MS : 0;
   return Math.max(...list.map((f) => f.delay)) + EFFECT_MS;
 }
@@ -73,6 +73,7 @@ export function effectsFor(
     switch (e.type) {
       case 'moved':
       case 'lured':
+      case 'advanced':
         pos.set(e.unit, e.to);
         break;
       case 'attacked': {

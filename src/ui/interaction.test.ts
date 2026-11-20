@@ -141,3 +141,13 @@ test('after an action the selection is kept only while the unit can still do som
   expect(afterAction(unitSel(77), v, ix)).toEqual(NONE);
   expect(spentUnits(V, IX).size).toBe(0);
 });
+
+test('a unit waiting on a treasure is indexed, counts as able to act, and is marked like a capture', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  s.tiles['2,0']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 2, 0, { mp: 0 });
+  const v = playerView(s, 0), ix = indexActions(legalActions(s));
+  expect(ix.claims).toEqual([finder.id]);
+  expect(ix.activeUnits).toContain(finder.id);
+  expect(marksFor(NONE, v, ix)).toEqual({ '2,0': 'capture' });
+  expect(indexActions(legalActions({ ...s, current: 1 })).claims).toEqual([]);
+});

@@ -27,3 +27,29 @@ test('an attacker my side never saw is not named', () => {
   expect(lines.length).toBeGreaterThan(0);
   for (const line of lines) expect(line).toMatchObject({ by: null });
 });
+
+test('an enemy melee killer stepping into my lost unit\'s tile is told, only when my side can see it there', () => {
+  const play = (defenderAt: [number, number]) => {
+    const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    const rider = addUnit(s, 'horseman', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0, { hp: 1 }); addUnit(s, 'defender', 1, ...defenderAt);
+    const kill = applyAction(s, { type: 'attack', unit: rider.id, target: '1,0' }); if (!kill.ok) throw new Error(kill.reason);
+    expect(kill.events).toContainEqual({ type: 'advanced', unit: rider.id, from: '0,0', to: '1,0' });
+    return digestFor(1, [{ before: s, after: kill.state, events: kill.events }]);
+  };
+  expect(play([1, -1])).toEqual([{ kind: 'unitLost', unitType: 'warrior', by: 'horseman' }, { kind: 'tileTaken', by: 'horseman' }]);
+  expect(play([0, -1])).toEqual([{ kind: 'unitLost', unitType: 'warrior', by: 'horseman' }]);   // 2 from 1,0: out of sight
+});
+
+test('an enemy claiming a treasure my side can see is told; one in the fog is not', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  s.tiles['1,-2']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 1, -2);
+  const claim = applyAction(s, { type: 'claimTreasure', unit: finder.id }); if (!claim.ok) throw new Error(claim.reason);
+  expect(playerView(claim.state, 1).visible).toContain('1,-2');
+  expect(digestFor(1, [{ before: s, after: claim.state, events: claim.events }])).toEqual([{ kind: 'treasureTaken' }]);
+  expect(digestFor(0, [{ before: s, after: claim.state, events: claim.events }])).toEqual([]);
+  const f = blankMatch(); addCity(f, 0, 0, 3); addCity(f, 1, 0, -3);
+  f.tiles['3,0']!.treasure = true; const far = addUnit(f, 'warrior', 0, 3, 0);
+  const hidden = applyAction(f, { type: 'claimTreasure', unit: far.id }); if (!hidden.ok) throw new Error(hidden.reason);
+  expect(playerView(hidden.state, 1).visible).not.toContain('3,0');
+  expect(digestFor(1, [{ before: f, after: hidden.state, events: hidden.events }])).toEqual([]);
+});

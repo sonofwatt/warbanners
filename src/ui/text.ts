@@ -100,7 +100,7 @@ const reason: Record<string, string> = {
 
 const ui = {
   appName: 'Warbanners', rulesWord: 'rules',
-  walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture',
+  walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture', claimTreasure: 'Claim treasure',
   attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
   turn: 'Turn', endTurn: 'End turn', nextUnit: 'Next unit', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
   unitsCanAct: '{n} units can still act', oneUnitCanAct: '1 unit can still act', noUnitsCanAct: 'No units can still act',
@@ -115,6 +115,7 @@ const ui = {
   digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
   digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',
   digestCity: 'You lost a city.',
+  digestTileTaken: 'The {by} moved into its place.', digestTreasure: 'The enemy claimed a treasure.',
   offlineReady: 'Ready to play offline.',
   updateReady: 'A new version is ready.', updateButton: 'Update',
   installButton: 'Install', installIphone: 'Tap Share, then Add to Home Screen.',
@@ -181,6 +182,8 @@ export function unlocks(id: TechId): string[] {
 
 export function digestText(line: DigestLine): string {
   if (line.kind === 'cityLost') return T.ui.digestCity;
+  if (line.kind === 'treasureTaken') return T.ui.digestTreasure;
+  if (line.kind === 'tileTaken') return fill(T.ui.digestTileTaken, { by: T.unit[line.by].name });
   const name = T.unit[line.unitType].name;
   const by = line.by === null ? null : T.unit[line.by].name;
   if (line.kind === 'unitLost') return by === null ? fill(T.ui.digestLost, { unit: name }) : fill(T.ui.digestLostBy, { unit: name, by });

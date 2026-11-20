@@ -85,3 +85,13 @@ test('unit commands: abilities arm, a camp lists what it can train, a lure asks,
   expect(playerView(es, 0).units.some(u => u.id === foe.id)).toBe(true);
   expect(unitCommands(unitSel(foe.id), es, ixOf(es))).toEqual([]);
 });
+
+test('a unit that has waited on a treasure is offered Claim treasure', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  s.tiles['2,0']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 2, 0);
+  expect(unitCommands(unitSel(finder.id), s, ixOf(s))).toEqual([
+    { id: 'claimTreasure', label: T.ui.claimTreasure, cost: null, enabled: true, why: null, action: { type: 'claimTreasure', unit: finder.id }, arm: null },
+  ]);
+  const walker = addUnit(s, 'warrior', 0, -2, 0, { moved: true }); s.tiles['-2,0']!.treasure = true;   // arrived this turn
+  expect(unitCommands(unitSel(walker.id), s, ixOf(s))).toEqual([]);
+});

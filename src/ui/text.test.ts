@@ -31,4 +31,6 @@ test('digest lines read as sentences', () => {
   expect(digestText({ kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
   expect(digestText({ kind: 'unitHurt', unitType: 'warrior', damage: 4, by: null })).toBe('Your Warrior took 4 damage.');
   expect(digestText({ kind: 'cityLost' })).toBe('You lost a city.');
+  expect(digestText({ kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');
+  expect(digestText({ kind: 'treasureTaken' })).toBe('The enemy claimed a treasure.');
 });

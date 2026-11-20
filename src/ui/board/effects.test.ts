@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { applyAction, playerView } from '../../engine';
 import type { GameEvent, MatchState } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
-import { EFFECT_MS, MAX_TOTAL_MS, effectsFor, seenBy } from './effects';
+import { EFFECT_MS, MAX_TOTAL_MS, effectsFor, seenBy, watchMs } from './effects';
 
 /** Every unit in either state: for the tests about tiles, where every unit is in sight. */
 const everyone = (...states: MatchState[]): Set<number> => new Set(states.flatMap((x) => x.units.map((u) => u.id)));
@@ -182,4 +182,21 @@ test('seenBy keeps no earlier state alive: while the latest state lives, the sta
   gc();
   expect(earlier.filter((w) => w.deref() !== undefined).length).toBe(0);
   expect(last.units.length).toBeGreaterThan(0);   // the latest state was alive through the collection
+});
+
+test('a melee kill slides the killer into the tile: the fall is drawn where the victim stood, and the viewer waits for the slide', () => {
+  const { s, rider } = killPosition();
+  const r = applyAction(s, { type: 'attack', unit: rider.id, target: '1,0' });
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.events).toContainEqual({ type: 'advanced', unit: rider.id, from: '0,0', to: '1,0' });
+  const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state));
+  expect(fx.find((f) => f.kind === 'fall')).toMatchObject({ at: '1,0' });
+  expect(watchMs([{ type: 'advanced', unit: rider.id, from: '0,0', to: '1,0' }], s, r.state, 1)).toBe(EFFECT_MS);
+});
+test('an advance by a unit the viewer never sees is not waited for', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const scout = addUnit(s, 'scout', 0, 3, -1);
+  const after = structuredClone(s); after.units.find((u) => u.id === scout.id)!.pos = '3,0';
+  expect(playerView(after, 1).units.some((u) => u.id === scout.id)).toBe(false);
+  expect(watchMs([{ type: 'advanced', unit: scout.id, from: '3,-1', to: '3,0' }], s, after, 1)).toBe(0);
 });

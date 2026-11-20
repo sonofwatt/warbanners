@@ -22,7 +22,7 @@ const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
   { name: 'fall', types: ['died'] },
   { name: 'hit', types: ['attacked', 'splashed'] },
   { name: 'build', types: ['built', 'trained', 'researched', 'reward', 'cityLevel', 'treasure', 'ability'] },
-  { name: 'move', types: ['moved', 'lured'] },
+  { name: 'move', types: ['moved', 'lured', 'advanced'] },
 ];
 
 // Whether the viewer may hear of an event. A hit, splash or death of a unit outside `seenUnits` (the ids the viewer
@@ -30,7 +30,8 @@ const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
 // never tells of a hidden unit.
 function heard(e: GameEvent, seenUnits: ReadonlySet<number>): boolean {
   switch (e.type) {
-    case 'died': return seenUnits.has(e.unit);
+    case 'died':
+    case 'advanced': return seenUnits.has(e.unit);
     case 'attacked':
     case 'splashed': return seenUnits.has(e.target);
     default: return true;
