@@ -145,11 +145,12 @@ export function Highlight(p: { mark: Mark }): ReactElement {
       return (
         <g>
           {ring('#FFC81A', 0.2)}
-          {/* The flag stands at the ring's left edge, so a unit on the tile does not hide it. */}
-          <ellipse cx={-15} cy={1.4} rx={3.4} ry={1.5} fill="#000000" fillOpacity={0.2} />
-          <line x1={-15} y1={1.4} x2={-15} y2={-29} stroke="#4A3220" strokeWidth={1.8} strokeLinecap="round" />
-          <polygon points="-15.4,-30.2 -30,-27 -24.6,-24 -30,-21 -15.4,-18.8" fill={UNDER} fillOpacity={0.55} />
-          <polygon points="-15.6,-29.2 -28.4,-26.6 -23.4,-24 -28.4,-21.4 -15.6,-19.8" fill="#FFC81A" />
+          {/* The flag stands outside the ring, left of x -21, where no figure reaches (every part of
+              every figure stays within x -20 to 20), so streamers, bows and tails never cover it. */}
+          <ellipse cx={-22.5} cy={2} rx={3.4} ry={1.5} fill="#000000" fillOpacity={0.2} />
+          <line x1={-22.5} y1={2} x2={-22.5} y2={-29} stroke="#4A3220" strokeWidth={1.8} strokeLinecap="round" />
+          <polygon points="-22.9,-30.2 -35,-27.4 -30.6,-24.4 -35,-21.4 -22.9,-18.8" fill={UNDER} fillOpacity={0.55} />
+          <polygon points="-23.1,-29.2 -33.4,-27 -29.2,-24.4 -33.4,-21.8 -23.1,-19.8" fill="#FFC81A" />
         </g>
       );
   }
