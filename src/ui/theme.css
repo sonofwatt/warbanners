@@ -180,7 +180,9 @@ input:focus { border-color: var(--blue); }
 .screen.home { justify-content: safe center; }
 /* A strip of the board under the saved matches: decoration only. */
 .home-scene { display: block; width: 100%; max-width: 420px; height: auto; margin: var(--s2) auto 0; flex: none; }
-.version { text-align: center; font-size: var(--t-xs); font-weight: 600; padding: var(--s2); color: var(--ink); }
+/* Quiet but legible: 13px, ink on the sky (8 to 1) on Home, soft ink on paper inside the Menu sheet. */
+.version { text-align: center; font-size: var(--t-s); font-weight: 650; padding: var(--s3) var(--s3) var(--s4); color: var(--ink); overflow-wrap: anywhere; }
+.menu .version { color: var(--ink-soft); padding: var(--s3) 0 0; margin: 0; }
 
 /* Setup */
 .setup-names, .setup-row { display: flex; flex-direction: column; gap: var(--s3); }

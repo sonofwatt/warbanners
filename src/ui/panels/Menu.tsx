@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactElement } from 'react';
 import { CloseIcon, FlagIcon, HomeIcon, MenuIcon, SpeakerIcon } from '../icons';
 import { T } from '../text';
+import { Version } from '../Version';
 
 export interface MenuProps { soundOn: boolean; onToggleSound: () => void; onResign: () => void; onHome: () => void; onClose: () => void }
 
@@ -26,6 +27,7 @@ export function Menu(p: MenuProps): ReactElement {
       )}
       <button type="button" className="menu-item" data-testid="go-home" onClick={p.onHome}><HomeIcon />{T.ui.home}</button>
       <button type="button" className="menu-item quiet" data-testid="close-sheet" onClick={p.onClose}><CloseIcon />{T.ui.close}</button>
+      <Version as="p" />
     </section>
   );
 }

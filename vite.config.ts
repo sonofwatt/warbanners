@@ -1,7 +1,19 @@
 /// <reference types="node" />
+import { execFileSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
+
+// The day of the commit being built (its own date, so the same commit always gives the same day). 'dev' outside CI.
+function buildDate(): string {
+  const sha = process.env.GITHUB_SHA;
+  if (sha === undefined || !/^[0-9a-f]{7,40}$/i.test(sha)) return 'dev';
+  try {
+    return execFileSync('git', ['show', '-s', '--format=%cs', sha], { encoding: 'utf8' }).trim() || 'dev';
+  } catch {
+    return 'dev';
+  }
+}
 
 export default defineConfig({
   base: process.env.GITHUB_PAGES_BASE ?? '/',
@@ -35,6 +47,9 @@ export default defineConfig({
       },
     }),
   ],
-  define: { __BUILD__: JSON.stringify((process.env.GITHUB_SHA ?? 'dev').slice(0, 7)) },
+  define: {
+    __BUILD__: JSON.stringify((process.env.GITHUB_SHA ?? 'dev').slice(0, 7)),
+    __BUILD_DATE__: JSON.stringify(buildDate()),
+  },
   test: { environment: 'node', include: ['src/**/*.test.{ts,tsx}'] },
 });
