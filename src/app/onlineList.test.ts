@@ -64,7 +64,36 @@ test('the oldest finished entries go first when the list is full, and their cach
 test('a failing store never throws', () => {
   const bad = { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); }, removeItem: () => { throw new Error('no'); } };
   expect(listOnline(bad)).toEqual([]);
-  expect(() => { rememberOnline(bad, entry('ABC234'), null); forgetOnline(bad, 'ABC234'); setPendingRoom(bad, 'ABC234'); }).not.toThrow();
+  expect(rememberOnline(bad, entry('ABC234'), null).saved).toBe(false);
+  expect(() => { forgetOnline(bad, 'ABC234'); setPendingRoom(bad, 'ABC234'); }).not.toThrow();
   expect(readOnlineCache(bad, 'ABC234')).toBeNull();
   expect(takePendingRoom(bad)).toBeNull();
+});
+test('a refused list write reports failure, keeps the old list and leaves no orphan cache', () => {
+  const kv = memKv();
+  rememberOnline(kv, entry('ABC234'), null);
+  const refuse = { ...kv, setItem: () => { throw new Error('quota'); } };
+  const rec = newRecord('online-DEF567', { seed: 42, factions: ['spartans', 'mongols'] }, ['Ann', 'Ben'], 1);
+  expect(rememberOnline(refuse, entry('DEF567'), rec)).toEqual({ saved: false, droppedUnfinished: false, dropped: [], cached: false });
+  expect(listOnline(kv).map(e => e.code)).toEqual(['ABC234']);
+  expect(kv.map.has('warbanners.online.DEF567')).toBe(false);
+});
+test('a refused cache write still lists the entry and says the cache is missing', () => {
+  const kv = memKv();
+  const noCache = { ...kv, setItem: (k: string, v: string) => { if (k !== 'warbanners.online.v1') throw new Error('quota'); kv.setItem(k, v); } };
+  const rec = newRecord('online-ABC234', { seed: 42, factions: ['spartans', 'mongols'] }, ['Ann', 'Ben'], 1);
+  expect(rememberOnline(noCache, entry('ABC234'), rec)).toEqual({ saved: true, droppedUnfinished: false, dropped: [], cached: false });
+  expect(listOnline(kv).map(e => e.code)).toEqual(['ABC234']);
+});
+test('making room reports what went, and says so when an unfinished match went', () => {
+  const kv = memKv();
+  for (let i = 0; i < MAX_ONLINE; i++) rememberOnline(kv, entry(`${CODE_ALPHABET[i]}AAAA2`, { updatedAt: 100 + i, over: i === 3 }), null);
+  expect(rememberOnline(kv, entry('ZZZZZ2', { updatedAt: 500 }), null)).toEqual({ saved: true, droppedUnfinished: false, dropped: ['DAAAA2'], cached: true });
+  expect(rememberOnline(kv, entry('YYYYY2', { updatedAt: 600 }), null)).toMatchObject({ saved: true, droppedUnfinished: true, dropped: ['AAAAA2'] });
+});
+test('forgetting still updates the list when the cache removal throws', () => {
+  const kv = memKv();
+  rememberOnline(kv, entry('ABC234'), null);
+  forgetOnline({ ...kv, removeItem: () => { throw new Error('no'); } }, 'ABC234');
+  expect(listOnline(kv)).toEqual([]);
 });

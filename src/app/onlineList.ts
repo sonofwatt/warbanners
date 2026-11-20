@@ -63,18 +63,33 @@ function toDrop(others: readonly OnlineEntry[]): OnlineEntry[] {
   return [...oldestFirst.filter(e => e.over), ...oldestFirst.filter(e => !e.over)].slice(0, excess);
 }
 
+// What became of a write. `saved` is false when the phone refused, and then the previous list stays in place.
+// `droppedUnfinished` is true when making room cost an unfinished match from the list (the room itself survives on
+// the server, but this phone loses its pointer), which the player is told about. `dropped` are the codes that went.
+// `cached` is false when the record cache could not be written; the entry is still listed, only the instant start is lost.
+export interface OnlineOutcome { saved: boolean; droppedUnfinished: boolean; dropped: string[]; cached: boolean }
+
 // `cache` is the last known record, kept for an instant start; null leaves any earlier cache as it is.
-export function rememberOnline(kv: KeyValue, e: OnlineEntry, cache: MatchRecord | null): void {
+// The list is written first, so a failed list write leaves no orphan cache key, and a failed cache write
+// never costs the entry its place in the list.
+export function rememberOnline(kv: KeyValue, e: OnlineEntry, cache: MatchRecord | null): OnlineOutcome {
+  let dropped: OnlineEntry[];
   try {
     const others = readList(kv).filter(x => x.code !== e.code);
-    const dropped = toDrop(others);
+    dropped = toDrop(others);
     const list = [...others.filter(x => !dropped.includes(x)), e].sort(newestFirst);
-    if (cache !== null) kv.setItem(cacheKey(e.code), JSON.stringify(cache));
     kv.setItem(LIST_KEY, JSON.stringify(list));
-    for (const d of dropped) {
-      try { kv.removeItem(cacheKey(d.code)); } catch { /* the list no longer names it */ }
-    }
-  } catch { /* the phone refused: the previous list stays */ }
+  } catch {
+    return { saved: false, droppedUnfinished: false, dropped: [], cached: false };
+  }
+  let cached = true;
+  if (cache !== null) {
+    try { kv.setItem(cacheKey(e.code), JSON.stringify(cache)); } catch { cached = false; }
+  }
+  for (const d of dropped) {
+    try { kv.removeItem(cacheKey(d.code)); } catch { /* the list no longer names it */ }
+  }
+  return { saved: true, droppedUnfinished: dropped.some(d => !d.over), dropped: dropped.map(d => d.code), cached };
 }
 
 export function readOnlineCache(kv: KeyValue, code: string): Restored | null {
@@ -90,7 +105,7 @@ export function readOnlineCache(kv: KeyValue, code: string): Restored | null {
 export function forgetOnline(kv: KeyValue, code: string): void {
   try {
     if (!isRoomCode(code)) return;
-    kv.removeItem(cacheKey(code));
+    try { kv.removeItem(cacheKey(code)); } catch { /* the list is still updated */ }
     kv.setItem(LIST_KEY, JSON.stringify(readList(kv).filter(e => e.code !== code)));
   } catch { /* nothing more to do */ }
 }
