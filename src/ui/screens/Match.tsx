@@ -5,9 +5,11 @@ import {
 } from '../../engine';
 import type { FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
 import { roundOf } from '../../app/record';
+import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
-import { T } from '../text';
-import { marksFor, offered, spentUnits } from '../interaction';
+import { formatClock } from '../../online/clock';
+import { T, fill } from '../text';
+import { indexActions, marksFor, offered, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
 import { isMuted, play, setMuted, soundFor } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
@@ -25,9 +27,11 @@ import { Effects } from '../board/Effects';
 import { effectsFor, seenBy } from '../board/effects';
 import { buildScene } from '../board/scene';
 import { FACTION_COLOUR } from './colour';
+import { failureText } from './Join';
 import { NoticeLine } from './NoticeLine';
 
 export const END_TURN_LOCK_MS = 600;
+export const TIME_UP_MS = 4000;
 
 // Everything drawn for one viewer, worked out once. The board takes items (from view, marks and spent), radius,
 // factions and focus; the panels take the rest. This is the only place the app calls playerView.
@@ -36,14 +40,16 @@ export interface MatchData {
   focus: HexKey | null; radius: number; factions: [FactionId, FactionId];
 }
 
-export function matchData(state: MatchState, viewer: PlayerId, selection: Selection): MatchData {
+// `acts` is false online while the session says it is not this phone's turn (the other phone's turn, a return
+// still landing, an End turn on its way): nothing is offered then, even on the viewer's own turn.
+export function matchData(state: MatchState, viewer: PlayerId, selection: Selection, acts = true): MatchData {
   const view = playerView(state, viewer);
-  const ix = offered(state, viewer);
+  const ix = acts ? offered(state, viewer) : indexActions([]);
   const capital = view.cities.find((c) => c.owner === viewer && c.capital);
   const first = view.units.find((u) => u.owner === viewer);
   return {
     // Off the viewer's turn (the AI is playing) nothing is offered, and no unit is drawn as spent.
-    view, ix, marks: marksFor(selection, view, ix), spent: state.current === viewer ? spentUnits(view, ix) : new Set(),
+    view, ix, marks: marksFor(selection, view, ix), spent: acts && state.current === viewer ? spentUnits(view, ix) : new Set(),
     focus: capital?.pos ?? first?.pos ?? null, radius: state.radius,
     factions: [state.players[0]!.faction, state.players[1]!.faction],
   };
@@ -57,7 +63,7 @@ export function turnFocus(held: TurnFocus | null, key: string, focus: HexKey): T
   return held !== null && held.key === key ? held : { key, focus };
 }
 
-type Sheet = 'none' | 'tech' | 'menu';
+export type Sheet = 'none' | 'tech' | 'menu';
 
 // Next unit is greyed, like End turn, while the AI plays, during End turn's lock and while a sheet or overlay is
 // up, and also when none of the viewer's units can still act.
@@ -65,7 +71,14 @@ export function nextUnitDisabled(p: { canAct: number; aiBusy: boolean; locked: b
   return p.canAct === 0 || p.aiBusy || p.locked || p.covered;
 }
 
-export function Match(): ReactElement | null {
+// The one line over the board about the online match: the connection, the other player's, or the clock.
+// The notices the match screen shows; the rest wait for Home.
+const MATCH_NOTICES: ReadonlySet<Notice> = new Set<Notice>(['saveFailed', 'blockedUnseen', 'aiPassed', 'resignLost', 'onlineListFailed', 'onlineListDropped']);
+
+type OnlineLine = { text: string; testid: string } | null;
+
+// `openSheet` opens the match with a sheet already up (the screen tests use it; the app never passes it).
+export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): ReactElement | null {
   const state = useApp((s) => s.state);
   const record = useApp((s) => s.record);
   const viewer = useApp((s) => s.viewer);
@@ -81,9 +94,16 @@ export function Match(): ReactElement | null {
   const notice = useApp((s) => s.notice);
   const dismissNotice = useApp((s) => s.dismissNotice);
   const aiBusy = useApp((s) => s.aiBusy);
-  const myTurn = useApp((s) => s.state !== null && s.viewer !== null && s.state.current === s.viewer);
+  const mode = useApp((s) => s.mode);
+  const online = useApp((s) => s.online);
+  const resignOnline = useApp((s) => s.resignOnline);
+  const isOnline = mode === 'online';
+  // Online the session has the last word on whose turn it is; locally the state does.
+  const myTurn = useApp((s) => (s.mode === 'online'
+    ? s.online?.myTurn === true
+    : s.state !== null && s.viewer !== null && s.state.current === s.viewer));
 
-  const [sheet, setSheet] = useState<Sheet>('none');
+  const [sheet, setSheet] = useState<Sheet>(openSheet);
   const [locked, setLocked] = useState(true);
   const [soundOn, setSoundOn] = useState(() => !isMuted());
   const [later, setLater] = useState<number[]>([]);
@@ -98,12 +118,24 @@ export function Match(): ReactElement | null {
     return () => clearTimeout(t);
   }, [myTurn]);
 
+  // Time up: shown for a few seconds after the clock ended this phone's own turn, never for an old one.
+  const timedOut = online?.timedOut ?? null;
+  const timeSeen = useRef(timedOut);
+  const [timeUp, setTimeUp] = useState(false);
+  useEffect(() => {
+    if (timedOut === null || timedOut === timeSeen.current) return undefined;
+    timeSeen.current = timedOut;
+    setTimeUp(true);
+    const t = setTimeout(() => setTimeUp(false), TIME_UP_MS);
+    return () => clearTimeout(t);
+  }, [timedOut]);
+
   const heard = useRef(last?.seq ?? 0);
   const shownBefore = useRef(last?.seq ?? 0);
 
   const data = useMemo(
-    () => (state === null || viewer === null ? null : matchData(state, viewer, selection)),
-    [state, viewer, selection],
+    () => (state === null || viewer === null ? null : matchData(state, viewer, selection, !isOnline || myTurn)),
+    [state, viewer, selection, isOnline, myTurn],
   );
   // The effects of each action accepted while this screen is up, for this viewer's eyes only: effectsFor drops
   // every tile the viewer cannot see and every unit the viewer could not see before the action and cannot see
@@ -183,9 +215,36 @@ export function Match(): ReactElement | null {
   // In landscape the board takes the side column too while nothing is shown there.
   const side = sheet !== 'none' || panel !== null;
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
-  const nextDisabled = nextUnitDisabled({
+  const waiting = isOnline && !myTurn;
+  const nextDisabled = waiting || nextUnitDisabled({
     canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
   });
+  const nameOf = (p: PlayerId): string => record.players[p]?.name ?? '';
+
+  // Online: whose turn, the clock, the line over the board, and the sheet a desync puts over it all.
+  let status: string | undefined;
+  let clock: string | undefined;
+  let line: OnlineLine = null;
+  if (isOnline) {
+    const settled = online !== null && online.connected && !online.returning;
+    // Whose turn, always: the line over the board says when the connection is the trouble.
+    status = state.current === viewer ? T.ui.yourTurn : fill(T.ui.theirTurn, { name: nameOf(state.current) });
+    if (online !== null && online.clock.kind !== 'off' && online.secondsLeft !== null && state.winner === null) {
+      clock = online.clock.kind === 'paused' ? T.ui.clockPaused : formatClock(online.secondsLeft);
+    }
+    const away = online?.absent.find((p) => p !== viewer);
+    if (online === null) line = { text: T.ui.connecting, testid: 'online-connecting' };
+    else if (!settled) line = { text: T.ui.reconnecting, testid: 'online-reconnecting' };
+    else if (online.phase === 'failed') line = { text: online.failure !== null ? failureText(online.failure, online) : T.ui.openFailed, testid: 'online-failed' };
+    else if (away !== undefined && state.winner === null) {
+      const clockOff = (online.room?.meta.clock ?? 0) === 0;
+      const words = clockOff ? T.ui.droppedNoClock : away === state.current ? T.ui.dropped : T.ui.droppedWaiting;
+      line = { text: fill(words, { name: nameOf(away) }), testid: 'online-dropped' };
+    } else if (timeUp) line = { text: T.ui.timeUp, testid: 'online-time-up' };
+  }
+  const desync = isOnline && online?.phase === 'desync';
+  const resignDisabled = aiBusy || (online === null && !myTurn)
+    || (online !== null && (!online.connected || online.returning || online.phase !== 'playing'));
   const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
   const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
 
@@ -194,7 +253,8 @@ export function Match(): ReactElement | null {
       <Hud
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
-        unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy} thinking={aiBusy}
+        unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting} thinking={aiBusy && !isOnline}
+        status={status} clock={clock} clockPaused={online?.clock.kind === 'paused'}
         nextDisabled={nextDisabled} onNextUnit={onNextUnit}
         onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
@@ -205,8 +265,11 @@ export function Match(): ReactElement | null {
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
       </div>
-      {notice === 'saveFailed' || notice === 'blockedUnseen' || notice === 'aiPassed' ? (
-        <div className="match-notice" data-testid="match-notice"><NoticeLine notice={notice} onDismiss={dismissNotice} /></div>
+      {line !== null || (notice !== null && MATCH_NOTICES.has(notice)) ? (
+        <div className="match-notice" data-testid="match-notice">
+          {line !== null ? <p className="online-line" data-testid={line.testid} role="status">{line.text}</p> : null}
+          {notice !== null && MATCH_NOTICES.has(notice) ? <NoticeLine notice={notice} onDismiss={dismissNotice} /> : null}
+        </div>
       ) : null}
       {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
       {sheet === 'tech' ? (
@@ -214,14 +277,21 @@ export function Match(): ReactElement | null {
       ) : null}
       {sheet === 'menu' ? (
         <Menu
-          soundOn={soundOn} onToggleSound={toggleSound} onResign={() => run({ type: 'resign' })} resignDisabled={aiBusy || !myTurn}
-          onHome={goHome} onClose={() => setSheet('none')}
+          soundOn={soundOn} onToggleSound={toggleSound} onResign={isOnline ? resignOnline : () => run({ type: 'resign' })}
+          resignDisabled={isOnline ? resignDisabled : aiBusy || !myTurn}
+          onHome={goHome} onClose={() => setSheet('none')} onlineNote={isOnline ? T.ui.homeWaits : undefined}
         />
       ) : null}
       {digest.length > 0 ? (
         <div className="overlay" data-testid="digest">
           <DigestCard lines={digest} />
           <button type="button" className="primary" data-testid="digest-ok" onClick={dismissDigest}>{T.ui.gotIt}</button>
+        </div>
+      ) : null}
+      {desync ? (
+        <div className="overlay desync" data-testid="desync">
+          <div className="digest desync-card"><p>{T.ui.desync}</p></div>
+          <button type="button" className="primary" data-testid="desync-home" onClick={goHome}>{T.ui.home}</button>
         </div>
       ) : null}
       {rewardCity !== undefined ? (

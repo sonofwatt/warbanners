@@ -213,7 +213,7 @@ test('the match screen draws Next unit, greyed while End turn is locked', () => 
   store.getState().startMatch(SETUP);
   store.getState().ready();
   const html = render(store, <Match />);
-  expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="next-unit"/);   // the lock is on when the screen first draws
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="next-unit"|<button[^>]*data-testid="next-unit"[^>]*disabled=""/);   // the lock is on when the screen first draws
 });
 
 test('an enemy city opened from under my unit shows only what the board shows', () => {

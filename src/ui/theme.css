@@ -567,3 +567,97 @@ input:focus { border-color: var(--blue); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .chip { flex: 1 1 auto; min-height: 44px; padding: 0 var(--s3); border-radius: 999px; font-weight: 750; }
 .chip.on { background: var(--sea); color: var(--on-colour); }
+
+/* ---- Online play ---- */
+/* Home: the two ways into online play, side by side under New match. */
+.home-online { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+.home-online > button { min-height: 52px; padding: 0 var(--s2) var(--thick); text-align: center; }
+.home-online > button:disabled { padding-bottom: 0; }
+/* The room code: big, ink on gold paper, in a fixed-width face. The code's letters leave out O, 0, I and 1, so
+   none of them can be read as another. */
+.room-code {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  font-weight: 900; font-size: clamp(34px, 11vw, 48px); letter-spacing: 0.14em; line-height: 1.1;
+  font-variant-ligatures: none; text-align: center; color: var(--ink);
+}
+.room-code.small { font-size: var(--t-h3); letter-spacing: 0.12em; color: var(--ink-soft); }
+.lobby-code {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s2);
+  background: var(--paper); border-radius: var(--r-l); padding: var(--s3) var(--s3) calc(var(--s3) + 5px);
+  box-shadow: inset 0 -5px 0 var(--paper-edge), var(--lift);
+}
+.lobby-code > span { font-size: var(--t-s); font-weight: 850; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-soft); }
+.lobby-code .room-code { padding-left: 0.14em; /* the last letter's spacing, so the code sits in the middle */ }
+.lobby-code > button { width: min(100%, 300px); }
+.copied { font-size: var(--t-m); font-weight: 750; color: var(--grass-ink); }
+/* Both seats: a banner, the name and the side, in the side's colour. */
+.lobby-seats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+.lobby-seat {
+  position: relative; display: flex; align-items: center; gap: var(--s2); min-width: 0;
+  padding: var(--s2) var(--s3) calc(var(--s2) + 5px); border-radius: var(--r-l);
+  background: var(--player); color: var(--on-colour); box-shadow: inset 0 -5px 0 var(--player-dark);
+}
+.lobby-seat .banner-mark { width: 36px; height: 36px; padding: 3px; flex: none; border-radius: 50%; background: var(--paper); }
+.lobby-seat.open { background: var(--paper-2); color: var(--ink-soft); box-shadow: inset 0 0 0 2px var(--paper-edge); }
+.lobby-seat.open .banner-mark { opacity: 0.45; }
+.lobby-seat-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.lobby-seat-text strong { font-weight: 850; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-seat-text small { font-size: var(--t-xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.lobby-you {
+  position: absolute; top: -8px; right: 8px; background: var(--gold); color: var(--ink); border-radius: 999px;
+  padding: 0 8px; font-size: var(--t-2xs); font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.lobby-wait:empty { display: none; }
+/* A side to play: the chip carries the side's banner. */
+.chip.side { gap: 6px; }
+.chip.side .banner-mark { width: 24px; height: 24px; }
+.clock-chips .chip { flex: 1 1 0; min-width: 52px; padding: 0 6px; white-space: nowrap; font-size: var(--t-ml); }
+/* Join: the code field in the code's own face. */
+.join-form { display: flex; flex-direction: column; gap: var(--s3); }
+.code-input {
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  font-size: var(--t-h3); font-weight: 850; letter-spacing: 0.2em; text-transform: uppercase; text-align: center;
+}
+.join-wait { font-weight: 700; text-align: center; padding: var(--s3) 0; }
+.join-problem > span { flex-basis: 12em; }
+/* The match: the clock pill, and one line about the connection over the top of the board. */
+.pill.clock { color: var(--ink); }
+.pill.clock .icon { width: 18px; height: 18px; --icon-cut: var(--paper-2); }
+.pill.clock.paused { background: var(--sand); color: var(--ink-soft); }
+.match-notice { display: flex; flex-direction: column; gap: var(--s2); pointer-events: none; }
+.match-notice > * { pointer-events: auto; }
+.online-line {
+  margin: 0; align-self: center; max-width: 100%;
+  background: var(--ink); color: var(--paper); border-radius: 999px; padding: 6px var(--s4);
+  font-size: var(--t-m); font-weight: 700; text-align: center; box-shadow: var(--lift);
+}
+.menu-note { margin: calc(-1 * var(--s1)) 0 0; padding: 0 var(--s2); font-size: var(--t-m); font-weight: 600; color: var(--ink-soft); }
+.overlay > .desync-card { font-weight: 700; }
+.overlay > .desync-card p { margin: 0; color: var(--ink); }
+/* A narrow phone: the clock pill keeps only its numbers, and the turn pill its number, so the Hud keeps to two rows. */
+@media (max-width: 400px) {
+  .pill.clock .icon { display: none; }
+  .pill.clock { padding-left: 8px; }
+}
+/* A notice that asks (Update now?): the words take the whole width, the answers share the row under them. */
+.notice.asks > span { flex: 1 1 calc(100% - 40px); }
+.notice.asks > button { flex: 1 1 0; margin-left: 0; }
+/* The Hud's turn line: at most two lines in its corner, never squeezed to nothing; a very long name is cut. */
+.can-act[data-testid="hud-status"] {
+  min-width: 56px; flex: 0 1 auto; overflow: hidden; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+}
+/* A short, narrow landscape phone keeps its one-row Hud with the clock in it: the clock keeps only its numbers and
+   takes the round pill's place (the round is on the Turn pill again once the clock is off). */
+@media (orientation: landscape) and (max-width: 700px) {
+  .hud.has-clock .pill.turn { display: none; }
+  .pill.clock .icon { display: none; }
+  .pill.clock { padding-left: 8px; }
+  .can-act[data-testid="hud-status"] { max-width: 72px; }
+}
+/* A short screen: the room code, its label and the invite on one row. */
+@media (max-height: 500px) {
+  .lobby-code { flex-direction: row; flex-wrap: wrap; justify-content: center; column-gap: var(--s4); padding: var(--s2) var(--s3) calc(var(--s2) + 5px); }
+  .lobby-code .room-code { font-size: 34px; }
+  .lobby-code > button { width: auto; }
+}

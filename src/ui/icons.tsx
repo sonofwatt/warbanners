@@ -120,6 +120,19 @@ export function HourglassIcon(): ReactElement {
   );
 }
 
+/** A stopwatch: the turn clock. */
+export function ClockIcon(): ReactElement {
+  return (
+    <Svg>
+      <rect x="9.6" y="1.6" width="4.8" height="2.6" rx="1.2" fill="currentColor" />
+      <circle cx="12" cy="13.4" r="8.4" fill="currentColor" />
+      <circle cx="12" cy="13.4" r="6" fill={`var(--icon-cut, ${PAPER})`} />
+      <path d="M12 13.4V9.4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="12" cy="13.4" r="1.6" fill="currentColor" />
+    </Svg>
+  );
+}
+
 /** A bold arrow to the right: on to the next player. */
 export function NextIcon(): ReactElement {
   return (

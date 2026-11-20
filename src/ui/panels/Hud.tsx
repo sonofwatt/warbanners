@@ -1,12 +1,14 @@
 import type { CSSProperties, ReactElement } from 'react';
 import type { FactionId } from '../../engine';
 import { ACCENT, playerColour } from '../art/palette';
-import { BannerMark, CoinIcon, FlaskIcon, HourglassIcon, MenuIcon, NextUnitIcon } from '../icons';
+import { BannerMark, ClockIcon, CoinIcon, FlaskIcon, HourglassIcon, MenuIcon, NextUnitIcon } from '../icons';
 import { T, fill } from '../text';
 
 export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
   unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean; thinking?: boolean;
+  // Online: whose turn it is, in place of the units-to-act line, and the turn clock as m:ss (or Paused).
+  status?: string; clock?: string; clockPaused?: boolean;
   onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void; onNextUnit: () => void;
 }
 
@@ -18,7 +20,7 @@ export function Hud(p: HudProps): ReactElement {
   const colour = { main: p.colour, dark: playerColour(p.faction).dark };
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
-    <header className="hud" style={style}>
+    <header className={p.clock !== undefined ? 'hud has-clock' : 'hud'} style={style}>
       <div className="hud-status">
         <div className="hud-who">
           <BannerMark colour={colour} accent={ACCENT[p.faction]} />
@@ -38,6 +40,13 @@ export function Hud(p: HudProps): ReactElement {
             <HourglassIcon />
             <span data-testid="turn">{`${T.ui.turn} ${p.round}`}</span>
           </span>
+          {p.clock !== undefined ? (
+            <span className={p.clockPaused === true ? 'pill clock paused' : 'pill clock'}>
+              <ClockIcon />
+              <span className="vh">{`${T.ui.clockLabel}: `}</span>
+              <span data-testid="clock">{p.clock}</span>
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="hud-actions">
@@ -53,11 +62,13 @@ export function Hud(p: HudProps): ReactElement {
           </button>
         </div>
         <div className="hud-end">
-          {p.thinking === true
+          {p.status !== undefined
+            ? <small data-testid="hud-status" className="can-act some" role="status">{p.status}</small>
+            : p.thinking === true
             ? <small data-testid="thinking" className="can-act some" role="status">{T.ai.thinking}</small>
             : <small data-testid="can-act" className={p.unitsToAct > 0 ? 'can-act some' : 'can-act'}>{act}</small>}
           <button
-            type="button" className="tool next-unit" disabled={p.nextDisabled === true} data-testid="next-unit"
+            type="button" className="tool next-unit" data-testid="next-unit" disabled={p.nextDisabled === true}
             aria-label={T.ui.nextUnit} onClick={p.onNextUnit}
           >
             <NextUnitIcon />

@@ -91,6 +91,7 @@ export interface AppState {
   setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): void;
   startOnline(): void;
   resignOnline(): void;             // on either player's turn: the Menu's Resign in online mode
+  onlineBlocked(): 'notSetUp' | 'needsConnection' | null;   // why Home cannot offer online play now; never loads src/net
   forgetRoom(code: string): void;   // Home's remove: forget it here, and delete the room when made here and over
   updateForRoom(): void;            // the join screen on a newer room: remember the room, then Home to update
 }
@@ -325,7 +326,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
     // ---- online ----
 
     // Why online play cannot start now, checked before src/net is loaded; null when it can.
-    const notReady = (): Notice | null => {
+    const notReady = (): 'notSetUp' | 'needsConnection' | null => {
       if (deps.openNet === undefined || !(deps.netReady?.() ?? false)) return 'notSetUp';
       return (deps.online?.() ?? true) ? null : 'needsConnection';
     };
@@ -637,6 +638,8 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
         resignPending = true;
         if (!session.resign()) resignPending = false;
       },
+
+      onlineBlocked: () => notReady(),
 
       forgetRoom: code => {
         const entry = listOnline(kv).find(e => e.code === code);

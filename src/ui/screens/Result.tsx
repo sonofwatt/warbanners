@@ -41,7 +41,7 @@ export function Result(): ReactElement | null {
   const colour = playerColour(faction);
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
-    <div className="screen result" style={style}>
+    <div className="screen result" style={style} data-testid="result">
       <div className="trophy">
         <div className="confetti" aria-hidden="true">
           {CONFETTI.map(([x, y, turn, c], i) => (
