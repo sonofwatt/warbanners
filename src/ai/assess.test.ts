@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction, createMatch, damageFor, reachable } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
-import { dangerMap, followCredit, moveScore, objectives, unitWorth, valueOf } from './assess';
+import { dangerMap, exposureCost, followCredit, moveScore, objectives, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState } from './input';
 import { PERSONAS } from './persona';
@@ -196,4 +196,30 @@ test('a hurt unit that moved or acted this turn gets half the rest credit: it he
   expect(moveScore(s, ctx, u.id, '1,2', 0)).toBeCloseTo(-rest / 2, 9);  // moving onto the same tile gives up half
   // a hurt unit walking to better healing ground is credited half the difference: 4 at home, 2 on open land
   expect(with_({ moved: true }) - with_({ moved: true, pos: '2,0' })).toBeCloseTo(0.5 * 0.5 * 2 * (4 - 2) / 10, 9);
+});
+
+// A noCityCapture unit (the scout) is not drawn to enemy cities and is no capture threat to an empty city.
+test('a scout is not pulled toward an enemy city, a warrior is', () => {
+  const diff = (type: 'scout' | 'warrior') => {
+    const f = (y: number) => {
+      const s = blankMatch({ factions: ['spartans', 'mongols'] });
+      addCity(s, 0, 0, 0); addCity(s, 1, 0, -8); addUnit(s, type, 0, 0, y);
+      for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+      return valueOf(s, makeCtx(s, 0, LEVEL_DIAL.normal));
+    };
+    return f(-4) - f(-2);
+  };
+  expect(diff('warrior')).toBeGreaterThan(0);
+  expect(diff('scout')).toBeLessThanOrEqual(0);
+});
+test('an empty city is not exposed to an enemy scout, but is to a warrior', () => {
+  const cost = (type: 'scout' | 'warrior') => {
+    const s = blankMatch({ factions: ['spartans', 'mongols'] });
+    addCity(s, 0, 0, 0); addCity(s, 1, 0, -8);
+    addUnit(s, type, 1, 1, 0);
+    const b = believedState(aiInputFor(s, 0));
+    return exposureCost(b, makeCtx(b, 0, LEVEL_DIAL.normal), b.cities.find(c => c.owner === 0)!);
+  };
+  expect(cost('warrior')).toBeGreaterThan(0);
+  expect(cost('scout')).toBe(0);
 });
