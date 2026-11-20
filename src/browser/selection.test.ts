@@ -134,7 +134,7 @@ describe.runIf(process.env.BROWSER === '1')('the board when a selection panel op
         }));
         const reach = portrait ? Math.max(...marks.map((m) => m.bottom)) : Math.max(...marks.map((m) => m.right));
         const edge = portrait ? r.slot.y + r.slot.height : r.slot.x + r.slot.width;
-        expect(reach).toBeLessThanOrEqual(edge + 4);
+        expect(reach).toBeLessThanOrEqual(portrait ? edge + 4 : edge);
         expect(edge - reach).toBeLessThan(56);
       } finally {
         await close();
