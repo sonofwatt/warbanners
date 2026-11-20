@@ -28,7 +28,7 @@ const TILES: readonly { k: HexKey; ground: Ground; art: () => ReactElement | nul
 export function HomeScene(): ReactElement {
   const sorted = [...TILES].sort((a, b) => depthOrder(a.k, b.k));
   return (
-    <svg className="home-scene" viewBox="-132 -46 264 104" aria-hidden="true" focusable="false">
+    <svg className="home-scene" viewBox="-132 -46 264 104" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
       {sorted.map(({ k, ground, art }) => {
         const c = hexToBoard(k);
         return (

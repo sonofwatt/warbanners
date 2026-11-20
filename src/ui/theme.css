@@ -470,6 +470,20 @@ input:focus { border-color: var(--blue); }
   .setup-row > * { flex: 1 1 0; min-width: 0; }
   .screen:not(.match) { max-width: 640px; }
 }
+/* A tall portrait phone: Home would float in a short column between two wide empty bands, so the
+   banner stands over the name like a title screen, and the board strip comes nearer: it runs
+   edge to edge and taller, its outer tiles cut by the screen's sides (slice). Not on a tablet,
+   where the cut edges would show in the middle of the screen. */
+@media (orientation: portrait) and (min-height: 760px) and (max-width: 599px) {
+  .screen.home { gap: var(--s4); }
+  .home-hero { flex-direction: column; text-align: center; gap: var(--s2); padding-bottom: var(--s2); }
+  .home-hero .banner-tile { width: 128px; }
+  .home-hero h1 { font-size: clamp(26px, calc((100vw - 40px) / 6.8), var(--t-hero)); }
+  .home-scene {
+    width: calc(100% + 2 * var(--s4)); max-width: none; aspect-ratio: 220 / 104;
+    margin: var(--s3) calc(-1 * var(--s4)) 0;
+  }
+}
 /* A wide portrait panel: two branches side by side. */
 @media (min-width: 600px) and (orientation: portrait) {
   .branches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
