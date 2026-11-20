@@ -61,11 +61,12 @@ centre `(0,0)` is always a plain field.
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, capture, train, harvest, build, lay a road, build
-walls, research, choose a city reward. Then end the turn.
+move, attack, use an ability, capture, claim a treasure, train, harvest, build, lay
+a road, build walls, research, choose a city reward. Then end the turn.
 
 At the start of each of your turns except your first: you are paid income, and your
-units that did nothing at all on your previous turn heal. Then every unit of yours
+units that did nothing at all on your previous turn heal (see Resting in 11). Then
+every unit of yours
 gets its movement and attacks back.
 
 At the end of your turn: any city reward you have not chosen takes its first
@@ -82,8 +83,9 @@ option, and statuses on your units (taunted, blinded) wear off.
   Mongol city). Spare points carry over.
 - Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
   city (or by a Camp on its behalf) count, plus the starting unit for the
-  capital. Champions and supports from rewards, and units from treasures, do not
-  count.
+  capital. A unit that captures a village or a city counts against that city from
+  then on, and no longer against the one it came from (see 12). Champions and
+  supports from rewards, and units from treasures, do not count.
 
 Rewards (pick one of two at each new level):
 
@@ -161,7 +163,7 @@ Starting unit: Spartans a Warrior, Mongols a Horseman.
   whatever movement it had left.
 - A unit trained or spawned this turn is fresh until its owner's next turn starts:
   it cannot move, attack, use an ability, capture, be hastened, or (a Camp) train.
-- Stepping onto a treasure collects it at once (see 12).
+- Stepping onto a treasure does not collect it: it is claimed later (see 12).
 
 ## 10. Combat
 
@@ -184,7 +186,12 @@ cAtk    = atk * f * (hp + maxHp) / (2 * maxHp)    (hp after the hit; f = 0.75, o
 counter = max(1, round(2 * cAtk * cAtk / (cAtk + attackerDef)))   (the attacker gets no cover)
 ```
 
-A unit at 0 health is removed. An attacker does not move into the tile.
+A unit at 0 health is removed. When an attacker with range 1 kills the defender, it
+moves into the defender's tile. The step costs no movement and changes nothing else:
+the attacker still cannot move after attacking unless it has `retreat`, a Knight's
+`chain` attack is made from the new tile, and the step counts as entering the tile
+this turn (so it cannot capture there until a later turn). Attackers with range 2 or
+more never move in, and neither does anyone for a unit killed by splash.
 
 Worked examples (all at full health on a field unless said):
 
@@ -230,19 +237,28 @@ as an attack would):
 | hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
 | dustStorm | Sky Caller | a tile within 2 with at least one enemy unit you can see on it or next to it | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
 
-Resting: a unit that did nothing at all on its owner's previous turn heals 4 at the
-start of the next turn if it stands in its owner's territory, otherwise 2.
+Resting: a unit that did nothing at all on its owner's previous turn heals at the
+start of the next turn: 4 if it stands in its owner's territory, 2 on land no city
+claims, 1 in an enemy's territory, and nothing while any enemy unit stands on a tile
+next to it.
 
 ## 12. Treasures, capture, winning
 
-- Treasure: the tile's treasure is removed and `rngInt(3)` decides: 0 gives +5 gold;
-  1 explores every tile within 4; 2 gives a Warrior on the first free enterable
-  neighbour in direction order (or +5 gold if there is none).
+- Treasure: a unit standing on a treasure may claim it if it entered that tile on an
+  earlier turn and has not moved or attacked this turn (so it must still be there
+  when its owner's turn starts). Claiming uses the unit's whole turn. Either
+  player's units may claim it; the first to claim takes it. The tile's treasure is
+  removed and `rngInt(3)` decides: 0 gives +5 gold; 1 explores every tile within 4;
+  2 gives a Warrior on the first free enterable neighbour in direction order (or +5
+  gold if there is none).
 - Capture: a unit standing on a village or an enemy city may capture it if it
   entered that tile on an earlier turn and has not moved or attacked this turn. It
   uses the unit's whole turn. A village becomes a level 1 city of the captor. An
   enemy city changes owner and keeps its level, buildings and territory; units it
-  had trained no longer count against it. Any city reward its previous owner had
+  had trained no longer count against it. The captor counts against the captured
+  city from then on (even past its capacity, which only limits training), and no
+  longer against its old city; a captor that counted against no city still does
+  not. Any city reward its previous owner had
   not yet chosen is dropped. City tribute is paid only by factions that have a
   tribute rule.
 - A player with no cities is eliminated and their units are removed. The last

@@ -1,13 +1,24 @@
+import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
-import { cityAt, foundCity, removeUnit, tileAt, unitById } from './state';
-import type { Action, GameEvent, Handler, MatchState, PlayerId } from './types';
+import { key, parseKey, range } from './hex';
+import type { HexKey } from './hex';
+import { rngInt } from './rng';
+import { cityAt, firstFreeNeighbor, foundCity, removeUnit, spawnUnit, tileAt, unitById } from './state';
+import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
+
+// rules 12: a unit that entered its tile on an earlier turn and has not moved or acted this turn
+function settled(s: MatchState, unitId: number): Unit | undefined {
+  if (typeof unitId !== 'number') return undefined;
+  const u = unitById(s, unitId);
+  if (u === undefined || u.owner !== s.current) return undefined;
+  if (u.fresh || u.moved || u.acted || u.enteredTurn >= s.stamp) return undefined;
+  return u;
+}
 
 // rules 12
 export function canCapture(s: MatchState, unitId: number): boolean {
-  if (typeof unitId !== 'number') return false;
-  const u = unitById(s, unitId);
-  if (u === undefined || u.owner !== s.current) return false;
-  if (u.fresh || u.moved || u.acted || u.enteredTurn >= s.stamp) return false;
+  const u = settled(s, unitId);
+  if (u === undefined) return false;
   const city = cityAt(s, u.pos);
   if (city !== undefined) return city.owner !== u.owner;
   return tileAt(s, u.pos)?.village === true;
@@ -36,10 +47,12 @@ export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s,
     tileAt(s, u.pos)!.village = false;
     cityId = foundCity(s, u.owner, u.pos, false).id;
     captor.gold += def.tributeVillage;
+    if (u.home !== null) u.home = cityId;
   } else {
     const previous = existing.owner;
     existing.owner = u.owner;
     for (const x of s.units) if (x.home === existing.id) x.home = null;
+    if (u.home !== null) u.home = existing.id;
     existing.pendingRewards = [];
     if (def.tributeCityBase > 0) captor.gold += def.tributeCityBase + existing.level;
     cityId = existing.id;
@@ -50,6 +63,40 @@ export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s,
   }
   u.mp = 0; u.attacks = 0; u.acted = true;
   ev.push({ type: 'captured', city: cityId, by: u.owner });
+  return null;
+};
+
+// rules 12: a treasure is claimed by a unit that has stood on it since an earlier turn
+export function canClaimTreasure(s: MatchState, unitId: number): boolean {
+  const u = settled(s, unitId);
+  return u !== undefined && tileAt(s, u.pos)?.treasure === true;
+}
+
+export const claimTreasureHandler: Handler<Extract<Action, { type: 'claimTreasure' }>> = (s, a, ev) => {
+  if (!canClaimTreasure(s, a.unit)) return 'cannot claim a treasure here';
+  const u = unitById(s, a.unit)!;
+  const tile = tileAt(s, u.pos)!;
+  const player = s.players[u.owner]!;
+  const [roll, next] = rngInt(s.rng, CONFIG.treasure.outcomes);
+  s.rng = next;
+  let outcome: 'gold' | 'explore' | 'unit' = 'gold';
+  if (roll === 1) {
+    outcome = 'explore';
+    const seen = new Set<HexKey>(player.explored);
+    for (const h of range(parseKey(u.pos), CONFIG.treasure.exploreRadius)) {
+      if (tileAt(s, key(h)) !== undefined) seen.add(key(h));
+    }
+    player.explored = [...seen].sort();
+  } else if (roll === 2) {
+    const spot = firstFreeNeighbor(s, u.pos);
+    if (spot === null) player.gold += CONFIG.treasure.gold;
+    else { spawnUnit(s, CONFIG.treasure.unit, u.owner, spot, null); outcome = 'unit'; }
+  } else {
+    player.gold += CONFIG.treasure.gold;
+  }
+  tile.treasure = false;
+  u.mp = 0; u.attacks = 0; u.acted = true;
+  ev.push({ type: 'treasure', at: u.pos, outcome });
   return null;
 };
 

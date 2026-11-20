@@ -73,7 +73,7 @@ function candidates(s: MatchState): Action[] {
       out.push({ type: 'attack', unit: u.id, target }, { type: 'attack', unit: u.id, target, lure: true });
     }
     for (const ability of ABILITIES) for (const target of near(u.pos, 2)) out.push({ type: 'ability', unit: u.id, ability, target });
-    out.push({ type: 'capture', unit: u.id });
+    out.push({ type: 'capture', unit: u.id }, { type: 'claimTreasure', unit: u.id });
     for (const unitType of unitTypes) for (const to of near(u.pos, 1)) out.push({ type: 'campTrain', unit: u.id, unitType, to });
   }
   for (const c of s.cities) {

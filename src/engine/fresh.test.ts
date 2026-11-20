@@ -76,9 +76,9 @@ test('a fresh unit has no ability targets', () => {
 });
 
 test('a treasure unit and a reward unit are fresh', () => {
-  const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0); setTile(s, 1, 0, { treasure: true });
+  const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
   let st = 1; while (rngInt(st, 3)[0] !== 2) st++; s.rng = st;
-  const t = must(applyAction(s, { type: 'move', unit: u.id, to: '1,0' }));
+  const t = must(applyAction(s, { type: 'claimTreasure', unit: u.id }));
   expect(unitAt(t, '2,0')).toMatchObject({ type: 'warrior', fresh: true });
   const r = blankMatch(); const c = addCity(r, 0, 0, 0, { level: 5, pendingRewards: [5] });
   const after = must(applyAction(r, { type: 'chooseReward', city: c.id, choice: 0 }));

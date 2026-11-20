@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 2;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -60,6 +60,7 @@ export type Action =
   | { type: 'attack'; unit: number; target: HexKey; lure?: boolean }
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'capture'; unit: number }
+  | { type: 'claimTreasure'; unit: number }
   | { type: 'train'; city: number; unitType: UnitTypeId }
   | { type: 'campTrain'; unit: number; unitType: UnitTypeId; to: HexKey }
   | { type: 'harvest'; at: HexKey }
@@ -76,6 +77,7 @@ export type GameEvent =
   | { type: 'attacked'; unit: number; target: number; damage: number; counter: number }
   | { type: 'splashed'; target: number; damage: number }
   | { type: 'died'; unit: number }
+  | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
   | { type: 'lured'; unit: number; from: HexKey; to: HexKey }
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }

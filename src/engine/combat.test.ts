@@ -48,13 +48,47 @@ test('knight kills, chains, and may strike again', () => {
   expect(unitById(t, w1.id)).toBeUndefined();
   expect(r.ok && r.events).toContainEqual({ type: 'died', unit: w1.id });
   expect(unitById(t, k.id)!.attacks).toBe(1);
+  expect(unitById(t, k.id)!.pos).toBe('1,0');                                 // it advanced into the tile
   expect(must(applyAction(t, { type: 'attack', unit: k.id, target: '0,1' })).units.length).toBe(2);
+});
+test('a melee kill advances the attacker into the tile, at no movement cost', () => {
+  const s = blankMatch(); const a = addUnit(s, 'warrior', 0, 0, 0); const d = addUnit(s, 'warrior', 1, 1, 0, { hp: 5 });
+  const r = applyAction(s, { type: 'attack', unit: a.id, target: '1,0' }); const t = must(r);
+  expect(unitById(t, d.id)).toBeUndefined();
+  expect(unitById(t, a.id)).toMatchObject({ pos: '1,0', enteredTurn: s.stamp, mp: 0, attacks: 0, acted: true, hp: 10 });
+  expect(r.ok && r.events).toEqual([
+    { type: 'attacked', unit: a.id, target: d.id, damage: 5, counter: 0 },
+    { type: 'died', unit: d.id },
+    { type: 'advanced', unit: a.id, from: '0,0', to: '1,0' },
+  ]);
+});
+test('a horseman advances and keeps the movement it had left', () => {
+  const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 3 }); addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+  const t = must(applyAction(s, { type: 'attack', unit: h.id, target: '1,0' }));
+  expect(unitById(t, h.id)).toMatchObject({ pos: '1,0', mp: 3 });
+});
+test('a melee kill on a forest or an enemy city advances there too', () => {
+  const s = blankMatch(); const a = addUnit(s, 'warrior', 0, 0, 0); addCity(s, 1, 1, 0); addCity(s, 1, 3, 0);
+  addUnit(s, 'warrior', 1, 1, 0, { hp: 1 }); setTile(s, 1, 0, { terrain: 'forest' });
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), a.id)!.pos).toBe('1,0');
+});
+test('no advance when the target lives, for a ranged attacker, or for a splash kill', () => {
+  const s = blankMatch(); const a = addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0);
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), a.id)!.pos).toBe('0,0');
+  const r = blankMatch(); const ar = addUnit(r, 'archer', 0, 0, 0); addUnit(r, 'warrior', 1, 1, 0, { hp: 1 });
+  const shot = must(applyAction(r, { type: 'attack', unit: ar.id, target: '1,0' }));     // an archer next to its target
+  expect(unitAt(shot, '1,0')).toBeUndefined(); expect(unitById(shot, ar.id)!.pos).toBe('0,0');
+  const c = blankMatch(); const cat = addUnit(c, 'catapult', 0, 0, 0);
+  addUnit(c, 'warrior', 1, 3, 0, { hp: 1 }); const n = addUnit(c, 'warrior', 1, 3, -1, { hp: 1 }); addUnit(c, 'warrior', 0, 2, 0);
+  const t = must(applyAction(c, { type: 'attack', unit: cat.id, target: '3,0' }));
+  expect(unitById(t, n.id)).toBeUndefined(); expect(unitById(t, cat.id)!.pos).toBe('0,0');
 });
 test('swordsman strikes twice, and the second strike needs a living target', () => {
   const s = blankMatch(); const sw = addUnit(s, 'swordsman', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0);
   const t1 = must(applyAction(s, { type: 'attack', unit: sw.id, target: '1,0' }));   // 6 damage, warrior at 4
-  const t2 = must(applyAction(t1, { type: 'attack', unit: sw.id, target: '1,0' }));  // kills
-  expect(unitAt(t2, '1,0')).toBeUndefined();
+  const t2 = must(applyAction(t1, { type: 'attack', unit: sw.id, target: '1,0' }));  // kills, and steps in
+  expect(unitAt(t2, '1,0')?.id).toBe(sw.id);
+  expect(t2.units).toHaveLength(1);
   expect(applyAction(t2, { type: 'attack', unit: sw.id, target: '1,0' }).ok).toBe(false);
 });
 test('catapult: splash, no counter, no shot after moving', () => {

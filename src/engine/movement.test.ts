@@ -2,8 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction } from './apply';
 import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
-import { rngInt } from './rng';
-import { claimTerritory, unitAt, unitById } from './state';
+import { claimTerritory, unitById } from './state';
 import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
 
 test('warrior on fields reaches its six neighbours', () => {
@@ -48,43 +47,14 @@ test('move action updates the unit and refuses a bad target', () => {
   const e = addUnit(s, 'warrior', 1, 0, 2);
   expect(applyAction(s, { type: 'move', unit: e.id, to: '1,2' }).ok).toBe(false);   // not the current player
 });
-test('treasure outcomes follow rngInt(3)', () => {
-  // with rng state 1 the first draw is 2693262067 % 3 = 1: explore
-  const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0); setTile(s, 1, 0, { treasure: true });
-  const r = applyAction(s, { type: 'move', unit: u.id, to: '1,0' }); const t = must(r);
-  expect(t.tiles['1,0']!.treasure).toBe(false);
-  expect(r.ok && r.events).toContainEqual({ type: 'treasure', at: '1,0', outcome: 'explore' });
-  expect(t.players[0]!.explored).toContain('4,-3');     // within 4 of 1,0 (the far edge of the radius-4 board)
-  expect(t.rng).not.toBe(s.rng);
-});
-const rngStateFor = (n: number, want: number) => { let st = 1; while (rngInt(st, n)[0] !== want) st++; return st; };
-test('treasure unit appears on the first free neighbour', () => {
-  const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0); setTile(s, 1, 0, { treasure: true });
-  s.rng = rngStateFor(3, 2);
-  const t = must(applyAction(s, { type: 'move', unit: u.id, to: '1,0' }));
-  expect(unitAt(t, '2,0')).toMatchObject({ type: 'warrior', owner: 0, home: null });
-  expect(t.players[0]!.gold).toBe(20);
-});
-test('treasure unit with nowhere to stand becomes 5 gold', () => {
-  const s = blankMatch({ radius: 1 }); setTile(s, 1, 0, { treasure: true });
-  setTile(s, 1, -1, { terrain: 'water' }); setTile(s, 0, 1, { terrain: 'water' });
-  addUnit(s, 'warrior', 0, 0, 0);                                   // a friend on the only other neighbour
-  const h = addUnit(s, 'horseman', 0, -1, 0);                       // rides through the friend
-  s.rng = rngStateFor(3, 2);
-  const t = must(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }));
-  expect(t.units).toHaveLength(2); expect(t.players[0]!.gold).toBe(25);
-});
-test('treasure gold', () => {
-  const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0); setTile(s, 1, 0, { treasure: true });
-  s.rng = rngStateFor(3, 0);
-  expect(must(applyAction(s, { type: 'move', unit: u.id, to: '1,0' })).players[0]!.gold).toBe(25);
-});
-
 // tests beyond the brief
-test('a treasure passed through is not collected', () => {
+test('stepping onto or through a treasure leaves it in place (rules 12: it is claimed, not grabbed)', () => {
   const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0); setTile(s, 1, 0, { treasure: true });
-  const t = must(applyAction(s, { type: 'move', unit: h.id, to: '2,0' }));
-  expect(t.tiles['1,0']!.treasure).toBe(true); expect(t.rng).toBe(s.rng);
+  const through = must(applyAction(s, { type: 'move', unit: h.id, to: '2,0' }));
+  expect(through.tiles['1,0']!.treasure).toBe(true); expect(through.rng).toBe(s.rng);
+  const r = applyAction(s, { type: 'move', unit: h.id, to: '1,0' }); const onto = must(r);
+  expect(onto.tiles['1,0']!.treasure).toBe(true); expect(onto.rng).toBe(s.rng);
+  expect(r.ok && r.events.map((e) => e.type)).toEqual(['moved']);
 });
 test('maxMp gives mounted Mongol units the bonus and nobody else', () => {
   const s = blankMatch();                                           // player 0 Spartan, player 1 Mongol

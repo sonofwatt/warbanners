@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { applyAction } from './apply';
-import { canCapture } from './capture';
+import { applyAction, legalActions } from './apply';
+import { canCapture, canClaimTreasure } from './capture';
+import { rngInt } from './rng';
 import { hashState } from './hash';
-import { cityAt, cityById, unitById } from './state';
+import { cityAt, cityById, unitAt, unitById } from './state';
 import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
 import type { Action } from './types';
 
@@ -87,5 +88,109 @@ describe('capture, elimination and resigning', () => {
       expect(applyAction(s, { type: 'capture', unit } as unknown as Action).ok).toBe(false);
     expect(hashState(s)).toBe(before);
     expect(canCapture(s, 'constructor' as unknown as number)).toBe(false);
+  });
+
+  test('the captor moves home: it counts against the captured city, not the one it came from', () => {
+    const s = blankMatch(); const old = addCity(s, 0, -3, 0); setTile(s, 1, 0, { village: true });
+    const u = addUnit(s, 'warrior', 0, 1, 0, { home: old.id });
+    const t = must(applyAction(s, { type: 'capture', unit: u.id }));
+    const village = cityAt(t, '1,0')!;
+    expect(unitById(t, u.id)!.home).toBe(village.id);
+  });
+
+  test('taking an enemy city makes it the captor\'s home, even past its capacity, and frees the old units', () => {
+    const s = blankMatch(); const old = addCity(s, 0, -3, 0); const c = addCity(s, 1, 0, 0); addCity(s, 1, 3, 0);
+    const theirs = addUnit(s, 'warrior', 1, 2, 2, { home: c.id }); addUnit(s, 'warrior', 0, -1, 0, { home: c.id });
+    const u = addUnit(s, 'warrior', 0, 0, 0, { home: old.id });
+    const t = must(applyAction(s, { type: 'capture', unit: u.id }));
+    expect(unitById(t, u.id)!.home).toBe(c.id);
+    expect(unitById(t, theirs.id)!.home).toBeNull();
+  });
+
+  test('a captor with no home keeps no home', () => {
+    const s = blankMatch(); setTile(s, 1, 0, { village: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
+    expect(u.home).toBeNull();
+    expect(unitById(must(applyAction(s, { type: 'capture', unit: u.id })), u.id)!.home).toBeNull();
+  });
+});
+
+const rngStateFor = (n: number, want: number): number => { let st = 1; while (rngInt(st, n)[0] !== want) st++; return st; };
+const claim = (unit: number): Action => ({ type: 'claimTreasure', unit });
+
+describe('claiming a treasure (rules 12)', () => {
+  test('outcomes follow rngInt(3): explore on rng state 1', () => {
+    // with rng state 1 the first draw is 2693262067 % 3 = 1: explore
+    const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
+    const r = applyAction(s, claim(u.id)); const t = must(r);
+    expect(t.tiles['1,0']!.treasure).toBe(false);
+    expect(r.ok && r.events).toEqual([{ type: 'treasure', at: '1,0', outcome: 'explore' }]);
+    expect(t.players[0]!.explored).toContain('4,-3');     // within 4 of 1,0 (the far edge of the radius-4 board)
+    expect(t.rng).not.toBe(s.rng);
+    expect(unitById(t, u.id)).toMatchObject({ pos: '1,0', mp: 0, attacks: 0, acted: true });
+  });
+
+  test('gold', () => {
+    const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
+    s.rng = rngStateFor(3, 0);
+    expect(must(applyAction(s, claim(u.id))).players[0]!.gold).toBe(25);
+  });
+
+  test('a unit appears on the first free neighbour, fresh and with no home', () => {
+    const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
+    s.rng = rngStateFor(3, 2);
+    const t = must(applyAction(s, claim(u.id)));
+    expect(unitAt(t, '2,0')).toMatchObject({ type: 'warrior', owner: 0, home: null, fresh: true });
+    expect(t.players[0]!.gold).toBe(20);
+  });
+
+  test('a unit with nowhere to stand becomes 5 gold', () => {
+    const s = blankMatch({ radius: 1 }); setTile(s, 1, 0, { treasure: true });
+    setTile(s, 1, -1, { terrain: 'water' }); setTile(s, 0, 1, { terrain: 'water' });
+    addUnit(s, 'warrior', 0, 0, 0); const u = addUnit(s, 'warrior', 0, 1, 0);
+    s.rng = rngStateFor(3, 2);
+    const t = must(applyAction(s, claim(u.id)));
+    expect(t.units).toHaveLength(2); expect(t.players[0]!.gold).toBe(25);
+  });
+
+  test('not on the turn the unit arrives: it must still be there at the start of its next turn', () => {
+    const s = blankMatch(); addCity(s, 0, -3, 0); addCity(s, 1, 3, 0); setTile(s, 1, 0, { treasure: true });
+    const u = addUnit(s, 'warrior', 0, 0, 0);
+    const arrived = must(applyAction(s, { type: 'move', unit: u.id, to: '1,0' }));
+    expect(canClaimTreasure(arrived, u.id)).toBe(false);
+    expect(applyAction(arrived, claim(u.id))).toEqual({ ok: false, reason: 'cannot claim a treasure here' });
+    const theirTurn = must(applyAction(arrived, { type: 'endTurn' }));
+    expect(canClaimTreasure(theirTurn, u.id)).toBe(false);                 // not its owner's turn
+    const next = must(applyAction(theirTurn, { type: 'endTurn' }));
+    expect(canClaimTreasure(next, u.id)).toBe(true);
+    expect(legalActions(next)).toContainEqual(claim(u.id));
+    expect(must(applyAction(next, claim(u.id))).tiles['1,0']!.treasure).toBe(false);
+  });
+
+  test('needs a treasure, an unmoved unit that has not acted, and no fresh unit', () => {
+    const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); setTile(s, 2, 0, { treasure: true }); setTile(s, 3, 0, { treasure: true });
+    expect(canClaimTreasure(s, addUnit(s, 'warrior', 0, 0, 0).id)).toBe(false);          // no treasure
+    expect(canClaimTreasure(s, addUnit(s, 'warrior', 0, 1, 0, { moved: true }).id)).toBe(false);
+    expect(canClaimTreasure(s, addUnit(s, 'warrior', 0, 2, 0, { acted: true }).id)).toBe(false);
+    const f = addUnit(s, 'warrior', 0, 3, 0, { fresh: true });
+    expect(canClaimTreasure(s, f.id)).toBe(false);
+    f.fresh = false;
+    expect(canClaimTreasure(s, f.id)).toBe(true);
+  });
+
+  test('an enemy unit standing on a treasure may claim it on its own turn', () => {
+    const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const e = addUnit(s, 'warrior', 1, 1, 0);
+    expect(canClaimTreasure(s, e.id)).toBe(false);
+    s.current = 1;
+    const t = must(applyAction(s, claim(e.id)));
+    expect(t.tiles['1,0']!.treasure).toBe(false);
+  });
+
+  test('hostile unit ids are refused with the state untouched', () => {
+    const s = blankMatch(); setTile(s, 0, 0, { treasure: true }); addUnit(s, 'warrior', 0, 0, 0);
+    const before = hashState(s);
+    for (const unit of ['constructor', '__proto__', null, -1, 999, undefined, NaN])
+      expect(applyAction(s, { type: 'claimTreasure', unit } as unknown as Action).ok).toBe(false);
+    expect(hashState(s)).toBe(before);
+    expect(canClaimTreasure(s, 'constructor' as unknown as number)).toBe(false);
   });
 });

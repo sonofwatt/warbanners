@@ -1,10 +1,9 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
-import { DIRS, add, distance, key, parseKey, range } from './hex';
+import { DIRS, add, distance, key, parseKey } from './hex';
 import type { HexKey } from './hex';
-import { rngInt } from './rng';
-import { cityAt, cityById, firstFreeNeighbor, hasOwn, hasTrait, isEnterable, spawnUnit, tileAt, unitAt, unitById } from './state';
+import { cityAt, cityById, hasOwn, hasTrait, isEnterable, tileAt, unitAt, unitById } from './state';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 13: half-points of movement a unit starts its turn with
@@ -81,32 +80,6 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
   return out;
 }
 
-// rules 12: called when a unit ends a move on a tile
-export function collectTreasure(s: MatchState, u: Unit, ev: GameEvent[]): void {
-  const tile = tileAt(s, u.pos);
-  if (tile === undefined || !tile.treasure) return;
-  const player = s.players[u.owner]!;
-  const [roll, next] = rngInt(s.rng, CONFIG.treasure.outcomes);
-  s.rng = next;
-  let outcome: 'gold' | 'explore' | 'unit' = 'gold';
-  if (roll === 1) {
-    outcome = 'explore';
-    const seen = new Set<HexKey>(player.explored);
-    for (const h of range(parseKey(u.pos), CONFIG.treasure.exploreRadius)) {
-      if (tileAt(s, key(h)) !== undefined) seen.add(key(h));
-    }
-    player.explored = [...seen].sort();
-  } else if (roll === 2) {
-    const spot = firstFreeNeighbor(s, u.pos);
-    if (spot === null) player.gold += CONFIG.treasure.gold;
-    else { spawnUnit(s, CONFIG.treasure.unit, u.owner, spot, null); outcome = 'unit'; }
-  } else {
-    player.gold += CONFIG.treasure.gold;
-  }
-  tile.treasure = false;
-  ev.push({ type: 'treasure', at: u.pos, outcome });
-}
-
 // rules 13: the lured unit follows the rider by one tile if a tile is free
 function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): void {
   const target = unitById(s, mover.lure!.target);
@@ -140,7 +113,6 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const from = u.pos;
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });
-  collectTreasure(s, u, ev);
   if (u.lure !== null) pullLured(s, u, from, ev);
   u.lure = null;
   return null;

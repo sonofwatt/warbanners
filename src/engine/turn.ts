@@ -2,8 +2,21 @@ import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { applyReward, playerIncome } from './economy';
 import { maxMp } from './movement';
-import { cityById, freshAttacks, tileAt } from './state';
-import type { Action, Handler } from './types';
+import { DIRS, add, key, parseKey } from './hex';
+import { cityById, freshAttacks, tileAt, unitAt } from './state';
+import type { Action, Handler, MatchState, Unit } from './types';
+
+// rules 11: what resting would heal the unit where it stands (before the cap at full health): by whose land it
+// is on, and nothing while an enemy unit stands on a tile next to it.
+export function restHealAt(s: MatchState, u: Unit): number {
+  const at = parseKey(u.pos);
+  if (DIRS.some((d) => { const o = unitAt(s, key(add(at, d))); return o !== undefined && o.owner !== u.owner; })) return 0;
+  const cityId = tileAt(s, u.pos)?.cityId ?? null;
+  if (cityId === null) return CONFIG.restHeal.neutral;
+  const owner = cityById(s, cityId)?.owner;
+  if (owner === undefined) return CONFIG.restHeal.neutral;
+  return owner === u.owner ? CONFIG.restHeal.home : CONFIG.restHeal.enemy;
+}
 
 // rules 5
 export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s, _a, ev) => {
@@ -45,10 +58,7 @@ export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s,
     player.gold += playerIncome(s, next);
     for (const u of s.units) {
       if (u.owner !== next || !u.rested) continue;
-      const cityId = tileAt(s, u.pos)?.cityId ?? null;
-      const inHome = cityId !== null && cityById(s, cityId)?.owner === next;
-      const heal = inHome ? CONFIG.restHeal.home : CONFIG.restHeal.away;
-      u.hp = Math.min(UNITS[u.type].hp, u.hp + heal);
+      u.hp = Math.min(UNITS[u.type].hp, u.hp + restHealAt(s, u));
     }
   }
   for (const u of s.units) {

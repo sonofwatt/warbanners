@@ -30,18 +30,25 @@ describe('endTurn', () => {
     const t = must(applyAction(must(applyAction(s, end)), end));
     expect(unitById(t, u.id)).toMatchObject({ mp: 2, attacks: 2, moved: false, acted: false });
   });
-  test('resting heals 4 at home and 2 away, never past full, and only if the unit did nothing', () => {
+  test('resting heals 4 in own territory and 2 on unclaimed land, never past full, and only if the unit did nothing', () => {
     const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);
     const home = addUnit(s, 'warrior', 0, 1, 0, { hp: 3 }); const away = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
     const nearlyFull = addUnit(s, 'warrior', 0, 0, 1, { hp: 9 }); const busy = addUnit(s, 'warrior', 0, 0, -1, { hp: 3, moved: true });
     const t = must(applyAction(must(applyAction(s, end)), end));
     expect([home, away, nearlyFull, busy].map((u) => unitById(t, u.id)!.hp)).toEqual([7, 5, 10, 3]);
   });
-  test('a unit in an enemy city territory heals the away amount', () => {
+  test('a unit resting in an enemy city territory heals 1', () => {
     const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);
     const u = addUnit(s, 'warrior', 0, 2, 0, { hp: 3 });
     const t = must(applyAction(must(applyAction(s, end)), end));
-    expect(unitById(t, u.id)!.hp).toBe(5);
+    expect(unitById(t, u.id)!.hp).toBe(4);
+  });
+  test('an enemy unit on a tile next to it stops resting from healing, wherever it is', () => {
+    const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, -3);
+    const home = addUnit(s, 'warrior', 0, 1, 0, { hp: 3 }); const away = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
+    addUnit(s, 'warrior', 1, 2, 0); addUnit(s, 'scout', 1, -3, 1);   // a hidden scout counts too
+    const t = must(applyAction(must(applyAction(s, end)), end));
+    expect([home, away].map((u) => unitById(t, u.id)!.hp)).toEqual([3, 3]);
   });
   test('an unchosen reward takes its first option, and statuses wear off', () => {
     const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 2, pendingRewards: [2] }); addCity(s, 1, 3, 0);
