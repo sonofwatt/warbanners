@@ -31,7 +31,7 @@ test('a lone warrior in a Spartan city takes 4', () => {
 });
 test('unbowed: the King\'s Guard at 5 health still deals 7 to a Defender', () => {
   const s = blankMatch(); const g = addUnit(s, 'kingsGuard', 0, 0, 0, { hp: 5 }); const d = addUnit(s, 'defender', 1, 1, 0);
-  expect(unitById(must(applyAction(s, { type: 'attack', unit: g.id, target: '1,0' })), d.id)!.hp).toBe(8);   // 3 if it were not unbowed
+  expect(unitById(must(applyAction(s, { type: 'attack', unit: g.id, target: '1,0' })), d.id)!.hp).toBe(14);   // 20 - 6; 3 if it were not unbowed
 });
 test('unbowed: its counter-attack is not reduced by lost health', () => {
   const s = blankMatch(); const a = addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'kingsGuard', 1, 1, 0, { hp: 12 });

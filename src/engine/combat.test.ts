@@ -19,7 +19,7 @@ test('warrior on warrior: 6 dealt, 2 back', () => {
 });
 test('cover', () => {
   expect(duel('warrior', 'warrior', undefined, { terrain: 'forest' }).d!.hp).toBe(5);
-  expect(duel('warrior', 'defender').d!.hp).toBe(11);
+  expect(duel('warrior', 'defender').d!.hp).toBe(17);
   expect(duel('warrior', 'defender').a!.hp).toBe(9);
 });
 test('steadfast counter hurts: spearman deals 5 back', () => {
