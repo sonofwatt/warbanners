@@ -3,7 +3,7 @@ import { randomPlayout } from '../engine/testkit';
 import { aiInputFor } from '../ai/input';
 import { planTurn } from '../ai/plan';
 import type { Plan } from '../ai/plan';
-import { FALLBACK_DIAL_CAP, SupersededError, THINK_TIMEOUT_MS, createAiClient, isSuperseded } from './aiClient';
+import { FALLBACK_DIAL_CAP, MAX_WORKER_FAILURES, SupersededError, THINK_TIMEOUT_MS, createAiClient, isSuperseded } from './aiClient';
 import type { WorkerLike } from './aiClient';
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -39,29 +39,127 @@ test('answers come back by id and stale ones are ignored', async () => {
   expect(w.terminated).toBe(1);
 });
 
-test('a worker that errors falls back to the main thread at easy', async () => {
-  const w = fake();
-  const client = createAiClient(() => w);
+// A factory that hands out a new fake worker each time it is called.
+function factory() {
+  const made: Fake[] = [];
+  return { made, make: () => { const w = fake(); made.push(w); return w; } };
+}
+
+test('a worker that errors falls back to the main thread at easy, and the next think gets a new worker', async () => {
+  const f = factory();
+  const client = createAiClient(f.make);
   const inp = input();
   const opts = { dial: 0.9, seed: 3, refused: [] };
   const p = client.think(inp, opts);
-  w.onerror?.(new Error('boom'));
+  f.made[0]!.onerror?.(new Error('boom'));
   await expect(p).resolves.toEqual(planTurn(inp, { ...opts, dial: Math.min(opts.dial, FALLBACK_DIAL_CAP) }));
-  expect(w.terminated).toBe(1);
-  // the worker is not used again this session
-  await client.think(inp, opts);
-  expect(w.sent).toHaveLength(1);
+  expect(f.made[0]!.terminated).toBe(1);
+  const next = client.think(inp, opts);
+  expect(f.made).toHaveLength(2);
+  expect(f.made[1]!.sent).toHaveLength(1);
+  f.made[1]!.onmessage?.({ data: { id: 2, plan: stub(2) } });
+  await expect(next).resolves.toEqual(stub(2));
 });
 
-test('a worker that posts an error falls back too', async () => {
-  const w = fake();
-  const client = createAiClient(() => w);
+test('a planner error reply is answered on the main thread and the same worker plans the next think', async () => {
+  const f = factory();
+  const client = createAiClient(f.make);
   const inp = input();
   const opts = { dial: 0.1, seed: 4, refused: [] };
   const p = client.think(inp, opts);
-  w.onmessage?.({ data: { id: 1, error: 'bad' } });
+  f.made[0]!.onmessage?.({ data: { id: 1, error: 'bad' } });
   await expect(p).resolves.toEqual(planTurn(inp, opts));
-  expect(w.terminated).toBe(1);
+  expect(f.made[0]!.terminated).toBe(0);
+  const next = client.think(inp, { ...opts, dial: 0.9 });
+  expect(f.made).toHaveLength(1);
+  expect(f.made[0]!.sent.map((m) => m.id)).toEqual([1, 2]);
+  f.made[0]!.onmessage?.({ data: { id: 2, plan: stub(2) } });
+  await expect(next).resolves.toEqual(stub(2));
+});
+
+test('a timeout ends that worker and the next think gets a fresh one', async () => {
+  const inp = input();
+  vi.useFakeTimers();
+  const f = factory();
+  const client = createAiClient(f.make);
+  const opts = { dial: 1, seed: 5, refused: [] };
+  const p = client.think(inp, opts);
+  await vi.advanceTimersByTimeAsync(THINK_TIMEOUT_MS);
+  await vi.runAllTimersAsync();
+  await expect(p).resolves.toEqual(planTurn(inp, { ...opts, dial: FALLBACK_DIAL_CAP }));
+  expect(f.made[0]!.terminated).toBe(1);
+  const next = client.think(inp, opts);
+  expect(f.made).toHaveLength(2);
+  expect(f.made[1]!.sent.map((m) => m.id)).toEqual([2]);
+  f.made[1]!.onmessage?.({ data: { id: 2, plan: stub(2) } });
+  await expect(next).resolves.toEqual(stub(2));
+});
+
+test(`after ${MAX_WORKER_FAILURES} failures in a row the session plans on the main thread`, async () => {
+  const f = factory();
+  const client = createAiClient(f.make);
+  const inp = input();
+  const opts = { dial: 0.1, seed: 4, refused: [] };
+  for (let i = 1; i <= MAX_WORKER_FAILURES; i += 1) {
+    const p = client.think(inp, opts);
+    f.made.at(-1)!.onmessage?.({ data: { id: i, error: 'bad' } });
+    await expect(p).resolves.toEqual(planTurn(inp, opts));
+  }
+  expect(f.made).toHaveLength(1);
+  expect(f.made[0]!.terminated).toBe(1);
+  await expect(client.think(inp, opts)).resolves.toEqual(planTurn(inp, opts));
+  expect(f.made).toHaveLength(1);
+  expect(f.made[0]!.sent).toHaveLength(MAX_WORKER_FAILURES);
+});
+
+test('a good answer resets the count of failures in a row', async () => {
+  const f = factory();
+  const client = createAiClient(f.make);
+  const inp = input();
+  const opts = { dial: 0.1, seed: 4, refused: [] };
+  let id = 0;
+  const fail = async () => { const p = client.think(inp, opts); f.made[0]!.onmessage?.({ data: { id: ++id, error: 'bad' } }); await p; };
+  for (let i = 1; i < MAX_WORKER_FAILURES; i += 1) await fail();
+  const ok = client.think(inp, opts);
+  f.made[0]!.onmessage?.({ data: { id: ++id, plan: stub(id) } });
+  await expect(ok).resolves.toEqual(stub(id));
+  for (let i = 1; i < MAX_WORKER_FAILURES; i += 1) await fail();
+  expect(f.made[0]!.terminated).toBe(0);
+  client.think(inp, opts).catch(() => {});
+  expect(f.made[0]!.sent).toHaveLength(2 * MAX_WORKER_FAILURES);
+  client.dispose();
+});
+
+test('a worker that cannot be built after a timeout stops the workers for the session', async () => {
+  const inp = input();
+  vi.useFakeTimers();
+  let calls = 0;
+  const w = fake();
+  const client = createAiClient(() => { calls += 1; return calls === 1 ? w : null; });
+  const opts = { dial: 0.6, seed: 5, refused: [] };
+  const p = client.think(inp, opts);
+  await vi.advanceTimersByTimeAsync(THINK_TIMEOUT_MS);
+  await vi.runAllTimersAsync();
+  await p;
+  const second = client.think(inp, opts);
+  await vi.runAllTimersAsync();
+  await expect(second).resolves.toEqual(planTurn(inp, { ...opts, dial: FALLBACK_DIAL_CAP }));
+  const third = client.think(inp, opts);
+  await vi.runAllTimersAsync();
+  await third;
+  expect(calls).toBe(2);
+});
+
+test('the main-thread fallback reads the clock, so its deadline holds', async () => {
+  const inp = input();
+  const opts = { dial: 0.2, seed: 9, refused: [], deadlineMs: 100 };
+  let t = 0;
+  const client = createAiClient(() => null, () => (t += 50));
+  const plan = await client.think(inp, opts);
+  expect(t).toBeGreaterThan(0);
+  expect(plan.cutShort).toBe(true);
+  const unhurried = planTurn(inp, opts);
+  expect(plan.evals).toBeLessThan(unhurried.evals);
 });
 
 test('a worker that never answers falls back after the timeout', async () => {
