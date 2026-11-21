@@ -2,10 +2,16 @@ import { CONFIG } from './data/config';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { addDeed, maxHpOf } from './heroes';
+import { drankThisTurn } from './items';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import { ABILITIES } from './types';
 import type { AbilityId, Action, Handler, MatchState, Unit } from './types';
+
+// attacks that an ability may not spend: a drunk draught's extra one is for attacking only
+function abilityReserve(s: MatchState, u: Unit): number {
+  return drankThisTurn(s, u) ? 1 : 0;
+}
 
 function isAbility(v: unknown): v is AbilityId {
   return typeof v === 'string' && ABILITIES.includes(v as AbilityId);
@@ -15,7 +21,7 @@ function isAbility(v: unknown): v is AbilityId {
 export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId): HexKey[] {
   if (!isAbility(ability)) return [];
   const u = unitById(s, unitId);
-  if (u === undefined || u.owner !== s.current || u.fresh || u.attacks <= 0 || !hasTrait(u, ability)) return [];
+  if (u === undefined || u.owner !== s.current || u.fresh || u.attacks <= abilityReserve(s, u) || !hasTrait(u, ability)) return [];
   const here = parseKey(u.pos);
   let found: Unit[] = [];
   if (ability === 'heal') {
@@ -58,7 +64,7 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
   if (u === undefined) return 'no such unit';
   if (u.owner !== s.current) return 'not your unit';
   if (!hasTrait(u, a.ability)) return 'unit lacks that ability';
-  if (u.attacks <= 0) return 'no attacks left';
+  if (u.attacks <= abilityReserve(s, u)) return 'no attacks left';
   if (!hasOwn(s.tiles, a.target) || !abilityTargets(s, u.id, a.ability).includes(a.target)) return 'bad target';
   ev.push({ type: 'ability', unit: u.id, ability: a.ability, target: a.target });
   if (a.ability === 'dustStorm') {

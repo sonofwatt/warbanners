@@ -9,7 +9,7 @@ import type { Action, MatchState } from './types';
 
 // Strip what plan 5 added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
-  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, ...rest }) => rest) };
+  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, ...rest }) => rest) };
 }
 
 const FIXTURE = new URL('./stage1.fixture.json', import.meta.url);

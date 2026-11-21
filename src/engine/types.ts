@@ -51,6 +51,7 @@ export interface Unit {
   deeds: Deeds;                          // running totals, never reset; private to the owner (playerView zeroes the rest)
   heroTraits: HeroTraitId[];             // in the order earned; public
   item: ItemId | null;                   // a carried one-use item; public
+  itemTurn: number | null;               // stamp of the turn it found or drank its item (the draught waits a turn, then holds one attack back); public
 }
 export interface Player {
   id: PlayerId; faction: FactionId; gold: number; techs: TechId[];

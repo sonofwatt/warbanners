@@ -129,8 +129,13 @@ is lost with the unit). The item is public, like a trait.
 
 - The action is `{ type: 'useItem', unit }`. It gives the unit one more attack this turn (`attacks + 1`), removes the
   draught and records a `usedItem` event.
+- A draught may be drunk only on a later turn than the one it was found. The unit stores the turn of its find
+  (`itemTurn`, the match `stamp`), and drinking is refused with `found this turn` while that is still the current turn.
+- The extra attack is for attacking only, never a second ability. A unit that drank this turn keeps one attack back
+  from abilities, so an ability needs more than one attack left. A unit that used its ability and then drinks can
+  attack once more but cannot use the ability again; one that drinks first can use its ability once and still attack.
 - It is refused unless the unit exists (`no such unit`), is the current player's (`not your unit`), carries something
-  (`nothing to use`), is not fresh (`unit is too new`), has attack and range above 0, and is not a siege unit that has
+  (`nothing to use`), is not fresh (`unit is too new`), did not find it this turn (`found this turn`), has attack and range above 0, and is not a siege unit that has
   moved (`cannot attack`, for both). A malformed unit is `bad item use`.
 - Drinking is not acting: it sets neither `acted` nor `moved`, so a unit that drinks and then rests still counts as
   having rested.

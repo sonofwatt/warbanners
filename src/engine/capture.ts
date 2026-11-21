@@ -117,7 +117,7 @@ export const claimTreasureHandler: Handler<Extract<Action, { type: 'claimTreasur
       event.trait = trait;
     }
   } else if (drawn === 'draught') {
-    if (u.item === null && UNITS[u.type].atk > 0 && UNITS[u.type].range > 0) u.item = 'draught';
+    if (u.item === null && UNITS[u.type].atk > 0 && UNITS[u.type].range > 0) { u.item = 'draught'; u.itemTurn = s.stamp; }
     else gold();
   } else {
     // map: the nearest other treasure this player has not explored, by distance then key

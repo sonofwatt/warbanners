@@ -7,14 +7,14 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for plan 5 Task 8's tuned thresholds and draught worth; seed 1 now ends after 101 turns, so its row is the
+  // re-pinned for the draught fix (a draught waits a turn after it is found and buys no second ability); earlier, for plan 5 Task 8's tuned thresholds (the draught worth is an AI number and cannot move these digests); seed 1 now ends after 101 turns, so its row is the
   // position after 90 turns, still unfinished; earlier, for rules version 4 (units carry deeds, heroTraits and item, traits and the seven treasure outcomes change play
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 88, '260f97335fae1612', '0f3a2e1e58b124e7', '2308834e014737c9'],
-  [1, 90, 94, '03a34c89ea070266', 'e68ddf66fef77dfb', '087f64691e23758e'],
-  [3, 90, 50, 'eaa6f479d5ca5898', '12fa67a17dcd688a', '8d72b36b7857afc6'],
+  [7, 160, 88, '260f97335fae1612', '5c9f47d154955290', 'f0bd5b13277b8cf8'],
+  [1, 90, 94, '03a34c89ea070266', 'e15765b6b668fceb', '514c54e3a25963e4'],
+  [3, 90, 50, 'eaa6f479d5ca5898', '865536db4ff360e8', '515d0d5912fc30b0'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
