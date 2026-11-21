@@ -4,8 +4,9 @@ import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/
 import type { MatchState } from '../engine';
 import { aiInputFor, believedState, viewKey } from './input';
 import { planTurn } from './plan';
-import { hiddenScout, hopelessCharge, lureFromCity } from './scenarios';
+import { draughtFinish, hiddenScout, hopelessCharge, lureFromCity, safeLure } from './scenarios';
 import { skillFor } from './skill';
+import { LEVEL_DIAL } from './types';
 
 const fixtures = () => [randomPlayout(7, 160), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })];
 test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is played, dial %f', (dial) => {
@@ -93,5 +94,41 @@ test('a Mongol rider scouts: a move into the fog, then another move from the new
     const moves = planTurn(aiInputFor(s, 1), { dial, seed, refused: [] }).actions.filter((a) => a.type === 'move' && a.unit === rider);
     expect(moves.length, `dial ${dial} seed ${seed}`).toBe(2);
     expect(moves[0]!.type === 'move' && seen.has(moves[0]!.to)).toBe(false);   // the first ends in the fog
+  }
+});
+
+test('the planner drinks a draught when a second attack kills a hurt enemy in reach', () => {
+  // draughtFinish(): one attack leaves the full enemy Warrior at 4 (damage 6, counter 2); a second from the attacker
+  // at 8/10 deals 5 and kills. Drink and first attack may come in either order. Normal is the level that sees it:
+  // easy has no lookahead, so it never sees the second strike, and hard weighs danger so little that even the first
+  // attack on a full Warrior scores below zero there, with or without a draught.
+  const s = draughtFinish();
+  const me = s.units.find(u => u.owner === 1)!.id;
+  const foe = s.units.find(u => u.owner === 0)!;
+  const first = applyAction(s, { type: 'attack', unit: me, target: foe.pos });
+  expect(first.ok).toBe(true); if (!first.ok) return;
+  expect(first.state.units.find(u => u.id === foe.id)!.hp).toBe(4);
+  expect(first.state.units.find(u => u.id === me)!.hp).toBe(8);
+  for (const seed of [0, 1, 2, 3, 4]) {
+    const plan = planTurn(aiInputFor(s, 1), { dial: LEVEL_DIAL.normal, seed, refused: [] });
+    expect(plan.actions, `seed ${seed}`).toContainEqual({ type: 'useItem', unit: me });
+    expect(plan.actions.filter(a => a.type === 'attack' && a.unit === me && a.target === foe.pos)).toHaveLength(2);
+  }
+});
+test('the planner keeps its draught when no enemy is in reach', () => {
+  const s = draughtFinish();
+  s.units.find(u => u.owner === 0)!.pos = '-3,4';
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  for (const dial of [0, LEVEL_DIAL.normal, LEVEL_DIAL.hard, 1]) for (const seed of [0, 1, 2]) {
+    const plan = planTurn(aiInputFor(s, 1), { dial, seed, refused: [] });
+    expect(plan.actions.some(a => a.type === 'useItem')).toBe(false);
+  }
+});
+test('hard Mongols lure when the pull is safe', () => {
+  // safeLure(): the rider's tile, the only one a lure could pull the Warrior onto, is open field. The existing
+  // lureFromCity test (never a lure onto its own city) still holds at every level.
+  for (const seed of [0, 1, 2, 3]) {
+    const plan = planTurn(aiInputFor(safeLure(), 1), { dial: LEVEL_DIAL.hard, seed, refused: [] });
+    expect(plan.actions.some(a => a.type === 'attack' && a.lure === true), `seed ${seed}`).toBe(true);
   }
 });

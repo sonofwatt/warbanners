@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest';
 import {
-  applyAction, createMatch, key, legalActions, mirror, parseKey, reachable, visibleTiles,
+  CONFIG, applyAction, createMatch, freshDeeds, key, legalActions, mirror, parseKey, reachable, visibleTiles,
 } from '../engine';
-import { addCity, addUnit, blankMatch, randomPlayout } from '../engine/testkit';
+import type { TreasureOutcome } from '../engine';
+import { addCity, addUnit, blankMatch, randomPlayout, rngFor, setTile } from '../engine/testkit';
 import { aiInputFor, believedState, viewKey } from './input';
-import { hiddenScout, hopelessCharge, lureFromCity, openVillage, riderRaid, spartanLine } from './scenarios';
+import { draughtFinish, hiddenScout, hopelessCharge, lureFromCity, openVillage, riderRaid, safeLure, spartanLine } from './scenarios';
 
 test('the input does not change when only hidden things change', () => {
   const base = blankMatch(); addCity(base, 0, 0, 3); addCity(base, 1, 0, -3);
@@ -52,11 +53,44 @@ test('every scenario is a legal position with the right player to move', () => {
   const cases: [string, ReturnType<typeof spartanLine>, number][] = [
     ['spartanLine', spartanLine(), 0], ['riderRaid', riderRaid(), 1], ['openVillage', openVillage(), 1],
     ['lureFromCity', lureFromCity(), 1], ['hopelessCharge', hopelessCharge(), 1],
-    ['hiddenScout', hiddenScout().state, 1],
+    ['hiddenScout', hiddenScout().state, 1], ['safeLure', safeLure(), 1], ['draughtFinish', draughtFinish(), 1],
   ];
   for (const [name, s, mover] of cases) {
     expect(s.current, name).toBe(mover);
     expect(legalActions(s).length, name).toBeGreaterThan(0);
     expect(s.players.every(p => p.explored.length > 0), name).toBe(true);
+  }
+});
+test('AiInput carries no enemy deeds but shows enemy traits and items', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const deeds = { fight: 5, march: 9, survive: 3, rest: 2 };
+  const mine = addUnit(s, 'warrior', 0, 0, 0, { deeds: { ...deeds }, heroTraits: ['hardy'] });
+  const foe = addUnit(s, 'warrior', 1, 1, 0, { deeds: { ...deeds }, heroTraits: ['fierce', 'tireless'], item: 'draught', hp: 12 });
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const input = aiInputFor(s, 0);
+  const seen = input.view.units.find(u => u.id === foe.id)!;
+  expect(seen.deeds).toEqual(freshDeeds());
+  expect(seen.heroTraits).toEqual(['fierce', 'tireless']);
+  expect(seen.item).toBe('draught');
+  expect(input.view.units.find(u => u.id === mine.id)!.deeds).toEqual(deeds);
+  expect(believedState(input).units.find(u => u.id === foe.id)!.deeds).toEqual(freshDeeds());
+  expect(s.units.find(u => u.id === foe.id)!.deeds).toEqual(deeds);    // the match itself keeps them
+});
+test('a treasure the other player claims out of sight changes nothing the AI can read, whatever it gives', () => {
+  // Player 1 claims far from player 0's sight: the trait, the found site and the spawned unit stay hidden.
+  for (const outcome of CONFIG.treasure.table as readonly TreasureOutcome[]) {
+    const s = blankMatch({ unexplored: true }); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    setTile(s, 2, -3, { treasure: true }); setTile(s, -2, -1, { treasure: true }); setTile(s, 1, 2, { treasure: true });
+    addUnit(s, 'warrior', 0, 0, 2);
+    const claimer = addUnit(s, 'warrior', 1, 2, -3);
+    s.current = 1;
+    for (const p of s.players) p.explored = [...visibleTiles(s, p.id)].sort();
+    expect(visibleTiles(s, 0).has('2,-3')).toBe(false);
+    s.rng = rngFor(outcome);
+    const before = aiInputFor(s, 0);
+    const r = applyAction(s, { type: 'claimTreasure', unit: claimer.id });
+    expect(r.ok, outcome).toBe(true); if (!r.ok) continue;
+    expect(r.events.find(e => e.type === 'treasure')).toMatchObject({ outcome });
+    expect(aiInputFor(r.state, 0), outcome).toEqual(before);
   }
 });

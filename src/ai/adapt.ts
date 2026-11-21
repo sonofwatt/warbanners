@@ -1,7 +1,7 @@
 // The adaptive skill dial: how hard the AI plays, nudged toward an even game.
-import { UNITS, playerIncome } from '../engine';
+import { maxHpOf, playerIncome } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
-import { unitWorth } from './assess';
+import { unitValue } from './assess';
 
 export const ADAPT = { smooth: 0.7, gain: 0.5, maxStep: 0.04, deadband: 0.05, min: 0.1, max: 0.95, start: 0.5, winShift: 0.05 } as const;
 
@@ -13,7 +13,7 @@ const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.m
 export function standingOf(state: MatchState, p: PlayerId): number {
   let cities = 0; let levels = 0; let army = 0;
   for (const c of state.cities) if (c.owner === p) { cities += 1; levels += c.level; }
-  for (const u of state.units) if (u.owner === p) army += unitWorth(u.type) * u.hp / UNITS[u.type].hp;
+  for (const u of state.units) if (u.owner === p) army += unitValue(u) * u.hp / maxHpOf(u);
   return 4 * cities + 2 * levels + army / 4 + 2 * state.players[p]!.techs.length + playerIncome(state, p);
 }
 
