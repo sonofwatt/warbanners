@@ -34,5 +34,8 @@ test('legalActions on a 25-unit position is fast', () => {
     for (let i = 0; i < 20; i++) legalActions(s);
     fastest = Math.min(fastest, (performance.now() - t0) / 20);
   }
-  expect(fastest).toBeLessThan(5); // about 2.5 ms on this position in Node on ClaudeComputer (rules version 2)
+  // Raised from 5 for rules 6: 25-unit positions now hold far more legal actions (this one 283; the rules 5 position
+  // had 130), and on this same state the rules 5 engine takes 4.8 ms against rules 6's 5.1 ms, so the engine is not
+  // slower per action. About 5 ms on this position in Node on ClaudeComputer, idle (2.5 ms on rules 2's position).
+  expect(fastest).toBeLessThan(8);
 }, 30_000);

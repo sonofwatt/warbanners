@@ -228,7 +228,7 @@ describe('matches between two AIs end', () => {
   }, 120_000);
 
   // Measured on seeds 1 to 8 with both seatings: at hard after Task 12b's AI changes 11 end within 60 rounds (the five
-  // named below do not); at normal with plan 5 Task 8's numbers 14 (the two named below do not). Matches still stall at
+  // named below do not); at normal with plan 5 Task 8's numbers 14, and again 14 with rules 6 (the two named below do not). Matches still stall at
   // 60 rounds in bulk (15.5% normal against normal on fresh seeds, docs/superpowers/plans/2026-11-20-plan-5-tuning-log.md),
   // so these tests name the matches known not to end; any other match failing to end is a regression.
   describe.runIf(process.env.SLOW === '1')('many seeds (SLOW=1)', () => {
@@ -237,7 +237,7 @@ describe('matches between two AIs end', () => {
     const unended = (dial: number, bound: number): string[] => [1, 2, 3, 4, 5, 6, 7, 8]
       .flatMap((seed) => seatings.map((f) => (aiMatch(seed, f, dial, bound).winner === null ? [`${seed} ${f[0]}`] : [])))
       .flat();
-    const KNOWN_NORMAL = ['5 mongols', '8 mongols'];
+    const KNOWN_NORMAL = ['1 mongols', '8 spartans'];   // rules 6: was 5 mongols and 8 mongols, which now end
     test(`at normal, every match but ${KNOWN_NORMAL.join(', ')} first ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
