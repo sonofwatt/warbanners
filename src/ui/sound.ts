@@ -24,7 +24,7 @@ export const SOUNDS: Record<
   chainCost: { wave: 'square', notes: [200, 150], ms: 160, gain: 0.08 },
 };
 
-const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
+export const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
   { name: 'win', types: ['matchOver'] },
   { name: 'capture', types: ['captured'] },
   { name: 'levelUp', types: ['heroTrait'] },
@@ -53,32 +53,41 @@ export function hearingFor(before: MatchState, after: MatchState, viewer: Player
   return { viewer, actor: before.current, visible, seenUnits, cityAt: (id) => cityTile(before, after, id) };
 }
 
-// Whether the viewer may hear of an event: a sound tells nothing the board would not show. The viewer's own actions
-// are always heard. Otherwise a unit event needs the unit in `seenUnits`, a tile event needs its tile visible, and
-// an opponent's research (it has no place on the board) is never heard.
+// Whether the viewer may hear of an event: a sound tells nothing the board would not show. A unit event needs the
+// unit in `seenUnits`, whoever acted (the viewer's own units are always seen, so that costs nothing, and a rest deed
+// or a splash can touch a hidden enemy unit during the viewer's own action). The viewer's own research, treasure,
+// building, training, reward, level and capture are heard as they happen; an opponent's need their tile visible, and
+// an opponent's research is never heard (it has no place on the board). An event type with no rule is silent.
+type Rule<T extends GameEvent['type']> = (e: Extract<GameEvent, { type: T }>, h: Hearing) => boolean;
+const rule = <T extends GameEvent['type']>(r: Rule<T>): Rule<T> => r;
+const tileSeen = (h: Hearing, at: HexKey | undefined): boolean => at !== undefined && h.visible.has(at);
+const own = (h: Hearing): boolean => h.actor === h.viewer;
+const unitSeen = (e: { unit: number }, h: Hearing): boolean => h.seenUnits.has(e.unit);
+
+export const HEARD_RULES: { [T in GameEvent['type']]?: Rule<T> } = {
+  moved: rule<'moved'>(unitSeen),
+  lured: rule<'lured'>(unitSeen),
+  advanced: rule<'advanced'>(unitSeen),
+  died: rule<'died'>(unitSeen),
+  heroTrait: rule<'heroTrait'>(unitSeen),
+  chainCost: rule<'chainCost'>(unitSeen),
+  ability: rule<'ability'>(unitSeen),
+  usedItem: rule<'usedItem'>(unitSeen),
+  attacked: rule<'attacked'>((e, h) => h.seenUnits.has(e.target)),
+  splashed: rule<'splashed'>((e, h) => h.seenUnits.has(e.target)),
+  researched: rule<'researched'>((_e, h) => own(h)),
+  treasure: rule<'treasure'>((e, h) => own(h) || tileSeen(h, e.at)),
+  built: rule<'built'>((e, h) => own(h) || tileSeen(h, e.at)),
+  trained: rule<'trained'>((e, h) => own(h) || (unitSeen(e, h) && tileSeen(h, e.at))),
+  captured: rule<'captured'>((e, h) => own(h) || tileSeen(h, h.cityAt(e.city))),
+  cityLevel: rule<'cityLevel'>((e, h) => own(h) || tileSeen(h, h.cityAt(e.city))),
+  reward: rule<'reward'>((e, h) => own(h) || tileSeen(h, h.cityAt(e.city))),
+  matchOver: rule<'matchOver'>(() => true),
+};
+
 function heard(e: GameEvent, h: Hearing): boolean {
-  if (h.actor === h.viewer) return true;
-  const tile = (at: HexKey | undefined): boolean => at !== undefined && h.visible.has(at);
-  switch (e.type) {
-    case 'died':
-    case 'heroTrait':
-    case 'usedItem':
-    case 'ability':
-    case 'chainCost':
-    case 'moved':
-    case 'lured':
-    case 'advanced': return h.seenUnits.has(e.unit);
-    case 'trained': return h.seenUnits.has(e.unit) && tile(e.at);
-    case 'attacked':
-    case 'splashed': return h.seenUnits.has(e.target);
-    case 'treasure':
-    case 'built': return tile(e.at);
-    case 'captured':
-    case 'cityLevel':
-    case 'reward': return tile(h.cityAt(e.city));
-    case 'researched': return false;
-    default: return true;
-  }
+  const r = HEARD_RULES[e.type] as Rule<GameEvent['type']> | undefined;
+  return r === undefined ? false : r(e as never, h);
 }
 
 // One sound per action: the most important event the viewer may know of wins.

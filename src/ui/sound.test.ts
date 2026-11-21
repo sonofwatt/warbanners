@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { GameEvent } from '../engine';
 import type { Hearing } from './sound';
-import { SAMPLE_FILES, SOUNDS, isMuted, pickTake, play, resetSound, sampleUrl, setMuted, soundFor } from './sound';
+import { HEARD_RULES, ORDER, SAMPLE_FILES, SOUNDS, isMuted, pickTake, play, resetSound, sampleUrl, setMuted, soundFor } from './sound';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -257,8 +257,26 @@ describe('the sound tells only what the board would show', () => {
     expect(soundFor([r], seeAll)).toBeNull();
     expect(soundFor([r], hear([], TILES, 0))).toBe('research');
   });
-  test('the viewer own actions are always heard', () => {
+  test('the viewer own deeds are heard without a tile check, but never an unseen unit', () => {
     const mine = hear([], [], 0);
-    for (const [, ev, sound] of cases) expect(soundFor([ev], mine)).toBe(sound);
+    for (const [, ev, sound] of cases) {
+      if (ev.type === 'moved' || ev.type === 'lured') expect(soundFor([ev], mine)).toBeNull();
+      else expect(soundFor([ev], mine)).toBe(sound);
+    }
+  });
+  test('an unseen opponent unit that levels up during the viewer end turn is silent', () => {
+    const lvl: GameEvent = { type: 'heroTrait', unit: 9, trait: 'fierce', hero: false };
+    expect(soundFor([lvl], hear([1], TILES, 0))).toBeNull();
+    expect(soundFor([lvl], hear([9], TILES, 0))).toBe('levelUp');
+  });
+  test('the viewer splash on a hidden enemy is silent, on a seen one heard', () => {
+    const splash: GameEvent[] = [{ type: 'splashed', target: 9, damage: 2 }, { type: 'died', unit: 9 }];
+    expect(soundFor(splash, hear([1], TILES, 0))).toBeNull();
+    expect(soundFor(splash, hear([9], TILES, 0))).toBe('fall');
+    expect(soundFor([splash[0]!], hear([9], TILES, 0))).toBe('hit');
+  });
+  test('every event type a sound is made from has an explicit fog rule', () => {
+    for (const { types } of ORDER) for (const t of types) expect(Object.keys(HEARD_RULES)).toContain(t);
+    expect(Object.keys(HEARD_RULES)).toContain('matchOver');
   });
 });
