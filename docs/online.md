@@ -94,6 +94,14 @@ The phone that finds the disagreement writes `desync/<uid>` and shows the desync
 
 Rules 4 (heroes and treasures) adds one action, `{"type":"useItem","unit":<id>}`, which drinks a carried draught. `database.rules.json` did not change for it, and nothing needed to. The rules special-case only the exact `endTurn` and `resign` strings; any other action that contains `player` or a backslash is refused, and `useItem` contains neither, so it is accepted like a move or an attack (a string of at most 512 characters, written once at `head.n`). Versions are compared as values: a seat's `rules` must equal the room's `meta/rulesVersion`, whatever number that is, so moving `RULES_VERSION` from 3 to 4 needs no edit to the rules. A rules 3 room cannot be continued on 0.4.0: a phone on rules 4 sees a room whose `rulesVersion` is 3 as a different rules version and writes nothing to it, and the same holds the other way round. Finish or leave such rooms before updating. The deploy rule below still applies to any later rules change, and never to a `RULES_VERSION` bump while an online match is being played.
 
+## Rules 5: the chain kill cost
+
+Rules 5 (0.4.1) makes a chain unit pay health for each kill (docs/rules/stage2-rules.md, section 9). It adds no action and
+no field to the wire, so `database.rules.json` did not change. A rules 5 phone cannot share a match with a rules 4 one: a
+seat's `rules` must equal the room's `meta/rulesVersion`, so a rules 4 room cannot be continued on 0.4.1, and a rules 5
+room is refused by a 0.4.0 phone. Finish or leave rules 4 rooms before updating, and never deploy this bump while an online
+match is being played.
+
 ## Rules are deployed by hand
 
 Editing `database.rules.json` changes nothing live until it is deployed:

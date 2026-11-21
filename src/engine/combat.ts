@@ -119,12 +119,20 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     removeUnit(s, target.id);
     ev.push({ type: 'died', unit: target.id });
     kills += 1;
-    if (hasTrait(attacker, 'chain')) attacker.attacks += 1;
+    // rules 5: the kill costs a chain unit health, never below 1, then grants the extra attack. Its event follows the
+    // advance, so the number shows where the rider ends up.
+    let chainLost = 0;
+    if (hasTrait(attacker, 'chain')) {
+      chainLost = Math.max(0, Math.min(CONFIG.chainKillCost, attacker.hp - 1));
+      attacker.hp -= chainLost;
+      attacker.attacks += 1;
+    }
     // rules 10: a melee killer steps into the emptied tile, at no movement cost
     if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
       attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
       ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
     }
+    if (chainLost > 0) ev.push({ type: 'chainCost', unit: attacker.id, damage: chainLost });
   }
 
   if (hasTrait(attacker, 'splash')) {

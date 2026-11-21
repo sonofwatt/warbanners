@@ -15,6 +15,9 @@ export interface SideMetrics {
   raidRetreats: number; mountedAttacks: number; adjacentShare: number; forestEntriesWithLittleMp: number;
   traitsEarned: Partial<Record<HeroTraitId, number>>; heroes: number; heroesLost: number;
   treasures: Partial<Record<TreasureOutcome, number>>; draughtsDrunk: number;
+  chainKills: number;    // kills made by a chain unit (Knight, Khan's Guard) with its own attack
+  chainSweeps: number;   // turns in which one unit made CHAIN_SWEEP_KILLS or more kills
+  doubleKills: number;   // turns in which one unit made 2 or more kills
 }
 export interface SimResult {
   seed: number; factions: [FactionId, FactionId]; winner: PlayerId | null; stalled: boolean; adjudged: PlayerId | null;
@@ -24,16 +27,18 @@ export interface SimResult {
 }
 
 const ROUND_FOR_CITIES = 10;
+export const CHAIN_SWEEP_KILLS = 3;
 
 const roundsOf = (s: MatchState): number => Math.floor(s.stamp / 2);
 const isMounted = (t: UnitTypeId): boolean => (UNITS[t].traits as readonly string[]).includes('mounted');
+const isChain = (t: UnitTypeId): boolean => (UNITS[t].traits as readonly string[]).includes('chain');
 const citiesOf = (s: MatchState, p: PlayerId): number => s.cities.filter((c) => c.owner === p).length;
 
 function emptySide(): SideMetrics {
   return {
     cities: 0, citiesAtRound10: 0, unitsTrained: {}, attacks: 0, kills: 0, lures: 0, lureOntoCapturable: 0, luredCaptures: 0,
     raidRetreats: 0, mountedAttacks: 0, adjacentShare: 0, forestEntriesWithLittleMp: 0,
-    traitsEarned: {}, heroes: 0, heroesLost: 0, treasures: {}, draughtsDrunk: 0,
+    traitsEarned: {}, heroes: 0, heroesLost: 0, treasures: {}, draughtsDrunk: 0, chainKills: 0, chainSweeps: 0, doubleKills: 0,
   };
 }
 
@@ -85,8 +90,10 @@ export function runMatch(o: SimOpts): SimResult {
     replans += log.replans;
 
     const attackedBy = new Set<number>();
+    const killsBy = new Map<number, number>();   // this turn's kills by each of my attacking units
     for (const step of log.steps) {
       const { action, events, before } = step;
+      const attacker = action.type === 'attack' ? before.units.find((x) => x.id === action.unit) : undefined;
       actions.push(action);
       if (action.type === 'endTurn') {
         const share = adjacentShareOf(before, me);
@@ -113,7 +120,13 @@ export function runMatch(o: SimOpts): SimResult {
       for (const e of events) {
         if (e.type === 'died') {
           const dead = before.units.find((x) => x.id === e.unit);
-          if (dead !== undefined && dead.owner !== me) side.kills += 1;
+          if (dead !== undefined && dead.owner !== me) {
+            side.kills += 1;
+            if (attacker !== undefined) {
+              killsBy.set(attacker.id, (killsBy.get(attacker.id) ?? 0) + 1);
+              if (isChain(attacker.type)) side.chainKills += 1;
+            }
+          }
           if (dead !== undefined && isHero(dead)) sides[dead.owner]!.heroesLost += 1;
         } else if (e.type === 'heroTrait') {
           // a unit a treasure just spawned is not in `before`; it belongs to the player acting
@@ -138,6 +151,10 @@ export function runMatch(o: SimOpts): SimResult {
           }
         }
       }
+    }
+    for (const n of killsBy.values()) {
+      if (n >= CHAIN_SWEEP_KILLS) side.chainSweeps += 1;
+      if (n >= 2) side.doubleKills += 1;
     }
     s = log.state;
     if (citiesAt10 === null && roundsOf(s) >= ROUND_FOR_CITIES) citiesAt10 = [citiesOf(s, 0), citiesOf(s, 1)];
@@ -183,7 +200,7 @@ function percentile(sorted: readonly number[], q: number): number {
 const METRIC_KEYS: (keyof SideMetrics)[] = [
   'cities', 'citiesAtRound10', 'unitsTrained', 'attacks', 'kills', 'lures', 'lureOntoCapturable', 'luredCaptures',
   'raidRetreats', 'mountedAttacks', 'adjacentShare', 'forestEntriesWithLittleMp',
-  'traitsEarned', 'heroes', 'heroesLost', 'treasures', 'draughtsDrunk',
+  'traitsEarned', 'heroes', 'heroesLost', 'treasures', 'draughtsDrunk', 'chainKills', 'chainSweeps', 'doubleKills',
 ];
 
 const total = (r: Partial<Record<string, number>>): number => Object.values(r).reduce((a: number, b) => a + (b ?? 0), 0);

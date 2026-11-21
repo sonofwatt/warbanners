@@ -2,7 +2,7 @@
 
 Stage 2 adds heroes and new treasures to the stage 1 rules. This file covers heroes (deeds,
 earned traits, what traits do and what each player can see) and treasures (the draw, the Sellsword, the Battle draught). The numbers
-were tuned by simulated AI-against-AI matches in plan 5 Task 8 (section 8); the data files (`CONFIG.heroes` in
+were tuned by simulated AI-against-AI matches in plan 5 Task 8 (section 8). Section 9 is the rules 5 chain kill cost. The data files (`CONFIG.heroes` in
 `src/engine/data/config.ts`, `FACTIONS`) win over this file.
 
 ## 1. Deeds
@@ -165,3 +165,15 @@ the trait sizes and the treasure table are the first draft, kept. Every run is i
 | Hard over easy | at least 80% | 75.2% (missed) |
 | Normal over easy | at least 65% | 65.8% |
 | Hard over normal | at least 60% | 55.5% (missed) |
+
+## 9. The chain kill cost (rules 5)
+
+- A unit with the `chain` trait (the Knight and the Mongols' Khan's Guard) loses `CONFIG.chainKillCost` health, 2, each
+  time it kills with its own attack: "the rider flailing as they're trampled". The cost is taken after the kill and before
+  the extra attack is granted, and the extra attack is still granted after every kill.
+- It never kills the unit: health stops at 1. A wounded unit hits weaker (the health factor), so a long chain damps itself.
+- No cost when a chain unit kills by striking back, or when its attack does not kill.
+- The engine emits `{ type: 'chainCost', unit, damage }` after the kill's `died` and `advanced` events, with the health
+  actually lost (no event when nothing was lost); the board shows it as a hurt number on the unit.
+- It earns no deed: it is not a hit survived, and the attack's fight deed is unchanged.
+- The number was picked by simulated matches: `docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md`.

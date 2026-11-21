@@ -132,6 +132,10 @@ const heroLines = [
   `treasures claimed per match ${f2(claimed / (n || 1))}: ${Object.entries(treasureSum).sort((a, b) => b[1] - a[1]).map(([o, c]) => `${o} ${f2(c / (n || 1))}`).join(', ')}`,
   `draughts drunk ${drunk} of ${draughtsFound} found (${share(drunk, draughtsFound)})`,
 ];
+const sumOf = (k: 'kills' | 'chainKills' | 'chainSweeps' | 'doubleKills'): number => results.reduce((a, r) => a + r.sides[0][k] + r.sides[1][k], 0);
+const chainLine = `chain: sweeps (one unit, 3+ kills in a turn) per 100 matches ${f2(100 * sumOf('chainSweeps') / (n || 1))}  (2+ kills ${f2(100 * sumOf('doubleKills') / (n || 1))})`
+  + `  chain kills per match ${f2(sumOf('chainKills') / (n || 1))}  chain-unit kill share ${share(sumOf('chainKills'), sumOf('kills'))}`
+  + `  knights trained per match ${f2(results.reduce((a, r) => a + (r.sides[0].unitsTrained.knight ?? 0) + (r.sides[1].unitsTrained.knight ?? 0), 0) / (n || 1))}`;
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
   `win share: spartans ${pct(s.winRate.spartans)}  mongols ${pct(s.winRate.mongols)}  (adjudged stalls count half)`,
@@ -149,4 +153,5 @@ console.log([
     + `  mongol cities at round 10 minus spartan ${f2(per.mongols.citiesAtRound10 - per.spartans.citiesAtRound10)}`
     + `  mongol raid retreats / mounted attacks ${f2(per.mongols.mountedAttacks === 0 ? 0 : per.mongols.raidRetreats / per.mongols.mountedAttacks)}`,
   ...heroLines,
+  chainLine,
 ].join('\n'));

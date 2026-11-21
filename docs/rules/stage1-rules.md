@@ -226,7 +226,7 @@ Worked examples (all at full health on a field unless said):
 | steadfast | Counter-attack factor 1.25 in place of 0.75 |
 | doubleStrike | Two attacks per turn |
 | retreat | Keeps its remaining movement after attacking |
-| chain | Each kill gives one more attack this turn |
+| chain | Each kill gives one more attack this turn. Since rules 5 each kill also costs the unit health: see stage2-rules.md, section 9 |
 | splash | Enemy units next to the target take half the damage dealt to the target, rounded, at least 1. No counter from them |
 | siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
 | mounted | A tag other rules refer to |

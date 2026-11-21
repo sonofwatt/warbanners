@@ -1,7 +1,7 @@
 import { setFlagsFromString } from 'node:v8';
 import { runInNewContext } from 'node:vm';
 import { expect, test } from 'vitest';
-import { applyAction, playerView } from '../../engine';
+import { CONFIG, applyAction, playerView } from '../../engine';
 import type { GameEvent, MatchState } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import { T } from '../text';
@@ -30,6 +30,16 @@ test('a killing blow: lunge, number, fall, in order', () => {
   expect(fx).toContainEqual({ kind: 'number', at: '1,0', text: `-${dmg}`, tone: 'hurt', delay: 0 });
   expect(fx.find((f) => f.kind === 'fall')).toMatchObject({ unitType: 'warrior', owner: 1, at: '1,0' });
   expect(effectsFor(r.events, s, r.state, new Set(['0,0']), everyone(s, r.state), 0).filter((f) => 'at' in f && f.at === '1,0')).toEqual([]);
+});
+
+test('a knight kill shows its chain cost as a hurt number on the tile it rode into', () => {
+  const s = blankMatch();
+  const knight = addUnit(s, 'knight', 0, 0, 0);
+  addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+  const r = applyAction(s, { type: 'attack', unit: knight.id, target: '1,0' });
+  if (!r.ok) throw new Error(r.reason);
+  const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state), 0);
+  expect(fx.at(-1)).toMatchObject({ kind: 'number', at: '1,0', text: `-${CONFIG.chainKillCost}`, tone: 'hurt' });
 });
 
 test('the fall comes 120 ms after the blow', () => {
