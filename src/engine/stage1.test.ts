@@ -62,7 +62,7 @@ test('until stage 2 first changes an outcome, rules 4 plays the rules 3 playout 
     const r = applyAction(s, actions[i]!);
     expect(r.ok, `action ${i}`).toBe(true);
     if (!r.ok) return;
-    if (r.events.some((e) => e.type === 'treasure' || e.type === 'heroTrait')) break;
+    if (r.events.some((e) => e.type === 'treasure' || e.type === 'heroTrait' || e.type === 'chainCost')) break;
     expect(hashState(stage1Shape(r.state) as MatchState), `after action ${i}`).toBe(hashes[i]);
     s = r.state; matched = i + 1;
   }

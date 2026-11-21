@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 4;
+export const RULES_VERSION = 5;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -92,6 +92,7 @@ export type GameEvent =
   | { type: 'splashed'; target: number; damage: number }
   | { type: 'died'; unit: number }
   | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
+  | { type: 'chainCost'; unit: number; damage: number }             // rules 5: the health a chain unit paid for a kill
   | { type: 'lured'; unit: number; from: HexKey; to: HexKey }
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }

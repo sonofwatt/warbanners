@@ -31,6 +31,9 @@ export const CONFIG = deepFreeze({
   },
   techBase: [4, 6, 8],
   counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2.5, splashDivisor: 2,
+  // rules 5: a chain unit loses this much health for each kill it makes with its own attack, never below 1. Picked by
+  // simulated matches (docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md).
+  chainKillCost: 2,
   restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
   treasure: {
     gold: 5, exploreRadius: 4, unit: 'warrior',
@@ -75,7 +78,7 @@ export const CONFIG = deepFreeze({
   capitalIncome: number; capacityBase: number; growthBase: number;
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
-  counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
+  counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number; chainKillCost: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
   treasure: {
     gold: number; exploreRadius: number; unit: string; table: readonly TreasureOutcome[];
