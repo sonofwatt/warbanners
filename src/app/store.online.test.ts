@@ -353,3 +353,66 @@ test('a failed write of the online list is told once a session, and never over a
   guest.get().resignOnline(); await settle(server);
   expect(guest.get().notice).toBe('resignLost');
 });
+
+// ---- plan 5: an offline Continue, and a page made visible ----
+
+// A match cached on this phone (Ann's, after her first turn), and the board it holds.
+async function cachedMatch(): Promise<{ host: Phone; server: FakeServer; hash: string }> {
+  const { host, server } = await startedPair();
+  host.get().run({ type: 'endTurn' }); await settle(server);
+  const hash = hashState(host.get().state!);
+  host.get().goHome();
+  return { host, server, hash };
+}
+test('Continue with no connection shows the cached board, not needsConnection', async () => {
+  const { host, server, hash } = await cachedMatch();
+  const off = online({ uid: 'u0', server, kv: host.kv, online: () => false });
+  off.get().openRoom(host.code);
+  expect(off.get()).toMatchObject({ screen: 'match', mode: 'online', viewer: 0 });
+  expect(off.get().notice).not.toBe('needsConnection');
+  expect(hashState(off.get().state!)).toBe(hash);
+  await settle(server);
+  expect(off.get().online).not.toBeNull();               // the session is open as usual, and takes over once it answers
+  expect(off.get().online!.code).toBe(host.code); expect(off.get().screen).toBe('match');
+  expect(hashState(off.get().state!)).toBe(hash);
+});
+test('Continue with no connection and no cache still says needsConnection', async () => {
+  const { host, server } = await cachedMatch();
+  host.kv.removeItem(`warbanners.online.${host.code}`);
+  const off = online({ uid: 'u0', server, kv: host.kv, online: () => false });
+  off.get().openRoom(host.code);
+  expect(off.get()).toMatchObject({ screen: 'home', notice: 'needsConnection', mode: 'local', online: null, state: null });
+  await settle(server);
+  expect(off.get().online).toBeNull();
+});
+test('an offline Continue on a rules 3 cache still says needsConnection', async () => {
+  const { host, server } = await cachedMatch();
+  const key = `warbanners.online.${host.code}`;
+  host.kv.setItem(key, JSON.stringify({ ...JSON.parse(host.kv.getItem(key)!), rulesVersion: RULES_VERSION - 1 }));
+  const off = online({ uid: 'u0', server, kv: host.kv, online: () => false });
+  off.get().openRoom(host.code);
+  expect(off.get()).toMatchObject({ screen: 'home', notice: 'needsConnection', mode: 'local', online: null, state: null });
+  await settle(server);
+  expect(off.get().online).toBeNull();
+});
+test('a visibilitychange to visible calls the open session wake once', async () => {
+  const listeners = new Set<() => void>();
+  const onVisible = (fn: () => void): (() => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
+  const server = fakeServer(1_000_000);
+  const host = online({ uid: 'u0', server, onVisible });
+  const guest = online({ uid: 'u1', server });
+  expect(listeners.size).toBe(0);                        // nothing listens before a session is open
+  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  guest.get().openRoom(host.code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
+  host.get().startOnline(); await settle(server);
+  expect(listeners.size).toBe(1);
+  const returns = (): number => server.log().filter(w => w.uid === 'u0' && w.paths.length === 1 && w.paths[0] === `rooms/${host.code}/presence/u0`).length;
+  const before = returns();
+  for (const fn of listeners) fn();
+  expect(host.get().online!.returning).toBe(true);
+  await settle(server);
+  expect(returns()).toBe(before + 1);
+  expect(host.get().online!.returning).toBe(false);
+  host.get().goHome();
+  expect(listeners.size).toBe(0);                        // let go with the session
+});

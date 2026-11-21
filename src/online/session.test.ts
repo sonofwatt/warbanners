@@ -1,11 +1,14 @@
 import { expect, test, vi } from 'vitest';
-import { hashState, legalActions, RULES_VERSION } from '../engine';
+import { applyAction, hashState, legalActions, RULES_VERSION } from '../engine';
+import type { MatchState } from '../engine';
+import { must } from '../engine/testkit';
 import { planTurn } from '../ai/plan';
 import type { AiClient } from '../app/aiClient';
 import {
   bareServer, fakeKit, fakePause, hanging, headOf, meta, pair, playTurns, settle, sharedBodies, spyReadStart, until,
 } from '../net/sessionKit';
 import { openSession } from './session';
+import { REPLAY_CHUNK } from './sync';
 import { encodeAction, SCHEMA } from './wire';
 
 vi.setConfig({ testTimeout: 30_000 });   // the AI tests run the real planner on a shared machine
@@ -152,6 +155,75 @@ test('the race: my last move against the timeout, before I have seen it; one lan
   expect(a.view().followed!.state.current).toBe(1); expect(a.view().phase).toBe('playing');
   expect(server.log().filter(w => w.uid === 'u0' && w.paths.some(p => p.startsWith('actions/')))).toEqual([]);
   expect(a.view().timedOut).toBe(0);                     // the timeUp line, though the endTurn arrived through a rebuild
+});
+test('a rebuild after a lost race yields between chunks and blocks play while it runs', async () => {
+  const { a, b, server, timers } = await pair();
+  // A record of at least 3 * REPLAY_CHUNK actions, written straight to the room, that leaves Ann to move.
+  let s: MatchState = a.view().followed!.state;
+  const list: string[] = [];
+  for (let i = 0; list.length < 3 * REPLAY_CHUNK || s.current !== 0; i++) {
+    const legal = legalActions(s).filter(x => x.type !== 'resign');
+    const x = legal[(i * 7) % legal.length]!; s = must(applyAction(s, x)); list.push(encodeAction(x));
+  }
+  const n = list.length;
+  server.write('rooms/ABC234/actions', Object.fromEntries(list.map((x, i) => [i, x])));
+  server.write('rooms/ABC234/head', { ...headOf(server), n, seat: s.current, hash: hashState(s), turnAt: server.now() });
+  await settle(server);
+  expect(b!.view().followed!.actions).toHaveLength(n);
+  a.close(); await settle(server);
+  let pauses = 0;
+  let stall = false;
+  const stalled: (() => void)[] = [];
+  const pause = (): Promise<void> => { pauses++; return stall ? new Promise((r) => { stalled.push(r); }) : fakePause(); };
+  let rebuiltAt: number | null = null;
+  const again = openSession('ABC234', { net: server.as('u0'), ai: hanging(), build: 't', setTimer: timers.setTimerFor('u0'), pause }, (v) => {
+    if (rebuiltAt === null && v.followed?.actions.length === n + 1 && v.followed.actions[n] === '{"type":"endTurn"}') rebuiltAt = pauses;
+  });
+  await settle(server);
+  expect(again.view().myTurn).toBe(true);
+  // Ben's backup takes index n with an endTurn that Ann has not heard of; her move at n then loses its index.
+  server.hold('u0');
+  const ended = must(applyAction(s, { type: 'endTurn' }));
+  server.write('rooms/ABC234/actions/' + n, '{"type":"endTurn"}');
+  server.write('rooms/ABC234/head', { ...headOf(server), n: n + 1, seat: 1, hash: hashState(ended), turnAt: server.now() });
+  await settle(server);
+  pauses = 0; stall = true;
+  const move = legalActions(again.view().followed!.state).find(x => x.type === 'move')!;
+  expect(again.act(move)).not.toBeNull();
+  await settle(server);
+  server.release('u0'); await settle(server);
+  for (let i = 0; i < 20 && stalled.length > 0; i++) {
+    expect(again.view().verifying).toBe(true); expect(again.view().myTurn).toBe(false); expect(again.resign()).toBe(false);
+    for (const r of stalled.splice(0)) r();
+    await settle(server);
+  }
+  expect(stalled).toEqual([]);
+  expect(rebuiltAt).not.toBeNull(); expect(rebuiltAt!).toBeGreaterThanOrEqual(3);
+  expect(again.view().verifying).toBe(false);
+  expect(again.view().followed!.actions).toEqual(b!.view().followed!.actions);
+  expect(hashState(again.view().followed!.state)).toBe(hashState(ended));
+  expect(again.view().phase).toBe('playing'); expect(again.view().myTurn).toBe(false);
+  expect(again.view().timedOut).toBe(n);                 // the endTurn that ended Ann's turn arrived through the rebuild
+  expect(server.log().filter(w => w.uid === 'u0' && w.paths.includes(`actions/${n}`))).toEqual([]);
+  again.close();
+});
+test('wake() runs the return before any clock decision, like a long tick gap', async () => {
+  // As in the sleeping phone above, but the page tells the session it is visible again before any tick has fired.
+  const { a, b, server, timers } = await pair();
+  timers.tick(30_000); await settle(server);
+  timers.freeze('u0'); server.hold('u0');
+  server.write('rooms/ABC234/presence/u0', { on: false, at: server.now() }); await settle(server);
+  timers.tick(120_000); await settle(server);            // 150 s: past the 120 s deadline, 120 s into the allowance
+  expect(a.view().returning).toBe(false);
+  a.wake();
+  expect(a.view().returning).toBe(true);                 // the return starts at once, not on the next tick
+  timers.thaw('u0'); timers.tick(1_000);                 // a tick while the return is on its way decides nothing
+  await settle(server);
+  server.release('u0'); await settle(server);
+  expect(server.log().filter(w => w.paths.some(p => p.startsWith('actions/')))).toEqual([]);
+  expect(headOf(server).paused).toBeGreaterThan(100_000);
+  expect(a.view().returning).toBe(false); expect(a.view().myTurn).toBe(true);
+  expect(b!.view().followed!.actions).toEqual([]);
 });
 test('a move held while offline is refused on return when the clock ended the turn meanwhile', async () => {
   const { a, b, server, timers } = await pair();

@@ -3,6 +3,7 @@ import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
 import { DIRS, add, distance, key, parseKey } from './hex';
 import type { HexKey } from './hex';
+import { addDeed } from './heroes';
 import { cityAt, cityById, hasOwn, hasTrait, isEnterable, tileAt, unitAt, unitById } from './state';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
@@ -10,7 +11,8 @@ import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 export function maxMp(s: MatchState, u: Unit): number {
   const faction = s.players[u.owner]?.faction;
   const bonus = faction !== undefined && hasTrait(u, 'mounted') ? FACTIONS[faction].mountedMoveBonus : 0;
-  return 2 * (UNITS[u.type].move + bonus);
+  const tireless = u.heroTraits.includes('tireless') ? CONFIG.heroes.tirelessMove : 0;
+  return 2 * (UNITS[u.type].move + bonus + tireless);
 }
 
 function isEnemyAt(s: MatchState, owner: number, k: HexKey): boolean {
@@ -123,6 +125,7 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const from = u.pos;
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });
+  addDeed(s, u, 'march', distance(parseKey(from), parseKey(a.to)), ev);
   if (u.lure !== null) pullLured(s, u, from, ev);
   u.lure = null;
   return null;

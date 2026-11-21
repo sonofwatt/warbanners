@@ -43,6 +43,9 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
   if (ix.claims.includes(unit.id)) {
     out.push({ id: 'claimTreasure', label: T.ui.claimTreasure, cost: null, enabled: true, why: null, action: { type: 'claimTreasure', unit: unit.id }, arm: null });
   }
+  if (ix.items.includes(unit.id)) {
+    out.push({ id: 'useItem', label: T.ui.drink, cost: null, enabled: true, why: null, action: { type: 'useItem', unit: unit.id }, arm: null });
+  }
   const per = ix.abilities[unit.id] ?? {};
   for (const ability of abilityIds) {
     if ((per[ability] ?? []).length > 0) out.push(arming(`ability-${ability}`, T.ability[ability].name, null, { kind: 'ability', ability }));

@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest';
 import { adaptiveSeries, runMatch, summarize } from './sim';
 import type { SimOpts } from './sim';
+import { CONFIG, applyAction, createMatch } from '../engine';
+import type { GameEvent, MatchState } from '../engine';
 
 test('a short match is repeatable', () => {
   const o: SimOpts = { seed: 3, factions: ['spartans', 'mongols'], seats: [{ level: 'easy' }, { level: 'easy' }], maxRounds: 8 };
@@ -36,3 +38,49 @@ test.runIf(process.env.SLOW === '1')('adaptive climbs against a strong opponent 
   const weak = adaptiveSeries({ opponentDial: 0.2, matches: 4, seed: 1, maxRounds: 60 });
   expect(strong.at(-1)! - weak.at(-1)!).toBeGreaterThanOrEqual(0.2);
 }, 1_800_000);
+
+test('hero and treasure measures match the events of a short match', () => {
+  const o: SimOpts = { seed: 3, factions: ['spartans', 'mongols'], seats: [{ level: 'normal' }, { level: 'normal' }], maxRounds: 25 };
+  const r = runMatch(o);
+  let s: MatchState = createMatch({ seed: o.seed, factions: o.factions });
+  const traits = [0, 0]; const heroes = [0, 0]; const lost = [0, 0]; const claims = [0, 0]; const drunk = [0, 0];
+  let first: number | null = null; let firstRound: number | null = null;
+  for (const a of r.actions) {
+    const res = applyAction(s, a);
+    if (!res.ok) throw new Error(res.reason);
+    const ownerOf = (id: number): number => (s.units.find((u) => u.id === id) ?? res.state.units.find((u) => u.id === id))!.owner;
+    const me = s.current;
+    res.events.forEach((e: GameEvent) => {
+      if (e.type === 'heroTrait') {
+        const p = ownerOf(e.unit);
+        traits[p]! += 1;
+        if (e.hero) { heroes[p]! += 1; if (first === null) { first = p; firstRound = Math.floor(s.stamp / 2); } }
+      } else if (e.type === 'treasure') claims[me]! += 1;
+      else if (e.type === 'usedItem') drunk[ownerOf(e.unit)]! += 1;
+      else if (e.type === 'died') {
+        const u = s.units.find((x) => x.id === e.unit);
+        if (u !== undefined && u.heroTraits.length >= CONFIG.heroes.heroAt) lost[u.owner]! += 1;
+      }
+    });
+    s = res.state;
+  }
+  for (const p of [0, 1] as const) {
+    const side = r.sides[p];
+    expect(Object.values(side.traitsEarned).reduce((a, b) => a + (b ?? 0), 0)).toBe(traits[p]);
+    expect(side.heroes).toBe(heroes[p]);
+    expect(side.heroesLost).toBe(lost[p]);
+    expect(Object.values(side.treasures).reduce((a, b) => a + (b ?? 0), 0)).toBe(claims[p]);
+    expect(side.draughtsDrunk).toBe(drunk[p]);
+  }
+  expect(r.firstHero).toBe(first);
+  expect(r.firstHeroRound).toBe(firstRound);
+}, 120_000);
+test('the summary takes the mean total of traits and treasures', () => {
+  const r = runMatch({ seed: 3, factions: ['spartans', 'mongols'], seats: [{ level: 'easy' }, { level: 'easy' }], maxRounds: 2 });
+  const side = { ...r.sides[0], traitsEarned: { fierce: 2, hardy: 1 }, treasures: { gold: 4 }, heroes: 1, draughtsDrunk: 2 };
+  const sum = summarize([{ ...r, sides: [side, r.sides[1]] }]);
+  expect(sum.perFaction.spartans.traitsEarned).toBe(3);
+  expect(sum.perFaction.spartans.treasures).toBe(4);
+  expect(sum.perFaction.spartans.heroes).toBe(1);
+  expect(sum.perFaction.spartans.draughtsDrunk).toBe(2);
+});

@@ -1,0 +1,64 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+import { applyAction } from './apply';
+import { hashState } from './hash';
+import { createMatch } from './state';
+import type { Action, MatchState } from './types';
+
+// With stage 2 switched off through CONFIG alone (no trait can be earned, a treasure draws among stage 1's
+// three outcomes), rules 4 must replay every recorded rules 3 playout hash for hash. CONFIG is deep-frozen,
+// so the factory builds new objects. This file is alone because vi.mock binds a whole file.
+vi.mock('./data/config', async (orig) => {
+  const m = await orig<typeof import('./data/config')>();
+  const off = { fight: Infinity, march: Infinity, survive: Infinity, rest: Infinity };
+  return {
+    CONFIG: {
+      ...m.CONFIG,
+      heroes: { ...m.CONFIG.heroes, thresholds: off, agogeThresholds: off },
+      treasure: { ...m.CONFIG.treasure, table: ['gold', 'explore', 'unit'] },
+    },
+  };
+});
+
+interface Fixture {
+  fingerprint: { actions: Action[]; hashes: string[] };
+  playouts: { seed: number; turns: number; actions: Action[]; hashes: Record<number, string> }[];
+}
+const fixture = JSON.parse(readFileSync(new URL('./stage1.fixture.json', import.meta.url), 'utf8')) as Fixture;
+
+// Strip what plan 5 added, so a stage 1 state hashes as it did on rules 3.
+function stage1Shape(s: MatchState): unknown {
+  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, ...rest }) => rest) };
+}
+
+test('with stage 2 switched off, rules 4 replays the rules 3 fingerprint playout hash for hash', () => {
+  const { actions, hashes } = fixture.fingerprint;
+  let s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
+  for (let i = 0; i < actions.length; i++) {
+    const r = applyAction(s, actions[i]!);
+    expect(r.ok, `action ${i}`).toBe(true);
+    if (!r.ok) return;
+    s = r.state;
+    expect(hashState(stage1Shape(s) as MatchState), `after action ${i}`).toBe(hashes[i]);
+  }
+  expect(hashes.at(-1)).toBe('ba3e0e466edfedd3');
+}, 30_000);
+
+test.each([7, 1, 3])('with stage 2 switched off, the seed %i speed playout replays hash for hash', (seed) => {
+  const p = fixture.playouts.find((x) => x.seed === seed)!;
+  let s = createMatch({ seed, factions: ['spartans', 'mongols'] });
+  let compared = 0;
+  for (let i = 0; i < p.actions.length; i++) {
+    const r = applyAction(s, p.actions[i]!);
+    expect(r.ok, `action ${i}`).toBe(true);
+    if (!r.ok) return;
+    s = r.state;
+    const want = p.hashes[i];
+    if (want !== undefined) {
+      expect(hashState(stage1Shape(s) as MatchState), `seed ${seed} after action ${i}`).toBe(want);
+      compared += 1;
+    }
+  }
+  expect(compared).toBeGreaterThan(0);
+}, 60_000);

@@ -24,4 +24,5 @@ export const UNITS: Record<UnitTypeId, UnitDef> = deepFreeze({
   khansGuard: { atk: 6, def: 4, range: 1, move: 3, hp: 20, sight: 2, cost: null, tech: null, faction: 'mongols', traits: ['chain', 'inspire', 'mounted'] },
   skyCaller: { atk: 2, def: 2, range: 1, move: 2, hp: 10, sight: 2, cost: null, tech: null, faction: 'mongols', traits: ['heal', 'hasten', 'dustStorm', 'mounted'] },
   camp: { atk: 0, def: 3, range: 0, move: 1, hp: 15, sight: 1, cost: 6, tech: 'roads', faction: 'mongols', traits: ['camp'] },
+  sellsword: { atk: 5, def: 3, range: 1, move: 1, hp: 15, sight: 1, cost: null, tech: null, faction: null, traits: [] },
 });

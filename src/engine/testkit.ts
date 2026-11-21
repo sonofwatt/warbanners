@@ -1,11 +1,12 @@
 import { applyAction, legalActions } from './apply';
+import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { key, range } from './hex';
 import { rngInt } from './rng';
 import { createMatch, foundCity, freshAttacks, spawnUnit } from './state';
 import { RULES_VERSION } from './types';
 import type {
-  Action, City, FactionId, MatchState, PlayerId, Result, TechId, Tile, Unit, UnitTypeId,
+  Action, City, FactionId, MatchState, PlayerId, Result, TechId, Tile, TreasureOutcome, Unit, UnitTypeId,
 } from './types';
 
 // Every tile starts explored by both players (rules 9: a move may not pass through an unexplored tile), unless
@@ -65,17 +66,29 @@ export function must(r: Result): MatchState {
   return r.state;
 }
 
+// An rng state whose first draw over the treasure table gives `outcome`, so a retuned table breaks no test.
+export function rngFor(outcome: TreasureOutcome): number {
+  const want = CONFIG.treasure.table.indexOf(outcome);
+  if (want < 0) throw new Error(`the treasure table has no ${outcome}`);
+  let st = 1;
+  while (rngInt(st, CONFIG.treasure.table.length)[0] !== want) st++;
+  return st;
+}
+
 const MAX_ACTIONS_PER_TURN = 40;
 
 // The same random playout as scripts/sim.ts: up to 40 random non-end actions, then endTurn, for
 // `playerTurns` end-of-turns (fewer if the match ends first). The pick stream starts at the seed.
-export function randomPlayout(seed: number, playerTurns: number): MatchState {
+// Also returns every action played, so a test can replay the playout.
+export function randomPlayoutLog(seed: number, playerTurns: number): { state: MatchState; actions: Action[] } {
   let s = createMatch({ seed, factions: ['spartans', 'mongols'] });
+  const actions: Action[] = [];
   let pick = seed;
   const play = (a: Action): void => {
     const r = applyAction(s, a);
     if (!r.ok) throw new Error(`engine refused a legal action ${JSON.stringify(a)}: ${r.reason}`);
     s = r.state;
+    actions.push(a);
   };
   for (let turns = 0; s.winner === null && turns < playerTurns; turns++) {
     for (let n = 0; n < MAX_ACTIONS_PER_TURN && s.winner === null; n++) {
@@ -87,5 +100,9 @@ export function randomPlayout(seed: number, playerTurns: number): MatchState {
     }
     if (s.winner === null) play({ type: 'endTurn' });
   }
-  return s;
+  return { state: s, actions };
+}
+
+export function randomPlayout(seed: number, playerTurns: number): MatchState {
+  return randomPlayoutLog(seed, playerTurns).state;
 }

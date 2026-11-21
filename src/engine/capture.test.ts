@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { applyAction, legalActions } from './apply';
 import { canCapture, canClaimTreasure } from './capture';
-import { rngInt } from './rng';
 import { hashState } from './hash';
 import { cityAt, cityById, unitAt, unitById } from './state';
-import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, must, rngFor, setTile } from './testkit';
 import type { Action } from './types';
 
 describe('capture, elimination and resigning', () => {
@@ -123,13 +122,12 @@ describe('capture, elimination and resigning', () => {
   });
 });
 
-const rngStateFor = (n: number, want: number): number => { let st = 1; while (rngInt(st, n)[0] !== want) st++; return st; };
 const claim = (unit: number): Action => ({ type: 'claimTreasure', unit });
 
 describe('claiming a treasure (rules 12)', () => {
-  test('outcomes follow rngInt(3): explore on rng state 1', () => {
-    // with rng state 1 the first draw is 2693262067 % 3 = 1: explore
+  test('the outcome follows the first draw over the table: explore', () => {
     const s = blankMatch({ unexplored: true }); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
+    s.rng = rngFor('explore');
     const r = applyAction(s, claim(u.id)); const t = must(r);
     expect(t.tiles['1,0']!.treasure).toBe(false);
     expect(r.ok && r.events).toEqual([{ type: 'treasure', at: '1,0', outcome: 'explore' }]);
@@ -140,13 +138,13 @@ describe('claiming a treasure (rules 12)', () => {
 
   test('gold', () => {
     const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
-    s.rng = rngStateFor(3, 0);
+    s.rng = rngFor('gold');
     expect(must(applyAction(s, claim(u.id))).players[0]!.gold).toBe(25);
   });
 
   test('a unit appears on the first free neighbour, fresh and with no home', () => {
     const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
-    s.rng = rngStateFor(3, 2);
+    s.rng = rngFor('unit');
     const t = must(applyAction(s, claim(u.id)));
     expect(unitAt(t, '2,0')).toMatchObject({ type: 'warrior', owner: 0, home: null, fresh: true });
     expect(t.players[0]!.gold).toBe(20);
@@ -156,7 +154,7 @@ describe('claiming a treasure (rules 12)', () => {
     const s = blankMatch({ radius: 1 }); setTile(s, 1, 0, { treasure: true });
     setTile(s, 1, -1, { terrain: 'water' }); setTile(s, 0, 1, { terrain: 'water' });
     addUnit(s, 'warrior', 0, 0, 0); const u = addUnit(s, 'warrior', 0, 1, 0);
-    s.rng = rngStateFor(3, 2);
+    s.rng = rngFor('unit');
     const t = must(applyAction(s, claim(u.id)));
     expect(t.units).toHaveLength(2); expect(t.players[0]!.gold).toBe(25);
   });

@@ -2,6 +2,7 @@ import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
+import { freshDeeds } from './heroes';
 import { hasTrait, tileAt } from './state';
 import type { City, MatchState, PlayerId, Tile, Unit } from './types';
 
@@ -12,9 +13,9 @@ function addAround(s: MatchState, out: Set<HexKey>, center: HexKey, radius: numb
   }
 }
 
-function unitSight(s: MatchState, u: Unit): number {
+export function unitSight(s: MatchState, u: Unit): number {
   const bonus = tileAt(s, u.pos)?.terrain === 'mountain' ? CONFIG.mountainSightBonus : 0;
-  return UNITS[u.type].sight + bonus;
+  return UNITS[u.type].sight + (u.heroTraits.includes('watchful') ? CONFIG.heroes.watchfulSight : 0) + bonus;
 }
 
 export function visibleTiles(s: MatchState, player: PlayerId): Set<HexKey> {
@@ -75,7 +76,10 @@ export function playerView(s: MatchState, player: PlayerId): PlayerView {
   const visible = visibleTiles(s, player);
   const units = s.units
     .filter((u) => u.owner === player || (visible.has(u.pos) && canSeeUnit(s, player, u, visible)))
-    .map((u) => ({ ...u, lure: u.lure === null ? null : { ...u.lure } }));
+    .map((u) => ({
+      ...u, lure: u.lure === null ? null : { ...u.lure }, heroTraits: [...u.heroTraits],
+      deeds: u.owner === player ? { ...u.deeds } : freshDeeds(),   // deeds are private; traits and items are public
+    }));
   const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => ({ ...c, pendingRewards: [...c.pendingRewards] }));
   return { player, tiles, cities, units, visible: [...visible].sort() };
 }

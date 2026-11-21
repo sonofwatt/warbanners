@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
-  CONFIG, UNITS, attackOf, coverAt, damageFor, defenceOf, distance, key, maxMp, mirror, parseKey, playerIncome, range,
-  restHealAt, visibleTiles,
+  CONFIG, FACTIONS, UNITS, attackOf, baseAttackOf, coverAt, damageFor, defenceOf, distance, isHero, key, maxHpOf, maxMp,
+  mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -9,7 +9,7 @@ import type { Persona, Skill } from './types';
 const WARRIOR_DEF = 3;            // danger is measured against a Warrior's defence
 const VILLAGE_VALUE = 10;
 const CAPITAL_VALUE = 14;
-const TREASURE_VALUE = 6;
+const TREASURE_VALUE = 9;         // a site holds more than gold since stage 2
 const DEFEND_VALUE = 15;
 const EXPLORE_VALUE = 3;
 const DEFEND_RADIUS = 3;
@@ -26,10 +26,20 @@ const EXPOSED_SHARE = 0.5;        // share of an own city's worth lost while it 
 const FOLLOW_SHARE = 0.75;        // share of a broken bond's loss forgiven while the partner can still follow
 const BOND_CAP = 4;               // formation weight one unit can have: two hoplite partners, as the phalanx cap
 export const GOLD_WEIGHT = 0.25;  // valueOf's weight on gold (times skill.economy)
+const HERO_TRAIT_WORTH = 3;       // per trait a unit has earned or found
+const HERO_WORTH = 3;             // more again for a hero
+const ITEM_WORTH = 1;             // a carried draught (Task 8: 2 kept hard from drinking for a kill)
 
 // Its gold cost; a unit that cannot be bought (champion, support) counts as 8.
 export function unitWorth(type: UnitTypeId): number {
   return UNITS[type].cost ?? NO_COST_WORTH;
+}
+
+// What the unit itself is worth: its type's worth plus its traits, its hero status and a carried draught. The danger
+// term scales with it, so heroes are kept out of reach and enemy heroes are hit first.
+export function unitValue(u: Unit): number {
+  return unitWorth(u.type) + HERO_TRAIT_WORTH * u.heroTraits.length + (isHero(u) ? HERO_WORTH : 0)
+    + (u.item !== null ? ITEM_WORTH : 0);
 }
 
 const cityWorth = (c: City): number => 12 + 4 * c.level;
@@ -39,7 +49,7 @@ const isMounted = (u: Unit): boolean => has(u, 'mounted');
 // The engine's health factor on attack: a wounded unit hits softer, unless it is unbowed.
 export function healthFactor(u: Unit): number {
   if (has(u, 'unbowed')) return 1;
-  const max = UNITS[u.type].hp;
+  const max = maxHpOf(u);
   return (u.hp + max) / (2 * max);
 }
 
@@ -51,22 +61,22 @@ export function canMove(u: Unit): boolean {
 // What an enemy unit is worth to remove: its own worth, plus a share of its city when it garrisons one.
 function enemyWorth(b: MatchState, e: Unit): number {
   const city = b.cities.find((c) => c.pos === e.pos);
-  return unitWorth(e.type) + (city !== undefined && city.owner === e.owner ? GARRISON_SHARE * cityWorth(city) : 0);
+  return unitValue(e) + (city !== undefined && city.owner === e.owner ? GARRISON_SHARE * cityWorth(city) : 0);
 }
 
 // The value of the best attack u could make from where it stands, if it can still attack this turn:
-// the target's worth times the share of its health the hit takes. Base attack (no inspire), so that
-// moving one unit never changes another unit's term.
+// the target's worth times the share of its health the hit takes. Base attack (traits, but no inspire or myth
+// touch), so that moving one unit never changes another unit's term.
 function strikeOf(b: MatchState, u: Unit): number {
   const def = UNITS[u.type];
   if (u.fresh || u.attacks <= 0 || def.atk === 0 || def.range === 0) return 0;
   const at = parseKey(u.pos);
-  const atk = def.atk * healthFactor(u);
+  const atk = baseAttackOf(u) * healthFactor(u);
   let best = 0;
   for (const e of b.units) {
     if (e.owner === u.owner || distance(at, parseKey(e.pos)) > def.range) continue;
     const dmg = damageFor(atk, defenceOf(b, e), coverAt(b, e));
-    best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / UNITS[e.type].hp);
+    best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
   return STRIKE_SHARE * best;
 }
@@ -175,10 +185,16 @@ export function exposureCost(b: MatchState, ctx: Ctx, c: City): number {
   return c.owner === ctx.me && exposed(b, c) ? EXPOSED_SHARE * (cityWorth(c) + ctx.persona.spread) : 0;
 }
 
-// Weight of the bond between two adjacent own units for the formation term.
-const pairWeight = (a: Unit, c: Unit): number => (a.type === 'hoplite' && c.type === 'hoplite' ? 2 : 1);
+// Weight of the bond between two adjacent own units for the formation term: two Hoplites, or two heroes of a
+// faction with the myth touch, bond twice as strongly.
+function pairWeight(b: MatchState, a: Unit, c: Unit): number {
+  if (a.type === 'hoplite' && c.type === 'hoplite') return 2;
+  const faction = b.players[a.owner]?.faction;
+  return faction !== undefined && FACTIONS[faction].mythTouch && isHero(a) && isHero(c) ? 2 : 1;
+}
 
-const bond = (a: Unit, c: Unit): number => (distance(parseKey(a.pos), parseKey(c.pos)) === 1 ? pairWeight(a, c) : 0);
+const bond = (b: MatchState, a: Unit, c: Unit): number =>
+  (distance(parseKey(a.pos), parseKey(c.pos)) === 1 ? pairWeight(b, a, c) : 0);
 
 // The formation term before the persona weight: every own unit's bonds, each unit capped at BOND_CAP,
 // halved because every bond is counted from both ends. A garrison (a unit on an own city tile) holds the
@@ -189,7 +205,7 @@ function formationTotal(b: MatchState, units: readonly Unit[], me: PlayerId): nu
   let total = 0;
   for (const u of own) {
     let n = 0;
-    for (const o of own) if (o.id !== u.id) n += bond(u, o);
+    for (const o of own) if (o.id !== u.id) n += bond(b, u, o);
     total += Math.min(BOND_CAP, n);
   }
   return total / 2;
@@ -208,8 +224,9 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   const at = parseKey(u.pos);
   const tile = b.tiles[u.pos];
   const city = b.cities.find((c) => c.pos === u.pos);
-  const worth = unitWorth(u.type);
-  const hpShare = u.hp / UNITS[u.type].hp;
+  const worth = unitValue(u);
+  const maxHp = maxHpOf(u);
+  const hpShare = u.hp / maxHp;
   let v = worth * hpShare;
 
   if ((city !== undefined && city.owner !== me && !UNITS[u.type].traits.includes('noCityCapture')) || (city === undefined && tile?.village === true)) {
@@ -220,10 +237,10 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   // Rest: a hurt unit is worth more where resting would heal it more (own land, away from seen enemies). One that
   // moved or acted this turn will not heal when its next turn starts, only the turn after if it rests then, so it
   // gets part of the credit: enough that a hurt unit walks to better healing ground.
-  const missing = UNITS[u.type].hp - u.hp;
+  const missing = maxHp - u.hp;
   if (missing > 0) {
     const share = u.moved || u.acted ? REST_SHARE * LATE_REST_SHARE : REST_SHARE;
-    v += share * worth * Math.min(missing, restHealAt(b, u, visible())) / UNITS[u.type].hp;
+    v += share * worth * Math.min(missing, restHealAt(b, u, visible())) / maxHp;
   }
 
   const threat = danger[u.pos] ?? 0;
@@ -274,7 +291,7 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
 
   const visible = lazyVisible(b, me);
   for (const u of b.units) {
-    if (u.owner !== me) { v -= enemyWorth(b, u) * u.hp / UNITS[u.type].hp; continue; }
+    if (u.owner !== me) { v -= enemyWorth(b, u) * u.hp / maxHpOf(u); continue; }
     v += unitTerms(b, ctx, u, visible);
   }
   v += persona.formation * formationTotal(b, b.units, me);
@@ -296,7 +313,7 @@ export function moveScore(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, m
   }
 
   const explored = new Set(b.players[ctx.me]?.explored ?? []);
-  const sight = UNITS[u.type].sight + (b.tiles[to]?.terrain === 'mountain' ? CONFIG.mountainSightBonus : 0);
+  const sight = statsOf(b, moved).sight;            // with Watchful and the mountain bonus where it ends
   for (const h of range(there, sight)) {
     const k = key(h);
     if (b.tiles[k] !== undefined && !explored.has(k)) score += 1;
@@ -327,7 +344,7 @@ export function followCredit(b: MatchState, ctx: Ctx, unitId: number, to: HexKey
     if (o.id === u.id || o.owner !== u.owner) continue;
     const at = parseKey(o.pos);
     if (distance(from, at) !== 1 || distance(there, at) === 1) continue;
-    const w = pairWeight(u, o);
+    const w = pairWeight(b, u, o);
     broken += w;
     if (!o.moved && canMove(o) && distance(there, at) - 1 <= o.mp / 2) followable += w;
   }

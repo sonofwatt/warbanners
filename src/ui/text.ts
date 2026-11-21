@@ -1,12 +1,27 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
 import { CONFIG, UNITS } from '../engine';
 import type {
-  AbilityId, BuildingId, FactionId, Resource, RewardId, TechId, Terrain, Trait, UnitTypeId,
+  AbilityId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
+  TreasureOutcome, UnitTypeId,
 } from '../engine';
 import type { DigestLine } from '../app/digest';
 import type { AiLevel } from '../ai/types';
 
 type Entry = { name: string; blurb: string };
+
+const H = CONFIG.heroes;
+const heroTrait: Record<HeroTraitId, Entry> = {
+  fierce: { name: 'Fierce', blurb: `+${H.fierceAtk} attack and +${H.fierceHp} health. Earned by fighting.` },
+  tireless: { name: 'Tireless', blurb: `+${H.tirelessMove} movement. Earned by marching far.` },
+  hardy: { name: 'Hardy', blurb: `+${H.hardyDef} defence. Earned by being hurt and healed.` },
+  watchful: { name: 'Watchful', blurb: `Sees ${H.watchfulSight} tile farther and takes ${H.agilityCut} less damage when struck back, never below 1. Earned by resting.` },
+};
+const deed: Record<DeedId, string> = { fight: 'Fighting', march: 'Marching', survive: 'Surviving', rest: 'Resting' };
+const item: Record<ItemId, Entry> = { draught: { name: 'Battle draught', blurb: 'Drink it once to make one more attack this turn.' } };
+const treasure: Record<TreasureOutcome, string> = {
+  gold: 'Gold', explore: 'A lookout', unit: 'A warrior joins', relic: 'A relic', draught: 'A battle draught',
+  map: 'A treasure map', mercenary: 'A sellsword joins',
+};
 
 const unit: Record<UnitTypeId, Entry> = {
   warrior: { name: 'Warrior', blurb: 'A cheap foot soldier with no special talents.' },
@@ -25,6 +40,7 @@ const unit: Record<UnitTypeId, Entry> = {
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
   skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },
   camp: { name: 'Camp', blurb: 'A Mongol camp that cannot attack but can train one unit each turn onto a free tile beside it.' },
+  sellsword: { name: 'Sellsword', blurb: `A wandering fighter for hire who joins whoever finds it, already ${heroTrait[CONFIG.treasure.mercenaryTrait].name}.` },
 };
 
 const trait: Record<Trait, Entry> = {
@@ -188,6 +204,10 @@ const ui = {
   forgetButton: 'Remove', forgetAsk: 'Take this match off this phone?', forgetYes: 'Yes, remove',
   clockShort: 'Turn clock: {clock}', seatOpen: 'Open seat', youTag: 'You',
   secondPlayer: 'Second player', person: 'Person',
+  hero: 'Hero', heroTraits: 'Earned', deeds: 'Deeds', carrying: 'Carrying', drink: 'Drink draught',
+  mythTouch: 'Myth touch', mythTouchBlurb: `Beside another Spartan hero: +${H.mythAtk} attack and +${H.mythDef} defence.`,
+  digestTrait: 'Your {unit} earned {trait}.', digestHero: 'Your {unit} is now a hero.',
+  whatsNew: 'New: units earn traits from what they do and become heroes, and treasures can hold relics, draughts, maps and sellswords.',
   scoutingRiders: 'Scouting riders',
   scoutingRidersBlurb: 'After stepping into unexplored land it may keep moving with whatever movement it has left.',
 } as const;
@@ -198,8 +218,9 @@ const ai = {
   settled: (n: number): string => `The AI finished at level ${n} of 10.`,
 };
 
-export const T = { unit, trait, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
-  unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; ability: Record<AbilityId, Entry>;
+export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
+  unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; heroTrait: Record<HeroTraitId, Entry>;
+  deed: Record<DeedId, string>; item: Record<ItemId, Entry>; treasure: Record<TreasureOutcome, string>; ability: Record<AbilityId, Entry>;
   reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
   resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
   reason: Record<string, string>; ui: typeof ui; ai: typeof ai;
@@ -229,6 +250,8 @@ export function unlocks(id: TechId): string[] {
 export function digestText(line: DigestLine): string {
   if (line.kind === 'cityLost') return T.ui.digestCity;
   if (line.kind === 'treasureTaken') return T.ui.digestTreasure;
+  if (line.kind === 'traitEarned') return fill(T.ui.digestTrait, { unit: T.unit[line.unitType].name, trait: T.heroTrait[line.trait].name });
+  if (line.kind === 'heroMade') return fill(T.ui.digestHero, { unit: T.unit[line.unitType].name });
   if (line.kind === 'tileTaken') return fill(T.ui.digestTileTaken, { by: T.unit[line.by].name });
   const name = T.unit[line.unitType].name;
   const by = line.by === null ? null : T.unit[line.by].name;

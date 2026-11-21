@@ -1,12 +1,14 @@
 import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { FACTIONS } from './data/factions';
-import { key, parseKey, range } from './hex';
+import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
+import { canEarnTraits, grantTrait } from './heroes';
 import { rngInt } from './rng';
 import { cityAt, firstFreeNeighbor, foundCity, removeUnit, spawnUnit, tileAt, unitById } from './state';
 import { passTurn } from './turn';
-import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
+import { HERO_TRAITS } from './types';
+import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit, UnitTypeId } from './types';
 
 // rules 12: a unit that entered its tile on an earlier turn and has not moved or acted this turn
 function settled(s: MatchState, unitId: number): Unit | undefined {
@@ -58,12 +60,12 @@ export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s,
     existing.pendingRewards = [];
     if (def.tributeCityBase > 0) captor.gold += def.tributeCityBase + existing.level;
     cityId = existing.id;
-    u.mp = 0; u.attacks = 0; u.acted = true;
+    u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
     ev.push({ type: 'captured', city: cityId, by: u.owner });
     if (!s.cities.some((c) => c.owner === previous)) eliminate(s, previous, ev);
     return null;
   }
-  u.mp = 0; u.attacks = 0; u.acted = true;
+  u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
   ev.push({ type: 'captured', city: cityId, by: u.owner });
   return null;
 };
@@ -79,26 +81,63 @@ export const claimTreasureHandler: Handler<Extract<Action, { type: 'claimTreasur
   const u = unitById(s, a.unit)!;
   const tile = tileAt(s, u.pos)!;
   const player = s.players[u.owner]!;
-  const [roll, next] = rngInt(s.rng, CONFIG.treasure.outcomes);
+  const [roll, next] = rngInt(s.rng, CONFIG.treasure.table.length);
   s.rng = next;
-  let outcome: 'gold' | 'explore' | 'unit' = 'gold';
-  if (roll === 1) {
-    outcome = 'explore';
+  const drawn = CONFIG.treasure.table[roll]!;
+  const event: Extract<GameEvent, { type: 'treasure' }> = { type: 'treasure', at: u.pos, outcome: drawn };
+  const gold = (): void => { player.gold += CONFIG.treasure.gold; event.outcome = 'gold'; };
+  const explore = (around: HexKey, radius: number): void => {
     const seen = new Set<HexKey>(player.explored);
-    for (const h of range(parseKey(u.pos), CONFIG.treasure.exploreRadius)) {
+    for (const h of range(parseKey(around), radius)) {
       if (tileAt(s, key(h)) !== undefined) seen.add(key(h));
     }
     player.explored = [...seen].sort();
-  } else if (roll === 2) {
+  };
+  if (drawn === 'gold') {
+    gold();
+  } else if (drawn === 'explore') {
+    explore(u.pos, CONFIG.treasure.exploreRadius);
+  } else if (drawn === 'unit' || drawn === 'mercenary') {
     const spot = firstFreeNeighbor(s, u.pos);
-    if (spot === null) player.gold += CONFIG.treasure.gold;
-    else { spawnUnit(s, CONFIG.treasure.unit, u.owner, spot, null); outcome = 'unit'; }
+    if (spot === null) gold();
+    else if (drawn === 'unit') event.unit = spawnUnit(s, CONFIG.treasure.unit as UnitTypeId, u.owner, spot, null).id;
+    else {
+      const sellsword = spawnUnit(s, CONFIG.treasure.mercenary, u.owner, spot, null);
+      event.unit = sellsword.id;
+      grantTrait(s, sellsword, CONFIG.treasure.mercenaryTrait, ev);
+    }
+  } else if (drawn === 'relic') {
+    const lacking = HERO_TRAITS.filter((x) => !u.heroTraits.includes(x));
+    if (!canEarnTraits(u) || u.heroTraits.length >= CONFIG.heroes.maxTraits || lacking.length === 0) gold();
+    else {
+      const [pick, after] = rngInt(s.rng, lacking.length);
+      s.rng = after;
+      const trait = lacking[pick]!;
+      grantTrait(s, u, trait, ev);
+      event.trait = trait;
+    }
+  } else if (drawn === 'draught') {
+    if (u.item === null && UNITS[u.type].atk > 0 && UNITS[u.type].range > 0) { u.item = 'draught'; u.itemTurn = s.stamp; }
+    else gold();
   } else {
-    player.gold += CONFIG.treasure.gold;
+    // map: the nearest other treasure this player has not explored, by distance then key
+    const here = parseKey(u.pos);
+    const known = new Set<HexKey>(player.explored);
+    const found = Object.keys(s.tiles).sort()
+      .filter((k) => s.tiles[k]!.treasure && k !== u.pos && !known.has(k))
+      .map((k) => ({ k, d: distance(here, parseKey(k)) }))
+      .reduce<{ k: HexKey; d: number } | null>((best, c) => (best === null || c.d < best.d ? c : best), null);
+    if (found === null) {
+      explore(u.pos, CONFIG.treasure.exploreRadius);
+      event.outcome = 'explore';
+    } else {
+      explore(found.k, CONFIG.treasure.mapRadius);
+      event.found = found.k;
+    }
   }
   tile.treasure = false;
-  u.mp = 0; u.attacks = 0; u.acted = true;
-  ev.push({ type: 'treasure', at: u.pos, outcome });
+  u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
+  ev.push(event);
   return null;
 };
 

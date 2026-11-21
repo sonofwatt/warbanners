@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Action, MatchSettings } from '../engine';
-import { MAX_ACTIONS, codeFromSearch, decodeAction, decodeSettings, encodeAction, encodeSettings, factionsFor, inviteLink,
+import { MAX_ACTIONS, MAX_ACTION_CHARS, codeFromSearch, decodeAction, decodeSettings, encodeAction, encodeSettings, factionsFor, inviteLink,
   isRoomCode, liveDesync, makeRoomCode, normalizeRoom, readActions, toRecordSeat } from './wire';
 
 test('room codes', () => {
@@ -26,6 +26,13 @@ test('actions are canonical strings the rules can match', () => {
   expect(encodeAction({ to: '1,0', unit: 3, type: 'move' } as Action)).toBe('{"to":"1,0","type":"move","unit":3}');
   expect(decodeAction('{"type":"endTurn"}')).toEqual({ type: 'endTurn' });
   for (const v of ['{', '[]', '"x"', '{"type":7}', 'x'.repeat(513), 7, null]) expect(decodeAction(v)).toBeNull();
+});
+test('useItem encodes and decodes as a canonical string', () => {
+  const a: Action = { type: 'useItem', unit: 3 };
+  const wire = encodeAction(a);
+  expect(wire).toBe('{"type":"useItem","unit":3}');
+  expect(decodeAction(wire)).toEqual(a);
+  expect(wire.length).toBeLessThan(MAX_ACTION_CHARS);
 });
 test('settings survive the database', () => {
   const s: MatchSettings = { seed: 4294967295, factions: ['spartans', 'mongols'] };

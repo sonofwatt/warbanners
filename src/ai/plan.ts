@@ -1,7 +1,7 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
   CONFIG, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canResearch, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
+  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
   parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
@@ -28,6 +28,7 @@ const BUILDINGS = Object.keys(CONFIG.buildings) as BuildingId[];
 const WEIGHT_SCALE = 1_000_000;      // softmax weights are rounded to integers so every machine picks alike
 const MAX_STEPS_PER_UNIT = 8;        // a unit acts a few times at most (move, attack, move); a guard, not a rule
 const ECONOMY_THRESHOLD = 0.5;       // value per gold an economy action must reach, divided by skill.economy
+const LURE_EDGE = 0.001;             // a safe lure scores this much above its plain twin, so a hard AI takes it
 
 type Applied = { state: MatchState; events: GameEvent[] };
 interface Cand {
@@ -35,6 +36,7 @@ interface Cand {
   base: number;                      // the action's own score
   score: number;                     // with what the unit would do after it
   result?: Applied;                  // the probe of this exact action on the state it was listed for
+  strike?: Applied;                  // a drink's best attack after it, probed on result.state and counted in base
   enemyCity?: boolean;
   treasure?: boolean;                // a treasure claim, always taken (its draw is unknown, so it cannot be scored)
 }
@@ -445,6 +447,25 @@ class TurnPlanner {
       if (lureListed && movesOn && !died.has(victim.id) && safePull) push({ action: lure, base: own, score });
     }
 
+    // A drink is scored together with the best attack it opens, from before the drink to after that attack, so the
+    // draught is drunk when the strike pays for its worth. With no attack after it there is no drink candidate.
+    const drink: Action = { type: 'useItem', unit: id };
+    if (canUseItem(s, id) && this.allowed(drink)) {
+      const rd = this.probe(s, drink);
+      let best: Cand | null = null;
+      for (const target of attackTargets(rd.state, id)) {
+        const a: Action = { type: 'attack', unit: id, target };
+        if (!this.allowed(a)) continue;
+        const victim = rd.state.units.find((t) => t.pos === target)!;
+        const ra = this.probe(rd.state, a);
+        const died = new Set(ra.events.flatMap((e) => (e.type === 'died' ? [e.unit] : [])));
+        if (died.has(id) && !died.has(victim.id)) continue;          // a hopeless charge
+        const score = this.scoreAfter(s, base, ra, victim.id);
+        if (best === null || score > best.score) best = { action: drink, base: score, score, result: rd, strike: ra };
+      }
+      if (best !== null) push(best);
+    }
+
     for (const ability of ABILITY_IDS) {
       if (!has(u, ability)) continue;
       for (const target of abilityTargets(s, id, ability)) {
@@ -480,7 +501,7 @@ class TurnPlanner {
       for (const c of cands) if (best === undefined || c.base > best.base) best = c;
       if (best === undefined || best.base <= 0) break;
       total += best.base;
-      if (i + 1 < steps) s = (best.result ?? this.probe(s, best.action)).state;
+      if (i + 1 < steps) s = (best.strike ?? best.result ?? this.probe(s, best.action)).state;
       if (unitIn(s, id) === undefined) break;
     }
     return total;
@@ -498,13 +519,15 @@ class TurnPlanner {
       for (const { c } of top) {
         if (c.action.type === 'attack' && c.action.lure === true) continue;   // scored as its plain twin
         c.result ??= this.probe(this.b, c.action);
-        c.score = c.base + (unitIn(c.result.state, id) === undefined ? 0 : this.followUps(c.result.state, id, lookahead));
+        const after = (c.strike ?? c.result).state;               // a drink follows up after its attack, never twice
+        c.score = c.base + (unitIn(after, id) === undefined ? 0 : this.followUps(after, id, lookahead));
       }
-      for (const { c } of top) {
-        if (c.action.type === 'attack' && c.action.lure === true) {
-          const twin = cands.find((t) => t.action.type === 'attack' && t.action.target === (c.action as { target: HexKey }).target && t.action.lure !== true);
-          if (twin !== undefined) c.score = twin.score;
-        }
+    }
+    // A lure is scored as its plain twin, a hair above it, so the tie the twin would win by list order goes to the lure.
+    for (const c of cands) {
+      if (c.action.type === 'attack' && c.action.lure === true) {
+        const twin = cands.find((t) => t.action.type === 'attack' && t.action.target === (c.action as { target: HexKey }).target && t.action.lure !== true);
+        if (twin !== undefined) c.score = twin.score + LURE_EDGE;
       }
     }
     return this.choose(cands);

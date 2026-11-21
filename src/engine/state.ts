@@ -6,6 +6,7 @@ import type { HexKey } from './hex';
 import { generateMap } from './mapgen';
 import { ABILITIES, RULES_VERSION } from './types';
 import { maxMp } from './movement';
+import { freshDeeds } from './heroes';
 import { refreshExplored } from './vision';
 import type { City, MatchSettings, MatchState, PlayerId, Tile, Trait, Unit, UnitTypeId } from './types';
 
@@ -66,6 +67,7 @@ export function spawnUnit(
     id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, attacks: 0, home,
     enteredTurn: s.stamp, moved: false, acted: false, rested: false,
     taunted: false, blinded: false, lure: null, fresh: true,
+    deeds: freshDeeds(), heroTraits: [], item: null, itemTurn: null,
   };
   s.nextUnitId += 1;
   s.units.push(u);

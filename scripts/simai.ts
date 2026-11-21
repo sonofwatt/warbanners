@@ -1,11 +1,12 @@
 // Bulk AI-against-AI matches with a summary block, for tuning.
-// npm run sim:ai -- --matches 100 --seed 1 --a normal --b hard --max-rounds 60 --swap --jobs 3 [--json out.jsonl]
+// npm run sim:ai -- --matches 100 --seed 1 --a normal --b hard --max-rounds 60 --swap --jobs 3 [--json out.jsonl [--actions]]
 // npm run sim:adaptive -- --matches 6 [--seed 1] [--max-rounds 60]
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { adaptiveSeries, runMatch, summarize } from '../src/ai/sim';
 import type { SeatSpec, SimOpts, SimResult } from '../src/ai/sim';
-import type { FactionId } from '../src/engine/index';
+import { HERO_TRAITS } from '../src/engine/index';
+import type { FactionId, TreasureOutcome } from '../src/engine/index';
 
 const argv = process.argv.slice(2);
 const flag = (name: string): boolean => argv.includes(`--${name}`);
@@ -49,7 +50,8 @@ if (shard !== '') {
   const [i, n] = shard.split('/').map(Number) as [number, number];
   all.forEach((o, index) => {
     if (index % n !== i) return;
-    process.stdout.write(`${JSON.stringify({ index, ...runMatch(o) })}\n`);
+    const { actions, ...rest } = runMatch(o);
+    process.stdout.write(`${JSON.stringify({ index, ...rest, ...(flag('actions') ? { actions } : {}) })}\n`);
   });
   process.exit(0);
 }
@@ -82,8 +84,8 @@ const f2 = (x: number): string => x.toFixed(2);
 const lines = await runShards();
 process.stderr.write('\n');
 const json = opt('json', '');
-if (json !== '') writeFileSync(json, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
-const results: SimResult[] = lines.map(({ index: _index, ...r }) => r);
+if (json !== '') writeFileSync(json, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');   // lines carry actions only with --actions
+const results: SimResult[] = lines.map(({ index: _index, ...r }) => ({ ...r, actions: r.actions ?? [] }));
 const s = summarize(results);
 const per = s.perFaction;
 const trained = (f: FactionId): string => {
@@ -98,6 +100,38 @@ const trained = (f: FactionId): string => {
 const refusals = results.reduce((a, r) => a + r.refusals, 0);
 const nonMove = results.reduce((a, r) => a + r.nonMoveRefusals, 0);
 const replans = results.reduce((a, r) => a + r.replans, 0);
+const share = (a: number, b: number): string => (b === 0 ? 'n/a' : pct(a / b));
+const n = results.length;
+const heroMeans = [0, 1].map((p) => results.reduce((a, r) => a + r.sides[p]!.heroes, 0) / (n || 1));
+const withHero = results.filter((r) => r.sides[0].heroes + r.sides[1].heroes > 0).length;
+const firstHeroMatches = results.filter((r) => r.firstHero !== null && (r.winner ?? r.adjudged) !== null);
+const firstHeroWins = firstHeroMatches.filter((r) => (r.winner ?? r.adjudged) === r.firstHero).length;
+const traitLine = (f: FactionId): string => {
+  const sum: Record<string, number> = {};
+  for (const r of results) for (const p of [0, 1] as const) {
+    if (r.factions[p] !== f) continue;
+    for (const [t, c] of Object.entries(r.sides[p].traitsEarned)) sum[t] = (sum[t] ?? 0) + (c ?? 0);
+  }
+  const played = results.length;
+  return HERO_TRAITS.map((t) => `${t} ${f2((sum[t] ?? 0) / (played || 1))}`).join(', ');
+};
+const treasureSum: Partial<Record<TreasureOutcome, number>> = {};
+let claimed = 0; let drunk = 0;
+for (const r of results) for (const p of [0, 1] as const) {
+  for (const [o, c] of Object.entries(r.sides[p].treasures) as [TreasureOutcome, number][]) {
+    treasureSum[o] = (treasureSum[o] ?? 0) + c; claimed += c;
+  }
+  drunk += r.sides[p].draughtsDrunk;
+}
+const draughtsFound = treasureSum.draught ?? 0;
+const heroLines = [
+  `heroes per match: first seat ${f2(heroMeans[0]!)}  second seat ${f2(heroMeans[1]!)}  both ${f2(heroMeans[0]! + heroMeans[1]!)}`
+    + `  (lost per match ${f2(results.reduce((a, r) => a + r.sides[0].heroesLost + r.sides[1].heroesLost, 0) / (n || 1))})`,
+  `matches with at least one hero ${share(withHero, n)}  first hero's side won ${share(firstHeroWins, firstHeroMatches.length)} of ${firstHeroMatches.length} decided`,
+  ...(['spartans', 'mongols'] as const).map((f) => `${f} traits per match: ${traitLine(f)}  (total ${f2(per[f].traitsEarned)}, heroes ${f2(per[f].heroes)})`),
+  `treasures claimed per match ${f2(claimed / (n || 1))}: ${Object.entries(treasureSum).sort((a, b) => b[1] - a[1]).map(([o, c]) => `${o} ${f2(c / (n || 1))}`).join(', ')}`,
+  `draughts drunk ${drunk} of ${draughtsFound} found (${share(drunk, draughtsFound)})`,
+];
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
   `win share: spartans ${pct(s.winRate.spartans)}  mongols ${pct(s.winRate.mongols)}  (adjudged stalls count half)`,
@@ -114,4 +148,5 @@ console.log([
   `spartan adjacent minus mongol ${f2(per.spartans.adjacentShare - per.mongols.adjacentShare)}`
     + `  mongol cities at round 10 minus spartan ${f2(per.mongols.citiesAtRound10 - per.spartans.citiesAtRound10)}`
     + `  mongol raid retreats / mounted attacks ${f2(per.mongols.mountedAttacks === 0 ? 0 : per.mongols.raidRetreats / per.mongols.mountedAttacks)}`,
+  ...heroLines,
 ].join('\n'));

@@ -7,11 +7,14 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules version 3 (Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
+  // re-pinned for the draught fix (a draught waits a turn after it is found and buys no second ability); earlier, for plan 5 Task 8's tuned thresholds (the draught worth is an AI number and cannot move these digests); seed 1 now ends after 101 turns, so its row is the
+  // position after 90 turns, still unfinished; earlier, for rules version 4 (units carry deeds, heroTraits and item, traits and the seven treasure outcomes change play
+  // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
+  // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 135, '055c9ddf5d30bd44', '2a4ad2187fac3e9f', '9e8f2b190371ac46'],
-  [1, 200, 221, '6374e506b658ed17', '6462b63b2ae58512', 'ae927f4d0a90590c'],
-  [3, 90, 36, '62f188c8cf3f9cff', '01d48ac042a2138f', 'ec1d2740c2ea62f1'],
+  [7, 160, 88, '260f97335fae1612', '5c9f47d154955290', 'f0bd5b13277b8cf8'],
+  [1, 90, 94, '03a34c89ea070266', 'f848a9c1c3c55868', '0a051e422aed0f65'],
+  [3, 90, 50, 'eaa6f479d5ca5898', '865536db4ff360e8', '515d0d5912fc30b0'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -21,7 +24,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 30_000);
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(7, 148);              // re-picked for the Task 12 numbers: (6, 128) now has 27 units
+  const s = randomPlayout(7, 236);              // re-picked for Task 8's thresholds: (7, 180) now has 18 units
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {

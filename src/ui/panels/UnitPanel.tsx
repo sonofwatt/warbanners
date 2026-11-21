@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { FACTIONS, UNITS } from '../../engine';
-import type { FactionId, UnitTypeId } from '../../engine';
+import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, isHero } from '../../engine';
+import type { DeedId, FactionId, Unit, statsOf } from '../../engine';
 import { BootIcon, HeartIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
 import { CardHead, Stats } from './Card';
@@ -9,31 +9,65 @@ import type { Command } from './commands';
 import { UnitPicture } from './Picture';
 
 export interface UnitPanelProps {
-  type: UnitTypeId; hp: number; faction: FactionId; commands: Command[]; onCommand: (c: Command) => void;
+  unit: Unit; faction: FactionId; stats: ReturnType<typeof statsOf>; myth: boolean;
+  thresholds: Record<DeedId, number> | null;     // null for a unit the viewer does not own: its deeds stay hidden
+  commands: Command[]; onCommand: (c: Command) => void;
 }
 
 // An enemy unit gets the same card with an empty command list.
-export function UnitPanel({ type, hp, faction, commands, onCommand }: UnitPanelProps): ReactElement {
+export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
+  const type = unit.type;
   const def = UNITS[type];
-  const mounted = def.traits.includes('mounted');
-  const move = def.move + (mounted ? FACTIONS[faction].mountedMoveBonus : 0);
-  const scouts = mounted && FACTIONS[faction].scoutingRiders;      // rules 13, a faction rule rather than a trait
+  const scouts = def.traits.includes('mounted') && FACTIONS[faction].scoutingRiders;      // rules 13, a faction rule rather than a trait
+  const rows = thresholds !== null && canEarnTraits(unit) && unit.heroTraits.length < CONFIG.heroes.maxTraits
+    ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
   return (
     <section className="panel unit-panel">
       <CardHead picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}>
+        {isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
         <p className="blurb">{T.unit[type].blurb}</p>
       </CardHead>
       <Stats stats={[
-        { icon: <HeartIcon />, label: T.ui.health, value: `${hp}/${def.hp}` },
-        { icon: <SwordIcon />, label: T.ui.attackStat, value: def.atk },
-        { icon: <ShieldIcon />, label: T.ui.defence, value: def.def },
-        { icon: <BootIcon />, label: T.ui.movement, value: move },
-        { icon: <RangeIcon />, label: T.ui.range, value: def.range },
+        { icon: <HeartIcon />, label: T.ui.health, value: `${unit.hp}/${stats.maxHp}` },
+        { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },
+        { icon: <ShieldIcon />, label: T.ui.defence, value: stats.def },
+        { icon: <BootIcon />, label: T.ui.movement, value: stats.move },
+        { icon: <RangeIcon />, label: T.ui.range, value: stats.range },
       ]} />
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>
           {def.traits.map((t) => <li key={t}><strong>{T.trait[t].name}</strong><span>{T.trait[t].blurb}</span></li>)}
           {scouts ? <li key="scoutingRiders"><strong>{T.ui.scoutingRiders}</strong><span>{T.ui.scoutingRidersBlurb}</span></li> : null}
+        </ul>
+      ) : null}
+      {unit.heroTraits.length > 0 ? (
+        <ul className="traits earned" aria-label={T.ui.heroTraits}>
+          {unit.heroTraits.map((t) => <li key={t}><strong>{T.heroTrait[t].name}</strong><span>{T.heroTrait[t].blurb}</span></li>)}
+        </ul>
+      ) : null}
+      {myth ? (
+        <ul className="traits myth" aria-label={T.ui.mythTouch}>
+          <li><strong>{T.ui.mythTouch}</strong><span>{T.ui.mythTouchBlurb}</span></li>
+        </ul>
+      ) : null}
+      {unit.item !== null ? (
+        <ul className="traits carried" aria-label={T.ui.carrying}>
+          <li><strong>{T.ui.carrying}: {T.item[unit.item].name}</strong><span>{T.item[unit.item].blurb}</span></li>
+        </ul>
+      ) : null}
+      {thresholds !== null && rows.length > 0 ? (
+        <ul className="deeds" aria-label={T.ui.deeds}>
+          {rows.map((d) => {
+            const at = thresholds[d];
+            const have = Math.min(unit.deeds[d], at);
+            return (
+              <li key={d} className="deed-row">
+                <span className="deed-name">{T.deed[d]}</span>
+                <meter min={0} max={at} value={have} />
+                <span className="deed-count">{have}/{at}</span>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       <CommandList commands={commands} onCommand={onCommand} />

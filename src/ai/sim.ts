@@ -1,6 +1,6 @@
 // Bulk AI-against-AI matches for tuning: plays whole matches with the real turn driver and measures each side.
-import { CONFIG, UNITS, createMatch, distance, parseKey } from '../engine';
-import type { Action, FactionId, MatchState, PlayerId, UnitTypeId } from '../engine';
+import { CONFIG, UNITS, createMatch, distance, isHero, parseKey } from '../engine';
+import type { Action, FactionId, HeroTraitId, MatchState, PlayerId, TreasureOutcome, UnitTypeId } from '../engine';
 import { adaptStep, betweenMatches, gapOf, standingOf } from './adapt';
 import type { AdaptState } from './adapt';
 import { runAiTurn } from './driver';
@@ -13,10 +13,14 @@ export interface SideMetrics {
   cities: number; citiesAtRound10: number; unitsTrained: Partial<Record<UnitTypeId, number>>;
   attacks: number; kills: number; lures: number; lureOntoCapturable: number; luredCaptures: number;
   raidRetreats: number; mountedAttacks: number; adjacentShare: number; forestEntriesWithLittleMp: number;
+  traitsEarned: Partial<Record<HeroTraitId, number>>; heroes: number; heroesLost: number;
+  treasures: Partial<Record<TreasureOutcome, number>>; draughtsDrunk: number;
 }
 export interface SimResult {
   seed: number; factions: [FactionId, FactionId]; winner: PlayerId | null; stalled: boolean; adjudged: PlayerId | null;
   rounds: number; refusals: number; nonMoveRefusals: number; replans: number; dials: number[]; sides: [SideMetrics, SideMetrics];
+  firstHero: PlayerId | null; firstHeroRound: number | null;   // the owner of the first unit to reach hero status, and the round
+  actions: Action[];                                           // every action played, in order
 }
 
 const ROUND_FOR_CITIES = 10;
@@ -29,6 +33,7 @@ function emptySide(): SideMetrics {
   return {
     cities: 0, citiesAtRound10: 0, unitsTrained: {}, attacks: 0, kills: 0, lures: 0, lureOntoCapturable: 0, luredCaptures: 0,
     raidRetreats: 0, mountedAttacks: 0, adjacentShare: 0, forestEntriesWithLittleMp: 0,
+    traitsEarned: {}, heroes: 0, heroesLost: 0, treasures: {}, draughtsDrunk: 0,
   };
 }
 
@@ -62,6 +67,8 @@ export function runMatch(o: SimOpts): SimResult {
   const dials: number[] = [];
   let refusals = 0; let nonMoveRefusals = 0; let replans = 0;
   let citiesAt10: [number, number] | null = null;
+  const actions: Action[] = [];
+  let firstHero: PlayerId | null = null; let firstHeroRound: number | null = null;
 
   while (s.winner === null && roundsOf(s) < o.maxRounds) {
     const me = s.current;
@@ -80,11 +87,11 @@ export function runMatch(o: SimOpts): SimResult {
     const attackedBy = new Set<number>();
     for (const step of log.steps) {
       const { action, events, before } = step;
+      actions.push(action);
       if (action.type === 'endTurn') {
         const share = adjacentShareOf(before, me);
         if (share !== null) shares[me]!.push(share);
-        continue;
-      }
+      }   // no continue: a turn start can earn a trait (Watchful), and its events come with the endTurn
       if (action.type === 'train' || action.type === 'campTrain') {
         side.unitsTrained[action.unitType] = (side.unitsTrained[action.unitType] ?? 0) + 1;
       }
@@ -107,6 +114,21 @@ export function runMatch(o: SimOpts): SimResult {
         if (e.type === 'died') {
           const dead = before.units.find((x) => x.id === e.unit);
           if (dead !== undefined && dead.owner !== me) side.kills += 1;
+          if (dead !== undefined && isHero(dead)) sides[dead.owner]!.heroesLost += 1;
+        } else if (e.type === 'heroTrait') {
+          // a unit a treasure just spawned is not in `before`; it belongs to the player acting
+          const owner = before.units.find((x) => x.id === e.unit)?.owner ?? me;
+          const mine = sides[owner]!;
+          mine.traitsEarned[e.trait] = (mine.traitsEarned[e.trait] ?? 0) + 1;
+          if (e.hero) {
+            mine.heroes += 1;
+            if (firstHero === null) { firstHero = owner; firstHeroRound = roundsOf(before); }
+          }
+        } else if (e.type === 'treasure') {
+          side.treasures[e.outcome] = (side.treasures[e.outcome] ?? 0) + 1;
+        } else if (e.type === 'usedItem') {
+          const owner = before.units.find((x) => x.id === e.unit)?.owner;
+          if (owner !== undefined && e.item === 'draught') sides[owner]!.draughtsDrunk += 1;
         } else if (e.type === 'lured') {
           side.lures += 1;
           const target = before.units.find((x) => x.id === e.unit);
@@ -136,7 +158,7 @@ export function runMatch(o: SimOpts): SimResult {
   }
   return {
     seed: o.seed, factions: o.factions, winner: s.winner, stalled, adjudged, rounds: roundsOf(s),
-    refusals, nonMoveRefusals, replans, dials, sides,
+    refusals, nonMoveRefusals, replans, dials, sides, firstHero, firstHeroRound, actions,
   };
 }
 
@@ -161,9 +183,12 @@ function percentile(sorted: readonly number[], q: number): number {
 const METRIC_KEYS: (keyof SideMetrics)[] = [
   'cities', 'citiesAtRound10', 'unitsTrained', 'attacks', 'kills', 'lures', 'lureOntoCapturable', 'luredCaptures',
   'raidRetreats', 'mountedAttacks', 'adjacentShare', 'forestEntriesWithLittleMp',
+  'traitsEarned', 'heroes', 'heroesLost', 'treasures', 'draughtsDrunk',
 ];
 
-// Means per match; unitsTrained is the mean number of units trained.
+const total = (r: Partial<Record<string, number>>): number => Object.values(r).reduce((a: number, b) => a + (b ?? 0), 0);
+
+// Means per match; unitsTrained, traitsEarned and treasures are the mean of their totals.
 export function summarize(results: readonly SimResult[]): Summary {
   const n = results.length;
   const factions: FactionId[] = ['spartans', 'mongols'];
@@ -179,7 +204,7 @@ export function summarize(results: readonly SimResult[]): Summary {
       winRate[f] += c; seatWinRate[p] += c; counts[f] += 1;
       const side = r.sides[p];
       for (const k of METRIC_KEYS) {
-        const v = k === 'unitsTrained' ? Object.values(side.unitsTrained).reduce((a, b) => a + (b ?? 0), 0) : side[k] as number;
+        const v = k === 'unitsTrained' || k === 'traitsEarned' || k === 'treasures' ? total(side[k]) : side[k] as number;
         sums[f][k] += v;
       }
     }

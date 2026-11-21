@@ -10,9 +10,8 @@ export type Follow =
   | { kind: 'same' }
   | { kind: 'wait' }                                         // the list and head disagree on length: a write is mid-flight
   | { kind: 'advanced'; followed: Followed; steps: Step[] }
-  | { kind: 'rebuilt'; followed: Followed }                  // the list no longer extends ours: started again from it
+  | { kind: 'diverged' }                                     // the list no longer extends ours: `rebuildFrom` starts again from it
   | { kind: 'broken'; at: number; reason: 'refused' | 'hash' };
-type Rebuilt = { ok: true; followed: Followed } | { ok: false; at: number; reason: 'refused' | 'hash' };
 
 export function opening(settings: MatchSettings): Followed {
   return { settings, actions: [], state: createMatch(settings) };
@@ -70,14 +69,16 @@ export interface Replayed {
   followed: Followed;            // the record replayed from the opening: up to the refused action, when one is refused
   refusedAt: number | null;      // the first action the decoder or the engine refuses
   disagreesAt: number | null;    // the first index whose claimed hash (a check, the snapshot's) the replay disagrees with
+  steps: Step[];                 // the steps from index `stepsFrom` on (none unless asked for)
 }
 
 // The record's truth: every action from the opening, REPLAY_CHUNK at a time with `pause()` between, so no task on
 // the main thread runs long. `claimed` holds the hashes the record claims; a disagreement is reported, never believed.
 // Null when `wanted()` turns false at a pause (the session closed).
 export async function replay(settings: MatchSettings, remote: string[], claimed: Record<number, string>,
-  pause: () => Promise<void>, wanted: () => boolean = () => true): Promise<Replayed | null> {
+  pause: () => Promise<void>, wanted: () => boolean = () => true, stepsFrom = remote.length): Promise<Replayed | null> {
   let state = createMatch(settings);
+  const steps: Step[] = [];
   const differs = (k: number): boolean => claimed[k] !== undefined && hashState(state) !== claimed[k];
   let disagreesAt: number | null = differs(0) ? 0 : null;
   for (let i = 0; i < remote.length; i++) {
@@ -87,34 +88,40 @@ export async function replay(settings: MatchSettings, remote: string[], claimed:
     }
     const action = decodeAction(remote[i]!);
     const r = action === null ? null : applyAction(state, action);
-    if (r === null || !r.ok) return { followed: { settings, actions: remote.slice(0, i), state }, refusedAt: i, disagreesAt };
+    if (r === null || !r.ok) return { followed: { settings, actions: remote.slice(0, i), state }, refusedAt: i, disagreesAt, steps };
+    if (i >= stepsFrom) steps.push({ action: action!, before: state, after: r.state, events: r.events });
     state = r.state;
     if (disagreesAt === null && differs(i + 1)) disagreesAt = i + 1;
   }
-  return { followed: { settings, actions: [...remote], state }, refusedAt: null, disagreesAt };
+  return { followed: { settings, actions: [...remote], state }, refusedAt: null, disagreesAt, steps };
 }
 
-// A synchronous replay from the opening, for a rebuild after a lost race (no snapshot is involved).
-export function rebuild(settings: MatchSettings, remote: string[], checks: Record<number, string>): Rebuilt {
-  const r = applyFrom(createMatch(settings), remote, 0, checks);
-  return r.ok ? { ok: true, followed: { settings, actions: [...remote], state: r.state } } : r;
-}
+export type Rebuilt =
+  | { kind: 'rebuilt'; followed: Followed; parted: Step[] }   // parted: the record's steps from where its list and ours part
+  | { kind: 'broken'; at: number; reason: 'refused' | 'hash' };
 
-function fullRebuild(local: Followed, remote: string[], head: Head): Follow {
-  const r = rebuild(local.settings, remote, {});
-  if (!r.ok) return { kind: 'broken', at: r.at, reason: r.reason };
-  return hashState(r.followed.state) === head.hash ? { kind: 'rebuilt', followed: r.followed } : { kind: 'broken', at: head.n, reason: 'hash' };
+// The answer to `diverged` (a write of ours that lost its race, say): the record replayed from the opening through
+// `replay`, a chunk at a time, and checked against the head. Null when `wanted()` turns false at a pause.
+export async function rebuildFrom(local: Followed, remote: string[], head: Head, pause: () => Promise<void>,
+  wanted: () => boolean = () => true): Promise<Rebuilt | null> {
+  let k = 0;
+  while (k < remote.length && k < local.actions.length && remote[k] === local.actions[k]) k++;
+  const r = await replay(local.settings, remote, {}, pause, wanted, k);
+  if (r === null) return null;
+  if (r.refusedAt !== null) return { kind: 'broken', at: r.refusedAt, reason: 'refused' };
+  return hashState(r.followed.state) === head.hash
+    ? { kind: 'rebuilt', followed: r.followed, parted: r.steps } : { kind: 'broken', at: head.n, reason: 'hash' };
 }
 
 export function follow(local: Followed, remote: string[], head: Head): Follow {
   if (remote.length !== head.n) return { kind: 'wait' };
   const same = remote.length === local.actions.length && remote.every((a, i) => a === local.actions[i]);
-  if (same) return hashState(local.state) === head.hash ? { kind: 'same' } : fullRebuild(local, remote, head);
+  if (same) return hashState(local.state) === head.hash ? { kind: 'same' } : { kind: 'diverged' };
   const extends_ = remote.length > local.actions.length && local.actions.every((a, i) => a === remote[i]);
-  if (!extends_) return fullRebuild(local, remote, head);
+  if (!extends_) return { kind: 'diverged' };
   const r = applyFrom(local.state, remote, local.actions.length);
   if (!r.ok) return { kind: 'broken', at: r.at, reason: r.reason };
-  if (hashState(r.state) !== head.hash) return fullRebuild(local, remote, head);
+  if (hashState(r.state) !== head.hash) return { kind: 'diverged' };
   return { kind: 'advanced', followed: { settings: local.settings, actions: [...remote], state: r.state }, steps: r.steps };
 }
 

@@ -12,7 +12,7 @@ export interface FigureProps {
   accent: string;
 }
 
-export type SharedFigure = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult';
+export type SharedFigure = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult' | 'sellsword';
 
 const EYE = '#3A2A1E';
 export const HAIR = '#5B3A22';
@@ -125,6 +125,37 @@ function warrior(p: FigureProps): ReactElement {
   ink.circle(-7, -9, 4.9, WOOD);
   ink.line(-7, -13.6, -7, -4.4, WOOD_DARK, 0.7);
   ink.circle(-7, -9, 1.7, p.accent);
+  return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
+}
+
+// A wandering sword for hire: a long cloak flaring behind him, a battered brimmed hat, a steel pauldron on one
+// shoulder and a leather one on the other, a patched tunic, and a long blade held low in both hands.
+function sellsword(p: FigureProps): ReactElement {
+  const ink = new Ink();
+  // The cloak hangs from his shoulders and flares back to the left, its hem ragged, a patch sewn on.
+  ink.shape('M -5.6 -18.4 L 5.6 -18.4 L 7.4 0.4 L 3 1.4 L -0.4 0 L -4.4 1.8 L -8.4 0.2 L -13.2 1.6 L -11.6 -6 Z', p.colour.dark);
+  ink.rect(-11.4, -4.6, 3.2, 3, p.colour.main, 0.6);
+  standingBody(ink, p.colour);
+  // A leather patch on the tunic and a belt with a buckle.
+  ink.rect(-5, -14.2, 4.2, 4, WOOD, 0.8);
+  ink.rect(-6.5, -7.6, 13, 2, BOOT, 0.6);
+  ink.rect(-1, -7.8, 2.4, 2.4, p.accent, 0.5);
+  // The cloak's collar, then two shoulders that do not match.
+  ink.rect(-5.6, -19.4, 11.2, 3.2, p.colour.dark, 1.6);
+  ink.ellipse(-6.4, -16.4, 3.8, 2.8, STEEL);
+  ink.ellipse(-6.4, -15.6, 3.2, 1.6, STEEL_DARK);
+  ink.ellipse(6.4, -16.4, 3.2, 2.4, WOOD);
+  // The long blade, held low and forward in both hands, its point near the ground.
+  ink.line(4, -13.8, 6.4, -11.4, WOOD_DARK, 1.8);
+  sword(ink, 6.6, -11.2, 18.6, 1.8, p.accent);
+  hand(ink, 5.2, -12.6);
+  hand(ink, 7.4, -10.4);
+  head(ink, 0, -23);
+  // A short beard and a dented, broad-brimmed iron hat.
+  ink.shape('M -5.4 -21 C -5 -15.4 5 -15.4 5.4 -21 L 3 -19.4 L -3 -19.4 Z', HAIR);
+  dome(ink, 0, -26.2, 5.6, STEEL_DARK);
+  ink.poly([1.4, -32.2, 3.4, -31.4, 2.4, -29.6], STEEL);
+  ink.rect(-9.6, -27.4, 19.2, 2.2, STEEL, 1.1);
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 
@@ -281,26 +312,41 @@ export const SHARED_FIGURES: Record<SharedFigure, (p: FigureProps) => ReactEleme
   horseman,
   knight,
   catapult,
+  sellsword,
 };
 
 // ---- status ----
 
 const PIP_W = 4;
-const PIP_H = 2.6;
+export const PIP_H = 2.6;
 const PIP_GAP = 1;
-const PIP_Y = -42;
+export const PIP_Y = -42;
+/** The spacing of the marks beside the plate, centre to centre. */
+export const MARK_STEP = 7.6;
+/** The radius of the round marks (taunted, blinded) and of the glint. */
+export const MARK_R = 3.4;
+/** Where the "new" glint sits, right of the plate's right end. */
+export const GLINT_GAP = 5;
 const PIP_FULL = '#7BD957';
 const PIP_EMPTY = '#5E5A52';
-const PLATE = '#2B2B2A';
+export const PLATE = '#2B2B2A';
+
+const pipCount = (maxHp: number): number => Math.max(1, Math.ceil(maxHp / 5));
+const plateWidth = (maxHp: number): number => pipCount(maxHp) * PIP_W + (pipCount(maxHp) - 1) * PIP_GAP;
+
+/** The x of the pips' right end, for a unit of this maximum health; the plate is centred on x 0. */
+export function plateRight(maxHp: number): number {
+  return plateWidth(maxHp) / 2;
+}
 
 /**
  * Drawn above a figure: one health pip per 5 health, full for health left.
  * `spent` is not drawn here: the caller dims the whole figure.
  */
 export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fresh: boolean; taunted: boolean; blinded: boolean }): ReactElement {
-  const total = Math.max(1, Math.ceil(p.maxHp / 5));
+  const total = pipCount(p.maxHp);
   const full = Math.min(total, Math.max(0, Math.ceil(p.hp / 5)));
-  const w = total * PIP_W + (total - 1) * PIP_GAP;
+  const w = plateWidth(p.maxHp);
   const left = -w / 2;
   const ink = new Ink();
   ink.rect(left - 1.2, PIP_Y - 1.2, w + 2.4, PIP_H + 2.4, PLATE, 1.6);
@@ -325,19 +371,19 @@ export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fr
   const marks = new Ink();
   if (p.taunted) {
     // A red badge with an exclamation mark: this unit has been provoked.
-    marks.circle(x, PIP_Y + 1.3, 3.4, '#E0563F');
+    marks.circle(x, PIP_Y + 1.3, MARK_R, '#E0563F');
     marks.rect(x - 0.6, PIP_Y - 0.9, 1.2, 2.8, '#FFFFFF', 0.5);
     marks.circle(x, PIP_Y + 3.1, 0.7, '#FFFFFF');
-    x -= 7.6;
+    x -= MARK_STEP;
   }
   if (p.blinded) {
     // A grey badge with a shut eye: this unit cannot see far.
-    marks.circle(x, PIP_Y + 1.3, 3.4, '#6F6A80');
+    marks.circle(x, PIP_Y + 1.3, MARK_R, '#6F6A80');
     marks.stroke(`M ${x - 2} ${PIP_Y + 0.8} Q ${x} ${PIP_Y + 2.8} ${x + 2} ${PIP_Y + 0.8}`, '#FFFFFF', 0.8);
     marks.line(x - 1, PIP_Y + 2, x - 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
     marks.line(x + 1, PIP_Y + 2, x + 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
   }
-  if (p.fresh) marks.glint(left + w + 5, PIP_Y + 0.4, 3.4, '#FFC93C');
+  if (p.fresh) marks.glint(left + w + GLINT_GAP, PIP_Y + 0.4, MARK_R, '#FFC93C');
   return (
     <g>
       {ink.items}

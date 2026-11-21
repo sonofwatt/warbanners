@@ -10,7 +10,8 @@ test('every unit row matches the rules file spot checks', () => {
   expect(UNITS.hoplite.traits).toEqual(['steadfast', 'phalanx']);
   expect(UNITS.kingsGuard.cost).toBeNull();
   expect(UNITS.camp).toMatchObject({ atk: 0, range: 0, cost: 6, tech: 'roads', faction: 'mongols' });
-  expect(Object.keys(UNITS)).toHaveLength(16);
+  expect(UNITS.sellsword).toEqual({ atk: 5, def: 3, range: 1, move: 1, hp: 15, sight: 1, cost: null, tech: null, faction: null, traits: [] });
+  expect(Object.keys(UNITS)).toHaveLength(17);
 });
 test('tech tree is four ladders of three', () => {
   expect(Object.keys(TECHS)).toHaveLength(12);

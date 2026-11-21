@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 import { applyAction, createMatch, damageFor, reachable } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
-import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
-import { dangerMap, exposureCost, followCredit, moveScore, objectives, unitWorth, valueOf } from './assess';
+import { addCity, addUnit, blankMatch, randomPlayout, rngFor, setTile } from '../engine/testkit';
+import { dangerMap, exposureCost, followCredit, moveScore, objectives, unitValue, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState } from './input';
 import { PERSONAS } from './persona';
@@ -222,4 +222,67 @@ test('an empty city is not exposed to an enemy scout, but is to a warrior', () =
   };
   expect(cost('warrior')).toBeGreaterThan(0);
   expect(cost('scout')).toBe(0);
+});
+
+test('unitValue: worth plus 3 a trait, 3 for a hero, 1 for a draught', () => {
+  const s = blankMatch();
+  expect(unitValue(addUnit(s, 'warrior', 0, 0, 0))).toBe(2);
+  expect(unitValue(addUnit(s, 'warrior', 0, 1, 0, { heroTraits: ['hardy'] }))).toBe(5);
+  expect(unitValue(addUnit(s, 'warrior', 0, 2, 0, { heroTraits: ['hardy', 'tireless'] }))).toBe(11);
+  expect(unitValue(addUnit(s, 'warrior', 0, 3, 0, { heroTraits: ['hardy', 'tireless'], item: 'draught' }))).toBe(12);
+});
+test('a hero standing in danger costs more than a plain unit there', () => {
+  // The same tile and the same danger: only the danger term differs between the two contexts.
+  const drop = (heroTraits: ('hardy' | 'tireless')[]): number => {
+    const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    addUnit(s, 'warrior', 0, 1, 0, { heroTraits });
+    for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+    const ctx = makeCtx(s, 0, LEVEL_DIAL.normal);
+    return valueOf(s, { ...ctx, danger: {} }) - valueOf(s, { ...ctx, danger: { '1,0': 5 } });
+  };
+  const w = skillFor(LEVEL_DIAL.normal).danger;
+  expect(drop([])).toBeCloseTo(w * 2 * 5 / 10, 9);
+  expect(drop(['hardy', 'tireless'])).toBeCloseTo(w * 11 * 5 / 10, 9);
+  expect(drop(['hardy', 'tireless'])).toBeGreaterThan(drop([]));
+});
+test('assess reads maxHpOf', () => {
+  // Through valueOf (the health share is a local): a Fierce Warrior at 12/12 is worth exactly what a full plain one
+  // is, plus its trait worth. Read against the type's 10 it would count 12/10 of its worth and a negative wound.
+  const value = (patch: { hp?: number; heroTraits?: 'fierce'[] }): number => {
+    const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    addUnit(s, 'warrior', 0, 1, 0, patch);
+    for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+    return valueOf(s, makeCtx(s, 0, LEVEL_DIAL.normal));
+  };
+  expect(value({ hp: 12, heroTraits: ['fierce'] }) - value({})).toBeCloseTo(3, 9);
+});
+test('two Spartan heroes side by side bond like two Hoplites; two Mongol heroes do not', () => {
+  // The formation term alone: the hero pair's gain from standing together, less a plain pair's.
+  const value = (factions: ['spartans', 'mongols'] | ['mongols', 'spartans'], heroTraits: ('hardy' | 'tireless')[], apart: boolean): number => {
+    const s = blankMatch({ factions }); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    addUnit(s, 'warrior', 0, 1, 0, { heroTraits });
+    addUnit(s, 'warrior', 0, apart ? -1 : 2, 0, { heroTraits });
+    for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+    return valueOf(s, makeCtx(s, 0, LEVEL_DIAL.normal));
+  };
+  const extra = (factions: ['spartans', 'mongols'] | ['mongols', 'spartans']): number => {
+    const heroes = value(factions, ['hardy', 'tireless'], false) - value(factions, ['hardy', 'tireless'], true);
+    const plain = value(factions, [], false) - value(factions, [], true);
+    return heroes - plain;
+  };
+  expect(extra(['spartans', 'mongols'])).toBeCloseTo(PERSONAS.spartans.formation * (2 - 1), 9);
+  expect(extra(['mongols', 'spartans'])).toBeCloseTo(0, 9);
+});
+test('a map-revealed treasure becomes an objective', () => {
+  const s = blankMatch({ unexplored: true }); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  setTile(s, 1, 0, { treasure: true }); setTile(s, -3, 0, { treasure: true });
+  const u = addUnit(s, 'warrior', 0, 1, 0);
+  s.players[0]!.explored = ['1,0']; s.players[1]!.explored = ['0,-3'];
+  s.rng = rngFor('map');
+  const r = applyAction(s, { type: 'claimTreasure', unit: u.id });
+  expect(r.ok).toBe(true); if (!r.ok) return;
+  const ev = r.events.find(e => e.type === 'treasure');
+  expect(ev?.type === 'treasure' && ev.outcome === 'map' && ev.found).toBe('-3,0');
+  const b = believedState(aiInputFor(r.state, 0));
+  expect(objectives(b, 0, PERSONAS.spartans)).toContainEqual({ at: '-3,0', kind: 'treasure', value: 9 });
 });

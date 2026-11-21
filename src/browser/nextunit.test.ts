@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // Next unit, and the tile under a unit of your own. Seed 7: Player 1's Warrior (unit 0) stands on the capital at
 // -2,5 and can move to -1,4; once it has moved it has nothing left to do this turn.
@@ -17,12 +17,6 @@ async function box(page: Page, selector: string): Promise<Rect> {
 const mid = (r: Rect) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
 const inside = (r: Rect, slot: Rect): boolean =>
   r.x >= slot.x - 0.5 && r.y >= slot.y - 0.5 && r.x + r.width <= slot.x + slot.width + 0.5 && r.y + r.height <= slot.y + slot.height + 0.5;
-
-async function tapTile(page: Page, hex: string): Promise<void> {
-  const at = mid(await box(page, `[data-centre="${hex}"]`));
-  await page.touchscreen.tap(at.x, at.y);
-  await frames(page);
-}
 
 /** Stat values in the open panel that a line break cuts inside a word, or that spill out of their box. */
 function brokenStats(page: Page): Promise<string[]> {

@@ -60,3 +60,21 @@ export function hopelessCharge(): MatchState {
   addUnit(s, 'horseman', 1, 0, -1, { hp: 3, mp: 6 });
   return finish(s);
 }
+
+// A Mongol rider beside a Spartan Warrior in the open: no village or city where a lure would pull it, and free
+// ground to ride back to. A safe lure.
+export function safeLure(): MatchState {
+  const s = base(1);
+  addUnit(s, 'horseman', 1, 0, 0, { mp: 6 });
+  addUnit(s, 'warrior', 0, 1, 0);
+  return finish(s);
+}
+
+// A Mongol Warrior carrying a Battle draught beside a full Spartan Warrior on a field. One attack leaves the
+// target at 4; a second, drunk for, finishes it.
+export function draughtFinish(): MatchState {
+  const s = base(1);
+  addUnit(s, 'warrior', 1, 0, 0, { item: 'draught' });
+  addUnit(s, 'warrior', 0, 1, 0);
+  return finish(s);
+}

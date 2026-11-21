@@ -36,10 +36,10 @@ function extents(markup: string): { x: number; y: number; where: string }[] {
   return out;
 }
 
-test('eight figures, each different', () => {
+test('nine figures, each different', () => {
   const ids = Object.keys(SHARED_FIGURES);
-  expect(ids).toHaveLength(8);
-  expect(new Set(ids.map((id) => html(SHARED_FIGURES[id as keyof typeof SHARED_FIGURES](P)))).size).toBe(8);
+  expect(ids).toHaveLength(9);
+  expect(new Set(ids.map((id) => html(SHARED_FIGURES[id as keyof typeof SHARED_FIGURES](P)))).size).toBe(9);
 });
 
 test('each figure wears the colour it is given and no other player colour', () => {

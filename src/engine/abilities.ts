@@ -1,11 +1,17 @@
 import { CONFIG } from './data/config';
-import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
+import { addDeed, maxHpOf } from './heroes';
+import { drankThisTurn } from './items';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import { ABILITIES } from './types';
 import type { AbilityId, Action, Handler, MatchState, Unit } from './types';
+
+// attacks that an ability may not spend: a drunk draught's extra one is for attacking only
+function abilityReserve(s: MatchState, u: Unit): number {
+  return drankThisTurn(s, u) ? 1 : 0;
+}
 
 function isAbility(v: unknown): v is AbilityId {
   return typeof v === 'string' && ABILITIES.includes(v as AbilityId);
@@ -15,12 +21,12 @@ function isAbility(v: unknown): v is AbilityId {
 export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId): HexKey[] {
   if (!isAbility(ability)) return [];
   const u = unitById(s, unitId);
-  if (u === undefined || u.owner !== s.current || u.fresh || u.attacks <= 0 || !hasTrait(u, ability)) return [];
+  if (u === undefined || u.owner !== s.current || u.fresh || u.attacks <= abilityReserve(s, u) || !hasTrait(u, ability)) return [];
   const here = parseKey(u.pos);
   let found: Unit[] = [];
   if (ability === 'heal') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
-      && t.hp < UNITS[t.type].hp);
+      && t.hp < maxHpOf(t));
   } else if (ability === 'taunt') {
     const visible = visibleTiles(s, u.owner);
     found = s.units.filter((t) => t.owner !== u.owner && distance(here, parseKey(t.pos)) <= CONFIG.tauntRange
@@ -58,20 +64,24 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
   if (u === undefined) return 'no such unit';
   if (u.owner !== s.current) return 'not your unit';
   if (!hasTrait(u, a.ability)) return 'unit lacks that ability';
-  if (u.attacks <= 0) return 'no attacks left';
+  if (u.attacks <= abilityReserve(s, u)) return 'no attacks left';
   if (!hasOwn(s.tiles, a.target) || !abilityTargets(s, u.id, a.ability).includes(a.target)) return 'bad target';
+  ev.push({ type: 'ability', unit: u.id, ability: a.ability, target: a.target });
   if (a.ability === 'dustStorm') {
     for (const v of stormVictims(s, u.owner, a.target)) v.blinded = true;
   } else {
     const target = unitAt(s, a.target)!;
-    if (a.ability === 'heal') target.hp = Math.min(UNITS[target.type].hp, target.hp + CONFIG.abilityHeal);
+    if (a.ability === 'heal') {
+      const before = target.hp;
+      target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal);
+      if (target.hp > before && !target.fresh) addDeed(s, target, 'survive', 1, ev);
+    }
     else if (a.ability === 'taunt') target.taunted = true;
     else target.mp += CONFIG.hastenMp;
   }
   u.attacks -= 1;
   u.mp = 0;
   u.acted = true;
-  ev.push({ type: 'ability', unit: u.id, ability: a.ability, target: a.target });
   return null;
 };
 

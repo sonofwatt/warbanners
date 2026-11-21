@@ -10,7 +10,7 @@ import { hashState } from '../engine';
 import type { MatchState } from '../engine';
 import { randomPlayout } from '../engine/testkit';
 import { T } from '../ui/text';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // Solo play in a real browser: with the network cut, and a hard AI turn on a crowded board with the CPU slowed.
 // Seed 7 facts (see flow.test.ts): the person (Player 1) moves first with one Warrior (unit 0) on -2,5, which can
@@ -23,13 +23,6 @@ async function matchId(page: Page): Promise<string> {
   const id = await page.evaluate(() => (JSON.parse(localStorage.getItem('warbanners.saves.v1') ?? '[]') as { id: string }[])[0]?.id ?? '');
   expect(id, 'a save is listed').not.toBe('');
   return id;
-}
-
-async function tapTile(page: Page, hex: string): Promise<void> {
-  const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-  if (box === null) throw new Error(`tile ${hex} has no box`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await frames(page);
 }
 
 /** The service worker has installed every file and Home says so. */
@@ -86,15 +79,15 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
 }
 
 /**
- * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 148
- * random turns of seed 7 (25 units; re-picked for the Task 12 numbers, as seed 6 after 128 now has 27), so it is the person's move and
+ * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 236
+ * random turns of seed 7 (25 units; re-picked for Task 8's thresholds, as seed 7 after 180 now has 18), so it is the person's move and
  * tapping End turn hands the AI the board (with an odd count the AI would start on Continue, and the board-opening
  * render would land inside its first think). Times are milliseconds
  * on the page's clock; `sleeps` are the store's waits between the AI's visible actions, as it asked for them.
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(7, 148);
+  const { entries, state } = savedHardMatch(7, 236);
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {

@@ -2,6 +2,7 @@ import { abilityHandler } from './abilities';
 import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
 import { canCapture, canClaimTreasure, captureHandler, claimTreasureHandler, resignHandler } from './capture';
+import { canUseItem, useItemHandler } from './items';
 import { researchHandler } from './tech';
 import { campTrainHandler, trainHandler } from './training';
 import { endTurnHandler } from './turn';
@@ -38,6 +39,7 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   campTrain: campTrainHandler,
   capture: captureHandler,
   claimTreasure: claimTreasureHandler,
+  useItem: useItemHandler,
   resign: resignHandler,
   endTurn: endTurnHandler,
 };
@@ -94,6 +96,7 @@ export function legalActions(s: MatchState): Action[] {
     }
     if (canCapture(s, u.id)) out.push({ type: 'capture', unit: u.id });
     if (canClaimTreasure(s, u.id)) out.push({ type: 'claimTreasure', unit: u.id });
+    if (canUseItem(s, u.id)) out.push({ type: 'useItem', unit: u.id });
     if (hasTrait(u, 'camp')) {
       const around = neighbors(parseKey(u.pos)).map(key).filter((k) => tileAt(s, k) !== undefined).sort();
       for (const unitType of unitTypes) {

@@ -1,5 +1,7 @@
 # Banners: stage 1 rules (draft numbers)
 
+Stage 2 (heroes and treasures) adds to these rules: see `stage2-rules.md`.
+
 This is the builder's draft of the rules the design leaves open. Every number here
 is a first guess, written fresh for this game, to be tuned by simulated matches in
 plan 3. The engine reads all of it from data files, so tuning never touches code.
@@ -153,6 +155,8 @@ only comes from a city reward.
 
 Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
 
+The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section 6).
+
 ## 9. Movement
 
 - One unit per tile. You may pass through your own units but not stop on them. You
@@ -258,7 +262,7 @@ nothing.
   player's units may claim it; the first to claim takes it. The tile's treasure is
   removed and `rngInt(3)` decides: 0 gives +5 gold; 1 explores every tile within 4;
   2 gives a Warrior on the first free enterable neighbour in direction order (or +5
-  gold if there is none).
+  gold if there is none). Stage 2 replaces the draw: see `stage2-rules.md` section 5.
 - Capture: a unit standing on a village or an enemy city may capture it (a unit with
   `noCityCapture`, the Krypteia Scout, may take a village but never a city) if it
   entered that tile on an earlier turn and has not moved or attacked this turn. It

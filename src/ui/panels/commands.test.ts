@@ -95,3 +95,14 @@ test('a unit that has waited on a treasure is offered Claim treasure', () => {
   const walker = addUnit(s, 'warrior', 0, -2, 0, { moved: true }); s.tiles['-2,0']!.treasure = true;   // arrived this turn
   expect(unitCommands(unitSel(walker.id), s, ixOf(s))).toEqual([]);
 });
+
+test('Drink draught is offered when useItem is legal', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const drinker = addUnit(s, 'warrior', 0, 0, 0, { item: 'draught' }); const plain = addUnit(s, 'warrior', 0, 1, 0);
+  const ix = ixOf(s);
+  const c = byId(unitCommands(unitSel(drinker.id), s, ix));
+  expect(c['useItem']).toEqual({ id: 'useItem', label: T.ui.drink, cost: null, enabled: true, why: null, action: { type: 'useItem', unit: drinker.id }, arm: null });
+  expect(byId(unitCommands(unitSel(plain.id), s, ix))['useItem']).toBeUndefined();
+  drinker.fresh = true;    // too new to drink: no longer legal
+  expect(byId(unitCommands(unitSel(drinker.id), s, ixOf(s)))['useItem']).toBeUndefined();
+});

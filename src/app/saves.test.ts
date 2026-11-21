@@ -101,3 +101,8 @@ test('a write brings a list up to date as listSaves would, without reading it ba
   expect(list).toEqual(listSaves(kv));
   expect(withSave(list, { saved: false, droppedUnfinished: false, summary: null, dropped: [] })).toEqual(list);
 });
+test('a rules 3 save is not resumable', () => {
+  const kv = fake(); writeSave(kv, rec('a', 10), start);
+  kv.map.set('warbanners.save.a', JSON.stringify({ ...rec('a', 10), rulesVersion: 3 }));
+  expect(listSaves(kv).map(s => [s.id, s.resumable])).toEqual([['a', false]]);
+});
