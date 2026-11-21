@@ -2,7 +2,7 @@
 
 Stage 2 adds heroes and new treasures to the stage 1 rules. This file covers heroes (deeds,
 earned traits, what traits do and what each player can see) and treasures (the draw, the Sellsword, the Battle draught). The numbers
-were tuned by simulated AI-against-AI matches in plan 5 Task 8 (section 8). Section 9 is the rules 5 chain kill cost. The data files (`CONFIG.heroes` in
+were tuned by simulated AI-against-AI matches in plan 5 Task 8 (section 8). Section 9 is the rules 5 chain kill cost and the rules 6 level-up that ends a chain. The data files (`CONFIG.heroes` in
 `src/engine/data/config.ts`, `FACTIONS`) win over this file.
 
 ## 1. Deeds
@@ -177,3 +177,8 @@ the trait sizes and the treasure table are the first draft, kept. Every run is i
   actually lost (no event when nothing was lost); the board shows it as a hurt number on the unit.
 - It earns no deed: it is not a hit survived, and the attack's fight deed is unchanged.
 - The number was picked by simulated matches: `docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md`.
+- A level-up ends the chain (rules 6): if the chain unit earns a hero trait from its own attack (the deed points that
+  attack earns are counted after it), it does not get the extra attack from that kill. The chain kill cost is still paid
+  first, and a Fierce trait still heals its new health at once. The engine emits `{ type: 'chainEnded', unit }` after the
+  `heroTrait` event, and the board shows "Chain ends" on the unit; the Chain trait text says so too.
+  `CONFIG.levelUpEndsChain` switches the rule (on).

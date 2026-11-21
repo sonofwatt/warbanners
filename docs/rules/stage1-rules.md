@@ -28,7 +28,8 @@ If this file and the engine's data files disagree, the data files are wrong.
 | Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
 | City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
 
-A unit with movement `M` has `2M` half-points each turn. A unit that has not moved
+A unit with movement `M` has `2M` half-points each turn (a mounted Mongol unit 1 more:
+see 13). A unit that has not moved
 yet this turn may always enter one adjacent enterable tile, whatever it costs.
 
 ## 3. Map generation
@@ -147,7 +148,7 @@ only comes from a city reward.
 | Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
-| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden, noCityCapture |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden, noCityCapture, pathfinder |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
@@ -162,12 +163,16 @@ The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section
 - One unit per tile. You may pass through your own units but not stop on them. You
   may not enter a tile holding an enemy unit.
 - Engagement: entering a tile next to an enemy unit uses up the rest of the move.
-- Into the fog: a single move may enter at most one tile its owner had not explored
-  when the move began, and only as the last tile of the move; a path never passes
-  through an unexplored tile. The unit stops there and its owner explores what it
-  now sees. It then has no movement left this turn, except a Mongol scouting rider
-  (see 13). Costs, engagement, forest, mountain, roads and relay riders apply as
-  usual.
+- The fog (since rules 6): a move never passes through a tile its owner had not
+  explored when the move began, and an ordinary unit never ends a move on one
+  either. Moving still reveals what the unit now sees, so exploring means walking to
+  the edge of the white fog and looking. Only a unit with `pathfinder` (the Krypteia
+  Scout) may end a move on one unexplored tile, as the last tile of the move. Its
+  owner explores what it now sees, and its turn ends there: it keeps no movement and
+  may not attack, use an ability or drink a draught this turn, even with movement
+  left. Costs, engagement, forest, mountain, roads and relay riders apply as usual.
+  (Rules 3 to 5 let any unit end a move on one unexplored tile, and let a mounted
+  Mongol keep moving after it.)
 - After attacking, a unit cannot move, unless it has `retreat`, which keeps
   whatever movement it had left.
 - A unit trained or spawned this turn is fresh until its owner's next turn starts:
@@ -237,6 +242,7 @@ Worked examples (all at full health on a field unless said):
 | steady | Friendly units next to it cannot be lured |
 | inspire | Friendly mounted units next to it have +1 attack |
 | camp | Cannot attack. May train units (see 13) |
+| pathfinder | May end a move on one unexplored tile, which ends its turn (see 9) |
 
 Abilities are actions that use up the unit's attack for the turn (and its movement,
 as an attack would):
@@ -289,11 +295,22 @@ Mongols
 
 - Start with `riding`.
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
-- Mounted Mongol units have +1 movement. Entering a forest costs them the normal
-  forest cost and then uses up the rest of their move.
-- Scouting riders: a mounted Mongol unit that ends a move on a tile its owner had
-  not explored keeps whatever movement that move left it, and may move again this
-  turn from there under the same rule (see 9).
+- Riding by territory (since rules 6). Mounted Mongol units have 1 extra half-point of
+  movement (before rules 6, a whole tile): a Horseman has 5 half-points, so 2 field
+  tiles with one half-point left, which buys one more tile only where a tile costs 1
+  (a road, or relay riders in Mongol territory): 5 road tiles. Territory is the city
+  whose land a tile lies in, and that city's owner. Best in Mongol land, then neutral
+  land, and in enemy land the same as anyone:
+  - Mongol territory: relay riders (below) and the extra half-point.
+  - Neutral land (no city's territory): the extra half-point, normal costs.
+  - A move that starts in enemy territory: normal costs and no extra half-point.
+  The extra half-point may be spent only on a move that starts in Mongol or neutral
+  land. Movement spent earlier in the turn comes out of it first, so a move that
+  starts in enemy territory loses it only while it is still unspent, and what that
+  move leaves is all the unit has. A hastened unit keeps its haste. The same costs
+  apply to the move a `retreat` unit makes after attacking.
+- Entering a forest costs mounted Mongol units the normal forest cost and then uses
+  up the rest of their move.
 - Relay riders: for Mongol units, entering any tile inside Mongol territory costs
   1 half-point.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
