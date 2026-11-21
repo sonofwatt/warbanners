@@ -11,7 +11,8 @@ import { aiInputFor, believedState, viewKey } from './input';
 import { availableTypes, chooseReward, chooseTech, chooseUnit } from './mix';
 import { PERSONAS } from './persona';
 import { skillFor } from './skill';
-import type { AiInput } from './types';
+import { LEVEL_DIAL } from './types';
+import type { AiInput, Persona } from './types';
 
 export interface PlanOpts {
   dial: number; seed: number;
@@ -29,6 +30,7 @@ const BUILDINGS = Object.keys(CONFIG.buildings) as BuildingId[];
 const WEIGHT_SCALE = 1_000_000;      // softmax weights are rounded to integers so every machine picks alike
 const MAX_STEPS_PER_UNIT = 8;        // a unit acts a few times at most (move, attack, move); a guard, not a rule
 const ECONOMY_THRESHOLD = 0.5;       // value per gold an economy action must reach, divided by skill.economy
+const NORMAL_FOCUS = skillFor(LEVEL_DIAL.normal).focus;   // the unit mix reads what it sees as given at normal
 const KILL_FLAT = 2;                // a kill's bonus: this much plus a share of the victim's worth, times skill.focus
 const KILL_SHARE = 0.25;
 const LURE_EDGE = 0.001;             // a safe lure scores this much above its plain twin, so a hard AI takes it
@@ -99,6 +101,8 @@ class TurnPlanner {
   // Gold a garrison's step off its city tile relied on this turn, by city id: the training phase spends it
   // there first, and no other garrison may count on it.
   private readonly pledged = new Map<number, number>();
+  // The persona the unit mix reads: its counter weight grows with the skill, exactly as given at normal.
+  private readonly mixPersona: Persona;
 
   constructor(input: AiInput, private readonly opts: PlanOpts) {
     this.b = believedState(input);
@@ -108,6 +112,7 @@ class TurnPlanner {
       me: this.me, skill: skillFor(opts.dial), persona,
       danger: dangerMap(this.b, this.me), goals: objectives(this.b, this.me, persona), hurt: new Set(),
     };
+    this.mixPersona = { ...persona, counter: persona.counter * this.ctx.skill.focus / NORMAL_FOCUS };
     this.work = this.ctx.skill.evals - 1;
     this.refused = new Set(opts.refused.map(actionKey));
     this.rng = opts.seed >>> 0;
@@ -213,7 +218,7 @@ class TurnPlanner {
   // The type the training phase would train in this city on state s (mix.ts), or null.
   private unitFor(s: MatchState, city: City): UnitTypeId | null {
     const threatened = this.ctx.goals.some((g) => g.kind === 'defend' && g.at === city.pos);
-    return chooseUnit(s, this.me, this.ctx.persona, {
+    return chooseUnit(s, this.me, this.mixPersona, {
       threatened,
       fits: (t) => trainRefusal(s, city.id, t) === null && this.allowed({ type: 'train', city: city.id, unitType: t }),
     });
@@ -231,7 +236,7 @@ class TurnPlanner {
 
   private research(): void {
     const open = this.ctx.persona.techOrder.filter((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t }));
-    const tech = chooseTech(this.b, this.me, this.ctx.persona, open) ?? undefined;
+    const tech = chooseTech(this.b, this.me, this.mixPersona, open) ?? undefined;
     if (tech === undefined || !this.live()) return;
     const left = this.b.players[this.me]!.gold - techPrice(this.b, this.me, tech);
     if (left < this.cheapestUnit() && this.anyCityHasRoom()) return;
@@ -295,7 +300,7 @@ class TurnPlanner {
     });
     const spotFor = (unitType: UnitTypeId): HexKey | undefined => spots.find((to) => campTrainRefusal(this.b, camp.id, unitType, to) === null
       && this.allowed({ type: 'campTrain', unit: camp.id, unitType, to }));
-    const unitType = chooseUnit(this.b, this.me, this.ctx.persona, { threatened: false, exclude: 'camp', fits: (t) => spotFor(t) !== undefined });
+    const unitType = chooseUnit(this.b, this.me, this.mixPersona, { threatened: false, exclude: 'camp', fits: (t) => spotFor(t) !== undefined });
     if (unitType === null) return null;
     return { type: 'campTrain', unit: camp.id, unitType, to: spotFor(unitType)! };
   }
