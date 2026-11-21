@@ -367,6 +367,20 @@ of the twelve were used; no lever in Task 8's list moves the ladder without the 
 - Hard over normal: 55.5% on fresh seeds (target 60%), 53.5% on the baseline seeds. Run 6 rules out the draught worth;
   the likely cause is the lower hero count, and the ladder's lever (the skill dial in src/ai/skill.ts) is not one of this
   task's. Next to try: hard's danger weight or lookahead in skill.ts, a separate task.
+- Probe (run 7, controller's ruling in the Task 8 fix round): hero worth 3 to 5 (src/ai/assess.ts HERO_WORTH), on the
+  final numbers. Hypothesis: a hero worth more is hit first and kept safer, which pays most for hard, whose danger
+  weight is near zero, so hard over normal climbs back toward 60%.
+
+  ```
+  normal, hard (seeds 1001 to 1025): seat win share: first 56.0%  second 36.0%  stalled 16.0%  median 28
+  hard, normal (seeds 1001 to 1025): seat win share: first 70.0%  second 26.0%  stalled 8.0%  median 24
+  normal, normal (seeds 1 to 50): spartans 43.5%  mongols 45.5%  first seat 46.5%  stalled 22.0%  median 37
+    heroes 3.25 a match, with a hero 66.0%, first hero's side 69.7%, draughts 27 of 55 (49.1%)
+  ```
+
+  After: hard over normal 53.0% (normal 41.0%), against 53.5% at worth 3, so no gain; normal against normal stalls 22%
+  (run 2: 26%) inside the noise, while the first hero's side rises to 69.7%. Reverted. The two hard-ladder misses are
+  carried to src/ai/skill.ts.
 - Hard over easy: 75.2% on fresh seeds (target 80%), 84.0% on the baseline seeds. Probably mostly seed noise (about 3.5
   points on 200 matches; plan 3's fresh-seed check swung 4.5 points between seed sets), with part of the same hard
   weakness as above.
