@@ -110,6 +110,8 @@ because that AI fields no chain unit.
 
 2 is 13% of a Knight's 15 health and 10% of a Khan's Guard's 20: a small cost per kill, felt across a chain.
 
+What cost 2 does not do: it shortens chains, it does not stop them. The 2+ kill counts behind the choice are small (48, 36, 23, 26, 24 and 19 turns for costs 0 to 5), so 2, 3 and 4 cannot be told apart, and cost 2 is the smallest that halves the count by a single turn. The line check is the steadier measure: a full-health Knight against a healthy line still kills 3 or more in 75.8% of cases at cost 2 (84.2% at cost 0). If playtests still find Knights sweeping, raise the number; 3 to 5 are all in the table.
+
 ## Carried
 
 - The shipped AI never trains a Knight or takes the Khan's Guard, so the simulator cannot show the cost in normal play.
