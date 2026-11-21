@@ -1,11 +1,13 @@
 import { playerView } from '../engine';
-import type { GameEvent, MatchState, PlayerId, UnitTypeId } from '../engine';
+import type { GameEvent, HeroTraitId, MatchState, PlayerId, UnitTypeId } from '../engine';
 
 export type DigestLine =
   | { kind: 'unitLost'; unitType: UnitTypeId; by: UnitTypeId | null }
   | { kind: 'unitHurt'; unitType: UnitTypeId; damage: number; by: UnitTypeId | null }
   | { kind: 'tileTaken'; by: UnitTypeId }          // an enemy melee killer stepped into a lost unit's tile
   | { kind: 'treasureTaken' }                       // the other side claimed a treasure the viewer's side can see
+  | { kind: 'traitEarned'; unitType: UnitTypeId; trait: HeroTraitId }   // a unit of the viewer's earned a trait on the other side's turn
+  | { kind: 'heroMade'; unitType: UnitTypeId }                          // ... and that trait made it a hero
   | { kind: 'cityLost' };
 
 // One accepted action: the state before and after it, and what it did.
@@ -46,6 +48,12 @@ export function digestFor(viewer: PlayerId, log: readonly TurnStep[]): DigestLin
         }
       } else if (e.type === 'treasure') {
         if (before.current !== viewer && playerView(after, viewer).visible.includes(e.at)) lines.push({ kind: 'treasureTaken' });
+      } else if (e.type === 'heroTrait') {
+        // Only the viewer's own units, and only what happened on the other side's turn.
+        const unit = after.units.find(u => u.id === e.unit);
+        if (before.current !== viewer && unit !== undefined && unit.owner === viewer) {
+          lines.push(e.hero ? { kind: 'heroMade', unitType: unit.type } : { kind: 'traitEarned', unitType: unit.type, trait: e.trait });
+        }
       } else if (e.type === 'captured') {
         if (before.cities.find(c => c.id === e.city)?.owner === viewer) lines.push({ kind: 'cityLost' });
       }

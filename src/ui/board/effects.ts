@@ -1,8 +1,9 @@
 import { playerView } from '../../engine';
+import { T } from '../text';
 import type { GameEvent, HexKey, MatchState, PlayerId, UnitTypeId } from '../../engine';
 
 export type Effect =
-  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold'; delay: number }
+  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number }
   | { kind: 'lunge'; unit: number; toward: HexKey; delay: number }
   | { kind: 'fall'; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
   | { kind: 'burst'; at: HexKey; tone: 'build' | 'capture' | 'level' | 'treasure'; delay: number };
@@ -40,7 +41,7 @@ export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId):
 // moved (moves are drawn by the board's slide, not by an effect). 0 when the viewer can see none of it.
 export function watchMs(events: readonly GameEvent[], before: MatchState, after: MatchState, viewer: PlayerId): number {
   const { visible, seenUnits } = seenBy(before, after, viewer);
-  const list = effectsFor(events, before, after, visible, seenUnits);
+  const list = effectsFor(events, before, after, visible, seenUnits, viewer);
   const moved = events.some((e) => (e.type === 'moved' || e.type === 'lured' || e.type === 'advanced') && seenUnits.has(e.unit));
   if (list.length === 0) return moved ? EFFECT_MS : 0;
   return Math.max(...list.map((f) => f.delay)) + EFFECT_MS;
@@ -49,13 +50,15 @@ export function watchMs(events: readonly GameEvent[], before: MatchState, after:
 // Turn the events of one action into short on-board effects. The state is already final;
 // these only decorate it. Secrecy: an effect on a tile outside `visible` is dropped, and so is any
 // effect about a unit outside `seenUnits` (the ids the viewer could see before the action or can see
-// after it), since a hidden unit may stand unseen on a visible tile.
+// after it), since a hidden unit may stand unseen on a visible tile. What a treasure held is told in words to the
+// player who claimed it only; the other side sees the plain burst.
 export function effectsFor(
   events: readonly GameEvent[],
   before: MatchState,
   after: MatchState,
   visible: ReadonlySet<HexKey>,
   seenUnits: ReadonlySet<number>,
+  viewer: PlayerId,
 ): Effect[] {
   // Last known tile of every unit, followed through moves and lures within this list.
   const pos = new Map<number, HexKey>();
@@ -111,7 +114,16 @@ export function effectsFor(
           const gain = (after.players[before.current]?.gold ?? 0) - (before.players[before.current]?.gold ?? 0);
           if (gain > 0) mine.push({ kind: 'number', at: e.at, text: `+${gain}`, tone: 'gold', delay });
           else mine.push({ kind: 'burst', at: e.at, tone: 'treasure', delay });
+        } else if (before.current === viewer) {
+          // The find words are the claimer's alone; the other side keeps the plain burst.
+          const text = e.outcome === 'relic' && e.trait !== undefined ? T.heroTrait[e.trait].name : T.treasure[e.outcome];
+          mine.push({ kind: 'number', at: e.at, text, tone: 'find', delay });
         } else mine.push({ kind: 'burst', at: e.at, tone: 'treasure', delay });
+        break;
+      }
+      case 'heroTrait': {
+        const at = unitPos(e.unit);
+        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: T.heroTrait[e.trait].name, tone: 'hero', delay });
         break;
       }
       case 'captured': {

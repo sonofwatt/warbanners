@@ -161,3 +161,12 @@ test('a unit waiting on a treasure is indexed, counts as able to act, and is mar
   expect(marksFor(NONE, v, ix)).toEqual({ '2,0': 'capture' });
   expect(indexActions(legalActions({ ...s, current: 1 })).claims).toEqual([]);
 });
+
+test('items index lists useItem units and does not count them as active', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const drinker = addUnit(s, 'warrior', 0, 0, 0, { item: 'draught', mp: 0 }); addUnit(s, 'warrior', 0, 1, 0, { mp: 0 });
+  const ix = indexActions(legalActions(s));
+  expect(ix.items).toEqual([drinker.id]);
+  expect(ix.activeUnits).not.toContain(drinker.id);
+  expect(indexActions([]).items).toEqual([]);
+});

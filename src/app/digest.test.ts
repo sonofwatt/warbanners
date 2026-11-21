@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { applyAction, playerView } from '../engine';
+import type { GameEvent } from '../engine';
 import { addCity, addUnit, blankMatch } from '../engine/testkit';
 import { digestFor } from './digest';
 
@@ -52,4 +53,20 @@ test('an enemy claiming a treasure my side can see is told; one in the fog is no
   const hidden = applyAction(f, { type: 'claimTreasure', unit: far.id }); if (!hidden.ok) throw new Error(hidden.reason);
   expect(playerView(hidden.state, 1).visible).not.toContain('3,0');
   expect(digestFor(1, [{ before: f, after: hidden.state, events: hidden.events }])).toEqual([]);
+});
+
+test('a trait earned on the other turn is told once; a hero line replaces the trait line', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const mine = addUnit(s, 'warrior', 1, 1, 0);
+  const step = (events: GameEvent[]) => [{ before: s, after: s, events }];
+  expect(digestFor(1, step([{ type: 'heroTrait', unit: mine.id, trait: 'hardy', hero: false }]))).toEqual([{ kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' }]);
+  expect(digestFor(1, step([{ type: 'heroTrait', unit: mine.id, trait: 'hardy', hero: true }]))).toEqual([{ kind: 'heroMade', unitType: 'warrior' }]);
+  // On the viewer's own turn nothing is told: they were there.
+  const own = { ...s, current: 1 };
+  expect(digestFor(1, [{ before: own, after: own, events: [{ type: 'heroTrait', unit: mine.id, trait: 'hardy', hero: false }] }])).toEqual([]);
+});
+test('the other side never hears of its enemy progress', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const theirs = addUnit(s, 'warrior', 0, 1, 0);
+  expect(digestFor(1, [{ before: s, after: s, events: [{ type: 'heroTrait', unit: theirs.id, trait: 'fierce', hero: true }] }])).toEqual([]);
 });

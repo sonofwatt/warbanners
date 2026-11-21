@@ -21,7 +21,7 @@ const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
   { name: 'capture', types: ['captured'] },
   { name: 'fall', types: ['died'] },
   { name: 'hit', types: ['attacked', 'splashed'] },
-  { name: 'build', types: ['built', 'trained', 'researched', 'reward', 'cityLevel', 'treasure', 'ability'] },
+  { name: 'build', types: ['built', 'trained', 'researched', 'reward', 'cityLevel', 'treasure', 'ability', 'heroTrait', 'usedItem'] },
   { name: 'move', types: ['moved', 'lured', 'advanced'] },
 ];
 
@@ -31,6 +31,8 @@ const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
 function heard(e: GameEvent, seenUnits: ReadonlySet<number>): boolean {
   switch (e.type) {
     case 'died':
+    case 'heroTrait':
+    case 'usedItem':
     case 'advanced': return seenUnits.has(e.unit);
     case 'attacked':
     case 'splashed': return seenUnits.has(e.target);

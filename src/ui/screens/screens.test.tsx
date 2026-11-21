@@ -11,6 +11,7 @@ import type { KeyValue } from '../../app/saves';
 import { StoreContext } from '../../app/useApp';
 import { App } from '../App';
 import { T, fill } from '../text';
+import type { Unit } from '../../engine';
 import { Home } from './Home';
 import { Match, nextUnitDisabled, turnFocus } from './Match';
 import { Pass } from './Pass';
@@ -272,4 +273,45 @@ test('the result of an adaptive match says where the AI settled', () => {
   expect(html).toContain('The AI finished at level 6 of 10.');
   const plain = fakeStore(); plain.store.getState().startMatch({ ...SETUP, second: 'hard' }); plain.store.getState().run({ type: 'resign' });
   expect(render(plain.store, <Result />)).not.toContain('The AI finished');
+});
+
+test('Home shows the what is new line', () => {
+  const { store } = fakeStore();
+  const html = render(store, <Home />);
+  expect(html).toContain(`<p class="whats-new">${T.ui.whatsNew}</p>`);
+});
+
+// A Mongol viewer with an archer at 0,0 (sees two tiles), an enemy Spartan hero A at 2,0 in sight, and the
+// hero B beside it either in sight (2,-1) or beyond it (3,0).
+function mythMatch(neighbourAt: [number, number]) {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  store.getState().ready();
+  const s = blankMatch({ factions: ['mongols', 'spartans'] });
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  addUnit(s, 'archer', 0, 0, 0);
+  const hero: Partial<Unit> = { heroTraits: ['fierce', 'hardy'] };
+  const a = addUnit(s, 'warrior', 1, 2, 0, hero); addUnit(s, 'warrior', 1, ...neighbourAt, hero);
+  store.setState({ state: s, selection: { kind: 'unit', id: a.id, armed: null, askLure: null } });
+  return store;
+}
+test('myth touch never names an unseen hero', () => {
+  const hidden = mythMatch([3, 0]);
+  const html = render(hidden, <Match />);
+  expect(html).toContain(T.ui.hero);                       // the enemy hero's card shows its badge and traits
+  expect(html).not.toContain(T.ui.mythTouch);              // but not a hero the viewer has not seen beside it
+  expect(html).not.toContain('<meter');                    // and none of its deeds
+  const seen = mythMatch([2, -1]);
+  expect(render(seen, <Match />)).toContain(T.ui.mythTouch);
+});
+test('my own hero card shows deed bars', () => {
+  const { store } = fakeStore();
+  store.getState().startMatch(SETUP);
+  store.getState().ready();
+  const s = blankMatch(); for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const mine = addUnit(s, 'warrior', 0, 0, 0, { heroTraits: ['fierce'] });
+  store.setState({ state: s, selection: { kind: 'unit', id: mine.id, armed: null, askLure: null } });
+  expect(render(store, <Match />).match(/<meter/g)).toHaveLength(3);
 });

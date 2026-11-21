@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
-  growthNeeded, playerIncome, playerView, cityIncome, unitCapacity, unitsOf,
+  DEEDS, growthNeeded, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
-import type { FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
+import { aiInputFor, believedState } from '../../ai/input';
+import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
 import { roundOf } from '../../app/record';
 import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
@@ -148,7 +149,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     const { visible, seenUnits } = seenBy(last.before, state, viewer);
     return {
       seq: last.seq, sound: soundFor(last.events, seenUnits),
-      list: effectsFor(last.events, last.before, state, visible, seenUnits),
+      list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer),
     };
   }, [last, state, viewer]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
@@ -181,7 +182,16 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (u !== undefined) {
       const owner = state.players[u.owner]!.faction;
       const commands = u.owner === viewer ? unitCommands(selection, state, ix) : [];
-      panel = <UnitPanel type={u.type} hp={u.hp} faction={owner} commands={commands} onCommand={onCommand} />;
+      // The myth touch and the movement are judged on what the viewer believes, never on the whole match, so an
+      // enemy's card cannot tell of a hero or a helper beside it that the viewer has not seen.
+      const believed = believedState(aiInputFor(state, viewer));
+      const myth = mythTouched(believed, u);
+      const thresholds = u.owner === viewer
+        ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
+      panel = (
+        <UnitPanel unit={u} faction={owner} stats={statsOf(believed, u)} myth={myth} thresholds={thresholds}
+          commands={commands} onCommand={onCommand} />
+      );
     }
   } else if (selection.kind === 'city') {
     const city = view.cities.find((c) => c.id === selection.id);

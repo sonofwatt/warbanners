@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { CONFIG, FACTIONS, TECHS, UNITS } from '../engine';
-import type { BuildingId, FactionId, TechId, UnitTypeId } from '../engine';
+import { CONFIG, DEEDS, FACTIONS, HERO_TRAITS, TECHS, UNITS } from '../engine';
+import type { BuildingId, ItemId, TreasureOutcome, FactionId, TechId, UnitTypeId } from '../engine';
 import { digestText, reasonText, T, unlocks } from './text';
 
 test('every id the engine knows has a name', () => {
@@ -33,4 +33,24 @@ test('digest lines read as sentences', () => {
   expect(digestText({ kind: 'cityLost' })).toBe('You lost a city.');
   expect(digestText({ kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');
   expect(digestText({ kind: 'treasureTaken' })).toBe('The enemy claimed a treasure.');
+});
+
+test('every hero trait, deed, item and treasure outcome has text, and blurbs carry the CONFIG numbers', () => {
+  const H = CONFIG.heroes;
+  for (const t of HERO_TRAITS) { expect(T.heroTrait[t].name).toBeTruthy(); expect(T.heroTrait[t].blurb.length).toBeGreaterThan(10); }
+  for (const d of DEEDS) expect(T.deed[d]).toBeTruthy();
+  for (const i of ['draught'] as ItemId[]) { expect(T.item[i].name).toBeTruthy(); expect(T.item[i].blurb.length).toBeGreaterThan(10); }
+  for (const o of CONFIG.treasure.table) expect(T.treasure[o as TreasureOutcome], o).toBeTruthy();
+  expect(T.heroTrait.fierce.blurb).toContain(`+${H.fierceAtk} attack and +${H.fierceHp} health`);
+  expect(T.heroTrait.tireless.blurb).toContain(`+${H.tirelessMove} movement`);
+  expect(T.heroTrait.hardy.blurb).toContain(`+${H.hardyDef} defence`);
+  expect(T.heroTrait.watchful.blurb).toContain(`Sees ${H.watchfulSight} tile farther and takes ${H.agilityCut} less damage`);
+  expect(T.ui.mythTouchBlurb).toContain(`+${H.mythAtk} attack and +${H.mythDef} defence`);
+});
+test('the sellsword blurb names its trait through the text table', () => {
+  expect(T.unit.sellsword.blurb).toContain(T.heroTrait[CONFIG.treasure.mercenaryTrait].name);
+});
+test('hero digest lines read as sentences', () => {
+  expect(digestText({ kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' })).toBe('Your Warrior earned Hardy.');
+  expect(digestText({ kind: 'heroMade', unitType: 'warrior' })).toBe('Your Warrior is now a hero.');
 });
