@@ -135,3 +135,26 @@ is lost with the unit). The item is public, like a trait.
 - Drinking is not acting: it sets neither `acted` nor `moved`, so a unit that drinks and then rests still counts as
   having rested.
 - The legal action list shows it right after the unit's claim entry.
+
+## 8. Tuning
+
+The thresholds in section 2 and the AI's draught worth were tuned by simulated AI-against-AI matches in plan 5 Task 8;
+the trait sizes and the treasure table are the first draft, kept. Every run is in
+`docs/superpowers/plans/2026-11-20-plan-5-tuning-log.md`. Final check on fresh seeds (normal against normal, seeds 701 to
+800 in both seatings, 200 matches; ladder pairs on seeds 701 to 750 in both seat orders, 200 matches a pair):
+
+| Measure | Target | Result |
+|---|---|---|
+| Matches with at least one hero | 60% to 95% | 70.5% |
+| Heroes per match, both sides | 1 to 4 | 3.31 |
+| First-hero side's win share | at most 65% | 58.2% |
+| Spartan traits per match minus Mongol | above 0 | 0.69 (7.08 against 6.39) |
+| Treasures claimed per match | at least 3 of 4 | 3.85 |
+| Draughts drunk per draught found | at least 50% | 60.0% |
+| Spartan share of wins | 40% to 60% | 47.3% |
+| Median rounds | at most 39 | 39 |
+| Stalled at 60 rounds | at most 21.5% | 15.5% |
+| First-seat win share | 42% to 58% (reported) | 51.7% |
+| Hard over easy | at least 80% | 75.2% (missed) |
+| Normal over easy | at least 65% | 65.8% |
+| Hard over normal | at least 60% | 55.5% (missed) |

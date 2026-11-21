@@ -55,7 +55,8 @@ export const CONFIG = deepFreeze({
     market: { tech: 'markets', cost: 6, growth: 1, on: 'field', resource: null, income: 2 },
   },
   walls: { tech: 'shieldwork', cost: 6 }, road: { tech: 'roads', cost: 1 },
-  // Stage 2 (docs/rules/stage2-rules.md): first-draft numbers, tuned in plan 5 Task 8.
+  // Stage 2 (docs/rules/stage2-rules.md). Thresholds tuned by simulated matches in plan 5 Task 8
+  // (docs/superpowers/plans/2026-11-20-plan-5-tuning-log.md); the trait sizes are the first draft, kept.
   heroes: {
     traitFor: { fight: 'fierce', march: 'tireless', survive: 'hardy', rest: 'watchful' },
     fightPerAttack: 1, fightPerKill: 2,

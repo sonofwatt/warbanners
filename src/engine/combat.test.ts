@@ -125,14 +125,16 @@ test('hostile input is refused and changes nothing', () => {
   expect(hashState(s)).toBe(before);
 });
 test('splash can kill a neighbour, which is reported, with no counter from it', () => {
-  const s = blankMatch(); const c = addUnit(s, 'catapult', 0, 0, 0);
+  // the attack and its two kills earn 1 + 2 * 2 = 5 fight points, which take the catapult to the agoge threshold
+  const fight = CONFIG.heroes.agogeThresholds.fight - CONFIG.heroes.fightPerAttack - 2 * CONFIG.heroes.fightPerKill;
+  const s = blankMatch(); const c = addUnit(s, 'catapult', 0, 0, 0, { deeds: { fight, march: 0, survive: 0, rest: 0 } });
   const d = addUnit(s, 'warrior', 1, 3, 0); const n = addUnit(s, 'spearman', 1, 3, -1, { hp: 3 });
   addUnit(s, 'warrior', 0, 2, 0);                       // the catapult sees the target through this unit
   const r = applyAction(s, { type: 'attack', unit: c.id, target: '3,0' }); const t = must(r);
   expect(unitById(t, n.id)).toBeUndefined();
   expect(r.ok && r.events).toContainEqual({ type: 'died', unit: n.id });
   expect(r.ok && r.events).toContainEqual({ type: 'attacked', unit: c.id, target: d.id, damage: 10, counter: 0 });
-  // no counter, but two kills earn the Spartan catapult Fierce (agoge fight threshold), which heals its extra health at once
+  // no counter, but the kills earn the Spartan catapult Fierce, which heals its extra health at once
   expect(unitById(t, c.id)!.heroTraits).toEqual(['fierce']);
   expect(unitById(t, c.id)!.hp).toBe(10 + CONFIG.heroes.fierceHp);
 });

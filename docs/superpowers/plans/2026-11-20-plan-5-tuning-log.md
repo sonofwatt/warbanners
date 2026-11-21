@@ -280,7 +280,7 @@ the bulk gains over run 2 (draughts 47.3% to 50.9%, median 37 to 36) are inside 
 Five runs were used. The stall share sat at 26% through runs 2 to 5 whatever moved (draught, hero and treasure worths,
 the agoge march), so the remaining runs went to the fresh-seed check below rather than to more guesses at it.
 
-## Final check (partial): 2026-11-20, run 2's numbers, fresh seeds
+## Final check: 2026-11-20 and 21, run 2's numbers, fresh seeds
 
 Run 2's numbers: thresholds fight 14, march 50, survive 10, rest 8; agoge fight 10, march 20, survive 9, rest 6; draught
 worth 1; every other number as at 12fbdf0 (trait sizes, treasure table, hero worths 3 and 3, treasure value 9).
@@ -319,36 +319,64 @@ draughts drunk 66 of 110 found (60.0%)
 | Median rounds | at most 39 | 43 | 39 | met (at the edge) |
 | Stalled at 60 rounds | at most 21.5%, aim 15% | 23.0% | 15.5% | met |
 | First-seat win share | reported, band 42% to 58% | 51.5% | 51.7% | inside the band |
-| Ladder, pooled | 80%, 65%, 60% | 84.0%, 68.0%, 63.5% | not run | open |
+| Hard over easy | at least 80% | 84.0% | 75.2% | missed |
+| Normal over easy | at least 65% | 68.0% | 65.8% | met |
+| Hard over normal | at least 60% | 63.5% | 55.5% | missed |
 
 Gold's share of claims on the fresh seeds: 0.55 of 3.85, 14.3%.
 
-## Paused here (2026-11-20, at David's request)
+Ladder, each pair `--matches 50 --seed 701 --swap` in both orders (200 matches a pair), resumed on 2026-11-21 after the
+pause:
 
-Where it stopped: after the normal-against-normal half of Step 3 above. The ladder half of Step 3 was stopped before it
-started. Nothing else ran.
+```
+hard over easy 75.2% (easy 13.8%, stalled 22.0%, medians 37 and 39)
+normal over easy 65.8% (easy 19.0%, stalled 30.5%, medians 42 and 40)
+hard over normal 55.5% (normal 37.0%, stalled 15.0%, medians 31 and 32)
+```
 
-State of the worktree: this log is committed. The tuning itself is not: `src/engine/data/config.ts` (run 2's
-thresholds), `src/ai/assess.ts` (`ITEM_WORTH` 1), `src/ai/assess.test.ts` (the `unitValue` pin, 13 to 12),
-`src/ai/plan.test.ts` (the draught test now also at hard, comment updated) and `docs/rules/stage2-rules.md` (threshold
-table, "draft" dropped) are left uncommitted, because `FINGERPRINT[4]` and the speed rows have not been repinned for
-them, so `npm test` would fail on a commit. A copy of that diff is in
-`.superpowers/sdd/2026-11-20-plan-5-heroes-treasures/task-8-uncommitted.diff`.
+The ladder baseline was taken on seeds 1001 to 1025, so the same numbers were also run there (100 matches a pair):
 
-What is left, in order:
+```
+hard over easy 84.0% (easy 9.5%, stalled 13.0%, medians 30 and 32)
+normal over easy 68.0% (easy 22.5%, stalled 19.0%, medians 39 and 39)
+hard over normal 53.5% (normal 40.5%, stalled 12.0%, medians 28 and 24)
+```
 
-1. Step 3's ladder: `--matches 50 --seed 701 --swap` for each pair in both orders (600 matches; about 40 to 60 minutes).
-2. Step 4: the "Tuning" section of `stage2-rules.md` with the final table and this log's path; the comment above
-   `CONFIG.heroes` ("first-draft numbers") and the `ITEM_WORTH` comment.
-3. Step 5: repin `FINGERPRINT[4]` and the three speed rows with both provenance tests passing; check the 25-unit position
-   `randomPlayout(7, 180)` still has 25 units (repick and run `npm run test:browser` if not); `npm test`, typecheck,
-   lint; `SLOW=1 npx vitest run src/ai`.
-4. The two SLOW tests: on run 2's numbers the adaptive gap passes (0.599) and the normal test leaves 2 of 16 unended
-   (`5 mongols`, `8 mongols`). Across runs 1 to 5 that test left 1 to 3 of 16 unended while the bulk stall share stayed
-   24% to 27% on seeds 1 to 50 (15.5% on the fresh seeds). At a 15% stall share the chance that all 16 end is
-   0.85^16, about 7%; at plan 3's 21.5%, about 2%. So the evidence is that the test's bound (no match unended) is a
-   lucky draw from plan 3, not a level the AI holds; the proposal for the controller is to name the unended matches as
-   `KNOWN_HARD` does for hard, or to bound the count (for example at most 3 of 16). Not changed here.
+Like for like, hard over easy (84.0%) and normal over easy (68.0%) are where the baseline had them; hard over normal fell
+from 63.5% to 53.5%. On the fresh seeds hard over easy is 75.2%, so part of its miss there is the seeds (plan 3's own
+fresh-seed check had it at 81.5% and its old seeds at 77.0%).
 
-What I would try next if a target misses on the ladder: nothing for the numbers above (all met on fresh seeds); for the
-SLOW normal test, only the bound question in item 4, since no lever moved the bulk stall share on seeds 1 to 50.
+### Run 6 (diagnostic): draught worth back to 2, hard against normal only, seeds 1001 to 1025
+
+Hypothesis: run 2's cheaper draught is what cost hard its edge over normal, since it changes how both levels value a
+carrier. If so, hard over normal returns to about 63%.
+
+```
+normal, hard: seat win share: first 55.0%  second 38.0%  stalled 14.0%  median 28
+hard, normal: seat win share: first 67.0%  second 29.0%  stalled 8.0%  median 24
+```
+
+After: hard over normal 52.5% (normal 42.0%), against 53.5% with worth 1. Not the draught. Reverted. That leaves the
+thresholds: with 15 heroes a match hard won 63.5% of these seeds, with 3 it wins 53% to 55%. A likely reading, not
+measured: hard's near-zero danger weight lets it fight with its heroes where normal hangs back with them, and with few
+heroes that edge mostly goes. Six runs
+of the twelve were used; no lever in Task 8's list moves the ladder without the hero count going back out of its target.
+
+## Carried
+
+- Hard over normal: 55.5% on fresh seeds (target 60%), 53.5% on the baseline seeds. Run 6 rules out the draught worth;
+  the likely cause is the lower hero count, and the ladder's lever (the skill dial in src/ai/skill.ts) is not one of this
+  task's. Next to try: hard's danger weight or lookahead in skill.ts, a separate task.
+- Hard over easy: 75.2% on fresh seeds (target 80%), 84.0% on the baseline seeds. Probably mostly seed noise (about 3.5
+  points on 200 matches; plan 3's fresh-seed check swung 4.5 points between seed sets), with part of the same hard
+  weakness as above.
+
+## The SLOW tests
+
+- Adaptive climbs against a strong opponent: gap 0.599 on the final numbers (0.950 against 0.351), inside its 0.2 bound.
+- Normal 60-round matches: on the final numbers `5 mongols` and `8 mongols` (seeds 1 to 8, both seatings) do not end.
+  Across runs 1 to 5 this test left 1 to 3 of 16 unended while the bulk stall share stayed 24% to 27% on seeds 1 to 50
+  (15.5% on the fresh seeds): at a 15% stall share all 16 end about 7% of the time (0.85^16). By the controller's ruling
+  the test now names its known unended matches, as the hard test does (`KNOWN_NORMAL`); any other match that fails to
+  end still fails it.
+

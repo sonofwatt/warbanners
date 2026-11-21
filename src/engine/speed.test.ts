@@ -7,13 +7,14 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules version 4 (units carry deeds, heroTraits and item, traits and the seven treasure outcomes change play
+  // re-pinned for plan 5 Task 8's tuned thresholds and draught worth; seed 1 now ends after 101 turns, so its row is the
+  // position after 90 turns, still unfinished; earlier, for rules version 4 (units carry deeds, heroTraits and item, traits and the seven treasure outcomes change play
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 206, 'e54f825068c78567', '25c5f7e9237729c6', '69d7760809e0cc47'],
-  [1, 140, 292, '15e28cea915b1e6b', '54ed2b8f98d2e48c', 'c69bf6875e331e78'],
-  [3, 90, 84, '844e6c797457d1a2', '7da9e8a2cea941dd', '9391279798e78e44'],
+  [7, 160, 88, '260f97335fae1612', '0f3a2e1e58b124e7', '2308834e014737c9'],
+  [1, 90, 94, '03a34c89ea070266', 'e68ddf66fef77dfb', '087f64691e23758e'],
+  [3, 90, 50, 'eaa6f479d5ca5898', '12fa67a17dcd688a', '8d72b36b7857afc6'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -23,7 +24,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 30_000);
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(7, 180);              // re-picked for the Task 4 trait effects: (7, 148) now has 22 units
+  const s = randomPlayout(7, 236);              // re-picked for Task 8's thresholds: (7, 180) now has 18 units
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {

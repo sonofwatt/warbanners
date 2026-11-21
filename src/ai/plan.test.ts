@@ -51,7 +51,7 @@ test('the deadline ends the turn early with legal actions', () => {
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 30_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(7, 180), 0);         // 25 units; re-picked for the Task 4 trait effects
+  const input = aiInputFor(randomPlayout(7, 236), 0);         // 25 units; re-picked for Task 8's thresholds
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);
