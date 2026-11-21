@@ -3,7 +3,7 @@
 // npm run sim:adaptive -- --matches 6 [--seed 1] [--max-rounds 60]
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { adaptiveSeries, runMatch, summarize } from '../src/ai/sim';
+import { TACTICS, adaptiveSeries, census, runMatch, summarize } from '../src/ai/sim';
 import type { SeatSpec, SimOpts, SimResult } from '../src/ai/sim';
 import { HERO_TRAITS } from '../src/engine/index';
 import type { FactionId, TreasureOutcome } from '../src/engine/index';
@@ -144,6 +144,18 @@ const travel = (f: FactionId): string => {
   }
   return turns === 0 ? 'n/a' : f2(tiles / turns);
 };
+const cen = census(results);
+const ratio = (a: number, b: number): string => `${a}/${b} ${share(a, b)}`;
+const censusLines = (['spartans', 'mongols'] as const).flatMap((f) => [
+  `census ${f} units (matches trained / matches with the tech, per match): ${Object.entries(cen.units[f])
+    .map(([t, r]) => `${t} ${ratio(r!.trained, r!.had)} ${f2(r!.total / (n || 1))}`).join(', ')}`,
+  `census ${f} knights where chivalry: ${ratio(cen.chivalry[f].knights, cen.chivalry[f].had)}`
+    + `  rewards: ${Object.entries(cen.rewards[f]).map(([w, c]) => `${w} ${c}`).join(', ')}`
+    + `  level 5 champion share ${share(cen.rewards[f].champion ?? 0, (cen.rewards[f].champion ?? 0) + (cen.rewards[f].support ?? 0))}`,
+  `census ${f} tactics (matches used / matches possible, uses per match): ${TACTICS
+    .filter((t) => (cen.tactics[f][t]?.possible ?? 0) > 0)
+    .map((t) => { const r = cen.tactics[f][t]!; return `${t} ${ratio(r.used, r.possible)} ${f2(r.total / (n || 1))}`; }).join(', ')}`,
+]);
 const travelLine = `travel: tiles moved per mounted unit per turn  mongols ${travel('mongols')}  spartans ${travel('spartans')}`;
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
@@ -164,4 +176,5 @@ console.log([
   ...heroLines,
   chainLine,
   travelLine,
+  ...censusLines,
 ].join('\n'));

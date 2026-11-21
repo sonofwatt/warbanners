@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { adaptiveSeries, runMatch, summarize } from './sim';
+import { adaptiveSeries, census, runMatch, summarize } from './sim';
 import type { SimOpts } from './sim';
 import { CONFIG, applyAction, createMatch } from '../engine';
 import type { GameEvent, MatchState } from '../engine';
@@ -95,3 +95,29 @@ test('the summary takes the mean total of traits and treasures', () => {
   expect(sum.perFaction.spartans.heroes).toBe(1);
   expect(sum.perFaction.spartans.draughtsDrunk).toBe(2);
 });
+test('the census counts abilities, claims, camp training and rewards as the actions and events of a match', () => {
+  const o: SimOpts = { seed: 3, factions: ['spartans', 'mongols'], seats: [{ level: 'normal' }, { level: 'normal' }], maxRounds: 25 };
+  const r = runMatch(o);
+  let s: MatchState = createMatch({ seed: o.seed, factions: o.factions });
+  const want = [{} as Record<string, number>, {} as Record<string, number>];
+  const rewards = [{} as Record<string, number>, {} as Record<string, number>];
+  const bump = (m: Record<string, number>, k: string): void => { m[k] = (m[k] ?? 0) + 1; };
+  for (const a of r.actions) {
+    const me = s.current;
+    if (a.type === 'ability') bump(want[me]!, a.ability);
+    if (a.type === 'claimTreasure') bump(want[me]!, 'treasure');
+    if (a.type === 'campTrain') bump(want[me]!, 'campTrain');
+    const res = applyAction(s, a);
+    if (!res.ok) throw new Error(res.reason);
+    for (const e of res.events) if (e.type === 'reward') bump(rewards[me]!, e.reward);
+    s = res.state;
+  }
+  for (const p of [0, 1] as const) {
+    const t = r.sides[p].tactics;
+    for (const k of ['heal', 'taunt', 'hasten', 'dustStorm', 'treasure', 'campTrain'] as const) expect(t[k] ?? 0, k).toBe(want[p]![k] ?? 0);
+    expect(r.sides[p].rewards).toEqual(rewards[p]);
+    expect(r.sides[p].techs).toEqual(s.players[p]!.techs);
+  }
+  const c = census([r]);
+  expect(c.tactics.spartans.treasure!.total).toBe(r.sides[0].tactics.treasure ?? 0);
+}, 120_000);
