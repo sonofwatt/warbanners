@@ -1,5 +1,7 @@
 # Banners: stage 1 rules (draft numbers)
 
+Stage 2 (heroes and treasures) adds to these rules: see `stage2-rules.md`.
+
 This is the builder's draft of the rules the design leaves open. Every number here
 is a first guess, written fresh for this game, to be tuned by simulated matches in
 plan 3. The engine reads all of it from data files, so tuning never touches code.

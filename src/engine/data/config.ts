@@ -1,6 +1,6 @@
 import { deepFreeze } from './freeze';
 import type { HexKey } from '../hex';
-import type { BuildingId, Resource, RewardId, TechId, Terrain } from '../types';
+import type { BuildingId, DeedId, HeroTraitId, Resource, RewardId, TechId, Terrain } from '../types';
 
 // Every number the rules file leaves to tuning. `as const` keeps the literal values;
 // `satisfies` checks the shape. Water has no cover in the rules (it cannot be entered), so 0.
@@ -51,6 +51,14 @@ export const CONFIG = deepFreeze({
     market: { tech: 'markets', cost: 6, growth: 1, on: 'field', resource: null, income: 2 },
   },
   walls: { tech: 'shieldwork', cost: 6 }, road: { tech: 'roads', cost: 1 },
+  // Stage 2 (docs/rules/stage2-rules.md): first-draft numbers, tuned in plan 5 Task 8.
+  heroes: {
+    traitFor: { fight: 'fierce', march: 'tireless', survive: 'hardy', rest: 'watchful' },
+    fightPerAttack: 1, fightPerKill: 2,
+    thresholds: { fight: 6, march: 15, survive: 5, rest: 5 },
+    agogeThresholds: { fight: 4, march: 10, survive: 4, rest: 4 },
+    maxTraits: 3, heroAt: 2,
+  },
 } as const satisfies {
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
@@ -70,4 +78,8 @@ export const CONFIG = deepFreeze({
   harvest: Record<'orchard' | 'game', { tech: TechId; cost: number; growth: number }>;
   buildings: Record<BuildingId, { tech: TechId; cost: number; growth: number; on: Terrain; resource: Resource | null; income: number }>;
   walls: { tech: 'shieldwork'; cost: number }; road: { tech: 'roads'; cost: number };
+  heroes: {
+    traitFor: Record<DeedId, HeroTraitId>; fightPerAttack: number; fightPerKill: number;
+    thresholds: Record<DeedId, number>; agogeThresholds: Record<DeedId, number>; maxTraits: number; heroAt: number;
+  };
 });

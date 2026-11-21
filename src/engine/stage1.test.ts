@@ -5,7 +5,12 @@ import { applyAction, legalActions } from './apply';
 import { hashState } from './hash';
 import { createMatch } from './state';
 import { must, randomPlayoutLog } from './testkit';
-import type { Action } from './types';
+import type { Action, MatchState } from './types';
+
+// Strip what plan 5 added, so a stage 1 state hashes as it did on rules 3.
+function stage1Shape(s: MatchState): unknown {
+  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, ...rest }) => rest) };
+}
 
 const FIXTURE = new URL('./stage1.fixture.json', import.meta.url);
 
@@ -48,3 +53,19 @@ test('the recorded rules 3 playouts end on the pinned digests', () => {
     expect(p.hashes[p.actions.length - 1], `seed ${p.seed}`).toBe(want[p.seed]);
   }
 });
+
+test('until stage 2 first changes an outcome, rules 4 plays the rules 3 playout exactly', () => {
+  const { actions, hashes } = (JSON.parse(readFileSync(FIXTURE, 'utf8')) as Fixture).fingerprint;
+  let s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
+  let matched = 0;
+  for (let i = 0; i < actions.length; i++) {
+    const r = applyAction(s, actions[i]!);
+    expect(r.ok, `action ${i}`).toBe(true);
+    if (!r.ok) return;
+    if (r.events.some((e) => e.type === 'treasure' || e.type === 'heroTrait')) break;
+    expect(hashState(stage1Shape(r.state) as MatchState), `after action ${i}`).toBe(hashes[i]);
+    s = r.state; matched = i + 1;
+  }
+  expect(matched).toBeGreaterThan(0);
+  console.info(`stage 1 provenance: ${matched} of ${actions.length} actions identical`);
+}, 30_000);

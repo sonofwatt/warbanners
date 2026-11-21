@@ -4,6 +4,8 @@ import { UNITS } from './data/units';
 import { distance, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { isSteadied } from './abilities';
+import { applyCredits, credit } from './heroes';
+import type { Credits } from './heroes';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
@@ -102,10 +104,13 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     counter = damageFor(cAtk, defenceOf(s, attacker), 1);
   }
   ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage, counter });
+  let kills = 0;                                  // units this attack killed, for the attacker's fight deed
+  const splashed: Unit[] = [];
 
   if (targetDied) {
     removeUnit(s, target.id);
     ev.push({ type: 'died', unit: target.id });
+    kills += 1;
     if (hasTrait(attacker, 'chain')) attacker.attacks += 1;
     // rules 10: a melee killer steps into the emptied tile, at no movement cost
     if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
@@ -121,18 +126,31 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
       if (n.owner === attacker.owner || distance(centre, parseKey(n.pos)) !== 1) continue;
       n.hp -= splash;
       ev.push({ type: 'splashed', target: n.id, damage: splash });
-      if (n.hp <= 0) { removeUnit(s, n.id); ev.push({ type: 'died', unit: n.id }); }
+      if (n.hp <= 0) { removeUnit(s, n.id); ev.push({ type: 'died', unit: n.id }); kills += 1; } else splashed.push(n);
     }
   }
 
+  let attackerDied = false;
   if (counter > 0) {
     attacker.hp -= counter;
     if (attacker.hp <= 0) {
       removeUnit(s, attacker.id);
       ev.push({ type: 'died', unit: attacker.id });
-      return null;
+      attackerDied = true;
     }
   }
+
+  // Deeds (rules 4): fight for a living attacker, survive for each unit that lived through a hit (never a fresh
+  // one), and a kill for the defender whose counter killed the attacker.
+  const credits: Credits = new Map();
+  const heroes = CONFIG.heroes;
+  if (!attackerDied) credit(credits, attacker, 'fight', heroes.fightPerAttack + kills * heroes.fightPerKill);
+  if (!targetDied && !target.fresh) credit(credits, target, 'survive', 1);
+  for (const n of splashed) if (!n.fresh) credit(credits, n, 'survive', 1);
+  if (counter > 0 && !attackerDied && !attacker.fresh) credit(credits, attacker, 'survive', 1);
+  if (attackerDied) credit(credits, target, 'fight', heroes.fightPerKill);
+  applyCredits(s, credits, ev);
+  if (attackerDied) return null;
 
   attacker.attacks -= 1;
   attacker.acted = true;

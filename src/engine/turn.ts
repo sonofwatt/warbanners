@@ -1,6 +1,7 @@
 import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { applyReward, playerIncome } from './economy';
+import { addDeed } from './heroes';
 import { maxMp } from './movement';
 import { DIRS, add, key, parseKey } from './hex';
 import type { HexKey } from './hex';
@@ -47,7 +48,9 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
     const visible = visibleTiles(s, next);   // every heal is worked out before any is applied: health changes no vision
     for (const u of s.units) {
       if (u.owner !== next || !u.rested) continue;
+      const before = u.hp;
       u.hp = Math.min(UNITS[u.type].hp, u.hp + restHealAt(s, u, visible));
+      if (u.hp > before && !u.fresh) addDeed(s, u, 'rest', 1, ev);   // a rest that heals, never a fresh unit's
     }
   }
   for (const u of s.units) {

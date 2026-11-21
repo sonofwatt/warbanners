@@ -10,7 +10,7 @@ import type { City, Tile, Unit } from './types';
 type ObjectKeys<T> = { [K in keyof T]-?: Exclude<T[K], null | undefined> extends object ? K : never }[keyof T];
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 // playerView copies exactly these nested objects; a new one must be copied too (and filled in the test below).
-const NESTED: [Same<ObjectKeys<Tile>, never>, Same<ObjectKeys<Unit>, 'lure'>, Same<ObjectKeys<City>, 'pendingRewards'>] = [true, true, true];
+const NESTED: [Same<ObjectKeys<Tile>, never>, Same<ObjectKeys<Unit>, 'lure' | 'deeds' | 'heroTraits'>, Same<ObjectKeys<City>, 'pendingRewards'>] = [true, true, true];
 
 describe('vision', () => {
   test('a warrior sees one tile, two from a mountain', () => {
@@ -102,7 +102,7 @@ describe('vision', () => {
     const s = randomPlayout(7, 40);
     // Every object a tile, unit or city can hold is filled in, whatever the playout left: the type checks below
     // fail to compile if one of them gains another field that holds an object, so this list stays complete.
-    for (const u of s.units) u.lure = { target: 0, from: u.pos };
+    for (const u of s.units) { u.lure = { target: 0, from: u.pos }; u.deeds.fight = 1; u.heroTraits = ['fierce']; }
     for (const c of s.cities) c.pendingRewards = [2];
     expect(NESTED).toEqual([true, true, true]);
     const inMatch = objects(s);

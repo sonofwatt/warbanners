@@ -2,6 +2,7 @@ import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
+import { addDeed } from './heroes';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import { ABILITIES } from './types';
@@ -60,18 +61,22 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
   if (!hasTrait(u, a.ability)) return 'unit lacks that ability';
   if (u.attacks <= 0) return 'no attacks left';
   if (!hasOwn(s.tiles, a.target) || !abilityTargets(s, u.id, a.ability).includes(a.target)) return 'bad target';
+  ev.push({ type: 'ability', unit: u.id, ability: a.ability, target: a.target });
   if (a.ability === 'dustStorm') {
     for (const v of stormVictims(s, u.owner, a.target)) v.blinded = true;
   } else {
     const target = unitAt(s, a.target)!;
-    if (a.ability === 'heal') target.hp = Math.min(UNITS[target.type].hp, target.hp + CONFIG.abilityHeal);
+    if (a.ability === 'heal') {
+      const before = target.hp;
+      target.hp = Math.min(UNITS[target.type].hp, target.hp + CONFIG.abilityHeal);
+      if (target.hp > before && !target.fresh) addDeed(s, target, 'survive', 1, ev);
+    }
     else if (a.ability === 'taunt') target.taunted = true;
     else target.mp += CONFIG.hastenMp;
   }
   u.attacks -= 1;
   u.mp = 0;
   u.acted = true;
-  ev.push({ type: 'ability', unit: u.id, ability: a.ability, target: a.target });
   return null;
 };
 

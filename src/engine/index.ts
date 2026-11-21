@@ -9,6 +9,7 @@ export { attackTargets, attackOf, defenceOf, coverAt, damageFor, lureApplies } f
 export { abilityTargets } from './abilities';
 export { canCapture, canClaimTreasure } from './capture';
 export { restHealAt } from './turn';
+export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait } from './heroes';
 export { trainable, unitCost } from './training';
 export { techPrice, canResearch } from './tech';
 export { cityIncome, playerIncome, growthNeeded, unitCapacity } from './economy';
@@ -16,7 +17,7 @@ export { UNITS } from './data/units';
 export { TECHS } from './data/techs';
 export { FACTIONS } from './data/factions';
 export { CONFIG } from './data/config';
-export { RULES_VERSION } from './types';
+export { RULES_VERSION, DEEDS, HERO_TRAITS } from './types';
 export type * from './types';
 export { key, parseKey, distance, neighbors, range, mirror } from './hex';
 export type { Hex, HexKey } from './hex';

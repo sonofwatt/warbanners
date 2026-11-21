@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 3;
+export const RULES_VERSION = 4;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -15,6 +15,13 @@ export type Trait = 'steadfast' | 'doubleStrike' | 'retreat' | 'chain' | 'splash
 export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm';
 // Every ability, in the order legalActions lists them.
 export const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
+// Stage 2: what a unit does with its life (deeds) and the trait each deed earns.
+export type DeedId = 'fight' | 'march' | 'survive' | 'rest';
+export const DEEDS: readonly DeedId[] = ['fight', 'march', 'survive', 'rest'];
+export type HeroTraitId = 'fierce' | 'tireless' | 'hardy' | 'watchful';
+export const HERO_TRAITS: readonly HeroTraitId[] = ['fierce', 'tireless', 'hardy', 'watchful'];
+export type Deeds = Record<DeedId, number>;
+export type ItemId = 'draught';
 export type RewardId = 'gold' | 'scout' | 'borders' | 'barracks' | 'income' | 'growth' | 'champion' | 'support';
 
 export interface Tile {
@@ -39,6 +46,9 @@ export interface Unit {
   taunted: boolean; blinded: boolean;
   lure: { target: number; from: HexKey } | null;
   fresh: boolean;                        // spawned this turn; cleared when its owner's next turn starts
+  deeds: Deeds;                          // running totals, never reset; private to the owner (playerView zeroes the rest)
+  heroTraits: HeroTraitId[];             // in the order earned; public
+  item: ItemId | null;                   // a carried one-use item; public
 }
 export interface Player {
   id: PlayerId; faction: FactionId; gold: number; techs: TechId[];
@@ -87,6 +97,7 @@ export type GameEvent =
   | { type: 'reward'; city: number; reward: RewardId }
   | { type: 'built'; at: HexKey; what: BuildingId | 'road' | 'walls' | 'harvest' }
   | { type: 'researched'; tech: TechId }
+  | { type: 'heroTrait'; unit: number; trait: HeroTraitId; hero: boolean }   // hero: this trait brought the unit to heroAt
   | { type: 'turnStarted'; player: PlayerId }
   | { type: 'eliminated'; player: PlayerId }
   | { type: 'matchOver'; winner: PlayerId };
