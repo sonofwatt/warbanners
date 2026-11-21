@@ -37,6 +37,12 @@ export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId):
   return seen;
 }
 
+// The tile of a city, from the state after the action or else before it. Effects and sound both place a city event
+// by this, so they cannot disagree about where it is.
+export function cityTile(before: MatchState, after: MatchState, id: number): HexKey | undefined {
+  return (after.cities.find((x) => x.id === id) ?? before.cities.find((x) => x.id === id))?.pos;
+}
+
 // How long the viewer needs to watch one action: until its last effect ends, or one slide for a seen unit that
 // moved (moves are drawn by the board's slide, not by an effect). 0 when the viewer can see none of it.
 export function watchMs(events: readonly GameEvent[], before: MatchState, after: MatchState, viewer: PlayerId): number {
@@ -137,13 +143,13 @@ export function effectsFor(
         break;
       }
       case 'captured': {
-        const c = after.cities.find((x) => x.id === e.city) ?? before.cities.find((x) => x.id === e.city);
-        if (c) mine.push({ kind: 'burst', at: c.pos, tone: 'capture', delay });
+        const at = cityTile(before, after, e.city);
+        if (at) mine.push({ kind: 'burst', at, tone: 'capture', delay });
         break;
       }
       case 'cityLevel': {
-        const c = after.cities.find((x) => x.id === e.city) ?? before.cities.find((x) => x.id === e.city);
-        if (c) mine.push({ kind: 'burst', at: c.pos, tone: 'level', delay });
+        const at = cityTile(before, after, e.city);
+        if (at) mine.push({ kind: 'burst', at, tone: 'level', delay });
         break;
       }
       case 'built':
