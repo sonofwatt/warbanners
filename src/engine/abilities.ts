@@ -1,8 +1,7 @@
 import { CONFIG } from './data/config';
-import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
-import { addDeed } from './heroes';
+import { addDeed, maxHpOf } from './heroes';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import { ABILITIES } from './types';
@@ -21,7 +20,7 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
   let found: Unit[] = [];
   if (ability === 'heal') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
-      && t.hp < UNITS[t.type].hp);
+      && t.hp < maxHpOf(t));
   } else if (ability === 'taunt') {
     const visible = visibleTiles(s, u.owner);
     found = s.units.filter((t) => t.owner !== u.owner && distance(here, parseKey(t.pos)) <= CONFIG.tauntRange
@@ -68,7 +67,7 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     const target = unitAt(s, a.target)!;
     if (a.ability === 'heal') {
       const before = target.hp;
-      target.hp = Math.min(UNITS[target.type].hp, target.hp + CONFIG.abilityHeal);
+      target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal);
       if (target.hp > before && !target.fresh) addDeed(s, target, 'survive', 1, ev);
     }
     else if (a.ability === 'taunt') target.taunted = true;

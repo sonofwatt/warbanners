@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { applyAction } from './apply';
 import { attackTargets } from './combat';
+import { CONFIG } from './data/config';
 import { hashState } from './hash';
 import { unitAt, unitById } from './state';
 import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
@@ -131,7 +132,9 @@ test('splash can kill a neighbour, which is reported, with no counter from it', 
   expect(unitById(t, n.id)).toBeUndefined();
   expect(r.ok && r.events).toContainEqual({ type: 'died', unit: n.id });
   expect(r.ok && r.events).toContainEqual({ type: 'attacked', unit: c.id, target: d.id, damage: 10, counter: 0 });
-  expect(unitById(t, c.id)!.hp).toBe(10);
+  // no counter, but two kills earn the Spartan catapult Fierce (agoge fight threshold), which heals its extra health at once
+  expect(unitById(t, c.id)!.heroTraits).toEqual(['fierce']);
+  expect(unitById(t, c.id)!.hp).toBe(10 + CONFIG.heroes.fierceHp);
 });
 test('a blinded attacker reaches only distance 1', () => {
   const s = blankMatch(); const a = addUnit(s, 'archer', 0, 0, 0, { blinded: true });

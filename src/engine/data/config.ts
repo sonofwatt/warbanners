@@ -58,6 +58,7 @@ export const CONFIG = deepFreeze({
     thresholds: { fight: 6, march: 15, survive: 5, rest: 5 },
     agogeThresholds: { fight: 4, march: 10, survive: 4, rest: 4 },
     maxTraits: 3, heroAt: 2,
+    fierceAtk: 1, fierceHp: 2, tirelessMove: 1, hardyDef: 1, watchfulSight: 1, agilityCut: 1, mythAtk: 1, mythDef: 1,
   },
 } as const satisfies {
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
@@ -81,5 +82,7 @@ export const CONFIG = deepFreeze({
   heroes: {
     traitFor: Record<DeedId, HeroTraitId>; fightPerAttack: number; fightPerKill: number;
     thresholds: Record<DeedId, number>; agogeThresholds: Record<DeedId, number>; maxTraits: number; heroAt: number;
+    fierceAtk: number; fierceHp: number; tirelessMove: number; hardyDef: number; watchfulSight: number;
+    agilityCut: number; mythAtk: number; mythDef: number;
   };
 });

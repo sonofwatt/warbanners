@@ -1,13 +1,21 @@
 import { expect, test } from 'vitest';
 import { applyAction } from './apply';
 import { CONFIG } from './data/config';
-import { canEarnTraits, isHero, thresholdOf } from './heroes';
+import { attackOf, baseAttackOf, damageFor, defenceOf, statsOf } from './combat';
+import { canEarnTraits, isHero, maxHpOf, mythTouched, thresholdOf } from './heroes';
+import { UNITS } from './data/units';
+import { FACTIONS } from './data/factions';
+import { distance, parseKey } from './hex';
+import { maxMp } from './movement';
+import { visibleTiles } from './vision';
 import { spawnUnit, unitById } from './state';
-import { addCity, addUnit, blankMatch } from './testkit';
+import { addCity, addUnit, blankMatch, setTile } from './testkit';
 import type { GameEvent, MatchState, Unit } from './types';
 import { playerView } from './vision';
 
 const H = CONFIG.heroes;
+const FACTIONS_MOUNTED = FACTIONS.mongols.mountedMoveBonus;
+const distanceFromOrigin = (k: string): number => distance({ q: 0, r: 0 }, parseKey(k));
 const traitEvents = (ev: GameEvent[]): GameEvent[] => ev.filter((e) => e.type === 'heroTrait');
 function act(s: MatchState, a: Parameters<typeof applyAction>[1]) {
   const r = applyAction(s, a);
@@ -239,4 +247,163 @@ test('playerView hides enemy deeds but shows traits and items', () => {
   expect(seen.heroTraits).toEqual(['hardy']);
   expect(seen.item).toBe('draught');
   expect(playerView(s, 1).units.find((u) => u.id === foe.id)!.deeds.fight).toBe(4);
+});
+
+// Trait effects (sizes read from CONFIG.heroes, so tuning edits no test).
+const duelOf = (a: Partial<Unit>, d: Partial<Unit>, atk: 'warrior' | 'spearman' = 'warrior', def: 'warrior' | 'spearman' = 'warrior') => {
+  const s = blankMatch();
+  const A = addUnit(s, atk, 0, 0, 0, a); const D = addUnit(s, def, 1, 1, 0, d);
+  const r = act(s, { type: 'attack', unit: A.id, target: '1,0' });
+  return { A: unitById(r.state, A.id)!, D: unitById(r.state, D.id)!, a0: A, d0: D };
+};
+
+test('a Fierce Warrior hits a Warrior harder and takes the same counter', () => {
+  const w = UNITS.warrior;
+  const fierceHp = w.hp + H.fierceHp;
+  const { A, D } = duelOf({ heroTraits: ['fierce'], hp: fierceHp }, {});
+  const dealt = damageFor(w.atk + H.fierceAtk, w.def, 1);
+  expect(D.hp).toBe(w.hp - dealt);
+  const counter = damageFor((w.hp - dealt + w.hp) / (2 * w.hp) * w.atk * CONFIG.counterFactor, w.def, 1);
+  expect(A.hp).toBe(fierceHp - counter);
+  expect(dealt).toBeGreaterThan(damageFor(w.atk, w.def, 1));
+});
+
+test('a Warrior hits a Hardy Warrior for less', () => {
+  const w = UNITS.warrior;
+  const { D } = duelOf({}, { heroTraits: ['hardy'] });
+  expect(D.hp).toBe(w.hp - damageFor(w.atk, w.def + H.hardyDef, 1));
+  expect(damageFor(w.atk, w.def + H.hardyDef, 1)).toBeLessThan(damageFor(w.atk, w.def, 1));
+});
+
+test('a Watchful Warrior takes agilityCut less from a Warrior counter', () => {
+  const w = UNITS.warrior;
+  const plain = duelOf({}, {});
+  const watchful = duelOf({ heroTraits: ['watchful'] }, {});
+  expect(w.hp - watchful.A.hp).toBe(w.hp - plain.A.hp - H.agilityCut);
+});
+
+test('a Watchful Warrior takes agilityCut less from a Spearman counter', () => {
+  const plain = duelOf({}, {}, 'warrior', 'spearman');
+  const watchful = duelOf({ heroTraits: ['watchful'] }, {}, 'warrior', 'spearman');
+  expect(UNITS.warrior.hp - watchful.A.hp).toBe(UNITS.warrior.hp - plain.A.hp - H.agilityCut);
+});
+
+test('a counter cut by agility never goes below 1', () => {
+  // a Defender hits a Defender: the counter is already the floor of 1, and the cut cannot take it to 0
+  const s = blankMatch();
+  const a = addUnit(s, 'defender', 0, 0, 0, { heroTraits: ['watchful'] });
+  addUnit(s, 'defender', 1, 1, 0);
+  const r = act(s, { type: 'attack', unit: a.id, target: '1,0' });
+  const ev = r.events.find((e) => e.type === 'attacked')!;
+  expect(ev.type === 'attacked' && ev.counter).toBe(1);
+  expect(unitById(r.state, a.id)!.hp).toBe(UNITS.defender.hp - 1);
+});
+
+test('a counter cut by agility is not added when there is no counter', () => {
+  const s = blankMatch();
+  const a = addUnit(s, 'archer', 0, 0, 0, { heroTraits: ['watchful'] });
+  addUnit(s, 'warrior', 1, 2, 0);
+  const r = act(s, { type: 'attack', unit: a.id, target: '2,0' });
+  expect(unitById(r.state, a.id)!.hp).toBe(UNITS.archer.hp);
+});
+
+test('Tireless adds a tile of movement: Warrior and Mongol Horseman', () => {
+  const s = blankMatch();
+  const w = addUnit(s, 'warrior', 0, 0, 0, { heroTraits: ['tireless'] });
+  const plain = addUnit(s, 'warrior', 0, 0, 1);
+  expect(maxMp(s, w) - maxMp(s, plain)).toBe(2 * H.tirelessMove);
+  expect(maxMp(s, w)).toBe(2 * (UNITS.warrior.move + H.tirelessMove));
+  const m = blankMatch();
+  const h = addUnit(m, 'horseman', 1, 0, 0, { heroTraits: ['tireless'] });
+  expect(maxMp(m, h)).toBe(2 * (UNITS.horseman.move + FACTIONS_MOUNTED + H.tirelessMove));
+});
+
+test('Watchful sees farther, and farther again on a mountain', () => {
+  const s = blankMatch({ radius: 6 });
+  const u = addUnit(s, 'warrior', 0, 0, 0, { heroTraits: ['watchful'] });
+  const sees = (): number => Math.max(...[...visibleTiles(s, 0)].map((k) => distanceFromOrigin(k)));
+  expect(sees()).toBe(UNITS.warrior.sight + H.watchfulSight);
+  setTile(s, 0, 0, { terrain: 'mountain' });
+  expect(sees()).toBe(UNITS.warrior.sight + H.watchfulSight + CONFIG.mountainSightBonus);
+  u.heroTraits = [];
+  expect(sees()).toBe(UNITS.warrior.sight + CONFIG.mountainSightBonus);
+});
+
+test('fierce heals to its new maximum', () => {
+  const w = UNITS.warrior;
+  // earned wounded: the new health is added at once
+  const s = blankMatch();
+  const u = addUnit(s, 'warrior', 0, 0, 0, { hp: 6 });
+  u.deeds.fight = thresholdOf(s, u, 'fight') - H.fightPerAttack;
+  addUnit(s, 'warrior', 1, 1, 0);
+  const r = act(s, { type: 'attack', unit: u.id, target: '1,0' });
+  const after = unitById(r.state, u.id)!;
+  expect(after.heroTraits).toEqual(['fierce']);
+  expect(maxHpOf(after)).toBe(w.hp + H.fierceHp);
+  // 6 minus the counter, plus fierceHp
+  const ev = r.events.find((e) => e.type === 'attacked')!;
+  expect(after.hp).toBe(6 - (ev.type === 'attacked' ? ev.counter : 0) + H.fierceHp);
+  // a rested Fierce Warrior in its own territory heals past the old cap, up to the new one
+  const h = home();
+  const rested = addUnit(h, 'warrior', 0, 0, 0, { heroTraits: ['fierce'], hp: w.hp, rested: true });
+  const t = turnStart(h);
+  expect(unitById(t.state, rested.id)!.hp).toBe(Math.min(w.hp + H.fierceHp, w.hp + CONFIG.restHeal.home));
+  // a heal ability caps at the new maximum too
+  const p = blankMatch();
+  const piper = addUnit(p, 'piper', 0, 0, 0);
+  const f = addUnit(p, 'warrior', 0, 1, 0, { heroTraits: ['fierce'], hp: w.hp });
+  const heal = act(p, { type: 'ability', unit: piper.id, ability: 'heal', target: '1,0' });
+  expect(unitById(heal.state, f.id)!.hp).toBe(Math.min(w.hp + H.fierceHp, w.hp + CONFIG.abilityHeal));
+});
+
+function hoplitePair(traits: Parameters<typeof addUnit>[5], q = 1) {
+  const s = blankMatch();
+  const a = addUnit(s, 'hoplite', 0, 0, 0, traits);
+  const b = addUnit(s, 'hoplite', 0, q, 0, traits);
+  return { s, a, b };
+}
+
+test('myth touch: two adjacent Spartan heroes gain attack and defence each, not for one alone', () => {
+  const heroOf: Partial<Unit> = { heroTraits: ['tireless', 'watchful'] };
+  const { s, a, b } = hoplitePair(heroOf);
+  expect(mythTouched(s, a)).toBe(true);
+  expect(mythTouched(s, b)).toBe(true);
+  expect(attackOf(s, a)).toBe(UNITS.hoplite.atk + CONFIG.heroes.mythAtk);
+  // one phalanx mate gives phalanxBonus; the myth touch is added on top
+  expect(defenceOf(s, a)).toBe(UNITS.hoplite.def + CONFIG.phalanxBonus + CONFIG.heroes.mythDef);
+  // three in a row: the middle one has two hero neighbours and still gets one myth touch
+  const c = addUnit(s, 'hoplite', 0, 2, 0, heroOf);
+  expect(mythTouched(s, b)).toBe(true);
+  expect(attackOf(s, b)).toBe(UNITS.hoplite.atk + CONFIG.heroes.mythAtk);
+  expect(defenceOf(s, b)).toBe(UNITS.hoplite.def + Math.min(CONFIG.phalanxMax, 2 * CONFIG.phalanxBonus) + CONFIG.heroes.mythDef);
+  expect(mythTouched(s, c)).toBe(true);
+  // a lone hero, or a hero next to a non-hero, has none
+  const lone = blankMatch();
+  const l = addUnit(lone, 'hoplite', 0, 0, 0, heroOf); addUnit(lone, 'hoplite', 0, 1, 0, { heroTraits: ['tireless'] });
+  expect(mythTouched(lone, l)).toBe(false);
+  expect(attackOf(lone, l)).toBe(UNITS.hoplite.atk);
+  // a hero beside an enemy hero is not touched
+  const foe = blankMatch();
+  const f = addUnit(foe, 'hoplite', 0, 0, 0, heroOf); addUnit(foe, 'hoplite', 1, 1, 0, heroOf);
+  expect(mythTouched(foe, f)).toBe(false);
+});
+
+test('Mongol heroes side by side get no myth touch', () => {
+  const s = blankMatch({ factions: ['mongols', 'spartans'] });
+  const heroOf: Partial<Unit> = { heroTraits: ['tireless', 'watchful'] };
+  const a = addUnit(s, 'warrior', 0, 0, 0, heroOf); addUnit(s, 'warrior', 0, 1, 0, heroOf);
+  expect(mythTouched(s, a)).toBe(false);
+  expect(attackOf(s, a)).toBe(UNITS.warrior.atk);
+  expect(defenceOf(s, a)).toBe(UNITS.warrior.def);
+});
+
+test('statsOf a Fierce Tireless Mongol Horseman', () => {
+  const s = blankMatch();
+  const h = addUnit(s, 'horseman', 1, 0, 0, { heroTraits: ['fierce', 'tireless'] });
+  const mounted = FACTIONS_MOUNTED;
+  expect(statsOf(s, h)).toEqual({
+    atk: UNITS.horseman.atk + H.fierceAtk, def: UNITS.horseman.def, maxHp: UNITS.horseman.hp + H.fierceHp,
+    move: UNITS.horseman.move + mounted + H.tirelessMove, sight: UNITS.horseman.sight, range: UNITS.horseman.range,
+  });
+  expect(baseAttackOf(h)).toBe(UNITS.horseman.atk + H.fierceAtk);
 });

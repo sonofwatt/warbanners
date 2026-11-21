@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { applyAction, legalActions, replay } from './apply';
-import { UNITS } from './data/units';
+import { maxHpOf } from './heroes';
 import { hashState } from './hash';
 import { rngInt } from './rng';
 import { maxMp } from './movement';
@@ -13,7 +13,7 @@ function checkInvariants(s: MatchState): void {
   for (const u of s.units) {
     expect(seen.has(u.pos), `two units on ${u.pos}`).toBe(false); seen.add(u.pos);
     expect(isEnterable(s, u.pos), `unit ${u.id} on ${u.pos}`).toBe(true);
-    expect(u.hp).toBeGreaterThanOrEqual(1); expect(u.hp).toBeLessThanOrEqual(UNITS[u.type].hp);
+    expect(u.hp).toBeGreaterThanOrEqual(1); expect(u.hp).toBeLessThanOrEqual(maxHpOf(u));
     expect(u.mp).toBeGreaterThanOrEqual(0); expect(u.attacks).toBeGreaterThanOrEqual(0);
     if (u.home !== null) expect(s.cities.some(c => c.id === u.home), `home ${u.home}`).toBe(true);
     expect(s.players[u.owner]?.alive, `owner of unit ${u.id}`).toBe(true);

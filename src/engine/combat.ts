@@ -4,10 +4,11 @@ import { UNITS } from './data/units';
 import { distance, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { isSteadied } from './abilities';
-import { applyCredits, credit } from './heroes';
+import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
-import { canSeeUnit, visibleTiles } from './vision';
+import { maxMp } from './movement';
+import { canSeeUnit, unitSight, visibleTiles } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
@@ -21,9 +22,14 @@ export function coverAt(s: MatchState, defender: Unit): number {
   return tile === undefined ? 1 : CONFIG.terrain[tile.terrain].cover;
 }
 
-// rules 11: base attack, plus inspire for a mounted unit beside a friendly inspire unit
+// The type's attack plus Fierce: no neighbour bonuses.
+export function baseAttackOf(u: Unit): number {
+  return UNITS[u.type].atk + (u.heroTraits.includes('fierce') ? CONFIG.heroes.fierceAtk : 0);
+}
+
+// rules 11 and stage 2: base attack, plus the myth touch, plus inspire for a mounted unit beside a friendly inspire unit
 export function attackOf(s: MatchState, u: Unit): number {
-  const base = UNITS[u.type].atk;
+  const base = baseAttackOf(u) + (mythTouched(s, u) ? CONFIG.heroes.mythAtk : 0);
   if (!hasTrait(u, 'mounted')) return base;
   const here = parseKey(u.pos);
   const inspired = s.units.some((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'inspire')
@@ -31,9 +37,10 @@ export function attackOf(s: MatchState, u: Unit): number {
   return inspired ? base + CONFIG.inspireAtk : base;
 }
 
-// Base defence plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
+// Base defence plus Hardy and the myth touch, plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
 export function defenceOf(s: MatchState, u: Unit): number {
-  const base = UNITS[u.type].def;
+  const base = UNITS[u.type].def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0)
+    + (mythTouched(s, u) ? CONFIG.heroes.mythDef : 0);
   if (!hasTrait(u, 'phalanx')) return base;
   const here = parseKey(u.pos);
   const mates = s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
@@ -48,7 +55,7 @@ export function damageFor(effAtk: number, def: number, cover: number): number {
 
 function healthFactor(u: Unit): number {
   if (hasTrait(u, 'unbowed')) return 1;
-  const maxHp = UNITS[u.type].hp;
+  const maxHp = maxHpOf(u);
   return (u.hp + maxHp) / (2 * maxHp);
 }
 
@@ -102,6 +109,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     const f = hasTrait(target, 'steadfast') ? CONFIG.steadfastFactor : CONFIG.counterFactor;
     const cAtk = attackOf(s, target) * f * healthFactor(target);
     counter = damageFor(cAtk, defenceOf(s, attacker), 1);
+    if (attacker.heroTraits.includes('watchful')) counter = Math.max(1, counter - CONFIG.heroes.agilityCut);   // agility
   }
   ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage, counter });
   let kills = 0;                                  // units this attack killed, for the attacker's fight deed
@@ -163,3 +171,15 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   }
   return null;
 };
+
+export interface UnitStats { atk: number; def: number; maxHp: number; move: number; sight: number; range: number }
+
+// A unit's own numbers with its traits and its faction's mounted bonus, and no neighbour bonuses (no inspire,
+// phalanx or myth touch). `move` is in tiles; maxMp stays in half-points.
+export function statsOf(s: MatchState, u: Unit): UnitStats {
+  const def = UNITS[u.type];
+  return {
+    atk: baseAttackOf(u), def: def.def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0),
+    maxHp: maxHpOf(u), move: maxMp(s, u) / 2, sight: unitSight(s, u), range: def.range,
+  };
+}

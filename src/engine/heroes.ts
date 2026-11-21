@@ -1,5 +1,7 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
+import { UNITS } from './data/units';
+import { distance, parseKey } from './hex';
 import { hasTrait } from './state';
 import { DEEDS } from './types';
 import type { DeedId, Deeds, GameEvent, HeroTraitId, MatchState, Unit } from './types';
@@ -23,10 +25,23 @@ export function isHero(u: Unit): boolean {
   return u.heroTraits.length >= CONFIG.heroes.heroAt;
 }
 
+// A unit's own maximum health: its type's health, plus Fierce. UNITS[t].hp stays the spawn health.
+export function maxHpOf(u: Unit): number {
+  return UNITS[u.type].hp + (u.heroTraits.includes('fierce') ? CONFIG.heroes.fierceHp : 0);
+}
+
+// The faction rule: a hero beside another hero of the same owner, when its faction has the myth touch.
+export function mythTouched(s: MatchState, u: Unit): boolean {
+  if (!FACTIONS[s.players[u.owner]!.faction].mythTouch || !isHero(u)) return false;
+  const here = parseKey(u.pos);
+  return s.units.some((n) => n.id !== u.id && n.owner === u.owner && isHero(n) && distance(here, parseKey(n.pos)) === 1);
+}
+
 // False when the unit holds the trait, is at the cap, or cannot earn traits.
 export function grantTrait(_s: MatchState, u: Unit, trait: HeroTraitId, ev: GameEvent[]): boolean {
   if (!canEarnTraits(u) || u.heroTraits.includes(trait) || u.heroTraits.length >= CONFIG.heroes.maxTraits) return false;
   u.heroTraits.push(trait);
+  if (trait === 'fierce') u.hp += CONFIG.heroes.fierceHp;   // the new health is healed at once
   ev.push({ type: 'heroTrait', unit: u.id, trait, hero: u.heroTraits.length === CONFIG.heroes.heroAt });
   return true;
 }

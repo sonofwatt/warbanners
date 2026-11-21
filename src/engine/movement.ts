@@ -11,7 +11,8 @@ import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 export function maxMp(s: MatchState, u: Unit): number {
   const faction = s.players[u.owner]?.faction;
   const bonus = faction !== undefined && hasTrait(u, 'mounted') ? FACTIONS[faction].mountedMoveBonus : 0;
-  return 2 * (UNITS[u.type].move + bonus);
+  const tireless = u.heroTraits.includes('tireless') ? CONFIG.heroes.tirelessMove : 0;
+  return 2 * (UNITS[u.type].move + bonus + tireless);
 }
 
 function isEnemyAt(s: MatchState, owner: number, k: HexKey): boolean {

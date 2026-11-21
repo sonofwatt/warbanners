@@ -1,7 +1,7 @@
 # Banners: stage 2 rules (draft numbers)
 
 Stage 2 adds heroes and new treasures to the stage 1 rules. This file covers the heroes part: deeds,
-earned traits and what each player can see. Every number here is a first draft, tuned in plan 5 Task 8;
+earned traits, what traits do and what each player can see. Every number here is a first draft, tuned in plan 5 Task 8;
 the data files (`CONFIG.heroes` in `src/engine/data/config.ts`, `FACTIONS`) win over this file.
 
 ## 1. Deeds
@@ -44,9 +44,49 @@ Each deed earns exactly one trait when its total reaches the threshold:
   survive, rest) until the cap.
 - The Camp cannot earn traits. Its deeds still count; only the traits are withheld.
 - Deeds keep counting after their trait is earned, and are never reset.
-- This task adds only the bookkeeping. What each trait does is added in a later task.
+- What each trait does is in section 4.
 
 ## 3. Visibility
 
 - Deeds are private: a player sees their own units' totals, and every enemy unit's totals read as zero.
 - Traits, hero status and a carried item are public: any player who can see a unit sees these.
+
+## 4. Trait effects
+
+| Trait | Deed | Effect | Number |
+| --- | --- | --- | --- |
+| Fierce | Fight | +attack and +maximum health; the extra health is healed at once | +1 attack, +2 health |
+| Tireless | March | +movement | +1 tile (2 half-points) |
+| Hardy | Survive | +defence | +1 defence |
+| Watchful | Rest | +sight, and agility (below) | +1 sight, counters cut by 1 |
+
+Every unit gets these, whatever its type. A trait applies from the moment it is earned. Movement is set when
+a turn starts, so Tireless shows in the next turn's movement; Fierce's health, and Watchful's sight, at once.
+Every maximum health in the game is the unit's own: its type's health plus 2 if Fierce. Resting, a heal
+ability and the health factor of an attack all use it, so a Fierce Warrior stands at 12 of 12 and hits at
+full strength.
+
+Agility: a counter-attack against a Watchful unit deals 1 less damage, never below 1, and only when there
+is a counter. Stage 1's counter formula is `damageFor(attack * counterFactor * healthFactor, defence, 1)`
+(steadfast units use their own factor); against a Watchful attacker it becomes
+`max(1, damageFor(...) - 1)`.
+
+Watchful sight is added where a unit's sight is read, so it stacks with the mountain bonus: a Watchful
+unit on a mountain sees 1 + 1 + 1 tiles.
+
+Myth touch (Spartans only): a Spartan hero with another Spartan hero of the same owner on a neighbouring
+tile has +1 attack and +1 defence. It is one bonus however many hero neighbours it has, and it stacks
+with the phalanx. Mongol heroes have nothing like it.
+
+The unit's displayed numbers (`statsOf`) include traits and the faction's mounted bonus but no neighbour
+bonuses (inspire, phalanx, myth touch). A Fierce Tireless Mongol Horseman is attack 5, defence 2, health 12,
+move 4 tiles, sight 2, range 1.
+
+Worked examples (a Warrior is attack 4, defence 3, health 10; all on open field, health at its maximum):
+
+1. A Fierce Warrior (12 of 12) hits a Warrior for 8 and takes a counter of 2.
+2. A Warrior hits a Hardy Warrior for 5 and takes a counter of 2.
+3. A Warrior hits a Warrior, and a Watchful attacker takes 1 from the counter, not 2.
+4. A Watchful Warrior attacking a Spearman takes 4 from the counter, not 5.
+5. A counter of 1 against a Watchful attacker stays 1.
+6. Tireless: a Warrior has 4 half-points of movement, a Mongol Horseman 8.

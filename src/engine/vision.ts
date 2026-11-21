@@ -13,9 +13,9 @@ function addAround(s: MatchState, out: Set<HexKey>, center: HexKey, radius: numb
   }
 }
 
-function unitSight(s: MatchState, u: Unit): number {
+export function unitSight(s: MatchState, u: Unit): number {
   const bonus = tileAt(s, u.pos)?.terrain === 'mountain' ? CONFIG.mountainSightBonus : 0;
-  return UNITS[u.type].sight + bonus;
+  return UNITS[u.type].sight + (u.heroTraits.includes('watchful') ? CONFIG.heroes.watchfulSight : 0) + bonus;
 }
 
 export function visibleTiles(s: MatchState, player: PlayerId): Set<HexKey> {
