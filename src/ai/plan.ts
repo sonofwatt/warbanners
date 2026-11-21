@@ -5,9 +5,10 @@ import {
   parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
-import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, unitWorth, valueOf } from './assess';
+import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
+import { availableTypes, chooseReward, chooseTech, chooseUnit } from './mix';
 import { PERSONAS } from './persona';
 import { skillFor } from './skill';
 import type { AiInput } from './types';
@@ -28,6 +29,8 @@ const BUILDINGS = Object.keys(CONFIG.buildings) as BuildingId[];
 const WEIGHT_SCALE = 1_000_000;      // softmax weights are rounded to integers so every machine picks alike
 const MAX_STEPS_PER_UNIT = 8;        // a unit acts a few times at most (move, attack, move); a guard, not a rule
 const ECONOMY_THRESHOLD = 0.5;       // value per gold an economy action must reach, divided by skill.economy
+const KILL_FLAT = 2;                // a kill's bonus: this much plus a share of the victim's worth, times skill.focus
+const KILL_SHARE = 0.25;
 const LURE_EDGE = 0.001;             // a safe lure scores this much above its plain twin, so a hard AI takes it
 
 type Applied = { state: MatchState; events: GameEvent[] };
@@ -116,8 +119,10 @@ class TurnPlanner {
       this.rewards();
       this.research();
       this.units();
+      this.rewards();                // a capture or a kill this turn may have levelled a city
       this.training();
       this.economy();
+      this.rewards();                // and growth bought in the economy phase; left unchosen, the engine takes option 0
     } catch (e) {
       if (!(e instanceof OutOfTime)) throw e;
       this.cutShort = true;
@@ -196,7 +201,7 @@ class TurnPlanner {
         const city = this.b.cities.find((x) => x.id === c.id);
         const level = city?.pendingRewards[0];
         if (city === undefined || city.owner !== this.me || level === undefined || !this.live()) break;
-        const pick = this.ctx.persona.rewardPick[level] ?? 0;
+        const pick = chooseReward(this.b, this.me, city, level);
         const choice = ([pick, 1 - pick] as const).find((ch) => this.allowed({ type: 'chooseReward', city: c.id, choice: ch as 0 | 1 }));
         if (choice === undefined) break;
         this.checkClock();
@@ -205,16 +210,18 @@ class TurnPlanner {
     }
   }
 
-  private trainableOrder(): UnitTypeId[] {
-    const techs = this.b.players[this.me]!.techs;
-    return this.ctx.persona.trainOrder.filter((t) => {
-      const def = UNITS[t];
-      return def.cost !== null && (def.tech === null || techs.includes(def.tech));
+  // The type the training phase would train in this city on state s (mix.ts), or null.
+  private unitFor(s: MatchState, city: City): UnitTypeId | null {
+    const threatened = this.ctx.goals.some((g) => g.kind === 'defend' && g.at === city.pos);
+    return chooseUnit(s, this.me, this.ctx.persona, {
+      threatened,
+      fits: (t) => trainRefusal(s, city.id, t) === null && this.allowed({ type: 'train', city: city.id, unitType: t }),
     });
   }
 
   private cheapestUnit(): number {
-    const costs = this.trainableOrder().map((t) => unitCost(this.b, this.me, t) ?? Infinity);
+    const costs = availableTypes(this.b, this.me).filter((t) => (this.ctx.persona.mix[t] ?? 0) > 0)
+      .map((t) => unitCost(this.b, this.me, t) ?? Infinity);
     return costs.length === 0 ? 0 : Math.min(...costs);
   }
 
@@ -223,7 +230,8 @@ class TurnPlanner {
   }
 
   private research(): void {
-    const tech = this.ctx.persona.techOrder.find((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t }));
+    const open = this.ctx.persona.techOrder.filter((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t }));
+    const tech = chooseTech(this.b, this.me, this.ctx.persona, open) ?? undefined;
     if (tech === undefined || !this.live()) return;
     const left = this.b.players[this.me]!.gold - techPrice(this.b, this.me, tech);
     if (left < this.cheapestUnit() && this.anyCityHasRoom()) return;
@@ -263,9 +271,8 @@ class TurnPlanner {
     const order = [...this.b.cities].sort((x, y) => Number(this.pledged.has(y.id)) - Number(this.pledged.has(x.id)) || x.id - y.id);
     for (const c of order) {
       if (c.owner !== this.me) continue;
-      const type = this.trainableOrder().find((t) => trainRefusal(this.b, c.id, t) === null
-        && this.allowed({ type: 'train', city: c.id, unitType: t }));
-      if (type === undefined) continue;
+      const type = this.unitFor(this.b, c);
+      if (type === null) continue;
       this.checkClock();
       this.commit({ type: 'train', city: c.id, unitType: type });
     }
@@ -278,7 +285,7 @@ class TurnPlanner {
     }
   }
 
-  // The first affordable type a Camp can train, onto the free neighbour nearest the top objective.
+  // The type mix.ts picks for a Camp, onto the free neighbour nearest the top objective.
   private campTraining(camp: Unit): Action | null {
     const goal = this.ctx.goals[0];
     const spots = neighbors(parseKey(camp.pos)).map(key).sort((x, y) => {
@@ -286,14 +293,11 @@ class TurnPlanner {
       const dy = goal === undefined ? 0 : distance(parseKey(y), parseKey(goal.at));
       return dx - dy || (x < y ? -1 : x > y ? 1 : 0);
     });
-    for (const unitType of this.trainableOrder()) {
-      if (unitType === 'camp') continue;
-      for (const to of spots) {
-        const a: Action = { type: 'campTrain', unit: camp.id, unitType, to };
-        if (campTrainRefusal(this.b, camp.id, unitType, to) === null && this.allowed(a)) return a;
-      }
-    }
-    return null;
+    const spotFor = (unitType: UnitTypeId): HexKey | undefined => spots.find((to) => campTrainRefusal(this.b, camp.id, unitType, to) === null
+      && this.allowed({ type: 'campTrain', unit: camp.id, unitType, to }));
+    const unitType = chooseUnit(this.b, this.me, this.ctx.persona, { threatened: false, exclude: 'camp', fits: (t) => spotFor(t) !== undefined });
+    if (unitType === null) return null;
+    return { type: 'campTrain', unit: camp.id, unitType, to: spotFor(unitType)! };
   }
 
   private campCanTrain(camp: Unit): boolean {
@@ -364,9 +368,8 @@ class TurnPlanner {
       units: this.b.units.map((x) => (x.id === u.id ? { ...x, pos: '' } : x)),
       players: this.b.players.map((p) => (p.id === this.me ? { ...p, gold: p.gold - promised } : p)),
     };
-    const type = this.trainableOrder().find((t) => trainRefusal(vacated, city.id, t) === null
-      && this.allowed({ type: 'train', city: city.id, unitType: t }));
-    return type === undefined ? null : { city, type, vacated };
+    const type = this.unitFor(vacated, city);
+    return type === null ? null : { city, type, vacated };
   }
 
   // What stepping off this tile is worth when the city could then train: the value the trained unit would
@@ -384,7 +387,14 @@ class TurnPlanner {
     const killed = r.events.some((e) => e.type === 'died' && unitIn(s, e.unit)?.owner !== this.me);
     const ctx = killed ? { ...this.ctx, danger: dangerMap(r.state, this.me) } : this.ctx;
     const focus = targetId !== null && this.ctx.hurt.has(targetId) ? this.ctx.skill.focus * 2 : 0;
-    return valueOf(r.state, ctx) - base + focus;
+    // A kill is preferred over chip damage, more so the stronger the victim: a habit that grows with the skill.
+    let kill = 0;
+    for (const e of r.events) {
+      if (e.type !== 'died') continue;
+      const dead = unitIn(s, e.unit);
+      if (dead !== undefined && dead.owner !== this.me) kill += this.ctx.skill.focus * (KILL_FLAT + KILL_SHARE * unitValue(dead));
+    }
+    return valueOf(r.state, ctx) - base + focus + kill;
   }
 
   // Best follow-up move score for the unit on state s, or 0 when staying is better.
@@ -473,7 +483,7 @@ class TurnPlanner {
         if (!this.allowed(a)) continue;
         const r = this.probe(s, a);
         const targetId = s.units.find((t) => t.pos === target && t.owner !== this.me)?.id ?? null;
-        const score = this.scoreAfter(s, base, r, targetId);
+        const score = this.scoreAfter(s, base, r, targetId) + (ability === 'taunt' ? tauntCredit(s, this.me, target) : 0);
         push({ action: a, base: score, score, result: r });
       }
     }

@@ -78,3 +78,40 @@ export function draughtFinish(): MatchState {
   addUnit(s, 'warrior', 0, 1, 0);
   return finish(s);
 }
+
+// A Spartan Hoplite at 4 of 15 health three tiles from two Mongol Horsemen (within their reach), its home city behind
+// it; a Scout sees the riders. One step back takes the Hoplite out of reach.
+export function woundedHoplite(): MatchState {
+  const s = base(0);
+  s.players[0]!.techs.push('bronze');
+  addUnit(s, 'hoplite', 0, 0, 1, { hp: 4 });
+  addUnit(s, 'scout', 0, 1, 0);
+  addUnit(s, 'horseman', 1, 0, -2);
+  addUnit(s, 'horseman', 1, 1, -2);
+  for (const p of s.players) p.gold = 0;
+  return finish(s);
+}
+
+// A Mongol Horse Archer that cannot move, with two targets in range: a Spartan Warrior at 2 health (a kill) and a full
+// Hoplite (3 damage).
+export function killOrChip(): MatchState {
+  const s = base(1);
+  s.players[1]!.techs.push('riding');
+  addUnit(s, 'horseArcher', 1, 0, -1, { mp: 0 });
+  addUnit(s, 'warrior', 0, -1, 1, { hp: 2 });
+  addUnit(s, 'hoplite', 0, 1, 0);
+  return finish(s);
+}
+
+// A Spartan Piper between a Hoplite and an Archer, a Mongol Horseman two tiles off that could reach both next turn.
+// A taunt turns its blow onto the Hoplite.
+export function pipersTaunt(): MatchState {
+  const s = base(0);
+  s.players[0]!.techs.push('bronze', 'hunting');
+  addUnit(s, 'piper', 0, 0, 1);
+  addUnit(s, 'hoplite', 0, -1, 1);
+  addUnit(s, 'archer', 0, 1, 1);
+  addUnit(s, 'horseman', 1, 0, -1);
+  for (const p of s.players) p.gold = 0;
+  return finish(s);
+}

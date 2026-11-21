@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { TECHS, UNITS } from '../engine';
+import type { UnitTypeId } from '../engine';
 import { PERSONAS } from './persona';
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
@@ -19,10 +20,13 @@ test('the danger weight falls as the skill rises', () => {
   for (let i = 1; i < d.length; i++) expect(d[i]).toBeLessThan(d[i - 1]!);
   expect(skillFor(LEVEL_DIAL.normal).danger).toBeCloseTo(0.65, 9);
 });
-test('every persona names only real techs and units of its own faction or shared ones', () => {
+test('every persona names only real techs and trainable units of its own faction or shared ones', () => {
   for (const [f, p] of Object.entries(PERSONAS)) {
     expect(new Set(p.techOrder)).toEqual(new Set(Object.keys(TECHS)));
     expect(p.techOrder).toHaveLength(Object.keys(TECHS).length);
-    for (const u of p.trainOrder) expect([null, f]).toContain(UNITS[u].faction);
+    for (const u of Object.keys(p.mix) as UnitTypeId[]) {
+      expect([null, f]).toContain(UNITS[u].faction);
+      expect(UNITS[u].cost).not.toBeNull();
+    }
   }
 });
