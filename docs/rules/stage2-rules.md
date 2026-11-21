@@ -1,8 +1,9 @@
-# Banners: stage 2 rules (draft numbers)
+# Banners: stage 2 rules
 
 Stage 2 adds heroes and new treasures to the stage 1 rules. This file covers heroes (deeds,
-earned traits, what traits do and what each player can see) and treasures (the draw, the Sellsword, the Battle draught). Every number here is a first draft, tuned in plan 5 Task 8;
-the data files (`CONFIG.heroes` in `src/engine/data/config.ts`, `FACTIONS`) win over this file.
+earned traits, what traits do and what each player can see) and treasures (the draw, the Sellsword, the Battle draught). The numbers
+were tuned by simulated AI-against-AI matches in plan 5 Task 8 (section 8); the data files (`CONFIG.heroes` in
+`src/engine/data/config.ts`, `FACTIONS`) win over this file.
 
 ## 1. Deeds
 
@@ -32,10 +33,10 @@ Each deed earns exactly one trait when its total reaches the threshold:
 
 | Deed | Trait | Threshold | Spartan (agoge) threshold |
 | --- | --- | --- | --- |
-| Fight | Fierce | 6 | 4 |
-| March | Tireless | 15 | 10 |
-| Survive | Hardy | 5 | 4 |
-| Rest | Watchful | 5 | 4 |
+| Fight | Fierce | 14 | 10 |
+| March | Tireless | 50 | 20 |
+| Survive | Hardy | 10 | 9 |
+| Rest | Watchful | 8 | 6 |
 
 - Spartan units train under the agoge and use the lower column.
 - A unit holds at most 3 traits, in the order earned. It never gets a fourth.

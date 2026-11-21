@@ -28,7 +28,7 @@ const BOND_CAP = 4;               // formation weight one unit can have: two hop
 export const GOLD_WEIGHT = 0.25;  // valueOf's weight on gold (times skill.economy)
 const HERO_TRAIT_WORTH = 3;       // per trait a unit has earned or found
 const HERO_WORTH = 3;             // more again for a hero
-const ITEM_WORTH = 2;             // a carried draught
+const ITEM_WORTH = 1;             // a carried draught
 
 // Its gold cost; a unit that cannot be bought (champion, support) counts as 8.
 export function unitWorth(type: UnitTypeId): number {

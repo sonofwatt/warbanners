@@ -224,12 +224,12 @@ test('an empty city is not exposed to an enemy scout, but is to a warrior', () =
   expect(cost('scout')).toBe(0);
 });
 
-test('unitValue: worth plus 3 a trait, 3 for a hero, 2 for a draught', () => {
+test('unitValue: worth plus 3 a trait, 3 for a hero, 1 for a draught', () => {
   const s = blankMatch();
   expect(unitValue(addUnit(s, 'warrior', 0, 0, 0))).toBe(2);
   expect(unitValue(addUnit(s, 'warrior', 0, 1, 0, { heroTraits: ['hardy'] }))).toBe(5);
   expect(unitValue(addUnit(s, 'warrior', 0, 2, 0, { heroTraits: ['hardy', 'tireless'] }))).toBe(11);
-  expect(unitValue(addUnit(s, 'warrior', 0, 3, 0, { heroTraits: ['hardy', 'tireless'], item: 'draught' }))).toBe(13);
+  expect(unitValue(addUnit(s, 'warrior', 0, 3, 0, { heroTraits: ['hardy', 'tireless'], item: 'draught' }))).toBe(12);
 });
 test('a hero standing in danger costs more than a plain unit there', () => {
   // The same tile and the same danger: only the danger term differs between the two contexts.

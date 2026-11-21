@@ -59,8 +59,8 @@ export const CONFIG = deepFreeze({
   heroes: {
     traitFor: { fight: 'fierce', march: 'tireless', survive: 'hardy', rest: 'watchful' },
     fightPerAttack: 1, fightPerKill: 2,
-    thresholds: { fight: 6, march: 15, survive: 5, rest: 5 },
-    agogeThresholds: { fight: 4, march: 10, survive: 4, rest: 4 },
+    thresholds: { fight: 14, march: 50, survive: 10, rest: 8 },
+    agogeThresholds: { fight: 10, march: 20, survive: 9, rest: 6 },
     maxTraits: 3, heroAt: 2,
     fierceAtk: 1, fierceHp: 2, tirelessMove: 1, hardyDef: 1, watchfulSight: 1, agilityCut: 1, mythAtk: 1, mythDef: 1,
   },

@@ -99,9 +99,9 @@ test('a Mongol rider scouts: a move into the fog, then another move from the new
 
 test('the planner drinks a draught when a second attack kills a hurt enemy in reach', () => {
   // draughtFinish(): one attack leaves the full enemy Warrior at 4 (damage 6, counter 2); a second from the attacker
-  // at 8/10 deals 5 and kills. Drink and first attack may come in either order. Normal is the level that sees it:
-  // easy has no lookahead, so it never sees the second strike, and hard weighs danger so little that even the first
-  // attack on a full Warrior scores below zero there, with or without a draught.
+  // at 8/10 deals 5 and kills. Drink and first attack may come in either order. Normal and hard see it; easy has no
+  // lookahead, so it never sees the second strike. Hard starts this fight since Task 8 cut the draught's worth from 2
+  // to 1 (with 2, the first attack on a full Warrior scored -0.317 at hard and the drink cost more than the kill gave).
   const s = draughtFinish();
   const me = s.units.find(u => u.owner === 1)!.id;
   const foe = s.units.find(u => u.owner === 0)!;
@@ -109,9 +109,9 @@ test('the planner drinks a draught when a second attack kills a hurt enemy in re
   expect(first.ok).toBe(true); if (!first.ok) return;
   expect(first.state.units.find(u => u.id === foe.id)!.hp).toBe(4);
   expect(first.state.units.find(u => u.id === me)!.hp).toBe(8);
-  for (const seed of [0, 1, 2, 3, 4]) {
-    const plan = planTurn(aiInputFor(s, 1), { dial: LEVEL_DIAL.normal, seed, refused: [] });
-    expect(plan.actions, `seed ${seed}`).toContainEqual({ type: 'useItem', unit: me });
+  for (const dial of [LEVEL_DIAL.normal, LEVEL_DIAL.hard]) for (const seed of [0, 1, 2, 3, 4]) {
+    const plan = planTurn(aiInputFor(s, 1), { dial, seed, refused: [] });
+    expect(plan.actions, `dial ${dial} seed ${seed}`).toContainEqual({ type: 'useItem', unit: me });
     expect(plan.actions.filter(a => a.type === 'attack' && a.unit === me && a.target === foe.pos)).toHaveLength(2);
   }
 });
