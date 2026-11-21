@@ -1,7 +1,7 @@
 import { CONFIG } from './data/config';
 import { applyReward, playerIncome } from './economy';
 import { addDeed, maxHpOf } from './heroes';
-import { maxMp } from './movement';
+import { maxMp, ridingBonus } from './movement';
 import { DIRS, add, key, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { cityById, freshAttacks, tileAt, unitAt } from './state';
@@ -54,7 +54,7 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
   }
   for (const u of s.units) {
     if (u.owner !== next) continue;
-    u.mp = maxMp(s, u);
+    u.mp = maxMp(s, u); u.bonusMp = ridingBonus(s, u);
     u.attacks = freshAttacks(u.type);
     u.moved = false;
     u.acted = false;

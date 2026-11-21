@@ -289,3 +289,22 @@ test('riding by territory: a retreat move after an attack pays the same costs', 
   const tn = must(applyAction(n, { type: 'attack', unit: g.id, target: '1,0' }));
   expect(reachable(tn, g.id)['-2,0']).toBe(1);
 });
+test('riding by territory: haste is never taken for the bonus, wherever the rider spent its movement', () => {
+  const s = mongols(); claimTerritory(s, addCity(s, 1, 3, 0, { radius: 2 }));
+  const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 5 });                         // neutral land, bonus unspent
+  expect(h.bonusMp).toBe(1);
+  const c = addUnit(s, 'skyCaller', 0, 0, 1);
+  const moved = must(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }));  // into enemy land: 5 - 2, the bonus spent
+  expect(unitById(moved, h.id)).toMatchObject({ mp: 3, bonusMp: 0 });
+  const hasted = must(applyAction(moved, { type: 'ability', unit: c.id, ability: 'hasten', target: '1,0' }));
+  expect(unitById(hasted, h.id)).toMatchObject({ mp: 5, bonusMp: 0 });
+  const r = reachable(hasted, h.id);
+  expect(r['2,0']).toBe(3);                                                     // all 5: 3 left and the haste's 2
+  expect(r['3,-1']).toBe(1);
+  const e = mongols(); claimTerritory(e, addCity(e, 1, 3, 0, { radius: 2 }));
+  const g = addUnit(e, 'horseman', 0, 1, 0, { mp: 5 });                         // in enemy land, bonus unspent
+  const ec = addUnit(e, 'skyCaller', 0, 0, 1);
+  const eh = must(applyAction(e, { type: 'ability', unit: ec.id, ability: 'hasten', target: '1,0' }));
+  expect(unitById(eh, g.id)).toMatchObject({ mp: 7, bonusMp: 1 });
+  expect(reachable(eh, g.id)['2,0']).toBe(4);                                   // 7 less the barred bonus: 6, then a field
+});

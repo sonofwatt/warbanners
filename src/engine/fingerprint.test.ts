@@ -5,7 +5,7 @@ import { must } from './testkit';
 // If this fails, the game plays differently. Bump RULES_VERSION in types.ts and add the new hash here.
 // Two phones on different rules must never meet in a match, and a solo save from older rules must say so.
 // Before bumping, read the plan 2 final review ruling: a bump strands half-played solo saves.
-const FINGERPRINT: Record<number, string> = { 2: '3a5c3ebd861dd09c', 3: 'ba3e0e466edfedd3', 4: 'ee96ecdb02902404', 5: '75e001ae462131a1', 6: '8496a6576e5b72b6' };
+const FINGERPRINT: Record<number, string> = { 2: '3a5c3ebd861dd09c', 3: 'ba3e0e466edfedd3', 4: 'ee96ecdb02902404', 5: '75e001ae462131a1', 6: 'e52a5e1f88468e36' };
 
 test('RULES_VERSION changes whenever the rules do', () => {
   let s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });

@@ -41,6 +41,7 @@ export interface City {
 export interface Unit {
   id: number; type: UnitTypeId; owner: PlayerId; pos: HexKey; hp: number;
   mp: number;                            // half-points of movement left this turn
+  bonusMp: number;                       // rules 6: half-points of the riding bonus in mp not yet spent this turn (0 but for riders by territory)
   attacks: number;                       // attacks or abilities left this turn
   home: number | null;                   // city whose capacity it uses
   enteredTurn: number;                   // value of MatchState.stamp when it entered its tile

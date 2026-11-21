@@ -37,16 +37,23 @@ function territoryOf(s: MatchState, owner: number, k: HexKey): 'own' | 'neutral'
   return city.owner === owner ? 'own' : 'enemy';
 }
 
-// rules 13 and 6: half-points this move may spend. A rider that rides by territory may not spend its faction's move
-// bonus on a move that starts in enemy territory. Movement spent this turn comes out of the bonus first, so such a
-// move loses only the part of the bonus still unspent (and a split move never loses it twice); what the move leaves is
-// all the unit has.
-function budgetOf(s: MatchState, u: Unit): number {
+// rules 6: the half-points of a unit's maxMp that are its faction's riding bonus, for a mounted unit of a faction that
+// rides by territory (u.bonusMp starts each turn at this).
+export function ridingBonus(s: MatchState, u: Unit): number {
   const faction = FACTIONS[s.players[u.owner]!.faction];
-  if (!faction.territoryRiding || !hasTrait(u, 'mounted') || territoryOf(s, u.owner, u.pos) !== 'enemy') return u.mp;
-  const bonus = faction.mountedMoveBonus;
-  const unspent = Math.max(0, Math.min(bonus, u.mp - (maxMp(s, u) - bonus)));
-  return u.mp - unspent;
+  return faction.territoryRiding && hasTrait(u, 'mounted') ? faction.mountedMoveBonus : 0;
+}
+
+// rules 6: does this move start where a rider by territory may not spend its bonus (enemy territory)?
+function bonusBarred(s: MatchState, u: Unit): boolean {
+  return ridingBonus(s, u) > 0 && territoryOf(s, u.owner, u.pos) === 'enemy';
+}
+
+// rules 13 and 6: half-points this move may spend. A rider by territory may not spend the part of its bonus still
+// unspent (u.bonusMp) on a move that starts in enemy territory. Movement spent this turn comes out of the bonus first
+// (moveHandler), so a split move never loses it twice, and haste never counts as bonus.
+function budgetOf(s: MatchState, u: Unit): number {
+  return bonusBarred(s, u) ? Math.max(0, u.mp - u.bonusMp) : u.mp;
 }
 
 // rules 2, 9 and 13: tile it may stop on -> half-points left on arrival. A move never passes through a tile its owner
@@ -148,6 +155,8 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const left = options[a.to]!;
   const from = u.pos;
   const intoFog = !s.players[u.owner]!.explored.includes(a.to);
+  // rules 6: spending comes out of the riding bonus first; a move from enemy territory forfeits what was left of it
+  u.bonusMp = bonusBarred(s, u) ? 0 : Math.max(0, u.bonusMp - (u.mp - left));
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   // rules 6: a pathfinder that ends a move in the fog has spent its turn: no more moving, attacking or abilities
   if (CONFIG.closedFog && intoFog) { u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp; }
