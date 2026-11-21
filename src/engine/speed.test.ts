@@ -36,6 +36,7 @@ test('legalActions on a 25-unit position is fast', () => {
   }
   // Raised from 5 for rules 6: 25-unit positions now hold far more legal actions (this one 283; the rules 5 position
   // had 130), and on this same state the rules 5 engine takes 4.8 ms against rules 6's 5.1 ms, so the engine is not
-  // slower per action. About 5 ms on this position in Node on ClaudeComputer, idle (2.5 ms on rules 2's position).
-  expect(fastest).toBeLessThan(8);
+  // slower per action. About 5 ms on this position in Node on ClaudeComputer, idle (2.5 ms on rules 2's position);
+  // 6.5 leaves room for a busy machine and still catches a slowdown of a third.
+  expect(fastest).toBeLessThan(6.5);
 }, 30_000);
