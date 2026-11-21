@@ -86,15 +86,15 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
 }
 
 /**
- * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 148
- * random turns of seed 7 (25 units; re-picked for the Task 12 numbers, as seed 6 after 128 now has 27), so it is the person's move and
+ * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 180
+ * random turns of seed 7 (25 units; re-picked for the Task 4 trait effects, as seed 7 after 148 now has 22), so it is the person's move and
  * tapping End turn hands the AI the board (with an odd count the AI would start on Continue, and the board-opening
  * render would land inside its first think). Times are milliseconds
  * on the page's clock; `sleeps` are the store's waits between the AI's visible actions, as it asked for them.
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(7, 148);
+  const { entries, state } = savedHardMatch(7, 180);
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {
