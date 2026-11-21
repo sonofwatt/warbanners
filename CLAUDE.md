@@ -14,6 +14,7 @@ characters would otherwise eat this line.
 
 - The design spec: `docs/superpowers/specs/2026-11-18-banners-design.md`.
 - The game rules and every number: `docs/rules/stage1-rules.md`.
+- Stage 2 rules (heroes and treasures): `docs/rules/stage2-rules.md`.
 - The implementation plans: `docs/superpowers/plans/`.
 
 ## Originality

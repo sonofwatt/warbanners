@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // The whole game in a real browser, opened with ?seed=7. Facts about seed 7, checked against the engine:
 // Player 1 (Spartans) moves first with 10 gold and one Krypteia Scout (unit 0) on the capital at -2,5, which can
@@ -8,14 +8,6 @@ import { frames, openApp } from './harness';
 // starts its turn with 10 gold.
 
 const SEED = '?seed=7';
-
-/** Taps a tile at the centre of its data-centre marker, as a finger would. */
-async function tapTile(page: Page, hex: string): Promise<void> {
-  const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-  if (box === null) throw new Error(`tile ${hex} has no box`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await frames(page);
-}
 
 const count = (page: Page, selector: string): Promise<number> => page.locator(selector).count();
 const text = async (page: Page, id: string): Promise<string> => (await page.getByTestId(id).textContent()) ?? '';

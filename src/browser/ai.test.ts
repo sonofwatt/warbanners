@@ -10,7 +10,7 @@ import { hashState } from '../engine';
 import type { MatchState } from '../engine';
 import { randomPlayout } from '../engine/testkit';
 import { T } from '../ui/text';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // Solo play in a real browser: with the network cut, and a hard AI turn on a crowded board with the CPU slowed.
 // Seed 7 facts (see flow.test.ts): the person (Player 1) moves first with one Warrior (unit 0) on -2,5, which can
@@ -23,13 +23,6 @@ async function matchId(page: Page): Promise<string> {
   const id = await page.evaluate(() => (JSON.parse(localStorage.getItem('warbanners.saves.v1') ?? '[]') as { id: string }[])[0]?.id ?? '');
   expect(id, 'a save is listed').not.toBe('');
   return id;
-}
-
-async function tapTile(page: Page, hex: string): Promise<void> {
-  const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-  if (box === null) throw new Error(`tile ${hex} has no box`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  await frames(page);
 }
 
 /** The service worker has installed every file and Home says so. */

@@ -90,6 +90,10 @@ A winning move or a resign shows the result at once, but Home's entry for the ma
 
 The phone that finds the disagreement writes `desync/<uid>` and shows the desync card. The other phone sees the entry in the room (`blocked`) and shows the same card. On both, moves and resigning wait until the phones agree (the card says so), and Home is the way out.
 
+## Rules 4: the use-item action
+
+Rules 4 (heroes and treasures) adds one action, `{"type":"useItem","unit":<id>}`, which drinks a carried draught. `database.rules.json` did not change for it, and nothing needed to. The rules special-case only the exact `endTurn` and `resign` strings; any other action that contains `player` or a backslash is refused, and `useItem` contains neither, so it is accepted like a move or an attack (a string of at most 512 characters, written once at `head.n`). Versions are compared as values: a seat's `rules` must equal the room's `meta/rulesVersion`, whatever number that is, so moving `RULES_VERSION` from 3 to 4 needs no edit to the rules. A rules 3 room cannot be continued on 0.4.0: a phone on rules 4 sees a room whose `rulesVersion` is 3 as a different rules version and writes nothing to it, and the same holds the other way round. Finish or leave such rooms before updating. The deploy rule below still applies to any later rules change, and never to a `RULES_VERSION` bump while an online match is being played.
+
 ## Rules are deployed by hand
 
 Editing `database.rules.json` changes nothing live until it is deployed:

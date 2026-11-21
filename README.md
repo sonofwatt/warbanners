@@ -11,6 +11,8 @@ Open https://sonofwatt.github.io/warbanners/ in a phone browser.
 
 Once it has been opened online one time, the game plays offline, installed or not. A new version waits until you tap Update on the home screen, and is never swapped in during a match.
 
+Units earn traits from what they do (fighting, marching, resting, being hurt and healed) and become heroes, and treasures on the map can hold relics, draughts, maps and sellswords.
+
 This stage includes two players on one phone, passing it between turns, or one player against the computer at four levels (easy, normal, hard and adaptive), with a saved match you can resume. It also includes online play for two phones (see below).
 
 ## Play online
