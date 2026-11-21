@@ -8,7 +8,7 @@ import type { FactionFigure } from './factionUnits';
 import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from './features';
 import { playerColour } from './palette';
 import type { Ground } from './palette';
-import { Border, Highlight, TileBase, Veil } from './tiles';
+import { Border, Highlight, ReadyGlow, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from './hero';
 import { SHARED_FIGURES, StatusOverlay } from './units';
@@ -139,7 +139,7 @@ function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId
   );
 }
 
-const MARKS: readonly Mark[] = ['move', 'attack', 'ability', 'selected', 'capture'];
+const MARKS: readonly Mark[] = ['move', 'attack', 'ability', 'selected'];
 const FACTIONS: readonly FactionId[] = ['spartans', 'mongols'];
 const VARIANTS = [0, 1, 2] as const;
 
@@ -281,6 +281,20 @@ export function ArtSheet(): ReactElement {
         {MARKS.map((m) => (
           <Cell key={m} label={m} ground="grass"><Highlight mark={m} /></Cell>
         ))}
+      </Section>
+      <Section title="Ready glow (a capture or a treasure claim waits)">
+        <Cell label="ready on grass" ground="grass"><Village /><ReadyGlow /></Cell>
+        <Cell label="ready on a city" ground="sand">
+          <CityMark faction="mongols" colour={playerColour('mongols')} level={2} capital={false} walls={false} pending={false} />
+          <ReadyGlow />
+        </Cell>
+        <Cell label="ready on snow" ground="rock"><TerrainFeature terrain="mountain" variant={0} /><ReadyGlow /></Cell>
+        <Cell label="ready treasure" ground="grass"><Treasure /><ReadyGlow /></Cell>
+        <Cell label="ready and selected" ground="sand">
+          <CityMark faction="spartans" colour={playerColour('spartans')} level={1} capital={false} walls={false} pending={false} />
+          <ReadyGlow /><Highlight mark="selected" />
+        </Cell>
+        <Cell label="ready and attack" ground="grass"><ReadyGlow /><Highlight mark="attack" /></Cell>
       </Section>
       {FACTIONS.map((f) => {
         const city = (o: { level: number; capital?: boolean; walls?: boolean; pending?: boolean }): ReactElement => (

@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import type { BuildingId, FactionId, Resource, Terrain } from '../../engine';
 import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from './features';
 import { playerColour } from './palette';
-import { Border, Highlight, TileBase, Veil } from './tiles';
+import { Border, Highlight, ReadyGlow, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
 
 const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
@@ -57,12 +57,13 @@ test('art stays inside its tile footprint', () => {
   const terrains: Terrain[] = ['field', 'forest', 'mountain', 'water'];
   const resources: Resource[] = ['orchard', 'cropland', 'game', 'ore'];
   const buildings: BuildingId[] = ['farm', 'lumberCamp', 'mine', 'market'];
-  const marks: Mark[] = ['move', 'attack', 'ability', 'selected', 'capture'];
+  const marks: Mark[] = ['move', 'attack', 'ability', 'selected'];
   const factions: FactionId[] = ['spartans', 'mongols'];
   const all: ReactElement[] = [
     ...(['grass', 'water', 'rock', 'sand', 'fog'] as const).map((g) => <TileBase ground={g} />),
     <Veil><TileBase ground="grass" /></Veil>,
     ...marks.map((m) => <Highlight mark={m} />),
+    <ReadyGlow />,
     <Border edges={[0, 1, 2, 3, 4, 5]} colour="#B3261E" />,
     ...terrains.flatMap((t) => [0, 1, 2].map((v) => <TerrainFeature terrain={t} variant={v} />)),
     ...resources.map((r) => <ResourceMark resource={r} />),

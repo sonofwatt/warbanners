@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction, createMatch, legalActions, playerView } from '../engine';
 import type { MatchState } from '../engine';
 import { addCity, addUnit, blankMatch, give, must } from '../engine/testkit';
-import { afterAction, indexActions, marksFor, nextUnit, NONE, spentUnits, tap } from './interaction';
+import { afterAction, indexActions, marksFor, nextUnit, NONE, readyTiles, spentUnits, tap } from './interaction';
 import type { Selection } from './interaction';
 
 const open = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });   // my warrior (id 0) stands on my capital at -2,5
@@ -125,7 +125,7 @@ test('an armed ability fires on a target and disarms on anything else', () => {
   expect(tap(armed, { unit: null, hex: '1,0' }, v, ix)).toEqual({ selection: unitSel(piper.id), action: { type: 'ability', unit: piper.id, ability: 'heal', target: '1,0' } });
   expect(tap(armed, { unit: null, hex: '0,1' }, v, ix)).toEqual({ selection: unitSel(piper.id), action: null });   // a move target, but armed: no move
 });
-test('a camp trains onto the tapped tile, and a waiting capture is marked', () => {
+test('a camp trains onto the tapped tile, and a waiting capture glows', () => {
   const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
   addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); give(s, 0, 'riding', 'roads');
   const camp = addUnit(s, 'camp', 0, 0, 0);
@@ -134,7 +134,21 @@ test('a camp trains onto the tapped tile, and a waiting capture is marked', () =
   const armed = unitSel(camp.id, { armed: { kind: 'campTrain', unitType: 'warrior' } });
   expect(tap(armed, { unit: null, hex: '1,-1' }, v, ix).action).toEqual({ type: 'campTrain', unit: camp.id, unitType: 'warrior', to: '1,-1' });
   expect(ix.captures).toEqual([taker.id]);
-  expect(marksFor(NONE, v, ix)).toEqual({ '2,0': 'capture' });
+  expect(readyTiles(v, ix)).toEqual(['2,0']);
+  expect(marksFor(NONE, v, ix)).toEqual({});
+});
+test('a waiting capture glows with nothing selected and with a unit selected, under that unit\'s marks', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  s.tiles['2,0']!.village = true; const taker = addUnit(s, 'warrior', 0, 2, 0);
+  const other = addUnit(s, 'warrior', 0, 0, 0);
+  const v = playerView(s, 0), ix = indexActions(legalActions(s));
+  expect(readyTiles(v, ix)).toEqual(['2,0']);
+  expect(marksFor(NONE, v, ix)).toEqual({});
+  const m = marksFor(unitSel(other.id), v, ix);
+  expect(m['0,0']).toBe('selected');
+  expect(readyTiles(v, ix)).toEqual(['2,0']);                                   // the glow does not depend on the selection
+  expect(marksFor(unitSel(taker.id), v, ix)['2,0']).toBe('selected');           // a ready tile can also be selected
+  expect(readyTiles({ ...v, units: v.units.map((u) => (u.id === taker.id ? { ...u, owner: 1 } : u)) }, ix)).toEqual([]);   // never an enemy's
 });
 test('an enemy unit can be looked at but not ordered', () => {
   const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
@@ -152,13 +166,18 @@ test('after an action the selection is kept only while the unit can still do som
   expect(spentUnits(V, IX).size).toBe(0);
 });
 
-test('a unit waiting on a treasure is indexed, counts as able to act, and is marked like a capture', () => {
+test('a unit waiting on a treasure is indexed, counts as able to act, and glows like a capture', () => {
   const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
   s.tiles['2,0']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 2, 0, { mp: 0 });
   const v = playerView(s, 0), ix = indexActions(legalActions(s));
   expect(ix.claims).toEqual([finder.id]);
   expect(ix.activeUnits).toContain(finder.id);
-  expect(marksFor(NONE, v, ix)).toEqual({ '2,0': 'capture' });
+  expect(readyTiles(v, ix)).toEqual(['2,0']);
+  expect(marksFor(NONE, v, ix)).toEqual({});
+  const other = addUnit(s, 'warrior', 0, -1, 0);
+  const v2 = playerView(s, 0), ix2 = indexActions(legalActions(s));
+  expect(marksFor(unitSel(other.id), v2, ix2)['-1,0']).toBe('selected');
+  expect(readyTiles(v2, ix2)).toEqual(['2,0']);
   expect(indexActions(legalActions({ ...s, current: 1 })).claims).toEqual([]);
 });
 

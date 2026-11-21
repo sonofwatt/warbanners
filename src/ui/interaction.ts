@@ -96,13 +96,20 @@ function armedTargets(sel: Extract<Selection, { kind: 'unit' }>, ix: ActionIndex
   return (a.kind === 'ability' ? ix.abilities[sel.id]?.[a.ability] : ix.campTrain[sel.id]?.[a.unitType]) ?? [];
 }
 
+// Tiles where one of my units can capture or claim a treasure now: they glow gold whatever is selected.
+export function readyTiles(view: PlayerView, ix: ActionIndex): HexKey[] {
+  const out = new Set<HexKey>();
+  for (const id of [...ix.captures, ...ix.claims]) {
+    const u = unitById(view, id);
+    if (isMine(view, u) && u !== undefined) out.add(u.pos);
+  }
+  return [...out].sort();
+}
+
 export function marksFor(sel: Selection, view: PlayerView, ix: ActionIndex): Record<HexKey, Mark> {
   const marks: Record<HexKey, Mark> = {};
   if (sel.kind === 'none') {
-    for (const id of [...ix.captures, ...ix.claims]) {
-      const u = unitById(view, id);
-      if (isMine(view, u) && u !== undefined) marks[u.pos] = 'capture';
-    }
+    // nothing selected: no marks (ready tiles glow on their own layer)
   } else if (sel.kind === 'unit') {
     const u = unitById(view, sel.id);
     if (u === undefined) return marks;

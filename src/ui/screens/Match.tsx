@@ -10,7 +10,7 @@ import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { formatClock } from '../../online/clock';
 import { T, fill } from '../text';
-import { indexActions, marksFor, offered, spentUnits } from '../interaction';
+import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
 import { isMuted, play, setMuted, soundFor } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
@@ -37,7 +37,7 @@ export const TIME_UP_MS = 4000;
 // Everything drawn for one viewer, worked out once. The board takes items (from view, marks and spent), radius,
 // factions and focus; the panels take the rest. This is the only place the app calls playerView.
 export interface MatchData {
-  view: PlayerView; ix: ActionIndex; marks: ReturnType<typeof marksFor>; spent: Set<number>;
+  view: PlayerView; ix: ActionIndex; marks: ReturnType<typeof marksFor>; ready: Set<HexKey>; spent: Set<number>;
   focus: HexKey | null; radius: number; factions: [FactionId, FactionId];
 }
 
@@ -50,7 +50,7 @@ export function matchData(state: MatchState, viewer: PlayerId, selection: Select
   const first = view.units.find((u) => u.owner === viewer);
   return {
     // Off the viewer's turn (the AI is playing) nothing is offered, and no unit is drawn as spent.
-    view, ix, marks: marksFor(selection, view, ix), spent: acts && state.current === viewer ? spentUnits(view, ix) : new Set(),
+    view, ix, marks: marksFor(selection, view, ix), ready: new Set(readyTiles(view, ix)), spent: acts && state.current === viewer ? spentUnits(view, ix) : new Set(),
     focus: capital?.pos ?? first?.pos ?? null, radius: state.radius,
     factions: [state.players[0]!.faction, state.players[1]!.faction],
   };
@@ -164,7 +164,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   }
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
   const items = useMemo(
-    () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, selectedUnit, spentUnits: data.spent })),
+    () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, ready: data.ready, selectedUnit, spentUnits: data.spent })),
     [data, selectedUnit],
   );
   if (state === null || record === null || viewer === null || data === null || items === null) return null;

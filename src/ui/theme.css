@@ -522,7 +522,12 @@ input:focus { border-color: var(--blue); }
 @keyframes drop-in { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pop { 0% { opacity: 0; transform: rotate(var(--turn)) scale(0.2); } 70% { opacity: 1; transform: rotate(var(--turn)) scale(1.15); } 100% { opacity: 1; transform: rotate(var(--turn)) scale(1); } }
 @keyframes nudge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+/* The gold glow on a tile where a unit can capture or claim a treasure: a soft, slow pulse. */
+.ready-glow { animation: ready-pulse 2.6s ease-in-out infinite; }
+@keyframes ready-pulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
+  .ready-glow { animation: none; }
   .selection, .sheet, .overlay, .overlay > .digest, .medallion, .result-banner, .bit, .dot { animation: none; }
   button { transition: none; }
   button:active:not(:disabled) { transform: none; }
