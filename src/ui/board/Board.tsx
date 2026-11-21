@@ -1,11 +1,12 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { parseKey, UNITS } from '../../engine';
+import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, TileBase, Veil } from '../art/tiles';
+import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
 import { keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
@@ -196,8 +197,8 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
-  const def = UNITS[unit.type];
-  const hidden = def.traits.includes('hidden');
+  const hidden = UNITS[unit.type].traits.includes('hidden');
+  const maxHp = maxHpOf(unit);
   const opacity = p.u.mine && p.u.spent ? 0.55 : p.u.mine && hidden ? 0.7 : undefined;
   return (
     <g
@@ -206,17 +207,23 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
       className="board-unit"
       style={{ transform: unitTransform(p.u.at) }}
     >
-      {/* The body is what a lunge nudges, inside the group that places the unit. */}
+      {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and dims with it. */}
       <g className="unit-body">
-        <g opacity={opacity}>{FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}</g>
+        <g opacity={opacity}>
+          {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
+          {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+        </g>
         <StatusOverlay
           hp={unit.hp}
-          maxHp={def.hp}
+          maxHp={maxHp}
           spent={p.u.spent}
           fresh={unit.fresh}
           taunted={unit.taunted}
           blinded={unit.blinded}
         />
+        {unit.item !== null ? (
+          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh))} 0)`}><ItemBadge item={unit.item} /></g>
+        ) : null}
       </g>
     </g>
   );

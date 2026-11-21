@@ -144,3 +144,45 @@ test('a treasure under a unit is drawn beside the figure, so the unit never hide
   expect(under).toContain('data-treasure="beside"');
   expect(under).not.toContain('data-treasure="centre"');
 });
+
+/** The markup of one unit's group. */
+function unitMarkup(html: string, id: number): string {
+  return groupAt(html, html.lastIndexOf('<g', html.indexOf(`data-unit="${id}"`)));
+}
+
+test('a hero carries the mark and a plain unit does not', () => {
+  const view = structuredClone(playerView(s, 0));
+  const me = view.units[0]!;
+  const plain: Unit = { ...structuredClone(me), id: 98, pos: '-1,4' };
+  me.heroTraits = ['fierce', 'tireless'];
+  const html = draw({ view: { ...view, units: [...view.units, plain] } });
+  expect((html.match(/data-hero-mark/g) ?? []).length).toBe(1);
+  expect(unitMarkup(html, me.id)).toContain('data-hero-mark');
+  expect(unitMarkup(html, 98)).not.toContain('data-hero-mark');
+  // Inside the body, so a lunge carries it.
+  const body = unitMarkup(html, me.id);
+  expect(groupAt(body, body.indexOf('<g class="unit-body"'))).toContain('data-hero-mark');
+  // One trait is not yet a hero.
+  me.heroTraits = ['fierce'];
+  expect(draw({ view })).not.toContain('data-hero-mark');
+});
+
+test('a carried draught shows its badge', () => {
+  const view = structuredClone(playerView(s, 0));
+  expect(draw({ view })).not.toContain('data-item=');
+  view.units[0]!.item = 'draught';
+  const body = unitMarkup(draw({ view }), view.units[0]!.id);
+  expect(groupAt(body, body.indexOf('<g class="unit-body"'))).toContain('data-item="draught"');
+});
+
+test('pips follow maxHpOf', () => {
+  const view = structuredClone(playerView(s, 0));
+  const me: Unit = { ...view.units[0]!, type: 'warrior' };
+  const pips = (u: Unit): { full: number; all: number } => {
+    const m = unitMarkup(draw({ view: { ...view, units: [u] } }), u.id);
+    return { full: (m.match(/data-pip="full"/g) ?? []).length, all: (m.match(/data-pip=/g) ?? []).length };
+  };
+  expect(pips({ ...me, hp: 10 })).toEqual({ full: 2, all: 2 });
+  // A Fierce Warrior at 12/12: three pips, all full.
+  expect(pips({ ...me, hp: 12, heroTraits: ['fierce'] })).toEqual({ full: 3, all: 3 });
+});

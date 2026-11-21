@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { UNITS } from '../../engine';
 import type { FactionId, HexKey, Terrain, Tile, UnitTypeId } from '../../engine';
 import { TileArt } from '../board/Board';
 import { hexToBoard } from '../board/layout';
@@ -9,6 +10,7 @@ import { playerColour } from './palette';
 import type { Ground } from './palette';
 import { Border, Highlight, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
+import { HeroMark, ItemBadge, itemBadgeX } from './hero';
 import { SHARED_FIGURES, StatusOverlay } from './units';
 import type { SharedFigure } from './units';
 import { ACCENT } from './palette';
@@ -185,6 +187,32 @@ export function ArtSheet(): ReactElement {
           <g opacity={0.5}>{SHARED_FIGURES.archer({ colour: playerColour('mongols'), accent: ACCENT.mongols })}</g>
           <StatusOverlay hp={10} maxHp={10} spent fresh={false} taunted={false} blinded={false} />
         </Cell>
+      </Section>
+      <Section title="Heroes and treasures">
+        {(
+          [
+            ['hero hoplite', 'hoplite', 'spartans', { hero: true }],
+            ['hero horseman', 'horseman', 'mongols', { hero: true }],
+            ['hero king\'s guard', 'kingsGuard', 'spartans', { hero: true }],
+            ['hero khan\'s guard', 'khansGuard', 'mongols', { hero: true }],
+            ['draught', 'archer', 'spartans', { item: true }],
+            ['draught, new', 'warrior', 'mongols', { item: true, fresh: true }],
+            ['hero, draught, new', 'defender', 'spartans', { hero: true, item: true, fresh: true }],
+            ['sellsword', 'sellsword', 'spartans', {}],
+            ['sellsword', 'sellsword', 'mongols', {}],
+          ] as const
+        ).map(([label, id, f, o]) => {
+          const hp = UNITS[id].hp;
+          const fresh = 'fresh' in o;
+          return (
+            <Cell key={`${label}${f}`} label={label} ground="grass" tall>
+              {'hero' in o ? <HeroMark accent={ACCENT[f]} /> : null}
+              {FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
+              <StatusOverlay hp={hp} maxHp={hp} spent={false} fresh={fresh} taunted={false} blinded={false} />
+              {'item' in o ? <g transform={`translate(${itemBadgeX(hp, fresh)} 0)`}><ItemBadge item="draught" /></g> : null}
+            </Cell>
+          );
+        })}
       </Section>
       <Section title="Together">
         <Scene />
