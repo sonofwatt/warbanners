@@ -47,7 +47,7 @@ const trait: Record<Trait, Entry> = {
   steadfast: { name: 'Steadfast', blurb: 'Strikes back harder than usual when attacked.' },
   doubleStrike: { name: 'Double strike', blurb: 'Can attack twice each turn.' },
   retreat: { name: 'Retreat', blurb: 'Keeps its remaining movement after attacking.' },
-  chain: { name: 'Chain', blurb: 'Gets one more attack this turn for every kill.' },
+  chain: { name: 'Chain', blurb: `Gets one more attack this turn for every kill, at the cost of ${CONFIG.chainKillCost} health (never below 1).` },
   splash: { name: 'Splash', blurb: 'Enemy units beside the target take half the damage the target takes.' },
   siege: { name: 'Siege', blurb: 'Cannot attack after moving or move after attacking, and never strikes back.' },
   mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders.' },
@@ -207,7 +207,7 @@ const ui = {
   hero: 'Hero', heroTraits: 'Earned', deeds: 'Deeds', carrying: 'Carrying', drink: 'Drink draught',
   mythTouch: 'Myth touch', mythTouchBlurb: `Beside another Spartan hero: +${H.mythAtk} attack and +${H.mythDef} defence.`,
   digestTrait: 'Your {unit} earned {trait}.', digestHero: 'Your {unit} is now a hero.',
-  whatsNew: 'New: units earn traits from what they do and become heroes, and treasures can hold relics, draughts, maps and sellswords.',
+  whatsNew: `New: every kill now costs a Knight or the Mongol champion ${CONFIG.chainKillCost} health, so a chain of kills wears the rider down.`,
   scoutingRiders: 'Scouting riders',
   scoutingRidersBlurb: 'After stepping into unexplored land it may keep moving with whatever movement it has left.',
 } as const;

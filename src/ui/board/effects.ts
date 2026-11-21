@@ -90,6 +90,11 @@ export function effectsFor(
         }
         break;
       }
+      case 'chainCost': {
+        const at = unitPos(e.unit);
+        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: `-${e.damage}`, tone: 'hurt', delay });
+        break;
+      }
       case 'splashed': {
         const at = unitPos(e.target);
         if (at && known(e.target)) mine.push({ kind: 'number', at, text: `-${e.damage}`, tone: 'hurt', delay });
