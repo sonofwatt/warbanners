@@ -75,12 +75,18 @@ normal: matches between the levels now run longer and stall a little more, as th
 - At normal, the matches of seeds 1 to 8 that reach no winner within 60 rounds are now "1 mongols" and "8 spartans" (was
   "5 mongols" and "8 mongols"): still 2 of 16. The named list was updated, not widened.
 - Not changed, still failing: "adaptive climbs against a strong opponent and drops against a weak one" wants the
-  adaptive dial after 4 matches against dial 0.85 to end at least 0.2 above the one against dial 0.2. On seed 1 rules 5
-  gives 0.403; rules 6 gives -0.034 (seed 2: 0.032, seed 3: 0.075). The fog rule alone, and fog with territory riding at
-  the whole-tile bonus, also miss it on seed 1 (-0.106 and 0.160). Four matches with the factions alternating are a thin
-  sample, and a changed faction balance moves which side wins each one, so this reads as the test's sample being too
-  small for any rules change rather than a broken adaptive AI, but it is an AI question and the bound stays as it was.
-- `legalActions on a 25-unit position is fast` (engine, not AI): the bound was raised from 5 ms to 8 ms. 25-unit
+  adaptive dial after 4 matches against dial 0.85 to end at least 0.2 above the one against dial 0.2, on start seed 1.
+  Seed 1 gives 0.403 on rules 5 and -0.034 on rules 6. Over start seeds 1 to 16 (fix round 1):
+
+  | Rules | Mean of strong minus weak | Min | Max | Seeds above 0 |
+  |---|---|---|---|---|
+  | 5 (d0dd3b5) | 0.080 | -0.660 | 0.692 | 9 of 16 |
+  | 6 (this branch) | 0.190 | -0.193 | 0.564 | 14 of 16 |
+
+  Rules 6 separates strong from weak opponents better than rules 5 on average, so this is not an AI regression. Rules 5
+  passed only because seed 1 happened to read 0.403, while its 16-seed mean is 0.080. Neither mean reaches 0.2, so the
+  test was left as it is, for an AI decision.
+- `legalActions on a 25-unit position is fast` (engine, not AI): the bound was raised from 5 ms to 6.5 ms (8 ms first, tightened in fix round 1). 25-unit
   positions in rules 6 playouts hold 260 to 415 legal actions (the new one 283; the rules 5 position had 130). On the same
   state the rules 5 engine takes 4.8 ms and rules 6 5.1 ms, so the engine is not slower per action; the position is busier.
 
