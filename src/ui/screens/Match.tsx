@@ -12,7 +12,7 @@ import { formatClock } from '../../online/clock';
 import { T, fill } from '../text';
 import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
-import { isMuted, play, setMuted, soundFor } from '../sound';
+import { hearingFor, isMuted, play, setMuted, soundFor } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
 import type { Command } from '../panels/commands';
 import { CityPanel } from '../panels/CityPanel';
@@ -148,7 +148,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (last === null || state === null || viewer === null || last.seq === shownBefore.current) return null;
     const { visible, seenUnits } = seenBy(last.before, state, viewer);
     return {
-      seq: last.seq, sound: soundFor(last.events, seenUnits),
+      seq: last.seq, sound: soundFor(last.events, hearingFor(last.before, state, viewer)),
       list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer),
     };
   }, [last, state, viewer]);

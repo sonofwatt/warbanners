@@ -13,4 +13,5 @@ Packs used:
 - Music Jingles
 
 The takes were trimmed, levelled and encoded to mono AAC for the game. The licence text is in
-`public/sounds/KENNEY-LICENSE-CC0.txt`.
+`public/sounds/KENNEY-LICENSE-CC0.txt`. That one licence text (from the Impact Sounds pack) covers all four packs,
+which are all CC0.

@@ -1,4 +1,5 @@
-import type { GameEvent } from '../engine';
+import { cityTile, seenBy } from './board/effects';
+import type { GameEvent, HexKey, MatchState, PlayerId } from '../engine';
 
 export type SoundName =
   | 'tap' | 'move' | 'hit' | 'fall' | 'build' | 'capture' | 'turn' | 'win'
@@ -37,25 +38,52 @@ const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
   { name: 'move', types: ['moved', 'lured', 'advanced'] },
 ];
 
-// Whether the viewer may hear of an event. A hit, splash or death of a unit outside `seenUnits` (the ids the viewer
-// could see before the action or can see after it) is dropped, the same rule the board effects follow, so a sound
-// never tells of a hidden unit.
-function heard(e: GameEvent, seenUnits: ReadonlySet<number>): boolean {
+// What one viewer may hear of one action: the same rule the board effects follow. `seenUnits` and `visible` come from
+// seenBy; `actor` is the player who took the action; `cityAt` places a city event on the board.
+export interface Hearing {
+  viewer: PlayerId;
+  actor: PlayerId;
+  visible: ReadonlySet<HexKey>;
+  seenUnits: ReadonlySet<number>;
+  cityAt: (city: number) => HexKey | undefined;
+}
+
+export function hearingFor(before: MatchState, after: MatchState, viewer: PlayerId): Hearing {
+  const { visible, seenUnits } = seenBy(before, after, viewer);
+  return { viewer, actor: before.current, visible, seenUnits, cityAt: (id) => cityTile(before, after, id) };
+}
+
+// Whether the viewer may hear of an event: a sound tells nothing the board would not show. The viewer's own actions
+// are always heard. Otherwise a unit event needs the unit in `seenUnits`, a tile event needs its tile visible, and
+// an opponent's research (it has no place on the board) is never heard.
+function heard(e: GameEvent, h: Hearing): boolean {
+  if (h.actor === h.viewer) return true;
+  const tile = (at: HexKey | undefined): boolean => at !== undefined && h.visible.has(at);
   switch (e.type) {
     case 'died':
     case 'heroTrait':
-    case 'chainCost':
     case 'usedItem':
-    case 'advanced': return seenUnits.has(e.unit);
+    case 'ability':
+    case 'chainCost':
+    case 'moved':
+    case 'lured':
+    case 'advanced': return h.seenUnits.has(e.unit);
+    case 'trained': return h.seenUnits.has(e.unit) && tile(e.at);
     case 'attacked':
-    case 'splashed': return seenUnits.has(e.target);
+    case 'splashed': return h.seenUnits.has(e.target);
+    case 'treasure':
+    case 'built': return tile(e.at);
+    case 'captured':
+    case 'cityLevel':
+    case 'reward': return tile(h.cityAt(e.city));
+    case 'researched': return false;
     default: return true;
   }
 }
 
 // One sound per action: the most important event the viewer may know of wins.
-export function soundFor(events: readonly GameEvent[], seenUnits: ReadonlySet<number>): SoundName | null {
-  const known = events.filter((e) => heard(e, seenUnits));
+export function soundFor(events: readonly GameEvent[], h: Hearing): SoundName | null {
+  const known = events.filter((e) => heard(e, h));
   for (const { name, types } of ORDER) {
     if (known.some((e) => types.includes(e.type))) return name;
   }
