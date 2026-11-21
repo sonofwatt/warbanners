@@ -10,7 +10,7 @@ export function useItemRefusal(s: MatchState, unitId: unknown): string | null {
   if (u.owner !== s.current) return 'not your unit';
   if (u.item === null) return 'nothing to use';
   if (u.fresh) return 'unit is too new';
-  if (u.itemTurn === s.stamp) return 'found this turn';
+  if (u.itemTurn === s.stamp) return 'not until a later turn';
   const def = UNITS[u.type];
   if (def.atk <= 0 || def.range <= 0 || (hasTrait(u, 'siege') && u.moved)) return 'cannot attack';
   return null;

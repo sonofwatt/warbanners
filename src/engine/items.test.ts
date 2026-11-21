@@ -4,7 +4,7 @@ import { abilityTargets } from './abilities';
 import { attackTargets } from './combat';
 import { canUseItem, useItemRefusal } from './items';
 import { unitAt, unitById } from './state';
-import { addUnit, blankMatch, give, must, rngFor, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, give, must, rngFor, setTile } from './testkit';
 import type { Action } from './types';
 
 const drink = (unit: number): Action => ({ type: 'useItem', unit });
@@ -81,10 +81,10 @@ describe('the Battle draught', () => {
     s.rng = rngFor('draught');
     const found = must(applyAction(s, { type: 'claimTreasure', unit: u.id }));
     expect(unitById(found, u.id)).toMatchObject({ item: 'draught', attacks: 0, acted: true });
-    expect(useItemRefusal(found, u.id)).toBe('found this turn');
+    expect(useItemRefusal(found, u.id)).toBe('not until a later turn');
     expect(canUseItem(found, u.id)).toBe(false);
     expect(legalActions(found).filter((a) => a.type === 'useItem')).toEqual([]);
-    expect(applyAction(found, drink(u.id))).toEqual({ ok: false, reason: 'found this turn' });
+    expect(applyAction(found, drink(u.id))).toEqual({ ok: false, reason: 'not until a later turn' });
     const later = must(applyAction(must(applyAction(found, { type: 'endTurn' })), { type: 'endTurn' }));
     expect(canUseItem(later, u.id)).toBe(true);
     expect(legalActions(later).filter((a) => a.type === 'useItem')).toEqual([drink(u.id)]);
@@ -112,5 +112,30 @@ describe('the Battle draught', () => {
     expect(abilityTargets(after, caller.id, 'hasten')).toEqual([]);
     expect(attackTargets(after, caller.id)).toEqual(['-1,0']);
     expect(unitAt(after, '1,0')!.mp).toBe(unitAt(s, '1,0')!.mp + 2);
+  });
+
+  test('a unit that captured this turn cannot drink an older draught until a later turn', () => {
+    const s = blankMatch();
+    addCity(s, 1, 0, 0); addCity(s, 1, 5, 0);   // a second city, so the match goes on
+    const u = addUnit(s, 'warrior', 0, 0, 0, { item: 'draught' });
+    addUnit(s, 'defender', 1, 1, 0);
+    expect(canUseItem(s, u.id)).toBe(true);
+    const taken = must(applyAction(s, { type: 'capture', unit: u.id }));
+    expect(unitById(taken, u.id)).toMatchObject({ item: 'draught', attacks: 0, acted: true });
+    expect(useItemRefusal(taken, u.id)).toBe('not until a later turn');
+    expect(legalActions(taken).filter((a) => a.type === 'useItem')).toEqual([]);
+    expect(applyAction(taken, drink(u.id))).toEqual({ ok: false, reason: 'not until a later turn' });
+    const later = must(applyAction(must(applyAction(taken, { type: 'endTurn' })), { type: 'endTurn' }));
+    expect(canUseItem(later, u.id)).toBe(true);
+  });
+
+  test('a unit that claimed a treasure this turn cannot drink an older draught that turn', () => {
+    const s = blankMatch({ unexplored: true });
+    setTile(s, 1, 0, { treasure: true });
+    const u = addUnit(s, 'warrior', 0, 1, 0, { item: 'draught' });
+    s.rng = rngFor('gold');
+    const claimed = must(applyAction(s, { type: 'claimTreasure', unit: u.id }));
+    expect(canUseItem(claimed, u.id)).toBe(false);
+    expect(legalActions(claimed).filter((a) => a.type === 'useItem')).toEqual([]);
   });
 });

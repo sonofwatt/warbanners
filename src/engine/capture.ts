@@ -60,12 +60,12 @@ export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s,
     existing.pendingRewards = [];
     if (def.tributeCityBase > 0) captor.gold += def.tributeCityBase + existing.level;
     cityId = existing.id;
-    u.mp = 0; u.attacks = 0; u.acted = true;
+    u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
     ev.push({ type: 'captured', city: cityId, by: u.owner });
     if (!s.cities.some((c) => c.owner === previous)) eliminate(s, previous, ev);
     return null;
   }
-  u.mp = 0; u.attacks = 0; u.acted = true;
+  u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
   ev.push({ type: 'captured', city: cityId, by: u.owner });
   return null;
 };
@@ -136,7 +136,7 @@ export const claimTreasureHandler: Handler<Extract<Action, { type: 'claimTreasur
     }
   }
   tile.treasure = false;
-  u.mp = 0; u.attacks = 0; u.acted = true;
+  u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
   ev.push(event);
   return null;
 };

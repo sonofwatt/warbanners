@@ -13,7 +13,7 @@ test.each([
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
   [7, 160, 88, '260f97335fae1612', '5c9f47d154955290', 'f0bd5b13277b8cf8'],
-  [1, 90, 94, '03a34c89ea070266', 'e15765b6b668fceb', '514c54e3a25963e4'],
+  [1, 90, 94, '03a34c89ea070266', 'f848a9c1c3c55868', '0a051e422aed0f65'],
   [3, 90, 50, 'eaa6f479d5ca5898', '865536db4ff360e8', '515d0d5912fc30b0'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
