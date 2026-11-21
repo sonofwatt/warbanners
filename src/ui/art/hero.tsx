@@ -7,23 +7,23 @@ import { GLINT_GAP, MARK_STEP, PIP_H, PIP_Y, PLATE, WOOD, WOOD_DARK, plateRight 
 // Both use the figures' coordinates: feet near (0, 4), the tile's top face centred on the origin.
 
 const GOLD = '#FFDA4D';
-const BRONZE_DARK = '#8A6420';
 const GLASS = '#DDEFF2';
 const DRAUGHT = '#3CC8D8';
 
 /**
- * A swallowtail pennant on a short staff that rises from behind the figure's left shoulder: the accent
- * with a gold edge along its top, a dark bronze lower tail and a gold knob on the staff. The dark tail keeps
- * it readable on a city's sand at the farthest zoom, where gold alone fades into the ground. It flies to the left, clear of the spears
- * and lances most figures carry on the right, and stops below the plate and the marks beside it.
+ * A swallowtail pennant on a short staff that rises from behind the figure's left shoulder: the accent with a
+ * gold edge along its top, a dark lower tail in the plate's colour and a gold knob on the staff. The dark tail
+ * keeps it readable over a city's cream and sand at the farthest zoom, where gold alone fades into the ground.
+ * It flies to the left, clear of the spears and lances most figures carry on the right, and its top stays below
+ * the taunted and blinded badges that hang beside the plate.
  */
 export function HeroMark(p: { accent: string }): ReactElement {
   const ink = new Ink();
-  ink.line(-4, -8, -11.6, -38, WOOD_DARK, 1.6);
-  ink.poly([-11.8, -38.6, -20, -37.2, -16, -33.4, -20, -29, -10.8, -28.6], p.accent);
-  ink.poly([-16, -33.4, -20, -29, -10.8, -28.6, -11, -31.4], BRONZE_DARK);
-  ink.poly([-11.8, -38.6, -20, -37.2, -17.4, -34.8, -11.4, -33.8], GOLD);
-  ink.circle(-11.8, -38.6, 1.3, GOLD);
+  ink.line(-4, -4.6, -11.6, -34.6, WOOD_DARK, 1.6);
+  ink.poly([-11.8, -35.2, -20, -33.8, -16, -30, -20, -25.6, -10.8, -25.2], p.accent);
+  ink.poly([-16, -30, -20, -25.6, -10.8, -25.2, -11, -28], PLATE);
+  ink.poly([-11.8, -35.2, -20, -33.8, -17.4, -31.4, -11.4, -30.4], GOLD);
+  ink.circle(-11.8, -35.2, 1.3, GOLD);
   return <g data-hero-mark="true">{ink.items}</g>;
 }
 

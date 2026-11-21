@@ -323,6 +323,8 @@ const PIP_GAP = 1;
 export const PIP_Y = -42;
 /** The spacing of the marks beside the plate, centre to centre. */
 export const MARK_STEP = 7.6;
+/** The radius of the round marks (taunted, blinded) and of the glint. */
+export const MARK_R = 3.4;
 /** Where the "new" glint sits, right of the plate's right end. */
 export const GLINT_GAP = 5;
 const PIP_FULL = '#7BD957';
@@ -369,19 +371,19 @@ export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fr
   const marks = new Ink();
   if (p.taunted) {
     // A red badge with an exclamation mark: this unit has been provoked.
-    marks.circle(x, PIP_Y + 1.3, 3.4, '#E0563F');
+    marks.circle(x, PIP_Y + 1.3, MARK_R, '#E0563F');
     marks.rect(x - 0.6, PIP_Y - 0.9, 1.2, 2.8, '#FFFFFF', 0.5);
     marks.circle(x, PIP_Y + 3.1, 0.7, '#FFFFFF');
     x -= MARK_STEP;
   }
   if (p.blinded) {
     // A grey badge with a shut eye: this unit cannot see far.
-    marks.circle(x, PIP_Y + 1.3, 3.4, '#6F6A80');
+    marks.circle(x, PIP_Y + 1.3, MARK_R, '#6F6A80');
     marks.stroke(`M ${x - 2} ${PIP_Y + 0.8} Q ${x} ${PIP_Y + 2.8} ${x + 2} ${PIP_Y + 0.8}`, '#FFFFFF', 0.8);
     marks.line(x - 1, PIP_Y + 2, x - 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
     marks.line(x + 1, PIP_Y + 2, x + 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
   }
-  if (p.fresh) marks.glint(left + w + GLINT_GAP, PIP_Y + 0.4, 3.4, '#FFC93C');
+  if (p.fresh) marks.glint(left + w + GLINT_GAP, PIP_Y + 0.4, MARK_R, '#FFC93C');
   return (
     <g>
       {ink.items}

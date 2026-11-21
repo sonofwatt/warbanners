@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { CONFIG, UNITS } from '../../engine';
 import { HeroMark, ItemBadge, itemBadgeX } from './hero';
 import { ACCENT } from './palette';
-import { MARK_STEP, StatusOverlay } from './units';
+import { MARK_R, MARK_STEP, PIP_H, PIP_Y, StatusOverlay } from './units';
 
 const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
 
@@ -40,7 +40,9 @@ function extents(markup: string): { x: number; y: number; where: string }[] {
 const MOST_HP = Math.max(...Object.values(UNITS).map((u) => u.hp)) + CONFIG.heroes.fierceHp;
 
 test('the hero mark and the draught badge stay inside the unit box and use only absolute paths', () => {
-  // The mark rises behind the figure, inside the box the champions use (x -20..20, y -40..8), below the plate.
+  // The mark rises behind the figure, inside x -20..20, and its top stays below the taunted and blinded badges,
+  // which hang beside the plate down to PIP_Y + PIP_H / 2 + MARK_R.
+  const belowMarks = PIP_Y + PIP_H / 2 + MARK_R;
   for (const accent of Object.values(ACCENT)) {
     const mark = html(<HeroMark accent={accent} />);
     expect(mark).toContain('data-hero-mark');
@@ -51,7 +53,7 @@ test('the hero mark and the draught badge stay inside the unit box and use only 
     for (const p of pts) {
       expect(p.x, p.where).toBeGreaterThanOrEqual(-20);
       expect(p.x, p.where).toBeLessThanOrEqual(20);
-      expect(p.y, p.where).toBeGreaterThanOrEqual(-40);
+      expect(p.y, p.where).toBeGreaterThan(belowMarks);
       expect(p.y, p.where).toBeLessThanOrEqual(8);
     }
   }
