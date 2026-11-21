@@ -81,9 +81,11 @@ function strikeOf(b: MatchState, u: Unit): number {
   return STRIKE_SHARE * best;
 }
 
-// Tiles from which a unit could attack next turn: full movement (ignoring terrain) plus its range.
+// Tiles from which a unit could attack next turn: full movement (ignoring terrain) plus its range. Whole tiles: since
+// rules 6 a Mongol rider has an odd number of half-points, and a fractional radius made `range` list no real tile, so
+// the danger map left out every Mongol rider.
 function threatReach(b: MatchState, u: Unit): number {
-  return maxMp(b, u) / 2 + UNITS[u.type].range;
+  return Math.floor(maxMp(b, u) / 2) + UNITS[u.type].range;
 }
 
 // Most damage seen enemies could deal to a Warrior-defence unit on each tile next turn. Tiles left
