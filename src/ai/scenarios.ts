@@ -18,7 +18,7 @@ function finish(s: MatchState): MatchState {
 
 export function hiddenScout(): { state: MatchState; rider: number; scout: number } {
   const s = base(1);
-  const rider = addUnit(s, 'horseman', 1, 0, 0, { mp: 6 }).id;
+  const rider = addUnit(s, 'horseman', 1, 0, 0, { mp: 5 }).id;
   const scout = addUnit(s, 'scout', 0, 2, 0).id;
   return { state: finish(s), rider, scout };
 }

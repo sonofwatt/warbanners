@@ -212,6 +212,15 @@ test('an advance by a unit the viewer never sees is not waited for', () => {
   expect(watchMs([{ type: 'advanced', unit: scout.id, from: '3,-1', to: '3,0' }], s, after, 1)).toBe(0);
 });
 
+test('a chain the level-up ended says so over the unit, after the trait name', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const k = addUnit(s, 'knight', 0, 1, 0);
+  const all = new Set(Object.keys(s.tiles));
+  const fx = effectsFor([{ type: 'heroTrait', unit: k.id, trait: 'fierce', hero: false }, { type: 'chainEnded', unit: k.id }], s, s, all, everyone(s), 0);
+  expect(fx.map((e) => (e.kind === 'number' ? e.text : e.kind))).toEqual([T.heroTrait.fierce.name, T.ui.chainEnded]);
+  expect(fx[1]!.delay).toBeGreaterThan(fx[0]!.delay);
+  expect(effectsFor([{ type: 'chainEnded', unit: k.id }], s, s, all, new Set(), 1)).toEqual([]);
+});
 test('a trait shows its name over the unit; a non-gold find shows its words to the claimer only', () => {
   const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
   const u = addUnit(s, 'warrior', 0, 1, 0);

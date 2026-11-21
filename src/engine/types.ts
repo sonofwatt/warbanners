@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 5;
+export const RULES_VERSION = 6;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -11,7 +11,8 @@ export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'ar
   | 'knight' | 'catapult' | 'hoplite' | 'kingsGuard' | 'piper' | 'scout'
   | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp' | 'sellsword';
 export type Trait = 'steadfast' | 'doubleStrike' | 'retreat' | 'chain' | 'splash' | 'siege' | 'mounted'
-  | 'phalanx' | 'unbowed' | 'hidden' | 'noCityCapture' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm';
+  | 'phalanx' | 'unbowed' | 'hidden' | 'noCityCapture' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm'
+  | 'pathfinder';
 export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm';
 // Every ability, in the order legalActions lists them.
 export const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
@@ -93,6 +94,7 @@ export type GameEvent =
   | { type: 'died'; unit: number }
   | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
   | { type: 'chainCost'; unit: number; damage: number }             // rules 5: the health a chain unit paid for a kill
+  | { type: 'chainEnded'; unit: number }                             // rules 6: a hero trait from the kill ended the chain
   | { type: 'lured'; unit: number; from: HexKey; to: HexKey }
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }

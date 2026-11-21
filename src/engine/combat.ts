@@ -113,6 +113,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   }
   ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage, counter });
   let kills = 0;                                  // units this attack killed, for the attacker's fight deed
+  let chainGranted = 0;                           // extra attacks the chain trait granted for those kills
   const splashed: Unit[] = [];
 
   if (targetDied) {
@@ -126,6 +127,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
       chainLost = Math.max(0, Math.min(CONFIG.chainKillCost, attacker.hp - 1));
       attacker.hp -= chainLost;
       attacker.attacks += 1;
+      chainGranted += 1;
     }
     // rules 10: a melee killer steps into the emptied tile, at no movement cost
     if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
@@ -165,8 +167,15 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   for (const n of splashed) if (!n.fresh) credit(credits, n, 'survive', 1);
   if (counter > 0 && !attackerDied && !attacker.fresh) credit(credits, attacker, 'survive', 1);
   if (attackerDied) credit(credits, target, 'fight', heroes.fightPerKill);
+  const traitsBefore = attacker.heroTraits.length;
   applyCredits(s, credits, ev);
   if (attackerDied) return null;
+
+  // rules 6: a hero trait earned from this attack ends the chain: the kill's extra attack is taken back
+  if (CONFIG.levelUpEndsChain && chainGranted > 0 && attacker.heroTraits.length > traitsBefore) {
+    attacker.attacks -= chainGranted;
+    ev.push({ type: 'chainEnded', unit: attacker.id });
+  }
 
   attacker.attacks -= 1;
   attacker.acted = true;

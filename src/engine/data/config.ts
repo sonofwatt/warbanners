@@ -15,6 +15,10 @@ export const CONFIG = deepFreeze({
     water: { enterCost: null, cover: 0 },
   },
   roadCost: 1, relayCost: 1, wallsCover: 2, mountainSightBonus: 1,
+  // rules 6: no move passes through a tile its owner had not explored when the move began, and only a pathfinder
+  // (the Spartan Scout) may end a move on one, which ends its turn. Off replays rules 3 to 5 (any unit could end a move
+  // on one unexplored tile, and a mounted Mongol kept its movement after it); only the provenance test turns it off.
+  closedFog: true,
   citySightExtra: 1,                          // a city sees this many tiles beyond its territory radius
   hiddenRevealRange: 1,                       // a unit or city reveals a hidden unit within this distance
   blindedReach: 1,                            // a blinded unit attacks no farther than this
@@ -34,6 +38,8 @@ export const CONFIG = deepFreeze({
   // rules 5: a chain unit loses this much health for each kill it makes with its own attack, never below 1. Picked by
   // simulated matches (docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md).
   chainKillCost: 2,
+  // rules 6: a chain unit that earns a hero trait from its own attack gets no extra attack from that kill.
+  levelUpEndsChain: true,
   restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
   treasure: {
     gold: 5, exploreRadius: 4, unit: 'warrior',
@@ -72,6 +78,7 @@ export const CONFIG = deepFreeze({
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
   roadCost: number; relayCost: number; wallsCover: number; mountainSightBonus: number;
+  closedFog: boolean; levelUpEndsChain: boolean;
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
   attacksPerTurn: { doubleStrike: number; base: number };
   newCity: { level: number; radius: number; growth: number };

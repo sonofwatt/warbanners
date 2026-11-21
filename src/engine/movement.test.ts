@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { applyAction } from './apply';
+import { applyAction, legalActions } from './apply';
+import { UNITS } from './data/units';
 import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
 import { claimTerritory, unitById } from './state';
@@ -57,10 +58,10 @@ test('stepping onto or through a treasure leaves it in place (rules 12: it is cl
   expect(onto.tiles['1,0']!.treasure).toBe(true); expect(onto.rng).toBe(s.rng);
   expect(r.ok && r.events.map((e) => e.type)).toEqual(['moved']);
 });
-test('maxMp gives mounted Mongol units the bonus and nobody else', () => {
+test('maxMp gives mounted Mongol units the half-point bonus and nobody else', () => {
   const s = blankMatch();                                           // player 0 Spartan, player 1 Mongol
   expect(maxMp(s, addUnit(s, 'horseman', 0, 0, 0))).toBe(4);
-  expect(maxMp(s, addUnit(s, 'horseman', 1, 1, 0))).toBe(6);
+  expect(maxMp(s, addUnit(s, 'horseman', 1, 1, 0))).toBe(5);
   expect(maxMp(s, addUnit(s, 'warrior', 1, 2, 0))).toBe(2);
 });
 test('unknown, spent and acted units reach nothing; a retreat unit may move after acting', () => {
@@ -151,30 +152,58 @@ test('inherited property names are refused as move targets', () => {
   }
   expect(hashState(s)).toBe(before);
 });
-test('a move may end on one unexplored tile but never pass through one (rules 9)', () => {
-  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0);            // Spartan knight, 6 half-points
-  s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];
-  const r = reachable(s, k.id);
-  expect(r['1,0']).toBe(4);                                                     // explored: as before
-  expect(r['2,0']).toBe(0);                                                     // the first unexplored tile: it stops there
-  expect(r['3,0']).toBeUndefined();                                             // only through an unexplored tile
-  expect(Object.keys(r).filter((h) => !s.players[0]!.explored.includes(h)).every((h) => r[h] === 0)).toBe(true);
+// rules 9 (rules 6): no move passes through a tile its owner had not explored when the move began, and only a
+// pathfinder (the Krypteia Scout) may end on one.
+test.each([
+  ['spartans', 'warrior'], ['spartans', 'knight'], ['spartans', 'horseman'],
+  ['mongols', 'warrior'], ['mongols', 'horseman'], ['mongols', 'knight'], ['mongols', 'horseArcher'],
+] as const)('no %s %s move ends on or passes through an unexplored tile', (faction, type) => {
+  const s = blankMatch({ factions: [faction, faction === 'spartans' ? 'mongols' : 'spartans'] });
+  for (const q of [0, 1, 2, 3, 4]) setTile(s, q, 0, { road: true });
+  const u = addUnit(s, type, 0, 0, 0, { mp: 8 });
+  const explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0', '2,0'];
+  s.players[0]!.explored = explored;
+  const r = reachable(s, u.id);
+  expect(Object.keys(r).length).toBeGreaterThan(0);
+  expect(Object.keys(r).every((h) => explored.includes(h))).toBe(true);
+  expect(r['3,0']).toBeUndefined();                                             // the road goes on into the fog
+  expect(r['4,0']).toBeUndefined();                                             // and never through it
 });
-test('a Spartan unit that steps into the fog has no movement left', () => {
+test('a unit walks to the edge of the fog and looks: what it sees is explored for its next move', () => {
   const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0);              // Spartan knight: 6 half-points, sight 2
   for (const q of [0, 1, 2, 3, 4]) setTile(s, q, 0, { road: true });
   s.players[0]!.explored = [...visibleTiles(s, 0)].sort();                      // what it sees: up to 2 tiles away
   const r = reachable(s, k.id);
   expect(r['2,0']).toBe(4);                                                     // two road steps
-  expect(r['3,0']).toBe(0);                                                     // the third is in the fog: 3 left on the road, gone
-  expect(r['4,0']).toBeUndefined();                                             // only through 3,0
-  const t = must(applyAction(s, { type: 'move', unit: k.id, to: '3,0' }));
-  expect(unitById(t, k.id)).toMatchObject({ pos: '3,0', mp: 0 });
+  expect(r['3,0']).toBeUndefined();                                             // the third is in the fog
+  const t = must(applyAction(s, { type: 'move', unit: k.id, to: '2,0' }));
   expect(t.players[0]!.explored).toContain('4,0');                              // it looked around
-  expect(reachable(t, k.id)).toEqual({});
+  expect(reachable(t, k.id)['4,0']).toBe(2);                                    // and may ride on next move
 });
-test('the explored set is the one from before the move: a second fog step needs a second move', () => {
+test('the explored set is the one from before the move: a fog tile cannot be entered at all', () => {
   const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { mp: 4 });
   s.players[0]!.explored = ['0,0'];
-  expect(applyAction(s, { type: 'move', unit: h.id, to: '2,0' }).ok).toBe(false);
+  expect(reachable(s, h.id)).toEqual({});
+  expect(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }).ok).toBe(false);
+});
+test('a pathfinder may end a move on one unexplored tile, never pass through one', () => {
+  expect(UNITS.scout.traits).toContain('pathfinder');
+  const s = blankMatch(); const sc = addUnit(s, 'scout', 0, 0, 0, { mp: 4 });
+  for (const q of [0, 1, 2, 3, 4]) setTile(s, q, 0, { road: true });
+  s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];
+  const r = reachable(s, sc.id);
+  expect(r['1,0']).toBe(3);                                                     // explored: as before
+  expect(r['2,0']).toBe(0);                                                     // the first unexplored tile: it stops there
+  expect(r['3,0']).toBeUndefined();                                             // only through an unexplored tile
+});
+test('a pathfinder that ends a move in the fog has spent its turn, even with movement left', () => {
+  const s = blankMatch(); const sc = addUnit(s, 'scout', 0, 0, 0, { mp: 4 });
+  s.players[0]!.explored = ['0,0', '1,0', '-1,0'];
+  addUnit(s, 'warrior', 1, 1, 1);                                               // beside the fog tile it will reach
+  const t = must(applyAction(s, { type: 'move', unit: sc.id, to: '0,1' }));
+  expect(unitById(t, sc.id)).toMatchObject({ pos: '0,1', mp: 0, attacks: 0, acted: true, itemTurn: t.stamp });
+  expect(reachable(t, sc.id)).toEqual({});
+  expect(legalActions(t).filter((a) => 'unit' in a && a.unit === sc.id)).toEqual([]);
+  const u = must(applyAction(s, { type: 'move', unit: sc.id, to: '-1,0' }));    // an explored tile: as before
+  expect(unitById(u, sc.id)).toMatchObject({ mp: 2, attacks: 1, acted: false });
 });

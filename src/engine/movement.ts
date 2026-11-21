@@ -12,7 +12,7 @@ export function maxMp(s: MatchState, u: Unit): number {
   const faction = s.players[u.owner]?.faction;
   const bonus = faction !== undefined && hasTrait(u, 'mounted') ? FACTIONS[faction].mountedMoveBonus : 0;
   const tireless = u.heroTraits.includes('tireless') ? CONFIG.heroes.tirelessMove : 0;
-  return 2 * (UNITS[u.type].move + bonus + tireless);
+  return 2 * (UNITS[u.type].move + tireless) + bonus;          // the faction bonus is in half-points (rules 6)
 }
 
 function isEnemyAt(s: MatchState, owner: number, k: HexKey): boolean {
@@ -29,8 +29,29 @@ function hasRoadOrCity(s: MatchState, k: HexKey): boolean {
   return tileAt(s, k)?.road === true || cityAt(s, k) !== undefined;
 }
 
-// rules 2, 9 and 13: tile it may stop on -> half-points left on arrival. A move may end on one tile its owner had
-// not explored when the move began, never pass through one; only scouting riders keep movement after it.
+// rules 13 and 6: the territory a tile lies in, for a unit of `owner`
+function territoryOf(s: MatchState, owner: number, k: HexKey): 'own' | 'neutral' | 'enemy' {
+  const cityId = tileAt(s, k)?.cityId ?? null;
+  const city = cityId === null ? undefined : cityById(s, cityId);
+  if (city === undefined) return 'neutral';
+  return city.owner === owner ? 'own' : 'enemy';
+}
+
+// rules 13 and 6: half-points this move may spend. A rider that rides by territory may not spend its faction's move
+// bonus on a move that starts in enemy territory. Movement spent this turn comes out of the bonus first, so such a
+// move loses only the part of the bonus still unspent (and a split move never loses it twice); what the move leaves is
+// all the unit has.
+function budgetOf(s: MatchState, u: Unit): number {
+  const faction = FACTIONS[s.players[u.owner]!.faction];
+  if (!faction.territoryRiding || !hasTrait(u, 'mounted') || territoryOf(s, u.owner, u.pos) !== 'enemy') return u.mp;
+  const bonus = faction.mountedMoveBonus;
+  const unspent = Math.max(0, Math.min(bonus, u.mp - (maxMp(s, u) - bonus)));
+  return u.mp - unspent;
+}
+
+// rules 2, 9 and 13: tile it may stop on -> half-points left on arrival. A move never passes through a tile its owner
+// had not explored when the move began; only a pathfinder may end on one (rules 6; CONFIG.closedFog off replays the
+// older rule, where any unit could).
 export function reachable(s: MatchState, unitId: number): Record<HexKey, number> {
   const u = unitById(s, unitId);
   if (u === undefined) return {};
@@ -38,9 +59,11 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
   const explored = new Set(s.players[u.owner]!.explored);
-  const keepsMoveInFog = mounted && faction.scoutingRiders;
+  // rules 3 to 5 only: a move could end on one unexplored tile, and mounted Mongol riders kept moving after it
+  const keepsMoveInFog = !CONFIG.closedFog && mounted && s.players[u.owner]!.faction === 'mongols';
+  const entersFog = !CONFIG.closedFog || hasTrait(u, 'pathfinder');
   const fog = new Set<HexKey>();                            // unexplored tiles reached: ends of moves only
-  const best = new Map<HexKey, number>([[u.pos, u.mp]]);
+  const best = new Map<HexKey, number>([[u.pos, budgetOf(s, u)]]);
   const done = new Set<HexKey>();
   for (;;) {
     let from: HexKey | null = null;
@@ -55,6 +78,7 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
       const to = key(add(parseKey(from), d));
       const tile = tileAt(s, to);
       if (tile === undefined || tile.terrain === 'water' || isEnemyAt(s, u.owner, to)) continue;
+      if (!entersFog && !explored.has(to)) continue;
       let cost: number;
       let forced = false;                                   // costs everything that is left
       if (faction.relayRiders && tile.cityId !== null && cityById(s, tile.cityId)?.owner === u.owner) {
@@ -123,7 +147,10 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   if (!hasOwn(options, a.to)) return 'cannot reach that tile';
   const left = options[a.to]!;
   const from = u.pos;
+  const intoFog = !s.players[u.owner]!.explored.includes(a.to);
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
+  // rules 6: a pathfinder that ends a move in the fog has spent its turn: no more moving, attacking or abilities
+  if (CONFIG.closedFog && intoFog) { u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp; }
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });
   addDeed(s, u, 'march', distance(parseKey(from), parseKey(a.to)), ev);
   if (u.lure !== null) pullLured(s, u, from, ev);
