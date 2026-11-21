@@ -186,3 +186,12 @@ test('pips follow maxHpOf', () => {
   // A Fierce Warrior at 12/12: three pips, all full.
   expect(pips({ ...me, hp: 12, heroTraits: ['fierce'] })).toEqual({ full: 3, all: 3 });
 });
+
+test('a ready tile glows gold under its selection mark, and only ready tiles glow', () => {
+  const k = s.units.find((u) => u.owner === 0)!.pos;
+  const both = tileMarkup(draw({ ready: new Set([k]), marks: { [k]: 'selected' } }), k);
+  expect(both).toContain('data-ready="true"');
+  expect(both.indexOf('data-ready="true"')).toBeLessThan(both.indexOf('data-mark="selected"'));
+  expect(tileMarkup(draw({ ready: new Set([k]) }), k)).toContain('class="ready-glow"');
+  expect(draw()).not.toContain('data-ready');
+});

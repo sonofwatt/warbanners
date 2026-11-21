@@ -18,6 +18,8 @@ export interface SideMetrics {
   chainKills: number;    // kills made by a chain unit (Knight, Khan's Guard) with its own attack
   chainSweeps: number;   // turns in which one unit made CHAIN_SWEEP_KILLS or more kills
   doubleKills: number;   // turns in which one unit made 2 or more kills
+  mountedTiles: number;  // tiles moved (hex distance of each move action) by mounted units
+  mountedTurns: number;  // mounted units the side had at the start of each of its turns
 }
 export interface SimResult {
   seed: number; factions: [FactionId, FactionId]; winner: PlayerId | null; stalled: boolean; adjudged: PlayerId | null;
@@ -39,6 +41,7 @@ function emptySide(): SideMetrics {
     cities: 0, citiesAtRound10: 0, unitsTrained: {}, attacks: 0, kills: 0, lures: 0, lureOntoCapturable: 0, luredCaptures: 0,
     raidRetreats: 0, mountedAttacks: 0, adjacentShare: 0, forestEntriesWithLittleMp: 0,
     traitsEarned: {}, heroes: 0, heroesLost: 0, treasures: {}, draughtsDrunk: 0, chainKills: 0, chainSweeps: 0, doubleKills: 0,
+    mountedTiles: 0, mountedTurns: 0,
   };
 }
 
@@ -89,6 +92,7 @@ export function runMatch(o: SimOpts): SimResult {
     nonMoveRefusals += log.refused.filter((x: Action) => x.type !== 'move').length;
     replans += log.replans;
 
+    side.mountedTurns += s.units.filter((u) => u.owner === me && isMounted(u.type)).length;
     const attackedBy = new Set<number>();
     const killsBy = new Map<number, number>();   // this turn's kills by each of my attacking units
     for (const step of log.steps) {
@@ -110,6 +114,7 @@ export function runMatch(o: SimOpts): SimResult {
       if (action.type === 'move') {
         const u = before.units.find((x) => x.id === action.unit);
         if (u !== undefined && attackedBy.has(u.id)) { side.raidRetreats += 1; attackedBy.delete(u.id); }
+        if (u !== undefined && isMounted(u.type)) side.mountedTiles += distance(parseKey(u.pos), parseKey(action.to));
         if (u !== undefined && isMounted(u.type) && before.tiles[action.to]?.terrain === 'forest'
           && u.mp < CONFIG.terrain.forest.enterCost) side.forestEntriesWithLittleMp += 1;
       }
@@ -201,6 +206,7 @@ const METRIC_KEYS: (keyof SideMetrics)[] = [
   'cities', 'citiesAtRound10', 'unitsTrained', 'attacks', 'kills', 'lures', 'lureOntoCapturable', 'luredCaptures',
   'raidRetreats', 'mountedAttacks', 'adjacentShare', 'forestEntriesWithLittleMp',
   'traitsEarned', 'heroes', 'heroesLost', 'treasures', 'draughtsDrunk', 'chainKills', 'chainSweeps', 'doubleKills',
+  'mountedTiles', 'mountedTurns',
 ];
 
 const total = (r: Partial<Record<string, number>>): number => Object.values(r).reduce((a: number, b) => a + (b ?? 0), 0);

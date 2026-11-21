@@ -419,19 +419,19 @@ test('a move blocked by an unseen enemy is offered, refused, and explained', () 
   get().goHome(); expect(get().notice).toBeNull();
 });
 
-test('a Mongol rider that rides into the fog stays selected with its new highlights', () => {
+test('a Mongol rider that rides to the edge of the fog stays selected with its new highlights', () => {
   const { store, get } = started(); get().ready();
   const { state, rider } = hiddenScout();
   state.players[1]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];   // the rider's own tile and the next ring
-  expect(offered(state, 1).moves[rider]).toContain('-2,0');
-  expect(offered(state, 1).moves[rider]).not.toContain('-3,0');            // only through the fog tile at -2,0
+  expect(offered(state, 1).moves[rider]).toContain('-1,0');
+  expect(offered(state, 1).moves[rider]).not.toContain('-2,0');            // rules 6: never into the fog
   store.setState({ state, viewer: 1 });
   get().select({ kind: 'unit', id: rider, armed: null, askLure: null });
-  get().tap({ unit: null, hex: '-2,0' });
+  get().tap({ unit: null, hex: '-1,0' });
   const after = get().state!;
-  expect(after.units.find(u => u.id === rider)).toMatchObject({ pos: '-2,0', mp: 2 });
+  expect(after.units.find(u => u.id === rider)).toMatchObject({ pos: '-1,0', mp: 3 });
   expect(get().selection).toEqual({ kind: 'unit', id: rider, armed: null, askLure: null });
-  expect(offered(after, 1).moves[rider]).toContain('-3,0');
+  expect(offered(after, 1).moves[rider]).toContain('-2,0');               // it looked: the next tile is open now
 });
 
 test('every offered action counts as offered, whatever the order of its fields', () => {

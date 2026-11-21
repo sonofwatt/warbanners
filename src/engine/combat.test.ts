@@ -219,3 +219,38 @@ test('the chain cost earns no survive deed and leaves the fight deed as it was',
     fight: CONFIG.heroes.fightPerAttack + CONFIG.heroes.fightPerKill, survive: 0,
   });
 });
+
+// rules 6: a chain unit that earns a hero trait from its own attack gets no extra attack from that kill.
+test('a chain unit that earns a trait from a kill gets no extra attack, after paying the chain cost', () => {
+  expect(CONFIG.levelUpEndsChain).toBe(true);
+  const need = CONFIG.heroes.agogeThresholds.fight - CONFIG.heroes.fightPerAttack - CONFIG.heroes.fightPerKill;
+  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0, { deeds: { fight: need, march: 0, survive: 0, rest: 0 } });
+  const w = addUnit(s, 'warrior', 1, 1, 0, { hp: 1 }); addUnit(s, 'warrior', 1, 2, 0);
+  const r = applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }); const t = must(r);
+  expect(unitById(t, k.id)).toMatchObject({ attacks: 0, acted: true, heroTraits: ['fierce'], hp: 15 - cost + CONFIG.heroes.fierceHp });
+  expect(r.ok && r.events).toEqual([
+    { type: 'attacked', unit: k.id, target: w.id, damage: expect.any(Number), counter: 0 },
+    { type: 'died', unit: w.id },
+    { type: 'advanced', unit: k.id, from: '0,0', to: '1,0' },
+    { type: 'chainCost', unit: k.id, damage: cost },
+    { type: 'heroTrait', unit: k.id, trait: 'fierce', hero: false },
+    { type: 'chainEnded', unit: k.id },
+  ]);
+  expect(attackTargets(t, k.id)).toEqual([]);
+});
+test('a chain unit that earns no trait from a kill still strikes again', () => {
+  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0);
+  addUnit(s, 'warrior', 1, 1, 0, { hp: 1 }); addUnit(s, 'warrior', 1, 2, 0);
+  const r = applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }); const t = must(r);
+  expect(unitById(t, k.id)).toMatchObject({ attacks: 1, heroTraits: [] });
+  expect(r.ok && r.events.some((e) => e.type === 'chainEnded')).toBe(false);
+  expect(attackTargets(t, k.id)).toEqual(['2,0']);
+});
+test('a unit without the chain trait that earns a trait from a kill keeps its other attacks', () => {
+  const need = CONFIG.heroes.agogeThresholds.fight - CONFIG.heroes.fightPerAttack - CONFIG.heroes.fightPerKill;
+  const s = blankMatch(); const h = addUnit(s, 'horseman', 0, 0, 0, { attacks: 2, deeds: { fight: need, march: 0, survive: 0, rest: 0 } });
+  addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+  const r = applyAction(s, { type: 'attack', unit: h.id, target: '1,0' }); const t = must(r);
+  expect(unitById(t, h.id)).toMatchObject({ attacks: 1, heroTraits: ['fierce'] });
+  expect(r.ok && r.events.some((e) => e.type === 'chainEnded')).toBe(false);
+});

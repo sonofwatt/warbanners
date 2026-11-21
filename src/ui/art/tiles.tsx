@@ -120,7 +120,7 @@ export function Highlight(p: { mark: Mark }): ReactElement {
     case 'attack':
       return <g>{ring('#F0402F', 0.22)}</g>;
     case 'ability':
-      // Violet, so it never reads as a capture's gold or an attack's red; dashed white over it.
+      // Violet, so it never reads as the ready glow's gold or an attack's red; dashed white over it.
       return (
         <g>
           {ring('#9B5CF6', 0.22)}
@@ -143,20 +143,21 @@ export function Highlight(p: { mark: Mark }): ReactElement {
           <polygon points={pts(shrink(topCorners(), 0.9))} fill="none" stroke="#FFFFFF" strokeWidth={2.4} strokeLinejoin="round" />
         </g>
       );
-    case 'capture':
-      return (
-        <g>
-          {ring('#FFC81A', 0.2)}
-          {/* The flag stands outside the ring, left of x -21, where no figure reaches (every part of
-              every figure stays within x -20 to 20), so streamers, bows and tails never cover it. */}
-          <ellipse cx={-22.5} cy={2} rx={3.4} ry={1.5} fill="#000000" fillOpacity={0.2} />
-          <line x1={-22.5} y1={2} x2={-22.5} y2={-29} stroke="#4A3220" strokeWidth={1.8} strokeLinecap="round" />
-          {/* Flat two-tone cloth, no outline: the lower half is a darker gold, so it reads on pale sand. */}
-          <polygon points="-23.1,-29.2 -34,-27 -29.6,-24.4 -23.1,-24.4" fill="#FFC81A" />
-          <polygon points="-23.1,-24.4 -29.6,-24.4 -34,-21.6 -23.1,-19.6" fill="#D98E04" />
-        </g>
-      );
   }
+}
+
+/**
+ * The gold glow on a tile where one of my units can capture or claim a treasure: a translucent gold fill of the whole
+ * top face with a deeper gold rim, so it reads on grass, on a city's pale sand and on a snowy mountain. It pulses
+ * slowly (theme.css, off under prefers-reduced-motion) and lies under the selection, move and attack marks.
+ */
+export function ReadyGlow(): ReactElement {
+  const face = pts(shrink(topCorners(), 0.94));
+  return (
+    <g className="ready-glow">
+      <polygon points={face} fill="#FFC81A" fillOpacity={0.3} stroke="#D98E04" strokeOpacity={0.85} strokeWidth={1.6} strokeLinejoin="round" />
+    </g>
+  );
 }
 
 /**

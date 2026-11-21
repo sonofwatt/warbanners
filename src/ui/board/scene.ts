@@ -16,6 +16,7 @@ export interface SceneTile {
   borderEdges: number[]; // directions (engine DIRS order) where the neighbour has a different owner
   roadLinks: number[]; // directions where the neighbour has a road or a city
   mark: Mark | null;
+  ready: boolean; // one of the viewer's units can capture or claim a treasure here: it glows gold under any mark
   occupied: boolean; // a unit the viewer can see stands on it (a treasure there is drawn beside the figure)
 }
 export interface SceneUnit {
@@ -31,6 +32,7 @@ export interface SceneInput {
   view: PlayerView;
   radius: number;
   marks: Readonly<Record<HexKey, Mark>>;
+  ready?: ReadonlySet<HexKey>; // tiles that glow gold (none when left out)
   selectedUnit: number | null;
   spentUnits: ReadonlySet<number>; // own units with nothing left to do this turn
 }
@@ -41,6 +43,7 @@ const FOOT = 6; // how far a figure's hit box reaches below its tile centre
 /** The draw list, back to front. A tile comes before the units standing on it. */
 export function buildScene(input: SceneInput): SceneItem[] {
   const { view, radius, marks, selectedUnit, spentUnits } = input;
+  const ready = input.ready ?? new Set<HexKey>();
   const board = boardKeys(radius);
   const onBoard = new Set<HexKey>(board);
   const visible = new Set(view.visible);
@@ -66,7 +69,7 @@ export function buildScene(input: SceneInput): SceneItem[] {
     if (tile === null) {
       out.push({
         kind: 'tile', key: k, at, fog: true, tile: null, veiled: false,
-        city: null, owner: null, borderEdges: [], roadLinks: [], mark: marks[k] ?? null, occupied: false,
+        city: null, owner: null, borderEdges: [], roadLinks: [], mark: marks[k] ?? null, ready: ready.has(k), occupied: false,
       });
     } else {
       const owner = ownerOf(k);
@@ -81,7 +84,7 @@ export function buildScene(input: SceneInput): SceneItem[] {
       });
       out.push({
         kind: 'tile', key: k, at, fog: false, tile, veiled: !visible.has(k),
-        city, owner, borderEdges, roadLinks, mark: marks[k] ?? null, occupied: unitsAt.has(k),
+        city, owner, borderEdges, roadLinks, mark: marks[k] ?? null, ready: ready.has(k), occupied: unitsAt.has(k),
       });
     }
     for (const unit of (unitsAt.get(k) ?? []).slice().sort((a, b) => a.id - b.id)) {

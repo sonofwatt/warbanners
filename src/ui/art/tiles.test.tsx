@@ -1,9 +1,11 @@
+/// <reference types="node" />
 import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
 import type { Terrain, Tile } from '../../engine';
 import { GROUND } from './palette';
-import { Border, groundFor, Highlight, TileBase } from './tiles';
+import { readFileSync } from 'node:fs';
+import { Border, groundFor, Highlight, ReadyGlow, TileBase } from './tiles';
 import type { Mark } from './tiles';
 
 const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
@@ -24,8 +26,19 @@ test('ground follows terrain, and a city tile is sand', () => {
 });
 
 test('each mark draws something different', () => {
-  const marks: Mark[] = ['move', 'attack', 'ability', 'selected', 'capture'];
-  expect(new Set(marks.map((m) => html(<Highlight mark={m} />))).size).toBe(5);
+  const marks: Mark[] = ['move', 'attack', 'ability', 'selected'];
+  expect(new Set(marks.map((m) => html(<Highlight mark={m} />))).size).toBe(4);
+});
+
+test('the ready glow fills the whole top face in translucent gold and pulses unless motion is reduced', () => {
+  const glow = html(<ReadyGlow />);
+  expect(glow).toContain('class="ready-glow"');
+  expect(glow).toContain('fill="#FFC81A"');
+  expect(glow).toContain('fill-opacity="0.3"');
+  expect((glow.match(/<polygon/g) ?? []).length).toBe(1);
+  const css = readFileSync(new URL('../theme.css', import.meta.url), 'utf8');
+  expect(css).toMatch(/\.ready-glow \{ animation: ready-pulse/);
+  expect(css).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.ready-glow \{ animation: none; \}/);
 });
 
 test('a border draws one line per edge', () => {

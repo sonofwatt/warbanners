@@ -22,7 +22,7 @@ test('starting units can act on the first turn', () => {
 });
 test('a Mongol starting horseman begins with its movement bonus', () => {
   const s = createMatch({ seed: 42, factions: ['mongols', 'spartans'] });
-  expect(s.units[0]).toMatchObject({ type: 'horseman', mp: 6 });
+  expect(s.units[0]).toMatchObject({ type: 'horseman', mp: 5 });                // 4 half-points and the half-point bonus
 });
 test('inherited property names are not tiles', () => {
   const s = blankMatch();

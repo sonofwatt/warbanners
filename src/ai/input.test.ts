@@ -27,11 +27,11 @@ test('an unseen blocker is missing from the believed state, so its tile looks op
   const { state, rider, scout } = hiddenScout();
   const b = believedState(aiInputFor(state, 1));
   expect(b.units.some(u => u.id === scout)).toBe(false);
-  expect(Object.keys(reachable(state, rider)).length).toBe(37);
-  expect(Object.keys(reachable(b, rider)).length).toBe(41);
-  expect(Object.keys(reachable(b, rider)).filter(k => !(k in reachable(state, rider))).sort()).toEqual(['2,0', '2,1', '3,-1', '3,0']);
+  expect(Object.keys(reachable(state, rider)).length).toBe(23);   // rules 6: 23 and 24 (was 37 and 41; fog closed, half-point bonus)
+  expect(Object.keys(reachable(b, rider)).length).toBe(24);
+  expect(Object.keys(reachable(b, rider)).filter(k => !(k in reachable(state, rider))).sort()).toEqual(['2,0']);
   expect(reachable(state, rider)['1,0']).toBe(0);   // engaged by the unseen scout
-  expect(reachable(b, rider)['1,0']).toBe(4);
+  expect(reachable(b, rider)['1,0']).toBe(3);
   expect(applyAction(state, { type: 'move', unit: rider, to: '2,0' })).toEqual({ ok: false, reason: 'cannot reach that tile' });
 });
 test('unexplored tiles take the explored mirror terrain, else field', () => {

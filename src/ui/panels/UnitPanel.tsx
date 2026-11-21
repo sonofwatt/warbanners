@@ -18,7 +18,7 @@ export interface UnitPanelProps {
 export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
-  const scouts = def.traits.includes('mounted') && FACTIONS[faction].scoutingRiders;      // rules 13, a faction rule rather than a trait
+  const riding = def.traits.includes('mounted') && FACTIONS[faction].territoryRiding;     // rules 13, a faction rule rather than a trait
   const rows = thresholds !== null && canEarnTraits(unit) && unit.heroTraits.length < CONFIG.heroes.maxTraits
     ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
   return (
@@ -37,7 +37,7 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>
           {def.traits.map((t) => <li key={t}><strong>{T.trait[t].name}</strong><span>{T.trait[t].blurb}</span></li>)}
-          {scouts ? <li key="scoutingRiders"><strong>{T.ui.scoutingRiders}</strong><span>{T.ui.scoutingRidersBlurb}</span></li> : null}
+          {riding ? <li key="ridingByTerritory"><strong>{T.ui.ridingByTerritory}</strong><span>{T.ui.ridingByTerritoryBlurb}</span></li> : null}
         </ul>
       ) : null}
       {unit.heroTraits.length > 0 ? (

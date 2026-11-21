@@ -315,7 +315,7 @@ test('Tireless adds a tile of movement: Warrior and Mongol Horseman', () => {
   expect(maxMp(s, w)).toBe(2 * (UNITS.warrior.move + H.tirelessMove));
   const m = blankMatch();
   const h = addUnit(m, 'horseman', 1, 0, 0, { heroTraits: ['tireless'] });
-  expect(maxMp(m, h)).toBe(2 * (UNITS.horseman.move + FACTIONS_MOUNTED + H.tirelessMove));
+  expect(maxMp(m, h)).toBe(2 * (UNITS.horseman.move + H.tirelessMove) + FACTIONS_MOUNTED);   // the bonus is in half-points
 });
 
 test('Watchful sees farther, and farther again on a mountain', () => {
@@ -403,7 +403,7 @@ test('statsOf a Fierce Tireless Mongol Horseman', () => {
   const mounted = FACTIONS_MOUNTED;
   expect(statsOf(s, h)).toEqual({
     atk: UNITS.horseman.atk + H.fierceAtk, def: UNITS.horseman.def, maxHp: UNITS.horseman.hp + H.fierceHp,
-    move: UNITS.horseman.move + mounted + H.tirelessMove, sight: UNITS.horseman.sight, range: UNITS.horseman.range,
+    move: UNITS.horseman.move + mounted / 2 + H.tirelessMove, sight: UNITS.horseman.sight, range: UNITS.horseman.range,
   });
   expect(baseAttackOf(h)).toBe(UNITS.horseman.atk + H.fierceAtk);
 });

@@ -47,7 +47,7 @@ const trait: Record<Trait, Entry> = {
   steadfast: { name: 'Steadfast', blurb: 'Strikes back harder than usual when attacked.' },
   doubleStrike: { name: 'Double strike', blurb: 'Can attack twice each turn.' },
   retreat: { name: 'Retreat', blurb: 'Keeps its remaining movement after attacking.' },
-  chain: { name: 'Chain', blurb: `Gets one more attack this turn for every kill, at the cost of ${CONFIG.chainKillCost} health (never below 1).` },
+  chain: { name: 'Chain', blurb: `Gets one more attack this turn for every kill, at the cost of ${CONFIG.chainKillCost} health (never below 1). A kill that earns a hero trait ends the chain.` },
   splash: { name: 'Splash', blurb: 'Enemy units beside the target take half the damage the target takes.' },
   siege: { name: 'Siege', blurb: 'Cannot attack after moving or move after attacking, and never strikes back.' },
   mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders.' },
@@ -58,6 +58,7 @@ const trait: Record<Trait, Entry> = {
   steady: { name: 'Steady', blurb: 'Friendly units beside it cannot be lured away.' },
   inspire: { name: 'Inspire', blurb: 'Friendly riders beside it have 1 more attack.' },
   camp: { name: 'Camp', blurb: 'Cannot attack, but can train units.' },
+  pathfinder: { name: 'Pathfinder', blurb: 'May end a move on one unexplored tile, but its turn ends there. Other units never step into unexplored land.' },
   heal: { name: 'Heal', blurb: 'Can heal a hurt friendly unit beside it.' },
   taunt: { name: 'Taunt', blurb: 'Can force an enemy within 2 tiles to attack only Hoplites, when any are in its reach.' },
   hasten: { name: 'Hasten', blurb: 'Can give a friendly rider beside it one extra tile of movement.' },
@@ -207,9 +208,10 @@ const ui = {
   hero: 'Hero', heroTraits: 'Earned', deeds: 'Deeds', carrying: 'Carrying', drink: 'Drink draught',
   mythTouch: 'Myth touch', mythTouchBlurb: `Beside another Spartan hero: +${H.mythAtk} attack and +${H.mythDef} defence.`,
   digestTrait: 'Your {unit} earned {trait}.', digestHero: 'Your {unit} is now a hero.',
-  whatsNew: `New: every kill now costs a Knight or the Mongol champion ${CONFIG.chainKillCost} health, so a chain of kills wears the rider down.`,
-  scoutingRiders: 'Scouting riders',
-  scoutingRidersBlurb: 'After stepping into unexplored land it may keep moving with whatever movement it has left.',
+  whatsNew: 'New: only the Krypteia Scout may step into unexplored land, and its turn ends there. Everyone else rides to the edge and looks. Mongol riders get half a tile extra instead of a whole one (five road tiles for a Horseman), only on a move that starts in Mongol or neutral land. A Knight that earns a hero trait from a kill ends its chain. Tiles where you can capture or claim a treasure glow gold.',
+  ridingByTerritory: 'Rides by territory',
+  ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
+  chainEnded: 'Chain ends',
 } as const;
 
 const ai = {

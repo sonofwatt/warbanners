@@ -136,6 +136,15 @@ const sumOf = (k: 'kills' | 'chainKills' | 'chainSweeps' | 'doubleKills'): numbe
 const chainLine = `chain: sweeps (one unit, 3+ kills in a turn) per 100 matches ${f2(100 * sumOf('chainSweeps') / (n || 1))}  (2+ kills ${f2(100 * sumOf('doubleKills') / (n || 1))})`
   + `  chain kills per match ${f2(sumOf('chainKills') / (n || 1))}  chain-unit kill share ${share(sumOf('chainKills'), sumOf('kills'))}`
   + `  knights trained per match ${f2(results.reduce((a, r) => a + (r.sides[0].unitsTrained.knight ?? 0) + (r.sides[1].unitsTrained.knight ?? 0), 0) / (n || 1))}`;
+const travel = (f: FactionId): string => {
+  let tiles = 0; let turns = 0;
+  for (const r of results) for (const p of [0, 1] as const) {
+    if (r.factions[p] !== f) continue;
+    tiles += r.sides[p].mountedTiles; turns += r.sides[p].mountedTurns;
+  }
+  return turns === 0 ? 'n/a' : f2(tiles / turns);
+};
+const travelLine = `travel: tiles moved per mounted unit per turn  mongols ${travel('mongols')}  spartans ${travel('spartans')}`;
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
   `win share: spartans ${pct(s.winRate.spartans)}  mongols ${pct(s.winRate.mongols)}  (adjudged stalls count half)`,
@@ -154,4 +163,5 @@ console.log([
     + `  mongol raid retreats / mounted attacks ${f2(per.mongols.mountedAttacks === 0 ? 0 : per.mongols.raidRetreats / per.mongols.mountedAttacks)}`,
   ...heroLines,
   chainLine,
+  travelLine,
 ].join('\n'));

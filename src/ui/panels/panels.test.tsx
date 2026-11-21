@@ -30,7 +30,7 @@ function panelOf(s: MatchState, u: Unit, mine: boolean, myth = false) {
   return { unit: u, faction: s.players[u.owner]!.faction, stats: statsOf(s, u), myth, thresholds };
 }
 // A lone unit of `faction` on an empty board, for the cards that need no match around them.
-function lone(type: 'horseArcher' | 'khansGuard' | 'horseman' | 'warrior', faction: 'mongols' | 'spartans', patch: Partial<Unit> = {}, mine = true, myth = false) {
+function lone(type: 'horseArcher' | 'khansGuard' | 'horseman' | 'warrior' | 'knight', faction: 'mongols' | 'spartans', patch: Partial<Unit> = {}, mine = true, myth = false) {
   const s = blankMatch({ factions: faction === 'spartans' ? ['spartans', 'mongols'] : ['mongols', 'spartans'] });
   addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
   return panelOf(s, addUnit(s, type, 0, 0, 0, patch), mine, myth);
@@ -63,19 +63,23 @@ test('the unit panel shows the card and its commands', () => {
 test('the unit panel movement includes the Mongol mounted bonus for every mounted unit', () => {
   const move = (type: 'horseArcher' | 'khansGuard' | 'horseman', faction: 'mongols' | 'spartans') =>
     renderToStaticMarkup(<UnitPanel {...lone(type, faction)} commands={[]} onCommand={noop} />);
-  const bonus = FACTIONS.mongols.mountedMoveBonus;
+  const bonus = FACTIONS.mongols.mountedMoveBonus / 2;                 // half-points, shown in tiles
   expect(move('horseArcher', 'mongols')).toContain(`Movement</dt><dd>${UNITS.horseArcher.move + bonus}</dd>`);
   expect(move('khansGuard', 'mongols')).toContain(`Movement</dt><dd>${UNITS.khansGuard.move + bonus}</dd>`);
   expect(move('horseman', 'spartans')).toContain(`Movement</dt><dd>${UNITS.horseman.move}</dd>`);
 });
-test("a Mongol rider's card names the scouting riders rule; a Spartan rider's and a Mongol foot unit's do not", () => {
+test("a Mongol rider's card names the riding by territory rule; a Spartan rider's and a Mongol foot unit's do not", () => {
   const card = (type: 'horseman' | 'warrior', faction: 'mongols' | 'spartans') =>
     renderToStaticMarkup(<UnitPanel {...lone(type, faction)} commands={[]} onCommand={noop} />);
-  expect(card('horseman', 'mongols')).toContain(T.ui.scoutingRidersBlurb);
-  expect(card('horseman', 'mongols')).toContain(T.ui.scoutingRiders);
-  expect(card('horseman', 'spartans')).not.toContain(T.ui.scoutingRiders);
-  expect(card('warrior', 'mongols')).not.toContain(T.ui.scoutingRiders);
+  expect(card('horseman', 'mongols')).toContain(T.ui.ridingByTerritoryBlurb);
+  expect(card('horseman', 'mongols')).toContain(T.ui.ridingByTerritory);
+  expect(card('horseman', 'spartans')).not.toContain(T.ui.ridingByTerritory);
+  expect(card('warrior', 'mongols')).not.toContain(T.ui.ridingByTerritory);
   expect(T.trait.mounted.blurb).not.toContain('Mongol');
+});
+test("a Knight's card says a kill that earns a hero trait ends the chain", () => {
+  const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans')} commands={[]} onCommand={noop} />);
+  expect(html).toContain('A kill that earns a hero trait ends the chain.');
 });
 test('the city panel shows growth, units and train commands', () => {
   const c = open.cities[0]!;

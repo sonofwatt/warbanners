@@ -131,6 +131,11 @@ export function effectsFor(
         if (at && known(e.unit)) mine.push({ kind: 'number', at, text: T.heroTrait[e.trait].name, tone: 'hero', delay });
         break;
       }
+      case 'chainEnded': {
+        const at = unitPos(e.unit);
+        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: T.ui.chainEnded, tone: 'hero', delay });
+        break;
+      }
       case 'captured': {
         const c = after.cities.find((x) => x.id === e.city) ?? before.cities.find((x) => x.id === e.city);
         if (c) mine.push({ kind: 'burst', at: c.pos, tone: 'capture', delay });

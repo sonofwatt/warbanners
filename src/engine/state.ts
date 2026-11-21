@@ -5,7 +5,7 @@ import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { generateMap } from './mapgen';
 import { ABILITIES, RULES_VERSION } from './types';
-import { maxMp } from './movement';
+import { maxMp, ridingBonus } from './movement';
 import { freshDeeds } from './heroes';
 import { refreshExplored } from './vision';
 import type { City, MatchSettings, MatchState, PlayerId, Tile, Trait, Unit, UnitTypeId } from './types';
@@ -64,7 +64,7 @@ export function spawnUnit(
   s: MatchState, type: UnitTypeId, owner: PlayerId, pos: HexKey, home: number | null,
 ): Unit {
   const u: Unit = {
-    id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, attacks: 0, home,
+    id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, bonusMp: 0, attacks: 0, home,
     enteredTurn: s.stamp, moved: false, acted: false, rested: false,
     taunted: false, blinded: false, lure: null, fresh: true,
     deeds: freshDeeds(), heroTraits: [], item: null, itemTurn: null,
@@ -117,7 +117,7 @@ export function createMatch(settings: MatchSettings): MatchState {
     const city = s.cities[p.id]!;
     const type = FACTIONS[p.faction].startUnit;
     const u = spawnUnit(s, type, p.id, city.pos, city.id);
-    u.mp = maxMp(s, u);
+    u.mp = maxMp(s, u); u.bonusMp = ridingBonus(s, u);
     u.attacks = freshAttacks(type);
     u.fresh = false;
   }

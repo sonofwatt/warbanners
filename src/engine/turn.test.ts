@@ -73,7 +73,7 @@ describe('endTurn', () => {
     const s = blankMatch({ factions: ['mongols', 'spartans'] }); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);
     const h = addUnit(s, 'horseman', 0, 1, 0, { mp: 0 });
     const t = must(applyAction(must(applyAction(s, end)), end));
-    expect(unitById(t, h.id)!.mp).toBe(6);
+    expect(unitById(t, h.id)!.mp).toBe(5);
   });
   test('turnStarted names the next player', () => {
     const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);

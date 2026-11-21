@@ -3,6 +3,7 @@ import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { key, range } from './hex';
 import { rngInt } from './rng';
+import { ridingBonus } from './movement';
 import { createMatch, foundCity, freshAttacks, spawnUnit } from './state';
 import { RULES_VERSION } from './types';
 import type {
@@ -36,6 +37,7 @@ export function addUnit(
 ): Unit {
   const u = spawnUnit(s, type, owner, key({ q, r }), null);
   u.mp = 2 * UNITS[type].move;
+  u.bonusMp = ridingBonus(s, u);
   u.attacks = freshAttacks(type);
   u.enteredTurn = 0;
   u.fresh = false;

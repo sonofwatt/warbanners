@@ -185,13 +185,14 @@ test('a refused endTurn throws instead of looping', () => {
   expect(applyAction(s, { type: 'endTurn' })).toEqual({ ok: false, reason: 'invalid action' });
   expect(() => runAiTurn(s, { player: 0, dial: 1, salt: 1 })).toThrow('the match refused endTurn: invalid action');
 });
-test('a Mongol rider scouts on the real match: into the fog and on again, nothing refused', () => {
+test('a Mongol rider explores on the real match: to the fog edge and on again, nothing refused', () => {
   const s = blankMatch({ radius: 6 }); addCity(s, 0, 0, 5); addCity(s, 1, 0, -5); s.current = 1;
-  const rider = addUnit(s, 'khansGuard', 1, 0, -4, { mp: 8 }).id;
+  const rider = addUnit(s, 'khansGuard', 1, 0, -4, { mp: 7 }).id;
   for (const p of s.players) p.explored = [...visibleTiles(s, p.id)].sort();
   const log = runAiTurn(s, { player: 1, dial: 1, salt: 7 });
   expect(log.refused).toEqual([]);
   const moves = log.steps.filter((x) => x.action.type === 'move' && x.action.unit === rider);
   expect(moves.length).toBe(2);
-  expect(moves[0]!.before.players[1]!.explored).not.toContain((moves[0]!.action as { to: string }).to);
+  for (const m of moves) expect(m.before.players[1]!.explored).toContain((m.action as { to: string }).to);   // never into the fog
+  expect(s.players[1]!.explored).not.toContain((moves[1]!.action as { to: string }).to);                    // the second is beyond the first edge
 });

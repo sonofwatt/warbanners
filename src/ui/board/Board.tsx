@@ -5,7 +5,7 @@ import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
-import { Border, groundFor, Highlight, TileBase, Veil } from '../art/tiles';
+import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
 import { keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
@@ -161,12 +161,14 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
 function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement {
   const { t } = p;
   const mark = t.mark === null ? null : <g data-mark={t.mark}><Highlight mark={t.mark} /></g>;
+  const glow = t.ready ? <g data-ready="true"><ReadyGlow /></g> : null;
   const centre = <circle r={1} fill="none" pointerEvents="none" data-centre={t.key} />;
   const at = `translate(${r2(t.at.x)} ${r2(t.at.y)})`;
   if (t.fog || t.tile === null) {
     return (
       <g data-hex={t.key} data-fog="true" transform={at}>
         <TileBase ground="fog" />
+        {glow}
         {mark}
         {centre}
       </g>
@@ -187,6 +189,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       {ownerFaction !== undefined && t.borderEdges.length > 0 ? (
         <Border edges={t.borderEdges} colour={playerColour(ownerFaction).main} />
       ) : null}
+      {glow}
       {mark}
       {centre}
     </g>

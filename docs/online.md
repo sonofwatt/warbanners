@@ -102,6 +102,15 @@ seat's `rules` must equal the room's `meta/rulesVersion`, so a rules 4 room cann
 room is refused by a 0.4.0 phone. Finish or leave rules 4 rooms before updating, and never deploy this bump while an online
 match is being played.
 
+## Rules 6: the fog, Mongol riding by territory and the chain level-up
+
+Rules 6 (0.4.2) closes the fog to every unit but a pathfinder (the Krypteia Scout), makes Mongol riders ride by territory
+and ends a chain on a level-up (docs/rules/stage1-rules.md sections 9 and 13, stage2-rules.md section 9). It adds no
+action and no field to the wire (the new `chainEnded` event is local, never sent), so `database.rules.json` did not
+change. A rules 6 phone cannot share a match with a rules 5 one: a seat's `rules` must equal the room's
+`meta/rulesVersion`, so a rules 5 room cannot be continued on 0.4.2, and a rules 6 room is refused by a 0.4.1 phone.
+Finish or leave rules 5 rooms before updating, and never deploy this bump while an online match is being played.
+
 ## Rules are deployed by hand
 
 Editing `database.rules.json` changes nothing live until it is deployed:
