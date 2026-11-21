@@ -39,10 +39,10 @@ function extents(markup: string): { x: number; y: number; where: string }[] {
   return out;
 }
 
-test('all sixteen unit types have a figure, each different', () => {
+test('all seventeen unit types have a figure, each different', () => {
   const ids = Object.keys(UNITS);
   expect(Object.keys(FIGURES).sort()).toEqual([...ids].sort());
-  expect(new Set(ids.map((id) => html(FIGURES[id as UnitTypeId](P)))).size).toBe(16);
+  expect(new Set(ids.map((id) => html(FIGURES[id as UnitTypeId](P)))).size).toBe(17);
 });
 
 test('the eight faction figures are the faction units of the engine', () => {

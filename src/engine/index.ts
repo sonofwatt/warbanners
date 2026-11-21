@@ -8,6 +8,7 @@ export { reachable, maxMp } from './movement';
 export { attackTargets, attackOf, baseAttackOf, defenceOf, statsOf, coverAt, damageFor, lureApplies } from './combat';
 export { abilityTargets } from './abilities';
 export { canCapture, canClaimTreasure } from './capture';
+export { canUseItem, useItemRefusal } from './items';
 export { restHealAt } from './turn';
 export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, maxHpOf, mythTouched } from './heroes';
 export { trainable, unitCost } from './training';

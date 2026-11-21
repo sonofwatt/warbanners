@@ -9,7 +9,7 @@ export type TechId = 'foraging' | 'farming' | 'markets' | 'riding' | 'roads' | '
   | 'hunting' | 'forestry' | 'engineering' | 'bronze' | 'shieldwork' | 'smithing';
 export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman'
   | 'knight' | 'catapult' | 'hoplite' | 'kingsGuard' | 'piper' | 'scout'
-  | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp';
+  | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp' | 'sellsword';
 export type Trait = 'steadfast' | 'doubleStrike' | 'retreat' | 'chain' | 'splash' | 'siege' | 'mounted'
   | 'phalanx' | 'unbowed' | 'hidden' | 'noCityCapture' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm';
 export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm';
@@ -22,6 +22,8 @@ export type HeroTraitId = 'fierce' | 'tireless' | 'hardy' | 'watchful';
 export const HERO_TRAITS: readonly HeroTraitId[] = ['fierce', 'tireless', 'hardy', 'watchful'];
 export type Deeds = Record<DeedId, number>;
 export type ItemId = 'draught';
+// What a treasure claim can give, in the order of CONFIG.treasure.table.
+export type TreasureOutcome = 'gold' | 'explore' | 'unit' | 'relic' | 'draught' | 'map' | 'mercenary';
 export type RewardId = 'gold' | 'scout' | 'borders' | 'barracks' | 'income' | 'growth' | 'champion' | 'support';
 
 export interface Tile {
@@ -71,6 +73,7 @@ export type Action =
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'capture'; unit: number }
   | { type: 'claimTreasure'; unit: number }
+  | { type: 'useItem'; unit: number }
   | { type: 'train'; city: number; unitType: UnitTypeId }
   | { type: 'campTrain'; unit: number; unitType: UnitTypeId; to: HexKey }
   | { type: 'harvest'; at: HexKey }
@@ -92,7 +95,9 @@ export type GameEvent =
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }
   | { type: 'captured'; city: number; by: PlayerId }
-  | { type: 'treasure'; at: HexKey; outcome: 'gold' | 'explore' | 'unit' }
+  // trait: the relic's gift; found: the treasure a map shows; unit: the id of a spawned Warrior or Sellsword
+  | { type: 'treasure'; at: HexKey; outcome: TreasureOutcome; trait?: HeroTraitId; found?: HexKey; unit?: number }
+  | { type: 'usedItem'; unit: number; item: ItemId }
   | { type: 'cityLevel'; city: number; level: number }
   | { type: 'reward'; city: number; reward: RewardId }
   | { type: 'built'; at: HexKey; what: BuildingId | 'road' | 'walls' | 'harvest' }

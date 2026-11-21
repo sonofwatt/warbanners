@@ -12,7 +12,7 @@ export interface FigureProps {
   accent: string;
 }
 
-export type SharedFigure = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult';
+export type SharedFigure = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult' | 'sellsword';
 
 const EYE = '#3A2A1E';
 export const HAIR = '#5B3A22';
@@ -110,7 +110,7 @@ export function rider(ink: Ink, c: FigureProps['colour'], torso: string): void {
 
 // ---- the eight ----
 
-function warrior(p: FigureProps): ReactElement {
+function warriorInk(p: FigureProps): Ink {
   const ink = new Ink();
   standingBody(ink, p.colour);
   // A short sword held low and forward in the right hand.
@@ -125,6 +125,17 @@ function warrior(p: FigureProps): ReactElement {
   ink.circle(-7, -9, 4.9, WOOD);
   ink.line(-7, -13.6, -7, -4.4, WOOD_DARK, 0.7);
   ink.circle(-7, -9, 1.7, p.accent);
+  return ink;
+}
+
+function warrior(p: FigureProps): ReactElement {
+  return <g>{[<Shadow key="s" />, ...warriorInk(p).items]}</g>;
+}
+
+// Placeholder until Task 10 draws its own: the Warrior plus a small satchel at the hip.
+function sellsword(p: FigureProps): ReactElement {
+  const ink = warriorInk(p);
+  ink.rect(3, -7, 4, 3.6, WOOD_DARK, 1);
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 
@@ -281,6 +292,7 @@ export const SHARED_FIGURES: Record<SharedFigure, (p: FigureProps) => ReactEleme
   horseman,
   knight,
   catapult,
+  sellsword,
 };
 
 // ---- status ----

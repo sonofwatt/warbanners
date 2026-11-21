@@ -1,6 +1,6 @@
 import { deepFreeze } from './freeze';
 import type { HexKey } from '../hex';
-import type { BuildingId, DeedId, HeroTraitId, Resource, RewardId, TechId, Terrain } from '../types';
+import type { BuildingId, DeedId, HeroTraitId, Resource, RewardId, TechId, Terrain, TreasureOutcome, UnitTypeId } from '../types';
 
 // Every number the rules file leaves to tuning. `as const` keeps the literal values;
 // `satisfies` checks the shape. Water has no cover in the rules (it cannot be entered), so 0.
@@ -32,7 +32,11 @@ export const CONFIG = deepFreeze({
   techBase: [4, 6, 8],
   counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2.5, splashDivisor: 2,
   restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
-  treasure: { gold: 5, exploreRadius: 4, unit: 'warrior', outcomes: 3 },
+  treasure: {
+    gold: 5, exploreRadius: 4, unit: 'warrior',
+    table: ['gold', 'explore', 'unit', 'relic', 'draught', 'map', 'mercenary'],
+    mapRadius: 1, mercenary: 'sellsword', mercenaryTrait: 'tireless',
+  },
   rewards: {
     2: ['gold', 'scout'],
     3: ['borders', 'barracks'],
@@ -72,7 +76,10 @@ export const CONFIG = deepFreeze({
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
-  treasure: { gold: number; exploreRadius: number; unit: string; outcomes: number };
+  treasure: {
+    gold: number; exploreRadius: number; unit: string; table: readonly TreasureOutcome[];
+    mapRadius: number; mercenary: UnitTypeId; mercenaryTrait: HeroTraitId;
+  };
   rewards: Record<2 | 3 | 4 | 5, readonly [RewardId, RewardId]>;
   rewardGold: number; rewardScoutRadius: number; rewardBorderRadius: number; rewardCapacity: number;
   rewardIncome: number; rewardGrowth: number;

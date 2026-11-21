@@ -1,7 +1,7 @@
 # Banners: stage 2 rules (draft numbers)
 
-Stage 2 adds heroes and new treasures to the stage 1 rules. This file covers the heroes part: deeds,
-earned traits, what traits do and what each player can see. Every number here is a first draft, tuned in plan 5 Task 8;
+Stage 2 adds heroes and new treasures to the stage 1 rules. This file covers heroes (deeds,
+earned traits, what traits do and what each player can see) and treasures (the draw, the Sellsword, the Battle draught). Every number here is a first draft, tuned in plan 5 Task 8;
 the data files (`CONFIG.heroes` in `src/engine/data/config.ts`, `FACTIONS`) win over this file.
 
 ## 1. Deeds
@@ -90,3 +90,47 @@ Worked examples (a Warrior is attack 4, defence 3, health 10; all on open field,
 4. A Watchful Warrior attacking a Spearman takes 4 from the counter, not 5.
 5. A counter of 1 against a Watchful attacker stays 1.
 6. Tireless: a Warrior has 4 half-points of movement, a Mongol Horseman 8.
+
+## 5. Treasures
+
+Stage 2 replaces the stage 1 draw. Who may claim, the whole turn it takes and the tile being cleared are unchanged
+(stage 1 section 12). The claim draws once, `rngInt(7)` over `CONFIG.treasure.table`, and the entry drawn decides:
+
+| Roll | Outcome | What it gives | Fallback when it cannot |
+|---|---|---|---|
+| 0 | gold | +5 gold | none |
+| 1 | explore | every tile within 4 of the claimer explored | none |
+| 2 | unit | a Warrior on the first free neighbour in direction order (fresh, no home) | +5 gold |
+| 3 | relic | one trait the claimer lacks, in trait order, picked by a second draw `rngInt(n)` over the n traits it lacks | +5 gold, with no second draw |
+| 4 | draught | the claimer carries a Battle draught (section 7) | +5 gold |
+| 5 | map | every tile within 1 of the nearest other treasure the claimer's owner has not explored (nearest by distance from the claimer, ties by key) | the explore outcome |
+| 6 | mercenary | a Sellsword (section 6) on the first free neighbour | +5 gold |
+
+The fallbacks: a relic falls back when the claimer is a Camp, already holds the most traits (3), or lacks none; a draught
+when the claimer already carries one or has attack or range 0; a map when no other treasure is unexplored; a unit or
+a mercenary when no neighbour is free. The `treasure` event names the outcome actually given, so a fallback shows as
+`gold` or `explore`. The draw order is one `rngInt(7)` per claim, plus one more only when a relic grants a trait.
+
+## 6. The Sellsword
+
+A wandering fighter for hire. It comes only from a treasure (section 5), never from a city, and joins whoever claimed
+it, already Tireless (so it moves 2 tiles, counted in the trait's own `heroTrait` event). It is fresh, has no home
+(it counts against no city's capacity), and has no faction.
+
+| Unit | Faction | Atk | Def | Range | Mv | HP | Sight | Cost | Needs | Traits |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Sellsword | any | 5 | 3 | 1 | 1 | 15 | 1 | - | treasure | |
+
+## 7. The Battle draught
+
+A one-use ability found in a treasure (section 5). A unit carries at most one, until it is drunk or the unit dies (it
+is lost with the unit). The item is public, like a trait.
+
+- The action is `{ type: 'useItem', unit }`. It gives the unit one more attack this turn (`attacks + 1`), removes the
+  draught and records a `usedItem` event.
+- It is refused unless the unit exists (`no such unit`), is the current player's (`not your unit`), carries something
+  (`nothing to use`), is not fresh (`unit is too new`), has attack and range above 0, and is not a siege unit that has
+  moved (`cannot attack`, for both). A malformed unit is `bad item use`.
+- Drinking is not acting: it sets neither `acted` nor `moved`, so a unit that drinks and then rests still counts as
+  having rested.
+- The legal action list shows it right after the unit's claim entry.

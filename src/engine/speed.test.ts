@@ -7,11 +7,12 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules version 4 (units carry deeds, heroTraits and item, and traits change play, so every digest and
-  // the legal counts moved; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
+  // re-pinned for rules version 4 (units carry deeds, heroTraits and item, traits and the seven treasure outcomes change play
+  // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
+  // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 84, 'e42a7b740c14c87d', '73507d630b2f4828', 'eed33dbad34e4b31'],
-  [1, 200, 458, '851b4bdb9007018c', 'bd7f3402689270cf', '8796822a7bbb08cd'],
+  [7, 160, 206, 'e54f825068c78567', '25c5f7e9237729c6', '69d7760809e0cc47'],
+  [1, 140, 292, '15e28cea915b1e6b', '54ed2b8f98d2e48c', 'c69bf6875e331e78'],
   [3, 90, 84, '844e6c797457d1a2', '7da9e8a2cea941dd', '9391279798e78e44'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);

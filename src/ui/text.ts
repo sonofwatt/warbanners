@@ -25,6 +25,7 @@ const unit: Record<UnitTypeId, Entry> = {
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
   skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },
   camp: { name: 'Camp', blurb: 'A Mongol camp that cannot attack but can train one unit each turn onto a free tile beside it.' },
+  sellsword: { name: 'Sellsword', blurb: 'A wandering fighter for hire who joins whoever finds it, already Tireless.' },
 };
 
 const trait: Record<Trait, Entry> = {

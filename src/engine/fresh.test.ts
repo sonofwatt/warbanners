@@ -5,9 +5,8 @@ import { attackTargets } from './combat';
 import { canCapture } from './capture';
 import { hashState } from './hash';
 import { reachable } from './movement';
-import { rngInt } from './rng';
 import { createMatch, unitAt, unitById } from './state';
-import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, give, must, rngFor, setTile } from './testkit';
 import type { MatchState } from './types';
 
 const mongols = (): MatchState => blankMatch({ factions: ['mongols', 'spartans'] });
@@ -77,7 +76,7 @@ test('a fresh unit has no ability targets', () => {
 
 test('a treasure unit and a reward unit are fresh', () => {
   const s = blankMatch(); setTile(s, 1, 0, { treasure: true }); const u = addUnit(s, 'warrior', 0, 1, 0);
-  let st = 1; while (rngInt(st, 3)[0] !== 2) st++; s.rng = st;
+  s.rng = rngFor('unit');
   const t = must(applyAction(s, { type: 'claimTreasure', unit: u.id }));
   expect(unitAt(t, '2,0')).toMatchObject({ type: 'warrior', fresh: true });
   const r = blankMatch(); const c = addCity(r, 0, 0, 0, { level: 5, pendingRewards: [5] });

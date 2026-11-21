@@ -1,11 +1,12 @@
 import { applyAction, legalActions } from './apply';
+import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { key, range } from './hex';
 import { rngInt } from './rng';
 import { createMatch, foundCity, freshAttacks, spawnUnit } from './state';
 import { RULES_VERSION } from './types';
 import type {
-  Action, City, FactionId, MatchState, PlayerId, Result, TechId, Tile, Unit, UnitTypeId,
+  Action, City, FactionId, MatchState, PlayerId, Result, TechId, Tile, TreasureOutcome, Unit, UnitTypeId,
 } from './types';
 
 // Every tile starts explored by both players (rules 9: a move may not pass through an unexplored tile), unless
@@ -63,6 +64,15 @@ export function give(s: MatchState, player: PlayerId, ...techs: TechId[]): void 
 export function must(r: Result): MatchState {
   if (!r.ok) throw new Error(r.reason);
   return r.state;
+}
+
+// An rng state whose first draw over the treasure table gives `outcome`, so a retuned table breaks no test.
+export function rngFor(outcome: TreasureOutcome): number {
+  const want = CONFIG.treasure.table.indexOf(outcome);
+  if (want < 0) throw new Error(`the treasure table has no ${outcome}`);
+  let st = 1;
+  while (rngInt(st, CONFIG.treasure.table.length)[0] !== want) st++;
+  return st;
 }
 
 const MAX_ACTIONS_PER_TURN = 40;
