@@ -64,8 +64,9 @@ centre `(0,0)` is always a plain field.
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, capture, claim a treasure, train, harvest, build, lay
-a road, build walls, research, choose a city reward. Then end the turn.
+move, attack, use an ability, hunker (since rules 7, see 11), capture, claim a
+treasure, train, harvest, build, lay a road, build walls, research, choose a city
+reward. Then end the turn.
 
 At the start of each of your turns except your first: you are paid income, and your
 units that did nothing at all on your previous turn heal (see Resting in 11). Then
@@ -269,11 +270,34 @@ as an attack would):
 | hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
 | dustStorm | Sky Caller | a tile within 2 with at least one enemy unit you can see on it or next to it | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
 
+Hunker (since rules 7): an action, like an ability but for any unit except one with
+the `siege` trait (the Catapult never hunkers). A unit may hunker only if it has not
+moved, attacked, used an ability, captured, claimed a treasure or drunk a draught
+this turn, was not trained this turn, and is not hunkered already. Hunkering uses up
+its movement and attacks for the turn, but it is not doing something for resting:
+a unit that only hunkered still rests. A hunkered unit stays hunkered over later
+turns until it takes an action of its own (moves, attacks, uses an ability,
+captures, claims a treasure, drinks a draught, or a Camp trains), or a lure pulls it
+off its tile. Being attacked, striking back, being healed, taunted or blinded do not
+end it. While hunkered:
+
+- When it is attacked it has +1 defence, added before cover (`(def + 1) * cover`).
+  It gets nothing when it attacks, and attacking ends it first, so the counter it
+  takes is worked out without the bonus.
+- Its resting heal is 1 more (see Resting), and it still heals with a seen enemy
+  next to it.
+- A Heal on it gives 1 more: +5 health, up to its maximum.
+
+Both players see that a unit is hunkered (a shield beside its health on the board).
+The numbers are `CONFIG.hunker`.
+
 Resting: a unit that did nothing at all on its owner's previous turn heals at the
 start of the next turn: 4 if it stands in its owner's territory, 2 on land no city
 claims, 1 in an enemy's territory, and nothing while an enemy unit its owner can
 see (section 14) stands on a tile next to it. An enemy its owner cannot see changes
-nothing.
+nothing. Hunkering does not count as doing something. A hunkered unit heals 1 more
+(5, 3 and 2), and with a seen enemy next to it still heals half the regular heal,
+rounded up and without the extra 1: 2, 1 and 1.
 
 ## 12. Treasures, capture, winning
 
@@ -366,3 +390,13 @@ Mongols
   next to.
 - You can only attack or target a unit you currently see. A unit whose range is
   longer than its sight (the Catapult) needs another unit to spot for it.
+
+## Rules 7 changes
+
+- Connected cities: the first time roads join a city to its owner's capital, both
+  gain 1 growth (section 6).
+- A captured capital is an ordinary city for its captor, and the loser's best city
+  becomes their capital (section 12).
+- Lumber camp costs 4 and gives 2 growth, a Market gives 2 growth (section 6).
+- The Krypteia Scout's sight is 1 (section 8).
+- Hunker, a unit action for defence and healing (section 11).
