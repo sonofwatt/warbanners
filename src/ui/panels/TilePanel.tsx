@@ -15,8 +15,10 @@ export interface TilePanelProps {
 export function TilePanel(p: TilePanelProps): ReactElement {
   return (
     <section className="panel tile-panel">
-      <CardHead picture={<TilePicture terrain={p.terrain} resource={p.resource} building={p.building} />} title={T.terrain[p.terrain]} />
-      <CommandList commands={p.commands} onCommand={p.onCommand} />
+      <CardHead
+        picture={<TilePicture terrain={p.terrain} resource={p.resource} building={p.building} />} title={T.terrain[p.terrain]}
+        actions={<CommandList commands={p.commands} onCommand={p.onCommand} />}
+      />
       <Stats stats={[
         { icon: <PeakIcon />, label: T.ui.terrain, value: T.terrain[p.terrain] },
         { icon: <WheatIcon />, label: T.ui.resourceWord, value: p.resource === null ? T.ui.none : T.resource[p.resource] },

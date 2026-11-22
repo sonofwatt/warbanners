@@ -218,6 +218,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('0,3');
 
       await tapTile(page, '-2,5'); // the city, now free
+      await page.locator('[data-testid="shop-warrior"]').tap();    // its card opens with the train button
       await page.locator('[data-testid="cmd-train-warrior"]').tap();
       await expect.poll(() => text(page, 'gold')).toBe('8');
       expect(await count(page, '[data-unit]')).toBe(2);

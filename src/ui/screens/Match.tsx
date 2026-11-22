@@ -200,7 +200,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       const owner = state.players[city.owner]!.faction;
       panel = mine ? (
         <CityPanel
-          faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
+          key={city.id} faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
           units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)}
           walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />

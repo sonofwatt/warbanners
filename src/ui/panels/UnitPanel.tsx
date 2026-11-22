@@ -23,12 +23,13 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
     ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
   return (
     <section className="panel unit-panel">
-      <CardHead picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}>
-        {isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
+      <CardHead
+        picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}
+        badge={isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
+        actions={<CommandList commands={commands} onCommand={onCommand} />}
+      >
         <p className="blurb">{T.unit[type].blurb}</p>
       </CardHead>
-      {/* The actions come first, under the name, so the card never has to be scrolled to reach them. */}
-      <CommandList commands={commands} onCommand={onCommand} />
       <Stats stats={[
         { icon: <HeartIcon />, label: T.ui.health, value: `${unit.hp}/${stats.maxHp}` },
         { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },

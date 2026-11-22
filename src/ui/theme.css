@@ -326,7 +326,30 @@ input:focus { border-color: var(--blue); }
   animation: fade 160ms ease-out both;
 }
 .panel h2 { margin: 0; font-size: var(--t-2xl); display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s2); }
-.card-head { display: flex; gap: var(--s3); align-items: center; }
+.card-head { display: flex; flex-direction: column; gap: var(--s2); }
+/* The head row: picture, name, and the card's action buttons on the upper right. */
+.card-top { display: flex; gap: var(--s3); align-items: center; min-width: 0; }
+.card-top .card-title { flex: 1 1 auto; }
+.card-actions { flex: 0 1 auto; max-width: 55%; align-self: flex-start; }
+.card-actions .commands { display: flex; flex-direction: column; gap: var(--s2); margin: 0; }
+.card-actions .command button { min-height: 44px; font-size: var(--t-m); }
+
+/* A city's units to train: a row of pictures scrolled sideways, and the picked unit's card under it. */
+.shop { margin-top: var(--s3); scroll-margin-top: var(--s2); }
+.shop-strip { list-style: none; margin: 0; padding: 4px 4px var(--s2); display: flex; gap: var(--s2); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+.shop-strip li { flex: none; scroll-snap-align: start; }
+.shop-item { flex-direction: column; gap: 2px; width: 86px; min-height: 0; padding: var(--s1) var(--s1) calc(var(--s1) + var(--thick)); font-size: var(--t-xs); line-height: 1.1; }
+.shop-item[aria-pressed="true"] { --face: var(--gold); --side: var(--gold-side); }
+.shop-picture { position: relative; width: 56px; height: 56px; display: grid; place-items: center; }
+.shop-picture .picture { width: 56px; height: auto; display: block; }
+.shop-picture > .icon { position: absolute; top: -2px; right: -4px; width: 18px; height: 18px; color: var(--ink-soft); }
+.shop-item.unready .picture { opacity: 0.5; }
+.shop-name { text-align: center; overflow-wrap: normal; }
+.shop-hint { margin: var(--s1) 0 0; font-size: var(--t-s); font-weight: 600; color: var(--ink-soft); }
+.shop-card { margin-top: var(--s2); background: var(--paper-2); border-radius: var(--r); padding: var(--s3); }
+.shop-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); margin-bottom: var(--s2); }
+.shop-card h3 { margin: 0; font-size: var(--t-xl); font-weight: 850; }
+.shop-card .command { max-width: 55%; }
 .picture-frame { flex: none; width: 68px; height: 68px; border-radius: var(--r); background: var(--sky); display: grid; place-items: center; overflow: hidden; }
 .picture-frame .picture { width: 64px; height: auto; display: block; }
 .card-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -370,7 +393,12 @@ input:focus { border-color: var(--blue); }
   animation: fade 180ms ease-out both;
 }
 .screen.match > .sheet { grid-column: 1; grid-row: 2 / 4; align-self: end; position: relative; z-index: 3; max-height: min(100%, 80dvh); min-height: 0; }
-.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin-bottom: var(--s3); }
+/* The head (the title and Close) stays pinned to the top of the sheet while the rest scrolls under it. */
+.sheet-head {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin-bottom: var(--s3);
+  position: sticky; top: calc(-1 * var(--s3)); z-index: 2; background: var(--paper);
+  margin-top: calc(-1 * var(--s3)); padding: var(--s3) 0 var(--s2);
+}
 .sheet-head h2, .digest h2 { margin: 0; font-size: var(--t-2xl); display: flex; align-items: center; gap: var(--s2); }
 .sheet-head h2 .icon { width: 26px; height: 26px; color: var(--ink-soft); }
 .sheet-head h2 { overflow-wrap: normal; min-width: 0; }

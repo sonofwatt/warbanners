@@ -81,10 +81,13 @@ test("a Knight's card says a kill that earns a hero trait ends the chain", () =>
   const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans')} commands={[]} onCommand={noop} />);
   expect(html).toContain('A kill that earns a hero trait ends the chain.');
 });
-test('the city panel shows growth, units and train commands', () => {
+test('the city panel shows growth, units and a row of units to train', () => {
   const c = open.cities[0]!;
-  const html = renderToStaticMarkup(<CityPanel level={c.level} growth={c.growth} growthNeeded={2} units={1} capacity={2} income={2} walls={false} commands={cityCommands(0, open, ix)} onCommand={noop} />);
-  expect(html).toContain('0/2'); expect(html).toContain('1/2'); expect(html).toContain('data-testid="cmd-train-warrior"');
+  const html = renderToStaticMarkup(<CityPanel faction="spartans" level={c.level} growth={c.growth} growthNeeded={2} units={1} capacity={2} income={2} walls={false} commands={cityCommands(0, open, ix)} onCommand={noop} />);
+  expect(html).toContain('0/2'); expect(html).toContain('1/2'); expect(html).toContain('data-testid="shop-warrior"');
+  // nothing is picked yet, so no train button shows until a unit in the row is tapped
+  expect(html).not.toContain('data-testid="cmd-train-warrior"');
+  expect(html).toContain(T.ui.shopHint);
 });
 test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);

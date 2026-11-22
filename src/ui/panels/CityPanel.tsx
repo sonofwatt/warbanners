@@ -7,6 +7,7 @@ import type { Stat } from './Card';
 import { CommandList } from './CommandList';
 import type { Command } from './commands';
 import { CityPicture } from './Picture';
+import { UnitShop } from './UnitShop';
 
 export interface CityPanelProps {
   level: number; walls: boolean; capital?: boolean;
@@ -23,12 +24,17 @@ export function CityPanel(p: CityPanelProps): ReactElement {
   if (p.units !== undefined && p.capacity !== undefined) stats.push({ icon: <PeopleIcon />, label: T.ui.unitsHeld, value: `${p.units}/${p.capacity}` });
   if (p.income !== undefined) stats.push({ icon: <CoinsIcon />, label: T.ui.incomeWord, value: `+${p.income}` });
   stats.push({ icon: <WallIcon />, label: T.ui.walls, value: p.walls ? T.ui.yes : T.ui.no });
+  // Units to train go in the row of pictures; the walls and the level rewards stay buttons in the head.
+  const train = p.commands.filter((c) => c.unit !== undefined);
+  const others = p.commands.filter((c) => c.unit === undefined);
   const title = p.capital === true ? T.ui.capitalTitle : T.ui.cityTitle;
   const picture = p.faction === undefined ? null : <CityPicture faction={p.faction} level={p.level} capital={p.capital === true} walls={p.walls} />;
   return (
     <section className="panel city-panel">
-      {picture !== null ? <CardHead picture={picture} title={title} faction={p.faction} /> : <h2>{title}</h2>}
-      <CommandList commands={p.commands} onCommand={p.onCommand} />
+      {picture !== null
+        ? <CardHead picture={picture} title={title} faction={p.faction} actions={<CommandList commands={others} onCommand={p.onCommand} />} />
+        : <><h2>{title}</h2><CommandList commands={others} onCommand={p.onCommand} /></>}
+      {p.faction !== undefined ? <UnitShop commands={train} faction={p.faction} onCommand={p.onCommand} /> : null}
       <Stats stats={stats} />
     </section>
   );

@@ -12,6 +12,8 @@ import { T, reasonText, unlocks } from '../text';
 export interface Command {
   id: string; label: string; cost: number | null; enabled: boolean; why: string | null;
   action: Action | null; arm: Armed | null;
+  /** A city's train command names the unit, so the city card can show it in its row of units. */
+  unit?: UnitTypeId;
 }
 
 const needs = (t: TechId): string => `${T.ui.needs} ${T.tech[t]}`;
@@ -77,10 +79,10 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     const label = `${T.ui.train} ${T.unit[type].name}`;
     const action: Action = { type: 'train', city: cityId, unitType: type };
     if ((ix.train[cityId] ?? []).includes(type)) {
-      out.push({ id: `train-${type}`, label, cost, enabled: true, why: null, action, arm: null });
+      out.push({ id: `train-${type}`, label, cost, enabled: true, why: null, action, arm: null, unit: type });
     } else {
       const why = def.tech !== null && !player.techs.includes(def.tech) ? needs(def.tech) : reasonText(trainRefusal(state, cityId, type) ?? 'cannot train that');
-      out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null });
+      out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null, unit: type });
     }
   }
   const walls = { id: 'walls', label: T.ui.walls, cost: CONFIG.walls.cost, arm: null };
