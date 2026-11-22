@@ -131,12 +131,15 @@ export function objectives(b: MatchState, me: PlayerId, persona: Persona): Objec
     const id = `${o.kind}@${o.at}`;
     if ((found.get(id)?.value ?? -Infinity) < o.value) found.set(id, o);
   };
+  // A rival's capital: a seen city of theirs that is one, or their starting tile while it is unexplored. Since rules 7 a
+  // taken capital is an ordinary city and the loser's capital moves, so a seen start tile counts only while it is one.
   const capitals = new Set<HexKey>();
   for (const p of b.players) {
     if (p === undefined || p.id === me || !p.alive) continue;
     const at = CONFIG.capitals[p.id];
-    if (at !== undefined && b.tiles[at] !== undefined) capitals.add(at);
+    if (at !== undefined && b.tiles[at] !== undefined && !explored.has(at)) capitals.add(at);
   }
+  for (const c of b.cities) if (c.owner !== me && c.capital && b.players[c.owner]?.alive === true) capitals.add(c.pos);
 
   for (const k of explored) {
     const tile = b.tiles[k];

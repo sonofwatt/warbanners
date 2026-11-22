@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { applyAction, isConnected } from '../engine';
-import { addCity, blankMatch, give, setTile } from '../engine/testkit';
+import { addCity, addUnit, blankMatch, give, setTile } from '../engine/testkit';
 import type { MatchState } from '../engine';
 import { aiInputFor, believedState } from './input';
 import { planTurn } from './plan';
@@ -43,6 +43,22 @@ test('a linked city, a capital or a city with no way through gives no chain', ()
   const walled = twoApart();
   for (const [q, r] of [[4, 0], [4, -1], [3, -1], [2, 0], [2, 1], [3, 1]] as const) setTile(walled, q, r, { terrain: 'water' });
   expect(connectingChains(believed(walled), 0)).toEqual([]);
+});
+
+// rules 7: a taken capital is an ordinary city of its captor, and the loser's capital moves; chains follow it.
+test('chains lead to the moved capital, and a taken capital is a city that needs one', () => {
+  const s = twoApart();
+  addCity(s, 0, -3, 0, { level: 3 });                                 // id 3, the best of player 0's other cities
+  const w = addUnit(s, 'warrior', 1, 0, 0);
+  s.current = 1;
+  const r = applyAction(s, { type: 'capture', unit: w.id });
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.events).toContainEqual({ type: 'capitalMoved', player: 0, city: 3 });
+  const after = r.state; after.current = 0;
+  expect(connectingChains(believed(after), 0).map((c) => [c.city, c.capital])).toEqual([[1, 3]]);   // 3,0 to -3,0, round 0,0
+  give(after, 1, 'roads');
+  const theirs = connectingChains(believed({ ...after, current: 1 }), 1);
+  expect(theirs).toEqual([expect.objectContaining({ city: 0, capital: 2 })]);
 });
 
 test('the chain never uses a tile its player has not explored', () => {

@@ -93,6 +93,22 @@ test('a seen enemy city is a goal; a taken enemy capital is not', () => {
   b.cities.find(c => c.pos === '2,-5')!.owner = 0;
   expect(objectives(b, 0, PERSONAS.spartans).some(o => o.at === '2,-5')).toBe(false);
 });
+test('the enemy capital goal follows a moved capital (rules 7), and the old capital tile is then an ordinary city', () => {
+  const s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  setTile(s, 0, -3, { terrain: 'field' });
+  const next = addCity(s, 1, 0, -3);
+  const old = s.cities.find(c => c.pos === '2,-5')!;
+  old.capital = false; next.capital = true; next.linked = true;   // as if 2,-5 had been taken back by its first owner
+  const goals = objectives(believedState(aiInputFor(s, 0)), 0, PERSONAS.spartans);
+  expect(goals.some(o => o.kind === 'enemyCapital' && o.at === '0,-3')).toBe(true);
+  expect(goals.filter(o => o.at === '2,-5').map(o => o.kind)).toEqual(['enemyCity']);
+});
+test('an unexplored enemy capital tile stays a goal: the start is known to both', () => {
+  const b = believedState(aiInputFor(createMatch({ seed: 42, factions: ['spartans', 'mongols'] }), 0));
+  expect(b.players[0]!.explored).not.toContain('2,-5');
+  expect(objectives(b, 0, PERSONAS.spartans)).toContainEqual({ at: '2,-5', kind: 'enemyCapital', value: 14 });
+});
 test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored tile', () => {
   for (const [seed, turns] of [[3, 90]] as const) {
     const s = randomPlayout(seed, turns);
