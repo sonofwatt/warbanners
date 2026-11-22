@@ -60,6 +60,9 @@ test('unit commands: abilities arm, a camp lists what it can train, a lure asks,
   expect(pc.every(c => c.arm !== null && c.action === null)).toBe(true);
   const armed = byId(unitCommands(unitSel(piper.id, { armed: { kind: 'ability', ability: 'heal' } }), ps, pix));
   expect(armed['ability-heal']!.label).toBe(T.ui.cancel);
+  // Cancel disarms; the other ability still arms itself, swapping straight over.
+  expect(armed['ability-heal']!.arm).toBeNull();
+  expect(armed['ability-taunt']!.arm).toEqual({ kind: 'ability', ability: 'taunt' });
   expect(armed['ability-taunt']!.label).toBe(T.ability.taunt.name);
 
   const cs = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));

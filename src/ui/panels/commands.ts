@@ -38,9 +38,11 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
     ];
   }
   const out: Command[] = [];
-  const arming = (id: string, label: string, cost: number | null, arm: Armed): Command => ({
-    id, label: sameArm(sel.armed, arm) ? T.ui.cancel : label, cost, enabled: true, why: null, action: null, arm,
-  });
+  // An armed command turns into Cancel, which disarms: tapping it again must not arm the same thing once more.
+  const arming = (id: string, label: string, cost: number | null, arm: Armed): Command => {
+    const armed = sameArm(sel.armed, arm);
+    return { id, label: armed ? T.ui.cancel : label, cost, enabled: true, why: null, action: null, arm: armed ? null : arm };
+  };
   if (ix.captures.includes(unit.id)) {
     out.push({ id: 'capture', label: T.ui.capture, cost: null, enabled: true, why: null, action: { type: 'capture', unit: unit.id }, arm: null });
   }
