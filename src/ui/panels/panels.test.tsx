@@ -8,7 +8,7 @@ import { roundOf } from '../../app/record';
 import { App } from '../App';
 import { indexActions } from '../interaction';
 import { T } from '../text';
-import { cityCommands, techRows, unitCommands } from './commands';
+import { cityCommands, techRows, tileCommands, unitCommands } from './commands';
 import { CityPanel } from './CityPanel';
 import { DigestCard } from './DigestCard';
 import { Hud } from './Hud';
@@ -81,10 +81,13 @@ test("a Knight's card says a kill that earns a hero trait ends the chain", () =>
   const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans')} commands={[]} onCommand={noop} />);
   expect(html).toContain('A kill that earns a hero trait ends the chain.');
 });
-test('the city panel shows growth, units and train commands', () => {
+test('the city panel shows growth, units and a row of units to train', () => {
   const c = open.cities[0]!;
-  const html = renderToStaticMarkup(<CityPanel level={c.level} growth={c.growth} growthNeeded={2} units={1} capacity={2} income={2} walls={false} commands={cityCommands(0, open, ix)} onCommand={noop} />);
-  expect(html).toContain('0/2'); expect(html).toContain('1/2'); expect(html).toContain('data-testid="cmd-train-warrior"');
+  const html = renderToStaticMarkup(<CityPanel faction="spartans" level={c.level} growth={c.growth} growthNeeded={2} units={1} capacity={2} income={2} walls={false} commands={cityCommands(0, open, ix)} onCommand={noop} />);
+  expect(html).toContain('0/2'); expect(html).toContain('1/2'); expect(html).toContain('data-testid="shop-warrior"');
+  // nothing is picked yet, so no train button shows until a unit in the row is tapped
+  expect(html).not.toContain('data-testid="cmd-train-warrior"');
+  expect(html).toContain(T.ui.shopHint);
 });
 test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
@@ -94,6 +97,27 @@ test('the tech sheet lists all twelve techs and a research button on ready ones'
   const html = renderToStaticMarkup(<TechSheet rows={techRows(open, ix)} onResearch={noop} onClose={noop} />);
   for (const name of Object.values(T.tech)) expect(html).toContain(name);
   expect(html).toContain('data-testid="research-foraging"'); expect(html).not.toContain('data-testid="research-farming"');
+});
+test('a command that waits only on a tech names it and stays tappable; one short of gold does not', () => {
+  const field = (Object.keys(open.tiles) as (keyof typeof open.tiles)[]).find((k) => {
+    const cmds = tileCommands(k, open, ix);
+    return cmds.some((c) => c.id === 'build-farm' && c.tech !== undefined);
+  });
+  expect(field).toBeDefined();
+  const cmds = tileCommands(field!, open, ix);
+  const farm = cmds.find((c) => c.id === 'build-farm')!;
+  expect(farm.enabled).toBe(false); expect(farm.tech).toBe(CONFIG.buildings.farm.tech);
+  const html = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={cmds} onCommand={noop} />);
+  const button = html.match(/<button[^>]*data-testid="cmd-build-farm"[^>]*>/)![0];
+  expect(button).not.toContain('disabled'); expect(button).toContain('needs-tech');
+  const broke = { ...farm, tech: undefined, why: 'Not enough gold' };
+  const poor = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={[broke]} onCommand={noop} />);
+  expect(poor.match(/<button[^>]*data-testid="cmd-build-farm"[^>]*>/)![0]).toContain('disabled');
+});
+test('the tech sheet rings the tech it was opened for', () => {
+  const html = renderToStaticMarkup(<TechSheet rows={techRows(open, ix)} focus="farming" onResearch={noop} onClose={noop} />);
+  expect(html).toMatch(/class="tech [a-z]+ focus" data-testid="tech-farming"/);
+  expect(html.match(/ focus"/g)).toHaveLength(1);
 });
 test('the reward sheet shows both rewards and Later', () => {
   const html = renderToStaticMarkup(<RewardSheet level={2} onPick={noop} onLater={noop} />);

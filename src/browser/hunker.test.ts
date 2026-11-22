@@ -50,6 +50,7 @@ describe.runIf(process.env.BROWSER === '1')('hunker in the browser', () => {
       const button = page.getByTestId('cmd-hunker');
       await button.waitFor({ state: 'visible' });
       expect(await page.locator('[data-hunker-mark]').count()).toBe(0);
+      if (process.env.SHOT_DIR) { await page.waitForTimeout(400); await page.screenshot({ path: `${process.env.SHOT_DIR}/hunker-button.png` }); }
       await button.tap();
       await page.locator('[data-hunker-mark]').first().waitFor({ state: 'attached' });
       await frames(page);
@@ -58,6 +59,7 @@ describe.runIf(process.env.BROWSER === '1')('hunker in the browser', () => {
       await panel.waitFor();
       expect((await panel.textContent()) ?? '').toContain(T.ui.hunkered);
       expect(await page.getByTestId('cmd-hunker').count()).toBe(0);
+      if (process.env.SHOT_DIR) { await page.waitForTimeout(400); await page.screenshot({ path: `${process.env.SHOT_DIR}/hunkered.png` }); }
     } finally {
       await close();
     }

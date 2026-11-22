@@ -6,17 +6,25 @@ import { T } from '../text';
 // The parts every selection card shares: a head with the picture, the name and a line under it, and a grid of
 // numbers, each with a small picture. The stats keep a plain dt and dd per number, so a reader announces the pair.
 
-export function CardHead(p: { picture: ReactElement; title: string; faction?: FactionId; children?: ReactNode }): ReactElement {
+// The head row is the picture, the name (with `badge` under it) and, on the right, the card's action buttons; the
+// description and anything else in `children` sits under that row, across the card's full width.
+export function CardHead(p: {
+  picture: ReactElement; title: string; faction?: FactionId; badge?: ReactNode; actions?: ReactNode; children?: ReactNode;
+}): ReactElement {
   const tag = p.faction === undefined ? null : (
     <span className="tag" style={{ '--tag': playerColour(p.faction).main } as CSSProperties}>{T.faction[p.faction]}</span>
   );
   return (
     <header className="card-head">
-      <div className="picture-frame">{p.picture}</div>
-      <div className="card-title">
-        <h2>{p.title}{tag}</h2>
-        {p.children}
+      <div className="card-top">
+        <div className="picture-frame">{p.picture}</div>
+        <div className="card-title">
+          <h2>{p.title}{tag}</h2>
+          {p.badge}
+        </div>
+        {p.actions !== undefined && p.actions !== null ? <div className="card-actions">{p.actions}</div> : null}
       </div>
+      {p.children}
     </header>
   );
 }

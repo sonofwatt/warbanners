@@ -12,6 +12,10 @@ import { T, reasonText, unlocks } from '../text';
 export interface Command {
   id: string; label: string; cost: number | null; enabled: boolean; why: string | null;
   action: Action | null; arm: Armed | null;
+  /** A city's train command names the unit, so the city card can show it in its row of units. */
+  unit?: UnitTypeId;
+  /** Set when a missing tech is all that stands in the way: tapping the command opens the tech tree at it. */
+  tech?: TechId;
 }
 
 const needs = (t: TechId): string => `${T.ui.needs} ${T.tech[t]}`;
@@ -34,9 +38,11 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
     ];
   }
   const out: Command[] = [];
-  const arming = (id: string, label: string, cost: number | null, arm: Armed): Command => ({
-    id, label: sameArm(sel.armed, arm) ? T.ui.cancel : label, cost, enabled: true, why: null, action: null, arm,
-  });
+  // An armed command turns into Cancel, which disarms: tapping it again must not arm the same thing once more.
+  const arming = (id: string, label: string, cost: number | null, arm: Armed): Command => {
+    const armed = sameArm(sel.armed, arm);
+    return { id, label: armed ? T.ui.cancel : label, cost, enabled: true, why: null, action: null, arm: armed ? null : arm };
+  };
   if (ix.captures.includes(unit.id)) {
     out.push({ id: 'capture', label: T.ui.capture, cost: null, enabled: true, why: null, action: { type: 'capture', unit: unit.id }, arm: null });
   }
@@ -81,18 +87,22 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     const label = `${T.ui.train} ${T.unit[type].name}`;
     const action: Action = { type: 'train', city: cityId, unitType: type };
     if ((ix.train[cityId] ?? []).includes(type)) {
-      out.push({ id: `train-${type}`, label, cost, enabled: true, why: null, action, arm: null });
+      out.push({ id: `train-${type}`, label, cost, enabled: true, why: null, action, arm: null, unit: type });
     } else {
-      const why = def.tech !== null && !player.techs.includes(def.tech) ? needs(def.tech) : reasonText(trainRefusal(state, cityId, type) ?? 'cannot train that');
-      out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null });
+      const missing = def.tech !== null && !player.techs.includes(def.tech) ? def.tech : null;
+      const why = missing !== null ? needs(missing) : reasonText(trainRefusal(state, cityId, type) ?? 'cannot train that');
+      out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null, unit: type, ...(missing !== null ? { tech: missing } : {}) });
     }
   }
+  // The row of units to train: what the city can train now first, then the rest, each part cheapest first (a stable
+  // sort, so equal costs keep the units' own order).
+  out.sort((a, b) => Number(b.enabled) - Number(a.enabled) || (a.cost ?? 0) - (b.cost ?? 0));
   const walls = { id: 'walls', label: T.ui.walls, cost: CONFIG.walls.cost, arm: null };
   if (ix.walls.includes(cityId)) {
     out.push({ ...walls, enabled: true, why: null, action: { type: 'buildWalls', city: cityId } });
   } else {
     const refusal = wallsRefusal(state, cityId);
-    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(CONFIG.walls.tech), action: null });
+    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(CONFIG.walls.tech), action: null, tech: CONFIG.walls.tech });
     else if (refusal === 'not enough gold') out.push({ ...walls, enabled: false, why: reasonText(refusal), action: null });
   }
   if (ix.rewards.includes(cityId) && city.pendingRewards[0] !== undefined) {
@@ -113,7 +123,7 @@ export function tileCommands(at: HexKey, state: MatchState, ix: ActionIndex): Co
     const base = { id, label, cost, arm: null };
     if (legal) out.push({ ...base, enabled: true, why: null, action });
     else if (refusal === 'not enough gold') out.push({ ...base, enabled: false, why: reasonText(refusal), action: null });
-    else if (refusal === 'missing tech' && showTech) out.push({ ...base, enabled: false, why: needs(tech), action: null });
+    else if (refusal === 'missing tech' && showTech) out.push({ ...base, enabled: false, why: needs(tech), action: null, tech });
   };
   if (tile.resource === 'orchard' || tile.resource === 'game') {
     const rule = CONFIG.harvest[tile.resource];

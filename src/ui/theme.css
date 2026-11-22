@@ -59,13 +59,22 @@
 
 html, body { overflow-x: hidden; }
 
+/* The page itself never scrolls: the app is exactly the screen's height, and a screen whose content is taller scrolls
+   inside itself (browser tests open on a 412x915 phone, but Chrome's bars leave a real Pixel about 780 to 840 px). */
 body {
   margin: 0;
-  min-height: 100dvh;
+  height: 100dvh; overflow: hidden;
   color: var(--ink);
   background: var(--sky);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+/* In a match the phone's own bars match what they touch: the paper of the top bar above (the meta theme-color, set by
+   Match), the sea below. The page's colour is the sea, with a fixed strip of paper over any top inset. Android's
+   gesture bar in the installed app takes the manifest's colours (vite.config.ts), which are the sea too. */
+html:has(.screen.match), body:has(.screen.match) { background: var(--sea); }
+body:has(.screen.match)::before, body:has(.screen.match)::after { content: ''; position: fixed; left: 0; right: 0; pointer-events: none; }
+body:has(.screen.match)::before { top: 0; height: env(safe-area-inset-top); background: var(--paper); }
+body:has(.screen.match)::after { bottom: 0; height: env(safe-area-inset-bottom); background: var(--sea); }
 
 h1, h2, p { overflow-wrap: anywhere; }
 h1 { font-weight: 900; letter-spacing: -0.01em; line-height: 1.1; }
@@ -107,6 +116,12 @@ button:disabled {
   box-shadow: inset 0 0 0 2px var(--edge-faint);
 }
 button:disabled .icon { opacity: 0.5; }
+/* Waits only on a tech: drawn like a disabled button, but it can be tapped to open the tech tree. */
+button.needs-tech {
+  --face: var(--paper-sunk); --side: var(--paper-sunk); --label: var(--ink-mute);
+  padding-bottom: 0; box-shadow: inset 0 0 0 2px var(--edge-faint);
+}
+button.needs-tech .icon { opacity: 0.7; }
 button:focus-visible, input:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
 .primary { --face: var(--gold); --side: var(--gold-side); --label: var(--ink); }
@@ -126,12 +141,12 @@ input {
 input::placeholder { color: var(--ink-soft); opacity: 1; font-weight: 500; }
 input:focus { border-color: var(--blue); }
 
-.app { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+.app { height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; overflow: hidden; }
 .muted { color: var(--ink-soft); }
 
 /* ---- Home, setup, curtain, result: one centred column that never exceeds the screen. ---- */
 .screen:not(.match) {
-  flex: 1; display: flex; flex-direction: column; gap: var(--s3);
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--s3);
   width: 100%; max-width: 480px; margin: 0 auto; padding: var(--s4);
 }
 .screen h1 { margin: 0; }
@@ -179,7 +194,8 @@ input:focus { border-color: var(--blue); }
 /* Home sits in the middle of a tall screen, so the strip of board under the saves never floats far below them. */
 .screen.home { justify-content: safe center; }
 /* A strip of the board under the saved matches: decoration only. */
-.home-scene { display: block; width: 100%; max-width: 420px; height: auto; margin: var(--s2) auto 0; flex: none; }
+/* It takes the room left over, up to its own size, and gives it up first on a short screen. */
+.home-scene { display: block; width: 100%; max-width: 420px; flex: 1 1 0; min-height: 0; max-height: 166px; margin: var(--s2) auto 0; }
 /* Quiet but legible: 13px, ink on the sky (8 to 1) on Home, soft ink on paper inside the Menu sheet. */
 .version { text-align: center; font-size: var(--t-s); font-weight: 650; padding: var(--s3) var(--s3) var(--s4); color: var(--ink); overflow-wrap: anywhere; }
 .menu .version { color: var(--ink-soft); padding: var(--s3) 0 0; margin: 0; }
@@ -322,8 +338,33 @@ input:focus { border-color: var(--blue); }
   border-radius: var(--r-l) var(--r-l) 0 0; border-top: var(--thick) solid var(--paper-edge);
   animation: fade 160ms ease-out both;
 }
+/* A city's card (head, the row of units, its numbers: about 340 px) fits whole until a unit is picked; only then
+   may it scroll, to the unit's numbers and traits. */
+.selection:has(.city-panel) { max-height: max(40dvh, min(360px, 60dvh)); }
 .panel h2 { margin: 0; font-size: var(--t-2xl); display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s2); }
-.card-head { display: flex; gap: var(--s3); align-items: center; }
+.card-head { display: flex; flex-direction: column; gap: var(--s2); }
+/* The head row: picture, name, and the card's action buttons on the upper right. */
+.card-top { display: flex; gap: var(--s3); align-items: center; min-width: 0; }
+.card-top .card-title { flex: 1 1 auto; }
+.card-actions { flex: 0 1 auto; max-width: 55%; align-self: flex-start; }
+.card-actions .commands { display: flex; flex-direction: column; gap: var(--s2); margin: 0; }
+.card-actions .command button { min-height: 44px; font-size: var(--t-m); }
+
+/* A city's units to train: a row of pictures scrolled sideways, and the picked unit's card under it. */
+.shop { margin-top: var(--s3); scroll-margin-top: var(--s2); }
+.shop-strip { list-style: none; margin: 0; padding: 4px 4px var(--s2); display: flex; gap: var(--s2); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+.shop-strip li { flex: none; scroll-snap-align: start; display: flex; }
+/* Every card in the row is as tall as the tallest (a two-line name), with the costs on one line along the bottom. */
+.shop-item { flex-direction: column; gap: 2px; width: 86px; min-height: 0; padding: var(--s1) var(--s1) calc(var(--s1) + var(--thick)); font-size: var(--t-xs); line-height: 1.1; }
+.shop-item[aria-pressed="true"] { --face: var(--gold); --side: var(--gold-side); }
+.shop-picture { position: relative; width: 56px; height: 56px; display: grid; place-items: center; }
+.shop-picture .picture { width: 56px; height: auto; display: block; }
+.shop-picture > .icon { position: absolute; top: -2px; right: -4px; width: 18px; height: 18px; color: var(--ink-soft); }
+.shop-item.unready .picture { opacity: 0.5; }
+.shop-name { text-align: center; overflow-wrap: normal; flex: 1 0 auto; display: flex; align-items: center; }
+.shop-hint { margin: var(--s1) 0 0; font-size: var(--t-s); font-weight: 600; color: var(--ink-soft); }
+.shop-card { margin-top: var(--s2); background: var(--paper-2); border-radius: var(--r); padding: var(--s3); }
+.shop-card h3 { margin: 0 0 var(--s1); font-size: var(--t-xl); font-weight: 850; }
 .picture-frame { flex: none; width: 68px; height: 68px; border-radius: var(--r); background: var(--sky); display: grid; place-items: center; overflow: hidden; }
 .picture-frame .picture { width: 64px; height: auto; display: block; }
 .card-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -355,6 +396,8 @@ input:focus { border-color: var(--blue); }
 .command { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .command button { justify-content: space-between; gap: var(--s2); padding: 0 var(--s3) var(--thick); text-align: left; min-height: 48px; font-size: var(--t-ml); }
 .command-label { min-width: 0; overflow-wrap: anywhere; }
+/* In a card's head a label breaks only between words, never inside one ("Hun ker"). */
+.card-actions .command-label { overflow-wrap: normal; }
 .cost { display: inline-flex; align-items: center; gap: 3px; font-weight: 850; font-variant-numeric: tabular-nums; flex: none; }
 .cost .icon { width: 20px; height: 20px; }
 .why { font-size: var(--t-xs); font-weight: 600; color: var(--ink-soft); padding: 0 var(--s1); line-height: 1.25; }
@@ -367,7 +410,12 @@ input:focus { border-color: var(--blue); }
   animation: fade 180ms ease-out both;
 }
 .screen.match > .sheet { grid-column: 1; grid-row: 2 / 4; align-self: end; position: relative; z-index: 3; max-height: min(100%, 80dvh); min-height: 0; }
-.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin-bottom: var(--s3); }
+/* The head (the title and Close) stays pinned to the top of the sheet while the rest scrolls under it. */
+.sheet-head {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s3); margin-bottom: var(--s3);
+  position: sticky; top: calc(-1 * var(--s3)); z-index: 2; background: var(--paper);
+  margin-top: calc(-1 * var(--s3)); padding: var(--s3) 0 var(--s2);
+}
 .sheet-head h2, .digest h2 { margin: 0; font-size: var(--t-2xl); display: flex; align-items: center; gap: var(--s2); }
 .sheet-head h2 .icon { width: 26px; height: 26px; color: var(--ink-soft); }
 .sheet-head h2 { overflow-wrap: normal; min-width: 0; }
@@ -436,6 +484,8 @@ input:focus { border-color: var(--blue); }
 .tech.locked strong { color: var(--ink-soft); }
 .tech.locked .price { color: var(--ink-soft); }
 .tech.locked .price .icon { opacity: 0.55; }
+/* The tech a locked command asked for. */
+.tech-sheet li.focus { box-shadow: inset 0 0 0 3px var(--ink); }
 
 /* The menu: one chunky row each. */
 .menu { display: flex; flex-direction: column; gap: 10px; }
@@ -725,4 +775,8 @@ input:focus { border-color: var(--blue); }
 .deed-row meter::-webkit-meter-bar { background: var(--paper-2); border-radius: 999px; border: 0; height: 10px; }
 .deed-row meter::-webkit-meter-optimum-value { background: var(--gold); border-radius: 999px; }
 .deed-row meter::-moz-meter-bar { background: var(--gold); border-radius: 999px; }
-.whats-new { margin: 0; font-size: var(--t-s); font-weight: 650; color: var(--ink-soft); max-width: 32em; }
+.whats-new { margin: 2px 0 0; font-size: var(--t-s); font-weight: 650; color: var(--ink-soft); max-width: 32em; }
+.whats-new summary { cursor: pointer; font-weight: 800; color: var(--ink); min-height: 32px; display: flex; align-items: center; gap: 4px; }
+.whats-new summary::before { content: '\25B8'; display: inline-block; transition: transform 120ms ease-out; }
+.whats-new[open] summary::before { transform: rotate(90deg); }
+.whats-new p { margin: 2px 0 0; }

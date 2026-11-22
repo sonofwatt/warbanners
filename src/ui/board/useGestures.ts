@@ -60,7 +60,13 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
       onRef.current({ kind: 'zoom', factor: Math.exp(-dy * WHEEL_STEP), at: local(w) });
     };
 
+    // A tap is read on pointerup, and what it opens (a card at the bottom of the screen) may then lie under the
+    // finger. The browser's own click for that touch comes after and lands on whatever is there now, so a tap on
+    // the board could also press a button on the card it opened. The board takes no clicks, so cancel them.
+    const touchEnd = (e: Event): void => { if (e.cancelable) e.preventDefault(); };
+
     el.addEventListener('pointerdown', down);
+    el.addEventListener('touchend', touchEnd, { passive: false });
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', cancel);
@@ -68,6 +74,7 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
     el.addEventListener('wheel', wheel, { passive: false });
     return () => {
       el.removeEventListener('pointerdown', down);
+      el.removeEventListener('touchend', touchEnd);
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', cancel);

@@ -1,3 +1,5 @@
+import { scrollWithin } from '../scrollWithin';
+import { useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 import type { TechId } from '../../engine';
 import { CheckIcon, CloseIcon, CoinIcon, FlaskIcon, LockIcon } from '../icons';
@@ -20,8 +22,12 @@ function Price({ n }: { n: number }): ReactElement {
 
 // Four branches, each a ladder of three tiers climbed from the top. A rung shows at a glance whether it is
 // known (a tick on green), ready (a gold Research button with its price), too costly now (its price, quiet)
-// or locked (a padlock, faded).
-export function TechSheet({ rows, onResearch, onClose }: { rows: TechRow[]; onResearch: (t: TechId) => void; onClose: () => void }): ReactElement {
+// or locked (a padlock, faded). Opened from a command that needs a tech, the sheet scrolls to that tech and rings it.
+export function TechSheet({ rows, focus, onResearch, onClose }: {
+  rows: TechRow[]; focus?: TechId | null; onResearch: (t: TechId) => void; onClose: () => void;
+}): ReactElement {
+  const focused = useRef<HTMLLIElement | null>(null);
+  useEffect(() => { if (focused.current !== null) scrollWithin(focused.current, 'center'); }, [focus]);
   const branches = [0, 1, 2, 3].map((b) => rows.filter((r) => r.branch === b));
   return (
     <section className="sheet tech-sheet" aria-label={T.ui.techTitle}>
@@ -33,7 +39,8 @@ export function TechSheet({ rows, onResearch, onClose }: { rows: TechRow[]; onRe
         {branches.map((branch, b) => (
           <ol className="branch" key={b}>
             {branch.map((r) => (
-              <li key={r.tech} className={`tech ${r.status}`} data-testid={`tech-${r.tech}`}>
+              <li key={r.tech} className={`tech ${r.status}${r.tech === focus ? ' focus' : ''}`} data-testid={`tech-${r.tech}`}
+                ref={r.tech === focus ? focused : undefined} aria-current={r.tech === focus ? 'true' : undefined}>
                 <Badge row={r} />
                 <div className="tech-info">
                   <strong>{T.tech[r.tech]}</strong>

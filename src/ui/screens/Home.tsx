@@ -126,7 +126,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
         <div>
           <h1>{T.ui.appName}</h1>
           <p className="tagline">{T.ui.tagline}</p>
-          <p className="whats-new">{T.ui.whatsNew}</p>
+          <details className="whats-new"><summary>{T.ui.whatsNewLabel}</summary><p>{T.ui.whatsNew}</p></details>
         </div>
       </header>
       {notice === 'updateDuringOnline' ? (

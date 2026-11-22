@@ -23,8 +23,11 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
     ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
   return (
     <section className="panel unit-panel">
-      <CardHead picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}>
-        {isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
+      <CardHead
+        picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}
+        badge={isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
+        actions={<CommandList commands={commands} onCommand={onCommand} />}
+      >
         <p className="blurb">{T.unit[type].blurb}</p>
       </CardHead>
       <Stats stats={[
@@ -75,7 +78,6 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
           })}
         </ul>
       ) : null}
-      <CommandList commands={commands} onCommand={onCommand} />
     </section>
   );
 }

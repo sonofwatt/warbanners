@@ -15,14 +15,16 @@ export interface TilePanelProps {
 export function TilePanel(p: TilePanelProps): ReactElement {
   return (
     <section className="panel tile-panel">
-      <CardHead picture={<TilePicture terrain={p.terrain} resource={p.resource} building={p.building} />} title={T.terrain[p.terrain]} />
+      <CardHead
+        picture={<TilePicture terrain={p.terrain} resource={p.resource} building={p.building} />} title={T.terrain[p.terrain]}
+        actions={<CommandList commands={p.commands} onCommand={p.onCommand} />}
+      />
       <Stats stats={[
         { icon: <PeakIcon />, label: T.ui.terrain, value: T.terrain[p.terrain] },
         { icon: <WheatIcon />, label: T.ui.resourceWord, value: p.resource === null ? T.ui.none : T.resource[p.resource] },
         { icon: <HutIcon />, label: T.ui.buildingWord, value: p.building === null ? T.ui.none : T.building[p.building] },
         { icon: <RoadIcon />, label: T.ui.roadWord, value: p.road ? T.ui.yes : T.ui.no },
       ]} />
-      <CommandList commands={p.commands} onCommand={p.onCommand} />
     </section>
   );
 }
