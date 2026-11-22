@@ -52,6 +52,8 @@ visible unit; `deeds` stay private).
   `scar` never goes down.
 - The **visible stage** is `max(wound stage, scar, battle floor)`, with battle floor 1 (scuffed) from 1 battle,
   2 (dented) from 4 battles, 3 (battered) from 10 battles. Fights alone never show broken.
+- **Scarred** (David, 2026-11-22): a unit that was broken and then healed (`scar` 3, which only that can set) keeps
+  its helmet's missing piece, and its face shows a pale scar where the blood was. The helmet is never repaired.
 - **Blood**: none unless `bleeding`; then 1 (slight) at wound stage 3, 2 (more) at wound stage 4.
 - All of this lives in `src/engine/wear.ts` as pure functions (`woundStage`, `wearLook`), exported from the engine
   index. The thresholds are cosmetic constants there, not rules numbers.

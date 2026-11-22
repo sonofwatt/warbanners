@@ -19,26 +19,26 @@ test('an attack wears both units, and a battered survivor bleeds', () => {
   const ta = unitById(t, a.id)!, td = unitById(t, d.id)!;
   expect(ta.wear).toEqual({ battles: 1, scar: 0, bleeding: false });
   expect(td.wear).toEqual({ battles: 1, scar: 0, bleeding: true });
-  expect(wearLook(ta, maxHpOf(ta))).toEqual({ stage: 1, blood: 0 });
-  expect(wearLook(td, maxHpOf(td))).toEqual({ stage: 3, blood: 1 });
+  expect(wearLook(ta, maxHpOf(ta))).toEqual({ stage: 1, blood: 0, scarred: false });
+  expect(wearLook(td, maxHpOf(td))).toEqual({ stage: 3, blood: 1, scarred: false });
 });
 
 test('a heal stops the bleeding and leaves armour by how bad the wound was', () => {
   const s = blankMatch(); const u = addUnit(s, 'warrior', 0, 0, 0);
   u.hp = 2; noteHurt(u, 10);
-  expect(wearLook(u, 10)).toEqual({ stage: 4, blood: 2 });
+  expect(wearLook(u, 10)).toEqual({ stage: 4, blood: 2, scarred: false });
   u.hp = 6; noteHealed(u, 2, 10);   // broken, healed to dented health
   expect(u.wear).toMatchObject({ scar: 3, bleeding: false });
-  expect(wearLook(u, 10)).toEqual({ stage: 3, blood: 0 });
+  expect(wearLook(u, 10)).toEqual({ stage: 3, blood: 0, scarred: true });
   u.hp = 10; noteHealed(u, 6, 10);  // a later heal from dented never lowers the scar
-  expect(wearLook(u, 10)).toEqual({ stage: 3, blood: 0 });
+  expect(wearLook(u, 10)).toEqual({ stage: 3, blood: 0, scarred: true });
 
   const v = addUnit(s, 'warrior', 0, 1, 0);
   v.hp = 4; noteHurt(v, 10);
   v.hp = 10; noteHealed(v, 4, 10);  // battered, healed in full: dented
-  expect(wearLook(v, 10)).toEqual({ stage: 2, blood: 0 });
+  expect(wearLook(v, 10)).toEqual({ stage: 2, blood: 0, scarred: false });
   v.hp = 4; noteHurt(v, 10);        // a new wound bleeds again
-  expect(wearLook(v, 10)).toEqual({ stage: 3, blood: 1 });
+  expect(wearLook(v, 10)).toEqual({ stage: 3, blood: 1, scarred: false });
 });
 
 test('battles alone wear the armour, never past battered', () => {

@@ -31,12 +31,16 @@ function battleFloor(battles: number): WearStage {
   return 0;
 }
 
-/** What to draw (maxHp is maxHpOf(u)): the worst of the wound, the scars of past heals and the battles fought; blood only while bleeding. */
-export function wearLook(u: Unit, maxHp: number): { stage: WearStage; blood: BloodLevel } {
+/**
+ * What to draw (maxHp is maxHpOf(u)): the worst of the wound, the scars of past heals and the battles fought; blood
+ * only while bleeding. `scarred`: the unit was once broken and healed (scar 3 comes only from that), so the helmet
+ * keeps its missing piece and the face a scar where the blood was.
+ */
+export function wearLook(u: Unit, maxHp: number): { stage: WearStage; blood: BloodLevel; scarred: boolean } {
   const wound = woundStage(u.hp, maxHp);
   const stage = Math.max(wound, u.wear.scar, battleFloor(u.wear.battles)) as WearStage;
   const blood: BloodLevel = !u.wear.bleeding || wound < 3 ? 0 : wound === 3 ? 1 : 2;
-  return { stage, blood };
+  return { stage, blood, scarred: u.wear.scar >= 3 };
 }
 
 /** After a unit lost health and lived: it bleeds once the wound is battered or worse. */
