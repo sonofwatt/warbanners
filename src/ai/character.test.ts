@@ -239,6 +239,8 @@ describe('matches between two AIs end', () => {
   // so these tests name the matches known not to end; any other match failing to end is a regression.
   describe.runIf(process.env.SLOW === '1')('many seeds (SLOW=1)', () => {
     const seatings: [FactionId, FactionId][] = [['spartans', 'mongols'], ['mongols', 'spartans']];
+    // The title's list of known exceptions, if any.
+    const but = (known: readonly string[]): string => (known.length === 0 ? '' : ` but ${known.join(', ')} first`);
     // The matches that reach no winner within `bound` rounds, named as "seed first-faction".
     const unended = (dial: number, bound: number): string[] => [1, 2, 3, 4, 5, 6, 7, 8]
       .flatMap((seed) => seatings.map((f) => (aiMatch(seed, f, dial, bound).winner === null ? [`${seed} ${f[0]}`] : [])))
@@ -246,15 +248,19 @@ describe('matches between two AIs end', () => {
     // rules 6: was 5 mongols and 8 mongols, which then ended. The unit mix: '1 mongols' and '8 spartans' end, four others
     // do not. Over 200 fresh normal matches stalls fell (19.5% to 18.0%, 2026-11-21-ai-unit-mix-log.md), so the four are
     // which matches stall, not more stalling.
-    // Connecting roads (rules 7, Task 2): 15 of the 16 end; the four above end and '6 spartans' does not.
-    const KNOWN_NORMAL = ['6 spartans'];
-    test(`at normal, every match but ${KNOWN_NORMAL.join(', ')} first ends within 60 rounds`, () => {
+    // Connecting roads (rules 7, Task 2): 15 of the 16 end; the four above end and '6 spartans' does not (both sides
+    // bank gold, 651 and 298 by round 60, with every tech, the Spartans at 30 units trading cities back and forth).
+    // Captured capitals moving and growth 2 (rules 7, Task 1b): all 16 end, '6 spartans' in 31 (the longest, 1 mongols,
+    // in 59).
+    const KNOWN_NORMAL: string[] = [];
+    test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
     // The unit mix: five unended matches became '5 mongols', '6 mongols' and '7 mongols'. Connecting roads (rules 7,
-    // Task 2): all 16 end within 60 rounds (the longest, 6 mongols, in 42).
+    // Task 2): all 16 end within 60 rounds (the longest, 6 mongols, in 42). Rules 7, Task 1b: all 16 still end (the
+    // longest, 6 mongols, in 51).
     const KNOWN_HARD: string[] = [];
-    test(`at hard, every match but ${KNOWN_HARD.join(', ')} first ends within 60 rounds`, () => {
+    test(`at hard, every match${but(KNOWN_HARD)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);
   });
