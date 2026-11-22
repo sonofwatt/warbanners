@@ -68,9 +68,9 @@ body {
   background: var(--sky);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-/* In a match the phone's own bars match what they touch: the paper of the top bar above, the sea below. The page's
-   colour is the sea, and a fixed strip of paper fills the top inset. iPhones fill the home bar from the page's colour
-   and the nearest fixed strip, not from a background picture, so a gradient left the bottom sky blue. */
+/* In a match the phone's own bars match what they touch: the paper of the top bar above (the meta theme-color, set by
+   Match), the sea below. The page's colour is the sea, with a fixed strip of paper over any top inset. Android's
+   gesture bar in the installed app takes the manifest's colours (vite.config.ts), which are the sea too. */
 html:has(.screen.match), body:has(.screen.match) { background: var(--sea); }
 body:has(.screen.match)::before, body:has(.screen.match)::after { content: ''; position: fixed; left: 0; right: 0; pointer-events: none; }
 body:has(.screen.match)::before { top: 0; height: env(safe-area-inset-top); background: var(--paper); }
