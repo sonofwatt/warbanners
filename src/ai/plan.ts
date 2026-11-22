@@ -1,7 +1,7 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
   CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
+  canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, guardOf, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
   parseKey, reachable, roadRefusal, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
@@ -77,7 +77,7 @@ function canKillThisTurn(b: MatchState, u: Unit): boolean {
   const at = parseKey(u.pos);
   const atk = attackOf(b, u) * healthFactor(u);
   return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
-    && damageFor(atk, defenceOf(b, e), coverAt(b, e)) >= e.hp);
+    && damageFor(atk, guardOf(b, e), coverAt(b, e)) >= e.hp);
 }
 
 // Units are taken killers first, then ranged, melee, supports, the Camp, the rest.
@@ -274,6 +274,7 @@ class TurnPlanner {
       for (let step = 0; step < MAX_STEPS_PER_UNIT; step++) {
         this.checkClock();
         const c = this.decide(next.id);
+        if (step === 0 && this.hunkers(next.id, c)) { this.commit({ type: 'hunker', unit: next.id }); break; }
         if (c === null) break;
         const refill = c.action.type === 'move' ? this.refill(unitIn(this.b, next.id)!) : null;
         this.commit(c.action, c.result);
@@ -387,6 +388,32 @@ class TurnPlanner {
   }
 
   // ---- one unit ----
+
+  // Rules 7: whether the unit hunkers instead of the plan c, which is not an attack, ability, capture or claim (a
+  // good one of those is always taken). Only with an enemy able to reach it: a garrison on an own city holds there
+  // instead of walking off when the danger on its tile is at least a third of its health, and a wounded unit that cannot
+  // reach a tile out of reach hunkers where it stands. Units beside a city, and garrisons under a light threat, were
+  // tried too: they stalled seeded matches (6 spartans at normal, 6 mongols at hard, in character.test.ts).
+  private hunkers(id: number, c: Cand | null): boolean {
+    if (c !== null && c.action.type !== 'move') return false;
+    const u = unitIn(this.b, id);
+    if (u === undefined || !canHunker(this.b, id) || !this.allowed({ type: 'hunker', unit: id })) return false;
+    const danger = this.ctx.danger;
+    if ((danger[u.pos] ?? 0) <= 0) return false;
+    const here = parseKey(u.pos);
+    // A move that sets up an attack this turn is left to the plan: no hunker while a seen enemy is in strike reach,
+    // unless its counter alone would kill the unit (a hopeless charge, which the plan never makes).
+    if (c !== null && UNITS[u.type].atk > 0 && u.attacks > 0) {
+      const from = [u.pos, ...(canMove(u) ? Object.keys(reachable(this.b, id)) : [])].map(parseKey);
+      const survivable = (e: Unit): boolean => UNITS[e.type].range === 0
+        || damageFor(attackOf(this.b, e) * CONFIG.counterFactor * healthFactor(e), defenceOf(this.b, u), 1) < u.hp;
+      const strikes = this.b.units.filter((e) => e.owner !== this.me && survivable(e));
+      if (strikes.some((e) => from.some((f) => distance(f, parseKey(e.pos)) <= UNITS[u.type].range))) return false;
+    }
+    if (this.b.cities.some((x) => x.owner === this.me && x.pos === u.pos) && 3 * (danger[u.pos] ?? 0) >= u.hp) return true;
+    if (u.hp >= maxHpOf(u)) return false;
+    return c === null || (danger[(c.action as { to: HexKey }).to] ?? 0) > 0;
+  }
 
   // Gold already pledged to refill other cities' tiles whose garrison stepped out this turn. A pledge
   // lapses once an own unit stands on that tile again, since the city can no longer train there.

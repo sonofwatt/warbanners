@@ -51,7 +51,7 @@ test('the deadline ends the turn early with legal actions', () => {
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 30_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(9, 274), 0);         // 25 units; re-picked for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
+  const input = aiInputFor(randomPlayout(9, 256), 0);         // 25 units; re-picked for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);
@@ -172,4 +172,37 @@ test('withGrowth levels cities through the engine, several levels at once, and l
   expect([at(mo.id).level, at(mo.id).growth, at(mo.id).pendingRewards]).toEqual([2, 3, [2]]);
   expect(at(other.id)).toBe(s.cities.find((c) => c.id === other.id));
   expect(s).toEqual(before);
+});
+
+// Rules 7, Hunker. Player 1 (the AI) has no gold, so no city trains and no guard steps off to make room.
+function hunkerField(): MatchState {
+  const s = blankMatch(); addCity(s, 0, -3, 0, { capital: true }); addCity(s, 1, 3, 0, { capital: true });
+  s.current = 1; s.players[1]!.gold = 0;
+  return s;
+}
+test('rules 7: a garrison with no attack to make hunkers when a seen enemy could reach it; a quiet one does not', () => {
+  const s = hunkerField();
+  const guard = addUnit(s, 'warrior', 1, 3, 0);
+  addUnit(s, 'horseman', 0, 1, 0);                                    // seen, two tiles off, across water
+  for (const [q, r] of [[2, 0], [2, -1], [1, 1], [2, 1]] as const) setTile(s, q, r, { terrain: 'water' });
+  const quiet = hunkerField();
+  const idle = addUnit(quiet, 'warrior', 1, 3, 0);
+  for (const dial of [0, 0.5, 1]) for (let seed = 0; seed < 4; seed++) {
+    const mine = (st: MatchState, id: number) => planTurn(aiInputFor(st, 1), { dial, seed, refused: [] }).actions
+      .filter((a) => 'unit' in a && a.unit === id);
+    expect(mine(s, guard.id)).toEqual([{ type: 'hunker', unit: guard.id }]);
+    expect(mine(quiet, idle.id).some((a) => a.type === 'hunker')).toBe(false);
+  }
+});
+test('rules 7: a wounded unit with no safe tile to reach and only a hopeless attack hunkers', () => {
+  const s = hunkerField();
+  const hurt = addUnit(s, 'warrior', 1, 0, -2, { hp: 2 });
+  addUnit(s, 'spearman', 0, -1, -2);                                  // its counter would kill the warrior
+  for (const [q, r] of [[1, -3], [1, -2], [0, -1]] as const) setTile(s, q, r, { terrain: 'water' });
+  for (const dial of [0, 0.5, 1]) {
+    const plan = planTurn(aiInputFor(s, 1), { dial, seed: 1, refused: [] });
+    expect(plan.actions.filter((a) => 'unit' in a && a.unit === hurt.id)).toEqual([{ type: 'hunker', unit: hurt.id }]);
+  }
+  const refused = [{ type: 'hunker', unit: hurt.id } as const];
+  expect(planTurn(aiInputFor(s, 1), { dial: 1, seed: 1, refused }).actions).not.toContainEqual(refused[0]);
 });

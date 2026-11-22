@@ -1,6 +1,6 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
-  CONFIG, FACTIONS, UNITS, attackOf, baseAttackOf, coverAt, damageFor, defenceOf, distance, isHero, key, maxHpOf, maxMp,
+  CONFIG, FACTIONS, UNITS, attackOf, baseAttackOf, coverAt, damageFor, distance, guardOf, isHero, key, maxHpOf, maxMp,
   growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
@@ -83,7 +83,7 @@ function strikeOf(b: MatchState, u: Unit): number {
   let best = 0;
   for (const e of b.units) {
     if (e.owner === u.owner || distance(at, parseKey(e.pos)) > def.range) continue;
-    const dmg = damageFor(atk, defenceOf(b, e), coverAt(b, e));
+    const dmg = damageFor(atk, guardOf(b, e), coverAt(b, e));
     best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
   return STRIKE_SHARE * best;
