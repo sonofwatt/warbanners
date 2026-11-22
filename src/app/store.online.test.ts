@@ -266,7 +266,11 @@ test('a resign that loses its race tells the player', async () => {
   server.failNext('u1');
   guest.get().resignOnline(); await settle(server);
   expect(guest.get().screen).toBe('match'); expect(guest.get().notice).toBe('resignLost');
+  // The resign never landed, so nothing is counted, and the real end is counted when it comes.
+  expect(readLines(guest.kv, 0)).toHaveLength(0);
   expect(host.get().state!.winner).toBeNull();
+  guest.get().resignOnline(); await settle(server);
+  expect(readLines(guest.kv, 0)).toMatchObject([{ name: 'Ben', won: false }]);
 });
 test('an unfinished online match dropped from the list for room is reported', async () => {
   const kv = memoryKv();

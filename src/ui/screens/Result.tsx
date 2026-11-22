@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import type { AppState } from '../../app/store';
 import { roundOf } from '../../app/record';
 import type { MatchRecord } from '../../app/record';
-import { matchTallies } from '../../app/tally';
+import { cachedTallies } from '../../app/tally';
 import type { Tally } from '../../app/tally';
 import { useApp } from '../../app/useApp';
 import { ACCENT, playerColour } from '../art/palette';
@@ -31,8 +31,7 @@ const ROWS: readonly [keyof Tally, string][] = [
 
 // Both sides' numbers for this match, counted from its actions.
 function TallyTable({ record }: { record: MatchRecord }): ReactElement {
-  const { settings, actions } = record;
-  const t = useMemo(() => matchTallies(settings, actions), [settings, actions]);
+  const t = cachedTallies(record);
   const [a, b] = [record.players[0]?.name ?? '', record.players[1]?.name ?? ''];
   return (
     <table className="result-tally" data-testid="result-tally">

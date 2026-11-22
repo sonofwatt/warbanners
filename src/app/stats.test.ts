@@ -3,7 +3,7 @@ import type { KeyValue } from './saves';
 import { newRecord } from './record';
 import type { MatchRecord } from './record';
 import {
-  DAY_MS, forgetPlayer, isCounted, linesFor, MAX_LINES, MAX_NAMES, playerNames, readLines, recentNames, recordLines,
+  DAY_MS, forgetPlayer, isCounted, linesFor, pruneLines, MAX_LINES, MAX_NAMES, playerNames, readLines, recentNames, recordLines,
   rememberNames, summarize,
 } from './stats';
 import type { Filter, StatLine } from './stats';
@@ -65,6 +65,18 @@ describe('storage', () => {
     const later = readLines(kv, 30 * DAY_MS + 1);
     expect(later.find(l => l.match === 'o')).toMatchObject({ opponent: null, won: true, tally: { dealt: 20 } });
     expect(later.find(l => l.match === 'c')!.opponent).not.toBeNull();
+  });
+  test('the prune is written back to the phone', () => {
+    const { kv, map } = memory();
+    recordLines(kv, 'o', [line({ match: 'o', kind: 'online', at: 0, opponent: { name: 'Zed', faction: 'mongols', tally: emptyTally() } })], 0);
+    pruneLines(kv, 31 * DAY_MS);
+    expect(map.get('warbanners.stats.v1')).not.toContain('Zed');
+  });
+  test('forgetting a pass-the-phone player also clears them as the other player\'s opponent', () => {
+    const { kv } = memory();
+    recordLines(kv, 'p', [line({ match: 'p', kind: 'pass', name: 'Ben', opponent: { name: 'Ann', faction: 'mongols', tally: emptyTally() } })], 0);
+    forgetPlayer(kv, 'Ann');
+    expect(readLines(kv, 0)[0]!.opponent).toBeNull();
   });
   test('forgetting a player drops their lines and name, but their matches stay counted', () => {
     const { kv } = memory();
@@ -135,23 +147,23 @@ describe('lines for a finished match', () => {
 
   test('against the computer: one line for the person, with the AI level', () => {
     const rec = finished(newRecord('m', settings, ['Ann', ai], 0));
-    const lines = linesFor(rec, 'local', null, 77);
+    const lines = linesFor(rec, 'local', null, 77)!;
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ match: 'm@0', at: 77, name: 'Ann', kind: 'computer', ai: 'hard', faction: 'spartans', won: true, rounds: 1 });
     expect(lines[0]!.opponent).toMatchObject({ name: 'Hard AI', faction: 'mongols' });
   });
   test('pass the phone: a line for each seat, even the same name twice', () => {
-    const lines = linesFor(finished(newRecord('m', settings, ['Ann', 'Ann'], 0)), 'local', null, 0);
+    const lines = linesFor(finished(newRecord('m', settings, ['Ann', 'Ann'], 0)), 'local', null, 0)!;
     expect(lines.map(l => [l.name, l.kind, l.won, l.faction])).toEqual([['Ann', 'pass', true, 'spartans'], ['Ann', 'pass', false, 'mongols']]);
     expect(lines.every(l => l.ai === null)).toBe(true);
   });
   test('online: only this phone\'s seat, with the AI level when the other seat is an AI', () => {
-    const lines = linesFor(finished(newRecord('ROOM22', settings, [ai, 'Ben'], 0)), 'online', 1, 0);
+    const lines = linesFor(finished(newRecord('ROOM22', settings, [ai, 'Ben'], 0)), 'online', 1, 0)!;
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ name: 'Ben', kind: 'online', ai: 'hard', won: false, opponent: { name: 'Hard AI' } });
-    expect(linesFor(finished(newRecord('ROOM22', settings, ['Ann', 'Ben'], 0)), 'online', 0, 0)[0]).toMatchObject({ name: 'Ann', ai: null });
+    expect(linesFor(finished(newRecord('ROOM22', settings, ['Ann', 'Ben'], 0)), 'online', 0, 0)![0]).toMatchObject({ name: 'Ann', ai: null });
   });
   test('an unfinished match gives no lines', () => {
-    expect(linesFor(newRecord('m', settings, ['Ann', 'Ben'], 0), 'local', null, 0)).toEqual([]);
+    expect(linesFor(newRecord('m', settings, ['Ann', 'Ben'], 0), 'local', null, 0)).toBeNull();
   });
 });

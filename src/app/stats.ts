@@ -3,7 +3,7 @@ import type { FactionId, PlayerId } from '../engine';
 import type { AiLevel } from '../ai/types';
 import type { MatchRecord } from './record';
 import type { KeyValue } from './saves';
-import { matchTallies } from './tally';
+import { cachedTallies } from './tally';
 import type { Tally } from './tally';
 
 // Per-phone player stats: one line for each player in each finished match, summed under filters when shown.
@@ -93,10 +93,21 @@ export function recordLines(kv: KeyValue, match: string, lines: readonly StatLin
   }
 }
 
+// Writes the 30-day prune back, so an online opponent's numbers leave the phone and not only the screen.
+export function pruneLines(kv: KeyValue, now: number): void {
+  try {
+    const st = readStored(kv);
+    if (!st.lines.some(l => pruned(l, now) !== l)) return;
+    kv.setItem(STATS_KEY, JSON.stringify({ lines: st.lines.map(l => pruned(l, now)), counted: st.counted }));
+  } catch { /* tried again next time */ }
+}
+
+// Drops a name's own lines, and its numbers where it was someone else's opponent on this phone.
 export function forgetPlayer(kv: KeyValue, name: string): void {
   try {
     const st = readStored(kv);
-    kv.setItem(STATS_KEY, JSON.stringify({ lines: st.lines.filter(l => l.name !== name), counted: st.counted }));
+    const lines = st.lines.filter(l => l.name !== name).map(l => (l.opponent?.name === name && l.kind !== 'computer' ? { ...l, opponent: null } : l));
+    kv.setItem(STATS_KEY, JSON.stringify({ lines, counted: st.counted }));
   } catch { /* nothing more to do */ }
   try {
     kv.setItem(NAMES_KEY, JSON.stringify(recentNames(kv).filter(n => n !== name)));
@@ -157,14 +168,14 @@ export function summarize(lines: readonly StatLine[], name: string, f: Filter): 
   };
 }
 
-// The lines a finished match gives this phone: the person against the computer, both seats when two people shared
-// the phone, and only this phone's seat online. An unfinished match gives none.
 // A match's key: its id with its start time, so a room code drawn again for a later room is a new match.
 export const matchKey = (record: MatchRecord): string => `${record.id}@${record.createdAt}`;
 
-export function linesFor(record: MatchRecord, mode: 'local' | 'online', mySeat: PlayerId | null, at: number): StatLine[] {
-  const t = matchTallies(record.settings, record.actions);
-  if (t.winner === null) return [];
+// The lines a finished match gives this phone: the person against the computer, both seats when two people shared
+// the phone, and only this phone's seat online. Null when the actions do not end the match.
+export function linesFor(record: MatchRecord, mode: 'local' | 'online', mySeat: PlayerId | null, at: number): StatLine[] | null {
+  const t = cachedTallies(record);
+  if (t.winner === null) return null;
   const people = record.players.flatMap((p, i) => (p.kind === 'human' ? [i] : []));
   const seats = mode === 'online' ? (mySeat === null ? [] : [mySeat]) : people;
   const kind: MatchKind = mode === 'online' ? 'online' : people.length === 2 ? 'pass' : 'computer';

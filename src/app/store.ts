@@ -29,7 +29,7 @@ import { append, newRecord, restore, setAdapt } from './record';
 import type { MatchRecord, Seat } from './record';
 import { listOnline, takePendingRoom } from './onlineList';
 import type { OnlineEntry } from './onlineList';
-import { forgetPlayer as forgetStats, isCounted, linesFor, matchKey, readLines, recentNames, recordLines, rememberNames } from './stats';
+import { forgetPlayer as forgetStats, isCounted, pruneLines, linesFor, matchKey, readLines, recentNames, recordLines, rememberNames } from './stats';
 import type { StatLine } from './stats';
 import { deleteSave, listSaves, readSave, withSave, writeSave } from './saves';
 import type { KeyValue, SaveSummary } from './saves';
@@ -329,7 +329,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
 
       statLines: [], names: [],
       openSetup: () => set({ screen: 'setup', names: recentNames(kv) }),
-      openStats: () => set({ screen: 'stats', statLines: readLines(kv, deps.now()) }),
+      openStats: () => { pruneLines(kv, deps.now()); set({ screen: 'stats', statLines: readLines(kv, deps.now()) }); },
       forgetPlayer: name => { forgetStats(kv, name); set({ statLines: readLines(kv, deps.now()), names: recentNames(kv) }); },
 
       startMatch: setup => {
@@ -430,13 +430,21 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
   const recordIfOver = (s: AppState): void => {
     const { record, state } = s;
     if (record === null || state === null || state.winner === null) return;
-    if (s.mode === 'online' && (s.online === null || s.online.sending || s.viewer === null)) return;
+    // Online only once the session itself says the match is over and the server holds it: not while a final write
+    // is on its way, not while a lost race is being rebuilt, and never from the cached copy Home opens first.
+    const o = s.online;
+    if (s.mode === 'online' && (o === null || o.phase !== 'over' || o.sending || o.verifying || o.room?.meta.phase !== 'over' || s.viewer === null)) return;
     const key = matchKey(record);
     if (seen.has(key)) return;
-    seen.add(key);
     try {
-      if (!isCounted(kv, key)) recordLines(kv, key, linesFor(record, s.mode, s.viewer, deps.now()), deps.now());
-    } catch { /* the stats are lost for this match, never the match */ }
+      if (isCounted(kv, key)) { seen.add(key); return; }
+      // A local match ends when its last action was saved; online, now is when the server's word arrived.
+      const at = s.mode === 'local' ? record.updatedAt : deps.now();
+      const lines = linesFor(record, s.mode, s.viewer, at);
+      if (lines === null) return;          // the actions do not reach the end the state shows: wait for them
+      seen.add(key);
+      recordLines(kv, key, lines, deps.now());
+    } catch { seen.add(key); /* the stats are lost for this match, never the match */ }
   };
   store.subscribe(recordIfOver);
 

@@ -108,7 +108,7 @@ export function Stats(): ReactElement {
       {recent.length > 0 ? (
         <>
           <h2>{T.stats.recent}</h2>
-          <ul className="stats-recent" data-testid="stats-recent">{recent.map((l) => <RecentRow key={`${l.match}:${l.faction}`} l={l} />)}</ul>
+          <ul className="stats-recent" data-testid="stats-recent">{recent.map((l, i) => <RecentRow key={`${l.match}:${i}`} l={l} />)}</ul>
         </>
       ) : null}
       <div className="setup-row">
