@@ -65,7 +65,7 @@ export const CONFIG = deepFreeze({
   },
   buildings: {
     farm: { tech: 'farming', cost: 5, growth: 2, on: 'field', resource: 'cropland', income: 0 },
-    lumberCamp: { tech: 'forestry', cost: 3, growth: 2, on: 'forest', resource: null, income: 0 },   // rules 7: growth 2 (was 1)
+    lumberCamp: { tech: 'forestry', cost: 4, growth: 2, on: 'forest', resource: null, income: 0 },   // rules 7: cost 4 (was 3), growth 2 (was 1)
     mine: { tech: 'bronze', cost: 5, growth: 2, on: 'mountain', resource: 'ore', income: 0 },
     market: { tech: 'markets', cost: 6, growth: 2, on: 'field', resource: null, income: 2 },         // rules 7: growth 2 (was 1)
   },

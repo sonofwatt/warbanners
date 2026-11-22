@@ -4,15 +4,15 @@ import { cityIncome } from './economy';
 import { cityById } from './state';
 import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 
-// The replay switches for rules 6: capitalMoves off keeps a captured capital a capital, and the old growth of 1 for a
-// Lumber camp and a Market. This file is alone because vi.mock binds a whole file.
+// The replay switches for rules 6: capitalMoves off keeps a captured capital a capital, the old growth of 1 for a
+// Lumber camp and a Market, and the Lumber camp's old cost of 3. This file is alone because vi.mock binds a whole file.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
       ...m.CONFIG, capitalMoves: false, connectGrowth: 0,
-      buildings: { ...b, lumberCamp: { ...b.lumberCamp, growth: 1 }, market: { ...b.market, growth: 1 } },
+      buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };
 });

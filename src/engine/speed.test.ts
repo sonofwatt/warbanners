@@ -7,7 +7,8 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned again for rules version 7 (a captured capital is an ordinary city and the loser's capital moves, and a
+  // re-pinned again for rules version 7 (a Lumber camp costs 4; every digest moved, none of the three has ended); before
+  // that for rules version 7 (a captured capital is an ordinary city and the loser's capital moves, and a
   // Lumber camp and a Market give 2 growth; every digest moved, none of the three has ended); before that for rules
   // version 7 (a city first joined to its capital by roads pays both 1 growth, cities carry linked,
   // and the Scout sees 1 tile; every digest moved); earlier, for rules version 6 (only a pathfinder enters the fog, the Mongol bonus is a half-point and rides by
@@ -17,9 +18,9 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 324, 'fb49aba42f2372c1', 'ae38f2043e6f231b', 'cdc06b30459e4b81'],
-  [1, 90, 149, '6d7d2e3fd0d5e9c4', '64c00ae94cd0d888', '08e8aecfe808b8ae'],
-  [3, 90, 191, '649bb1417150d26c', 'b0a0d6265ccf87d3', 'c1166c4de76ee87a'],
+  [7, 160, 39, '3943ac28d707b55d', 'b6fe46486114fc5d', '49dcdd13bd0b6d40'],
+  [1, 90, 165, '60450338a50db8a5', 'aa74e35336240bac', '76f4d19e9e6c7177'],
+  [3, 90, 202, 'e001edc1669908fe', 'fe5d1c4c5d252e37', '17e86fb19668a0a2'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -29,7 +30,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 30_000);
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(8, 292);              // re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
+  const s = randomPlayout(9, 274);              // re-picked for rules 7's Lumber camp cost 4: (8, 292) has 29 units now, and the even 25-unit turns of seed 4 take 8 ms, not about 5; this one has 255 legal actions and takes 4.3 ms; earlier (8, 292) re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {

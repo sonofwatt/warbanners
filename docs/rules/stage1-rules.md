@@ -120,7 +120,7 @@ Things you can do on a tile in your territory (one building per tile):
 | Harvest orchard | tech `foraging` | 2 | +1, the orchard is used up |
 | Harvest game | tech `hunting` | 2 | +1, the game is used up |
 | Build Farm on cropland | tech `farming` | 5 | +2 |
-| Build Lumber camp on a forest tile with no resource | tech `forestry` | 3 | +2 (+1 before rules 7) |
+| Build Lumber camp on a forest tile with no resource | tech `forestry` | 4 (3 before rules 7) | +2 (+1 before rules 7) |
 | Build Mine on ore | tech `bronze` | 5 | +2 |
 | Build Market on a field with no resource, one per city | tech `markets` | 6 | +2 (+1 before rules 7), and +2 income |
 | Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
