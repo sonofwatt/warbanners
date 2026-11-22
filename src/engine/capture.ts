@@ -58,6 +58,7 @@ export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s,
     for (const x of s.units) if (x.home === existing.id) x.home = null;
     if (u.home !== null) u.home = existing.id;
     existing.pendingRewards = [];
+    existing.linked = existing.capital;                 // rules 7: a new owner can earn the connection bonus again (a captured capital stays one)
     if (def.tributeCityBase > 0) captor.gold += def.tributeCityBase + existing.level;
     cityId = existing.id;
     u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;

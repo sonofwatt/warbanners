@@ -19,6 +19,9 @@ export const CONFIG = deepFreeze({
   // (the Spartan Scout) may end a move on one, which ends its turn. Off replays rules 3 to 5 (any unit could end a move
   // on one unexplored tile, and a mounted Mongol kept its movement after it); only the provenance test turns it off.
   closedFog: true,
+  // rules 7: the first time a city is joined to its owner's capital by roads and own cities, it and the capital each
+  // gain this much growth. 0 replays rules 6; only the provenance tests turn it off.
+  connectGrowth: 1,
   citySightExtra: 1,                          // a city sees this many tiles beyond its territory radius
   hiddenRevealRange: 1,                       // a unit or city reveals a hidden unit within this distance
   blindedReach: 1,                            // a blinded unit attacks no farther than this
@@ -78,7 +81,7 @@ export const CONFIG = deepFreeze({
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
   roadCost: number; relayCost: number; wallsCover: number; mountainSightBonus: number;
-  closedFog: boolean; levelUpEndsChain: boolean;
+  closedFog: boolean; levelUpEndsChain: boolean; connectGrowth: number;
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
   attacksPerTurn: { doubleStrike: number; base: number };
   newCity: { level: number; radius: number; growth: number };

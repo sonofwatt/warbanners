@@ -7,16 +7,17 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules version 6 (only a pathfinder enters the fog, the Mongol bonus is a half-point and rides by
+  // re-pinned for rules version 7 (a city first joined to its capital by roads pays both 1 growth, cities carry linked,
+  // and the Scout sees 1 tile; every digest moved); earlier, for rules version 6 (only a pathfinder enters the fog, the Mongol bonus is a half-point and rides by
   // territory, a level-up ends a chain, and units carry bonusMp; every digest moved); earlier, for rules version 5 (a chain kill costs the rider health; every state digest carries rulesVersion, and
   // seed 7's playout now differs after a Knight's kill); earlier, for the draught fix (a draught waits a turn after it is found and buys no second ability); earlier, for plan 5 Task 8's tuned thresholds (the draught worth is an AI number and cannot move these digests); seed 1 now ends after 101 turns, so its row is the
   // position after 90 turns, still unfinished; earlier, for rules version 4 (units carry deeds, heroTraits and item, traits and the seven treasure outcomes change play
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 255, 'f3b36177e0ab8fbc', 'e2f50b459a854852', 'fdd9d89a78332421'],
-  [1, 90, 113, '8c62060f332221e2', '3f4ece1cc3add661', '1d9c5100d473ca8b'],
-  [3, 90, 106, 'add0a84910c00352', '522df14a1e5228c3', 'cca19efd473bc0dc'],
+  [7, 160, 147, 'c0bef1b3af4b1d90', '9c4b00514f9d41f4', '5e611c68006a8e39'],
+  [1, 90, 181, '7fb8d7a0bd2d3ecf', '9fd862d4f2451771', 'e36ee120d5739813'],
+  [3, 90, 151, 'a219f780ff79af6f', 'b474d776aacaa5fb', 'c0c18493c856591a'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -26,7 +27,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 30_000);
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(7, 164);              // re-picked for rules 6: (4, 268) no longer has 25 units; earlier (4, 268) for rules 5, (7, 236) for Task 8
+  const s = randomPlayout(7, 286);              // re-picked for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {

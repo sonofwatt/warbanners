@@ -105,7 +105,9 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
       for (const [to, mp] of Object.entries(reachable(b, u.id))) {
         const r = applyAction(b, { type: 'move', unit: u.id, to });
         expect(r.ok).toBe(true); if (!r.ok) continue;
-        if (r.events.some(e => e.type === 'lured')) continue;
+        // moveScore does not price a hero trait the march earns; since rules 7 this position has a Horseman one move
+        // from Tireless, so those moves are left out as lures are
+        if (r.events.some(e => e.type === 'lured' || e.type === 'heroTrait')) continue;
         const fresh = r.state.players[s.current]!.explored.length - b.players[s.current]!.explored.length;
         expect(moveScore(b, ctx, u.id, to, mp)).toBeCloseTo(valueOf(r.state, ctx) - before + 0.9 * fresh, 6);
         checked++;

@@ -9,19 +9,27 @@ import type { Action, MatchState } from './types';
 
 // Rules 6 changes movement from the first action (a mounted Mongol starts with a half-point bonus, not a tile), so this
 // file switches the rules 6 movement off through CONFIG and the faction data, as stage1.dormant.test.ts does; stage 2,
-// the chain cost and the chain level-up stay on. The record test below is meant for the rules 3 engine, never this one.
+// the chain cost and the chain level-up stay on. Rules 7's connection growth and Scout sight 1 are switched off the
+// same way (connectGrowth 0, sight 3). The record test below is meant for the rules 3 engine, never this one.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
-  return { CONFIG: { ...m.CONFIG, closedFog: false } };
+  return { CONFIG: { ...m.CONFIG, closedFog: false, connectGrowth: 0 } };
+});
+vi.mock('./data/units', async (orig) => {
+  const m = await orig<typeof import('./data/units')>();
+  return { UNITS: { ...m.UNITS, scout: { ...m.UNITS.scout, sight: 3 } } };
 });
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
   return { FACTIONS: { ...m.FACTIONS, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
 });
 
-// Strip what plan 5 and rules 6 added, so a stage 1 state hashes as it did on rules 3.
+// Strip what plan 5, rules 6 and rules 7 added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
-  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, ...rest }) => rest) };
+  return {
+    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, ...rest }) => rest),
+    cities: s.cities.map(({ linked: _l, ...rest }) => rest),
+  };
 }
 
 const FIXTURE = new URL('./stage1.fixture.json', import.meta.url);
@@ -66,7 +74,7 @@ test('the recorded rules 3 playouts end on the pinned digests', () => {
   }
 });
 
-test('until stage 2 first changes an outcome, the current rules (rules 6 movement off) play the rules 3 playout exactly', () => {
+test('until stage 2 first changes an outcome, the current rules (rules 6 movement and rules 7 off) play the rules 3 playout exactly', () => {
   const { actions, hashes } = (JSON.parse(readFileSync(FIXTURE, 'utf8')) as Fixture).fingerprint;
   let s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
   let matched = 0;

@@ -92,7 +92,7 @@ export function foundCity(s: MatchState, owner: PlayerId, pos: HexKey, capital: 
   const c: City = {
     id: s.nextCityId, pos, owner, capital, level: CONFIG.newCity.level, growth: CONFIG.newCity.growth,
     radius: CONFIG.newCity.radius, walls: false, market: false,
-    incomeBonus: 0, capacityBonus: 0, pendingRewards: [],
+    incomeBonus: 0, capacityBonus: 0, pendingRewards: [], linked: capital,
   };
   s.nextCityId += 1;
   s.cities.push(c);

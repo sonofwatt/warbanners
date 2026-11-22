@@ -7,6 +7,7 @@ import { researchHandler } from './tech';
 import { campTrainHandler, trainHandler } from './training';
 import { endTurnHandler } from './turn';
 import { moveHandler } from './movement';
+import { payConnections } from './connect';
 import { refreshExplored } from './vision';
 import { CONFIG } from './data/config';
 import { TECHS } from './data/techs';
@@ -61,8 +62,10 @@ export function applyAction(state: MatchState, action: Action): Result {
     const handler = HANDLERS[type as Action['type']]!;
     const draft = structuredClone(state);
     const events: GameEvent[] = [];
+    const actor = draft.current;
     const reason = handler(draft, copy as Action, events);
     if (reason !== null) return { ok: false, reason };
+    if (draft.players[actor]?.alive === true) payConnections(draft, actor, events);   // rules 7, for the player who acted
     for (const p of draft.players) if (p.alive) refreshExplored(draft, p.id);
     return { ok: true, state: draft, events };
   } catch {

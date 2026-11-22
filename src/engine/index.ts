@@ -14,6 +14,7 @@ export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, ma
 export { trainable, unitCost } from './training';
 export { techPrice, canResearch } from './tech';
 export { cityIncome, playerIncome, growthNeeded, unitCapacity } from './economy';
+export { isConnected } from './connect';
 export { UNITS } from './data/units';
 export { TECHS } from './data/techs';
 export { FACTIONS } from './data/factions';

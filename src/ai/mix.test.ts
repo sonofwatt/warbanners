@@ -18,7 +18,7 @@ function facing(enemy: UnitTypeId): MatchState {
   give(s, 0, 'bronze', 'shieldwork', 'smithing', 'hunting', 'forestry', 'engineering', 'riding', 'roads', 'chivalry');
   give(s, 1, 'riding', 'hunting', 'bronze');
   for (const [q, r] of [[-1, 1], [0, 1], [-1, 2]] as const) addUnit(s, 'hoplite', 0, q, r);   // two steps from the city
-  addUnit(s, 'scout', 0, 2, 0);
+  addUnit(s, 'scout', 0, 1, -2);                        // beside three of them: since rules 7 a Scout sees 1 tile (was 2,0)
   for (const [q, r] of [[0, -1], [1, -1], [2, -2], [3, -2]] as const) addUnit(s, enemy, 1, q, r);
   s.players[0]!.gold = 20;
   return s;

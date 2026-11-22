@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 6;
+export const RULES_VERSION = 7;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -37,6 +37,7 @@ export interface City {
   level: number; growth: number; radius: number; walls: boolean; market: boolean;
   incomeBonus: number; capacityBonus: number;
   pendingRewards: number[];              // levels awaiting a choice, oldest first
+  linked: boolean;                       // rules 7: has paid its connection bonus to this owner (true for capitals)
 }
 export interface Unit {
   id: number; type: UnitTypeId; owner: PlayerId; pos: HexKey; hp: number;
@@ -103,6 +104,7 @@ export type GameEvent =
   // trait: the relic's gift; found: the treasure a map shows; unit: the id of a spawned Warrior or Sellsword
   | { type: 'treasure'; at: HexKey; outcome: TreasureOutcome; trait?: HeroTraitId; found?: HexKey; unit?: number }
   | { type: 'usedItem'; unit: number; item: ItemId }
+  | { type: 'connected'; city: number; capital: number }           // rules 7: roads first joined the city to the capital
   | { type: 'cityLevel'; city: number; level: number }
   | { type: 'reward'; city: number; reward: RewardId }
   | { type: 'built'; at: HexKey; what: BuildingId | 'road' | 'walls' | 'harvest' }

@@ -19,7 +19,7 @@ export const UNITS: Record<UnitTypeId, UnitDef> = deepFreeze({
   hoplite: { atk: 4, def: 5, range: 1, move: 1, hp: 15, sight: 1, cost: 3, tech: 'bronze', faction: 'spartans', traits: ['steadfast', 'phalanx'] },
   kingsGuard: { atk: 6, def: 6, range: 1, move: 1, hp: 20, sight: 2, cost: null, tech: null, faction: 'spartans', traits: ['unbowed'] },
   piper: { atk: 2, def: 3, range: 1, move: 1, hp: 10, sight: 2, cost: null, tech: null, faction: 'spartans', traits: ['heal', 'steady', 'taunt'] },
-  scout: { atk: 2, def: 1, range: 1, move: 2, hp: 5, sight: 3, cost: 2, tech: null, faction: 'spartans', traits: ['hidden', 'noCityCapture', 'pathfinder'] },
+  scout: { atk: 2, def: 1, range: 1, move: 2, hp: 5, sight: 1, cost: 2, tech: null, faction: 'spartans', traits: ['hidden', 'noCityCapture', 'pathfinder'] },
   horseArcher: { atk: 3, def: 2, range: 2, move: 2, hp: 10, sight: 2, cost: 5, tech: 'riding', faction: 'mongols', traits: ['retreat', 'mounted'] },
   khansGuard: { atk: 6, def: 4, range: 1, move: 3, hp: 20, sight: 2, cost: null, tech: null, faction: 'mongols', traits: ['chain', 'inspire', 'mounted'] },
   skyCaller: { atk: 2, def: 2, range: 1, move: 2, hp: 10, sight: 2, cost: null, tech: null, faction: 'mongols', traits: ['heal', 'hasten', 'dustStorm', 'mounted'] },
