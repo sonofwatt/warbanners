@@ -18,10 +18,13 @@ describe.runIf(process.env.BROWSER === '1')('a locked command opens the tech tre
         // The phone's own bars match what they touch: the status bar the top bar's paper, the bottom inset the sea.
         const bars = await page.evaluate(() => ({
           theme: document.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
-          body: getComputedStyle(document.body).backgroundImage,
+          html: getComputedStyle(document.documentElement).backgroundColor,
+          body: getComputedStyle(document.body).backgroundColor,
+          top: getComputedStyle(document.body, '::before').backgroundColor,
+          bottom: getComputedStyle(document.body, '::after').backgroundColor,
         }));
         expect(bars.theme).toBe('#FFF8E8');
-        expect(bars.body).toContain('rgb(255, 248, 232)'); expect(bars.body).toContain('rgb(62, 128, 174)');
+        expect(bars).toMatchObject({ html: 'rgb(62, 128, 174)', body: 'rgb(62, 128, 174)', top: 'rgb(255, 248, 232)', bottom: 'rgb(62, 128, 174)' });
         // The turn opens with the Scout selected, and -1,5 is a tile it could move to: let it go first.
         await page.keyboard.press('Escape');
         await frames(page);
