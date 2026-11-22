@@ -353,14 +353,15 @@ input:focus { border-color: var(--blue); }
 /* A city's units to train: a row of pictures scrolled sideways, and the picked unit's card under it. */
 .shop { margin-top: var(--s3); scroll-margin-top: var(--s2); }
 .shop-strip { list-style: none; margin: 0; padding: 4px 4px var(--s2); display: flex; gap: var(--s2); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
-.shop-strip li { flex: none; scroll-snap-align: start; }
+.shop-strip li { flex: none; scroll-snap-align: start; display: flex; }
+/* Every card in the row is as tall as the tallest (a two-line name), with the costs on one line along the bottom. */
 .shop-item { flex-direction: column; gap: 2px; width: 86px; min-height: 0; padding: var(--s1) var(--s1) calc(var(--s1) + var(--thick)); font-size: var(--t-xs); line-height: 1.1; }
 .shop-item[aria-pressed="true"] { --face: var(--gold); --side: var(--gold-side); }
 .shop-picture { position: relative; width: 56px; height: 56px; display: grid; place-items: center; }
 .shop-picture .picture { width: 56px; height: auto; display: block; }
 .shop-picture > .icon { position: absolute; top: -2px; right: -4px; width: 18px; height: 18px; color: var(--ink-soft); }
 .shop-item.unready .picture { opacity: 0.5; }
-.shop-name { text-align: center; overflow-wrap: normal; }
+.shop-name { text-align: center; overflow-wrap: normal; flex: 1 0 auto; display: flex; align-items: center; }
 .shop-hint { margin: var(--s1) 0 0; font-size: var(--t-s); font-weight: 600; color: var(--ink-soft); }
 .shop-card { margin-top: var(--s2); background: var(--paper-2); border-radius: var(--r); padding: var(--s3); }
 .shop-card h3 { margin: 0 0 var(--s1); font-size: var(--t-xl); font-weight: 850; }

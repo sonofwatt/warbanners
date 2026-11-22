@@ -31,6 +31,12 @@ describe.runIf(process.env.BROWSER === '1')('the city card', () => {
         const fit = await box.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
         if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/city-${w}x${h}.png` });
         expect(fit.scroll, `nothing to scroll (${fit.scroll} in ${fit.client})`).toBeLessThanOrEqual(fit.client + 1);
+        // Every card in the row is the same height as the tallest (the Krypteia Scout's two-line name).
+        const heights = await page.locator('.shop-item').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+        expect(new Set(heights).size, `card heights ${heights.join(', ')}`).toBe(1);
+        await page.locator('.shop-strip').evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+        if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/city-end-${w}x${h}.png` });
+        await page.locator('.shop-strip').evaluate((el) => { el.scrollLeft = 0; });
         await page.getByTestId('shop-warrior').tap();
         const train = page.locator('.card-actions [data-testid="cmd-train-warrior"]');
         await train.waitFor();
