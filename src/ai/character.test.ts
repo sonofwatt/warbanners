@@ -225,10 +225,13 @@ describe('matches between two AIs end', () => {
   // mix (2026-11-21-ai-unit-mix-log.md) that match stalls at 60 rounds, one of three that do at hard over seeds 1 to 8
   // (below); seed 3, Mongols first, ends in round 21, so it was the check, with the same bound. With connecting roads
   // (rules 7, Task 2) every one of seeds 1 to 8 in both seatings ends within 60 rounds at hard; seed 3 Mongols first now
-  // takes 28, and seed 3 Spartans first ends in round 20, so that seating is the check now, with the same bound.
-  test('at hard on a seeded map, the match reaches a winner within the measured bound', () => {
-    expect(aiMatch(3, ['spartans', 'mongols'], LEVEL_DIAL.hard, 25).winner).not.toBeNull();
-  }, 120_000);
+  // takes 28, and seed 3 Spartans first ends in round 20. With captured capitals moving and Lumber camp and Market
+  // growth 2 (rules 7, Task 1b), seed 3 Mongols first ends in round 25 again (on the bound, no margin)
+  // and Spartans first in 19, so both seatings are guarded, with the same bound.
+  test.each([['mongols', 'spartans'], ['spartans', 'mongols']] as [FactionId, FactionId][])(
+    'at hard on a seeded map, %s first, the match reaches a winner within the measured bound', (...factions) => {
+      expect(aiMatch(3, factions, LEVEL_DIAL.hard, 25).winner).not.toBeNull();
+    }, 120_000);
 
   // Measured on seeds 1 to 8 with both seatings: at hard after Task 12b's AI changes 11 end within 60 rounds (the five
   // named below do not); at normal with plan 5 Task 8's numbers 14, and again 14 with rules 6 (the two named below do not). Matches still stall at
