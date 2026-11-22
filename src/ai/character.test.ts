@@ -243,11 +243,14 @@ describe('matches between two AIs end', () => {
     // rules 6: was 5 mongols and 8 mongols, which then ended. The unit mix: '1 mongols' and '8 spartans' end, four others
     // do not. Over 200 fresh normal matches stalls fell (19.5% to 18.0%, 2026-11-21-ai-unit-mix-log.md), so the four are
     // which matches stall, not more stalling.
-    const KNOWN_NORMAL = ['1 spartans', '6 mongols', '7 spartans', '8 mongols'];
+    // Connecting roads (rules 7, Task 2): 15 of the 16 end; the four above end and '6 spartans' does not.
+    const KNOWN_NORMAL = ['6 spartans'];
     test(`at normal, every match but ${KNOWN_NORMAL.join(', ')} first ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
-    const KNOWN_HARD = ['5 mongols', '6 mongols', '7 mongols'];   // the unit mix: five unended matches became these three
+    // The unit mix: five unended matches became '5 mongols', '6 mongols' and '7 mongols'. Connecting roads (rules 7,
+    // Task 2): all 16 end within 60 rounds (the longest, 6 mongols, in 42).
+    const KNOWN_HARD: string[] = [];
     test(`at hard, every match but ${KNOWN_HARD.join(', ')} first ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);
