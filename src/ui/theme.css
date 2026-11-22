@@ -109,6 +109,12 @@ button:disabled {
   box-shadow: inset 0 0 0 2px var(--edge-faint);
 }
 button:disabled .icon { opacity: 0.5; }
+/* Waits only on a tech: drawn like a disabled button, but it can be tapped to open the tech tree. */
+button.needs-tech {
+  --face: var(--paper-sunk); --side: var(--paper-sunk); --label: var(--ink-mute);
+  padding-bottom: 0; box-shadow: inset 0 0 0 2px var(--edge-faint);
+}
+button.needs-tech .icon { opacity: 0.7; }
 button:focus-visible, input:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
 .primary { --face: var(--gold); --side: var(--gold-side); --label: var(--ink); }
@@ -349,7 +355,10 @@ input:focus { border-color: var(--blue); }
 .shop-card { margin-top: var(--s2); background: var(--paper-2); border-radius: var(--r); padding: var(--s3); }
 .shop-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); margin-bottom: var(--s2); }
 .shop-card h3 { margin: 0; font-size: var(--t-xl); font-weight: 850; }
-.shop-card .command { max-width: 55%; }
+.shop-card .command { flex: 0 0 auto; max-width: 45%; }
+/* The name with the description under it, running up to the Train button. */
+.shop-card-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--s1); }
+.shop-card-text .blurb { margin: 0; }
 .picture-frame { flex: none; width: 68px; height: 68px; border-radius: var(--r); background: var(--sky); display: grid; place-items: center; overflow: hidden; }
 .picture-frame .picture { width: 64px; height: auto; display: block; }
 .card-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -467,6 +476,8 @@ input:focus { border-color: var(--blue); }
 .tech.locked strong { color: var(--ink-soft); }
 .tech.locked .price { color: var(--ink-soft); }
 .tech.locked .price .icon { opacity: 0.55; }
+/* The tech a locked command asked for. */
+.tech-sheet li.focus { box-shadow: inset 0 0 0 3px var(--ink); }
 
 /* The menu: one chunky row each. */
 .menu { display: flex; flex-direction: column; gap: 10px; }

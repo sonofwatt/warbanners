@@ -1,8 +1,9 @@
+import { scrollWithin } from '../scrollWithin';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { UNITS } from '../../engine';
 import type { FactionId, UnitTypeId } from '../../engine';
-import { BootIcon, CoinIcon, HeartIcon, LockIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
+import { BootIcon, CoinIcon, FlaskIcon, HeartIcon, LockIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
 import { Stats } from './Card';
 import type { Command } from './commands';
@@ -15,7 +16,7 @@ export function UnitShop({ commands, faction, onCommand }: { commands: Command[]
   const [picked, setPicked] = useState<UnitTypeId | null>(null);
   const shop = useRef<HTMLDivElement>(null);
   // A picked unit's card opens under the row; bring the row and the card's head (its Train button) into view.
-  useEffect(() => { if (picked !== null) shop.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, [picked]);
+  useEffect(() => { if (picked !== null && shop.current !== null) scrollWithin(shop.current, 'start', true); }, [picked]);
   if (commands.length === 0) return null;
   const chosen = commands.find((c) => c.unit === picked);
   return (
@@ -45,19 +46,24 @@ export function UnitShop({ commands, faction, onCommand }: { commands: Command[]
 function ShopCard({ command, onCommand }: { command: Command; onCommand: (c: Command) => void }): ReactElement {
   const type = command.unit!;
   const def = UNITS[type];
+  const locked = !command.enabled && command.tech !== undefined;
   return (
     <section className="shop-card" aria-label={T.unit[type].name}>
       <div className="shop-card-top">
-        <h3>{T.unit[type].name}</h3>
+        <div className="shop-card-text">
+          <h3>{T.unit[type].name}</h3>
+          <p className="blurb">{T.unit[type].blurb}</p>
+        </div>
         <div className="command">
-          <button type="button" className="primary" data-testid={`cmd-${command.id}`} disabled={!command.enabled} onClick={() => onCommand(command)}>
+          <button type="button" className={locked ? 'primary needs-tech' : 'primary'} data-testid={`cmd-${command.id}`}
+            disabled={!command.enabled && !locked} onClick={() => onCommand(command)}>
             <span className="command-label">{T.ui.train}</span>
+            {locked ? <FlaskIcon /> : null}
             <span className="cost"><CoinIcon />{command.cost}<span className="vh">{` ${T.ui.gold.toLowerCase()}`}</span></span>
           </button>
           {command.why !== null ? <small className="why">{command.why}</small> : null}
         </div>
       </div>
-      <p className="blurb">{T.unit[type].blurb}</p>
       <Stats stats={[
         { icon: <HeartIcon />, label: T.ui.health, value: def.hp },
         { icon: <SwordIcon />, label: T.ui.attackStat, value: def.atk },

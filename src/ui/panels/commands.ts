@@ -14,6 +14,8 @@ export interface Command {
   action: Action | null; arm: Armed | null;
   /** A city's train command names the unit, so the city card can show it in its row of units. */
   unit?: UnitTypeId;
+  /** Set when a missing tech is all that stands in the way: tapping the command opens the tech tree at it. */
+  tech?: TechId;
 }
 
 const needs = (t: TechId): string => `${T.ui.needs} ${T.tech[t]}`;
@@ -81,8 +83,9 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     if ((ix.train[cityId] ?? []).includes(type)) {
       out.push({ id: `train-${type}`, label, cost, enabled: true, why: null, action, arm: null, unit: type });
     } else {
-      const why = def.tech !== null && !player.techs.includes(def.tech) ? needs(def.tech) : reasonText(trainRefusal(state, cityId, type) ?? 'cannot train that');
-      out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null, unit: type });
+      const missing = def.tech !== null && !player.techs.includes(def.tech) ? def.tech : null;
+      const why = missing !== null ? needs(missing) : reasonText(trainRefusal(state, cityId, type) ?? 'cannot train that');
+      out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null, unit: type, ...(missing !== null ? { tech: missing } : {}) });
     }
   }
   const walls = { id: 'walls', label: T.ui.walls, cost: CONFIG.walls.cost, arm: null };
@@ -90,7 +93,7 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     out.push({ ...walls, enabled: true, why: null, action: { type: 'buildWalls', city: cityId } });
   } else {
     const refusal = wallsRefusal(state, cityId);
-    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(CONFIG.walls.tech), action: null });
+    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(CONFIG.walls.tech), action: null, tech: CONFIG.walls.tech });
     else if (refusal === 'not enough gold') out.push({ ...walls, enabled: false, why: reasonText(refusal), action: null });
   }
   if (ix.rewards.includes(cityId) && city.pendingRewards[0] !== undefined) {
@@ -111,7 +114,7 @@ export function tileCommands(at: HexKey, state: MatchState, ix: ActionIndex): Co
     const base = { id, label, cost, arm: null };
     if (legal) out.push({ ...base, enabled: true, why: null, action });
     else if (refusal === 'not enough gold') out.push({ ...base, enabled: false, why: reasonText(refusal), action: null });
-    else if (refusal === 'missing tech' && showTech) out.push({ ...base, enabled: false, why: needs(tech), action: null });
+    else if (refusal === 'missing tech' && showTech) out.push({ ...base, enabled: false, why: needs(tech), action: null, tech });
   };
   if (tile.resource === 'orchard' || tile.resource === 'game') {
     const rule = CONFIG.harvest[tile.resource];

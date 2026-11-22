@@ -105,6 +105,8 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     : s.state !== null && s.viewer !== null && s.state.current === s.viewer));
 
   const [sheet, setSheet] = useState<Sheet>(openSheet);
+  // The tech a locked command asked for, ringed on the tech sheet; null when the sheet was opened from the bar.
+  const [techFocus, setTechFocus] = useState<TechId | null>(null);
   const [locked, setLocked] = useState(true);
   const [soundOn, setSoundOn] = useState(() => !isMuted());
   const [later, setLater] = useState<number[]>([]);
@@ -172,6 +174,10 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const { view, ix } = data;
   const player = state.players[viewer]!;
   const onCommand = (c: Command): void => {
+    if (!c.enabled) {
+      if (c.tech !== undefined) { setTechFocus(c.tech); setSheet('tech'); }
+      return;
+    }
     if (c.action !== null) run(c.action);
     else arm(c.arm);
   };
@@ -274,7 +280,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting} thinking={aiBusy && !isOnline}
         status={status} statusName={statusName} statusShort={statusShort} clock={clock} clockPaused={online?.clock.kind === 'paused'}
         nextDisabled={nextDisabled} onNextUnit={onNextUnit}
-        onOpenTech={() => setSheet('tech')} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
+        onOpenTech={() => { setTechFocus(null); setSheet('tech'); }} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
       <div className="board-slot" data-testid="board-slot">
         <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}
@@ -291,7 +297,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       ) : null}
       {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
       {sheet === 'tech' ? (
-        <TechSheet rows={techRows(state, ix)} onResearch={(t: TechId) => run({ type: 'research', tech: t })} onClose={() => setSheet('none')} />
+        <TechSheet rows={techRows(state, ix)} focus={techFocus} onResearch={(t: TechId) => run({ type: 'research', tech: t })} onClose={() => setSheet('none')} />
       ) : null}
       {sheet === 'menu' ? (
         <Menu
