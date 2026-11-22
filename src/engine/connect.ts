@@ -29,21 +29,20 @@ function chainFrom(s: MatchState, owner: PlayerId, from: HexKey): Set<HexKey> {
   return seen;
 }
 
-// The capital (lowest id first) that `city` is joined to by roads and its owner's cities, or undefined. A captured
-// capital keeps its capital flag, so a player may hold more than one.
+// The owner's capital, if `city` is joined to it by roads and its owner's cities, or undefined. A player holds at most
+// one capital (a captured capital is an ordinary city for its captor, rules 12).
 function connectedCapital(s: MatchState, city: City): City | undefined {
-  const chain = chainFrom(s, city.owner, city.pos);
-  return s.cities
-    .filter((c) => c.owner === city.owner && c.capital && c.id !== city.id && chain.has(c.pos))
-    .sort((a, b) => a.id - b.id)[0];
+  const capital = s.cities.find((c) => c.owner === city.owner && c.capital);
+  if (capital === undefined || capital.id === city.id) return undefined;
+  return chainFrom(s, city.owner, city.pos).has(capital.pos) ? capital : undefined;
 }
 
-// rules 6 (rules version 7): is a non-capital city joined to one of its owner's capitals?
+// rules 6 (rules version 7): is a non-capital city joined to its owner's capital?
 export function isConnected(s: MatchState, city: City): boolean {
   return !city.capital && connectedCapital(s, city) !== undefined;
 }
 
-// rules 6 (rules version 7): the first time each of `player`'s cities is connected, it and the capital it reaches each gain
+// rules 6 (rules version 7): the first time each of `player`'s cities is connected, it and its owner's capital each gain
 // CONFIG.connectGrowth growth (levels and rewards follow as usual). Once per city per owner; never taken back.
 export function payConnections(s: MatchState, player: PlayerId, ev: GameEvent[]): void {
   if ((CONFIG.connectGrowth as number) === 0) return;        // replays rules 6

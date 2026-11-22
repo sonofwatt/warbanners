@@ -22,6 +22,9 @@ export const CONFIG = deepFreeze({
   // rules 7: the first time a city is joined to its owner's capital by roads and own cities, it and the capital each
   // gain this much growth. 0 replays rules 6; only the provenance tests turn it off.
   connectGrowth: 1,
+  // rules 7: a captured capital becomes an ordinary city for its captor, and the loser's best remaining city becomes
+  // their capital at once. Off replays rules 6 (a captured capital stayed one); only the provenance tests turn it off.
+  capitalMoves: true,
   citySightExtra: 1,                          // a city sees this many tiles beyond its territory radius
   hiddenRevealRange: 1,                       // a unit or city reveals a hidden unit within this distance
   blindedReach: 1,                            // a blinded unit attacks no farther than this
@@ -62,9 +65,9 @@ export const CONFIG = deepFreeze({
   },
   buildings: {
     farm: { tech: 'farming', cost: 5, growth: 2, on: 'field', resource: 'cropland', income: 0 },
-    lumberCamp: { tech: 'forestry', cost: 3, growth: 1, on: 'forest', resource: null, income: 0 },
+    lumberCamp: { tech: 'forestry', cost: 3, growth: 2, on: 'forest', resource: null, income: 0 },   // rules 7: growth 2 (was 1)
     mine: { tech: 'bronze', cost: 5, growth: 2, on: 'mountain', resource: 'ore', income: 0 },
-    market: { tech: 'markets', cost: 6, growth: 1, on: 'field', resource: null, income: 2 },
+    market: { tech: 'markets', cost: 6, growth: 2, on: 'field', resource: null, income: 2 },         // rules 7: growth 2 (was 1)
   },
   walls: { tech: 'shieldwork', cost: 6 }, road: { tech: 'roads', cost: 1 },
   // Stage 2 (docs/rules/stage2-rules.md). Thresholds tuned by simulated matches in plan 5 Task 8
@@ -81,7 +84,7 @@ export const CONFIG = deepFreeze({
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
   roadCost: number; relayCost: number; wallsCover: number; mountainSightBonus: number;
-  closedFog: boolean; levelUpEndsChain: boolean; connectGrowth: number;
+  closedFog: boolean; levelUpEndsChain: boolean; connectGrowth: number; capitalMoves: boolean;
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
   attacksPerTurn: { doubleStrike: number; base: number };
   newCity: { level: number; radius: number; growth: number };

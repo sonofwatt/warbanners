@@ -90,8 +90,9 @@ option, and statuses on your units (taunted, blinded) wear off.
   it and the capital each get +1 growth point (which can level either city, with
   its reward as usual). This happens once per city for each owner: a connection
   is never taken back, a second road changes nothing, and a captured city can pay
-  its new owner once more. A capital, captured or not, never earns it for itself,
-  and a player without a capital earns none. It is checked after each action, for
+  its new owner once more. A player has at most one capital, and a city connects
+  only to its owner's capital; the capital never earns the bonus for itself, and
+  a player without a capital earns none. It is checked after each action, for
   the player who acted.
 - Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
   city (or by a Camp on its behalf) count, plus the starting unit for the
@@ -119,9 +120,9 @@ Things you can do on a tile in your territory (one building per tile):
 | Harvest orchard | tech `foraging` | 2 | +1, the orchard is used up |
 | Harvest game | tech `hunting` | 2 | +1, the game is used up |
 | Build Farm on cropland | tech `farming` | 5 | +2 |
-| Build Lumber camp on a forest tile with no resource | tech `forestry` | 3 | +1 |
+| Build Lumber camp on a forest tile with no resource | tech `forestry` | 3 | +2 (+1 before rules 7) |
 | Build Mine on ore | tech `bronze` | 5 | +2 |
-| Build Market on a field with no resource, one per city | tech `markets` | 6 | +1, and +2 income |
+| Build Market on a field with no resource, one per city | tech `markets` | 6 | +2 (+1 before rules 7), and +2 income |
 | Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
 | Road, on any field or forest tile that is yours or unclaimed | tech `roads` | 1 | none |
 
@@ -294,6 +295,15 @@ nothing.
   not. Any city reward its previous owner had
   not yet chosen is dropped. City tribute is paid only by factions that have a
   tribute rule.
+- Captured capitals (since rules 7): a captured capital becomes an ordinary city
+  for its captor (no capital income, no capital banner), and it can earn the
+  connection bonus (see 6) for its new owner like any other city. If the player
+  who lost it still has cities, one of them becomes their capital at once: the
+  highest level, then the most growth points toward the next level, then the
+  nearest (hex distance) to the lost capital's tile, then the lowest city id. The
+  new capital counts as connected. Cities that already earned the bonus keep it
+  and earn nothing more; the others can now connect to the new capital. Before
+  rules 7 a captured capital stayed a capital, so a player could hold two.
 - A player with no cities is eliminated and their units are removed. The last
   player left wins. Either player may resign at any time, on their own turn or the other's; resigning eliminates them.
 

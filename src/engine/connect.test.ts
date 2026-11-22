@@ -98,18 +98,6 @@ test('a captured city that was linked pays its new owner once when joined to the
   expect(cityById(again.state, c.id)!.growth).toBe(1);
 });
 
-test('a captured capital keeps its capital flag and earns no bonus for itself', () => {
-  const s = blankMatch();
-  addCity(s, 0, -3, 3, { capital: true });
-  const theirs = addCity(s, 1, 0, 0, { capital: true });
-  addCity(s, 1, 3, -3);
-  const w = addUnit(s, 'warrior', 0, 0, 0);
-  const r = applyAction(s, { type: 'capture', unit: w.id });
-  if (!r.ok) throw new Error(r.reason);
-  expect(cityById(r.state, theirs.id)).toMatchObject({ owner: 0, capital: true, linked: true, growth: 0 });
-  expect(r.events.some((e) => e.type === 'connected')).toBe(false);
-});
-
 test('no capital, no bonus', () => {
   const s = roads(blankMatch());
   const a = addCity(s, 0, 0, 0); const b = addCity(s, 0, 2, 0);

@@ -25,5 +25,5 @@ test('references resolve', () => {
     expect(TECHS[f.startTech].tier).toBe(1);
   }
   expect(CONFIG.rewards[5]).toEqual(['champion', 'support']);
-  expect(CONFIG.buildings.market).toMatchObject({ tech: 'markets', cost: 6, growth: 1, on: 'field', resource: null, income: 2 });
+  expect(CONFIG.buildings.market).toMatchObject({ tech: 'markets', cost: 6, growth: 2, on: 'field', resource: null, income: 2 });   // rules 7: growth 2 (was 1)
 });

@@ -101,6 +101,7 @@ export type GameEvent =
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }
   | { type: 'captured'; city: number; by: PlayerId }
+  | { type: 'capitalMoved'; player: PlayerId; city: number }       // rules 7: the player's capital was taken, this city is it now
   // trait: the relic's gift; found: the treasure a map shows; unit: the id of a spawned Warrior or Sellsword
   | { type: 'treasure'; at: HexKey; outcome: TreasureOutcome; trait?: HeroTraitId; found?: HexKey; unit?: number }
   | { type: 'usedItem'; unit: number; item: ItemId }

@@ -9,8 +9,8 @@ import type { Action, MatchState } from './types';
 // With stage 2 switched off through CONFIG alone (no trait can be earned, a treasure draws among stage 1's
 // three outcomes, since rules 5 a chain kill costs nothing, and since rules 6 the old fog rule, the flat Mongol move
 // bonus of a whole tile and endless chains are back through CONFIG and the faction data, and since rules 7 no connection
-// growth and the Scout's sight of 3 through CONFIG and the unit data), the current rules must replay every
-// recorded rules 3 playout hash for hash. CONFIG is deep-frozen, so the factories build new objects. This file is
+// growth, no capital moves, a growth of 1 for a Lumber camp and a Market and the Scout's sight of 3 through CONFIG and
+// the unit data), the current rules must replay every recorded rules 3 playout hash for hash. CONFIG is deep-frozen, so the factories build new objects. This file is
 // alone because vi.mock binds a whole file.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
@@ -22,6 +22,12 @@ vi.mock('./data/config', async (orig) => {
       closedFog: false,
       levelUpEndsChain: false,
       connectGrowth: 0,
+      capitalMoves: false,
+      buildings: {
+        ...m.CONFIG.buildings,
+        lumberCamp: { ...m.CONFIG.buildings.lumberCamp, growth: 1 },
+        market: { ...m.CONFIG.buildings.market, growth: 1 },
+      },
       heroes: { ...m.CONFIG.heroes, thresholds: off, agogeThresholds: off },
       treasure: { ...m.CONFIG.treasure, table: ['gold', 'explore', 'unit'] },
     },
