@@ -779,7 +779,9 @@ input:focus { border-color: var(--blue); }
 .name-chips { gap: var(--s1); }
 .name-chips .chip { flex: 0 1 auto; min-height: 36px; font-size: var(--t-m); background: var(--paper); box-shadow: inset 0 -3px 0 var(--paper-edge); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .stats-filter { display: flex; flex-direction: column; gap: var(--s1); font-size: var(--t-m); font-weight: 750; }
-.stats-filter .chip { flex: 0 1 auto; min-height: 40px; }
+.stats-filter .chips { gap: var(--s1); }
+.stats-filter .chip { flex: 0 1 auto; min-height: 40px; padding: 0 var(--s3); font-size: var(--t-m); }
+.screen.stats { gap: var(--s3); }
 .stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); margin: var(--s2) 0 0; }
 .stat-tile {
   display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 2px; min-width: 0;

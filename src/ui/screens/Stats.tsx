@@ -66,7 +66,7 @@ function RecentRow({ l }: { l: StatLine }): ReactElement {
   return (
     <li className={l.won ? 'stats-match won' : 'stats-match'} data-testid="stats-recent-row">
       <strong>{fill(l.won ? T.stats.won : T.stats.lost, { name: against })}</strong>
-      <span className="stats-match-line">{fill(T.stats.recentLine, { faction: T.faction[l.faction], kind: T.stats.kinds[l.kind], n: l.rounds, date })}</span>
+      <span className="stats-match-line">{fill(T.stats.recentLine, { faction: T.faction[l.faction], kind: T.stats.kinds[l.kind], turns: T.stats.turns(l.rounds), date })}</span>
       <span className="stats-match-side">{side(l.name, l.tally)}</span>
       {them !== null ? <span className="stats-match-side">{side(them.name, them.tally)}</span> : null}
     </li>
@@ -99,11 +99,11 @@ export function Stats(): ReactElement {
     <div className="screen stats" data-testid="stats">
       <h1>{T.stats.title}</h1>
       <Chips label={T.stats.player} id="stats-player" values={players} chosen={name} text={(v) => v} onPick={(v) => { setPicked(v); setAsking(false); }} />
-      <Chips label={T.stats.kind} id="stats-kind" values={KINDS} chosen={filter.kind} text={(v) => T.stats.kinds[v]} onPick={(kind) => setFilter({ ...filter, kind })} />
+      <Chips label={T.stats.kind} id="stats-kind" values={KINDS} chosen={filter.kind} text={(v) => T.stats.kinds[v]} onPick={(kind) => setFilter({ ...filter, kind, ai: kind === 'pass' ? 'any' : filter.ai })} />
       <Chips label={T.stats.faction} id="stats-faction" values={FACTIONS} chosen={filter.faction}
         text={(v) => (v === 'all' ? T.stats.bothFactions : T.faction[v])} onPick={(faction) => setFilter({ ...filter, faction })} />
-      <Chips label={T.stats.ai} id="stats-ai" values={LEVELS} chosen={filter.ai}
-        text={(v) => (v === 'any' ? T.stats.anyAi : T.ai.name[v])} onPick={(ai) => setFilter({ ...filter, ai })} />
+      {filter.kind === 'pass' ? null : <Chips label={T.stats.ai} id="stats-ai" values={LEVELS} chosen={filter.ai}
+        text={(v) => (v === 'any' ? T.stats.anyAi : T.ai.name[v])} onPick={(ai) => setFilter({ ...filter, ai })} />}
       {summary.played === 0 ? <p className="empty" data-testid="stats-none">{T.stats.noMatches}</p> : <Tiles s={summary} />}
       {recent.length > 0 ? (
         <>
