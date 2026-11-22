@@ -69,13 +69,24 @@ visible unit; `deeds` stay private).
   it (another session is adding Stats). Settings opens a small card over Home with one choice, **Art style:
   Bright / Gritty**, each with a line of description, and a Done button.
 
+## Mood
+
+David's reference (2026-11-22): "the game Bad North is what I'm sort of looking for when we're making grittier
+graphics. Especially when there's bad weather and less daylight." A mood reference only: our own art, colours and
+shapes, nothing copied or traced. In spirit: a muted, desaturated palette; low, overcast light; small figures that
+read clearly against a moody ground; mist and rain as atmosphere. Weather and time of day are David's "version 2"
+idea, so the Gritty palette is built to be dimmed further for night and storms later (the grade in `art/palette.ts`
+is a few numbers, and the haze over the board is one CSS layer).
+
 ## The dark palette
 
 - Chrome: the warm paper becomes dark leather, the sky a night slate, ink a pale parchment. Gold buttons become a
   tarnished brass that keeps dark words (a new `--on-gold` token, dark in both modes). Contrast stays at least
   4.5 to 1 for words.
-- Board: the five grounds get darker, duller versions (grass, water, rock, sand, and fog as a near-black murk).
-  Player colours, accents and figures keep their own colours so units stay easy to tell apart.
+- Board: the five grounds get cooler, duller versions (olive-grey grass, slate water, wet stone, drab sand, and fog
+  as a near-black murk). Scenery (trees, rocks, buildings, cities) is muted by one overcast grade: less colour, less
+  light, a cold cast. A pale haze at the top of the board and a dusk vignette at its edges, drawn with gradients
+  only (no filter), stand in for weather. Figures keep their own colours so units stay easy to tell apart.
 
 ## What each stage looks like
 
