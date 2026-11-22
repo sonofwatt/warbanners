@@ -11,6 +11,15 @@ export const GROUND: Record<Ground, readonly [string, string, string]> = {
   fog: ['#E9EEF2', '#CBD3DA', '#B9C2CA'],
 };
 
+/** Gritty mode's grounds: the same five, darker and duller, with fog as a near-black murk. */
+export const GROUND_GRITTY: Record<Ground, readonly [string, string, string]> = {
+  grass: ['#61784A', '#4C613A', '#405331'],
+  water: ['#3F6276', '#314F61', '#294353'],
+  rock: ['#827B6E', '#666055', '#58534A'],
+  sand: ['#9E8B62', '#806F4D', '#706143'],
+  fog: ['#33383E', '#282C31', '#22262A'],
+};
+
 export const SKIN = '#E8B88A';
 
 export const PLAYER_COLOURS: Record<FactionId, { main: string; dark: string }> = {

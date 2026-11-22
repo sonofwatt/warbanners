@@ -18,6 +18,7 @@
   --bronze: #C8963E;
   --gold: #FFC93C;            /* the primary face: a bright banner gold with ink words, 11 to 1 */
   --gold-side: #C99316;
+  --on-gold: #2A2216;         /* words on gold: dark in both art styles */
 
   /* Surfaces: warm paper instead of white. */
   --paper: #FFF8E8;
@@ -53,6 +54,29 @@
   font-size: var(--t-base);
   line-height: 1.35;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Gritty, chosen in Settings on Home (ui/artMode.ts sets data-art on <html>): the same tokens, at night. Leather for
+   paper, a slate sky and a dark sea, parchment ink, tarnished brass for gold. Words keep 4.5 to 1 or better. */
+:root[data-art="gritty"] {
+  --sky: #262D35;
+  --sea: #151B22;
+  --grass-ink: #9DC47A;
+  --gold: #C1923A;
+  --gold-side: #84601F;
+  --paper: #302A23;
+  --paper-2: #3B342B;
+  --paper-edge: #1C1814;
+  --paper-sunk: #26221D;
+  --ink: #EFE5CF;             /* 12 to 1 on --paper */
+  --ink-soft: #C2B597;        /* 7 to 1 on --paper */
+  --ink-mute: #8F846E;
+  --owned: #34402A;
+  --edge-faint: rgba(239, 229, 207, 0.12);
+  --inset: rgba(0, 0, 0, 0.25);
+  --scrim: rgba(5, 8, 12, 0.6);
+  --lift: 0 6px 0 rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -119,7 +143,7 @@ button.needs-tech {
 button.needs-tech .icon { opacity: 0.7; }
 button:focus-visible, input:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
-.primary { --face: var(--gold); --side: var(--gold-side); --label: var(--ink); }
+.primary { --face: var(--gold); --side: var(--gold-side); --label: var(--on-gold); }
 .player { --face: var(--player); --side: var(--player-dark); --label: var(--on-colour); }
 .danger { --face: var(--danger); --side: var(--danger-side); --label: var(--on-colour); }
 .paper { --face: var(--paper); --side: var(--paper-edge); --label: var(--ink); }
@@ -208,7 +232,7 @@ input:focus { border-color: var(--blue); }
 .faction-card .picture { width: 84px; height: auto; display: block; }
 .faction-name { font-size: var(--t-s); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
 .faction-player { font-size: var(--t-xl); font-weight: 850; max-width: 100%; overflow-wrap: anywhere; }
-.faction-first { background: var(--gold); color: var(--ink); border-radius: 999px; padding: 1px 10px; font-weight: 800; font-size: var(--t-xs); margin-top: 2px; }
+.faction-first { background: var(--gold); color: var(--on-gold); border-radius: 999px; padding: 1px 10px; font-weight: 800; font-size: var(--t-xs); margin-top: 2px; }
 .swap { width: 48px; height: 48px; padding: 0 0 var(--thick); border-radius: 50%; }
 .setup-line { font-size: var(--t-ml); font-weight: 600; }
 .setup-row > .primary { flex: 1.6 1 0; }
@@ -472,7 +496,7 @@ input:focus { border-color: var(--blue); }
 .tech.owned .tech-badge { background: var(--grass-ink); box-shadow: none; color: var(--on-colour); }
 .tech.owned .tech-state small { color: var(--grass-ink); }
 .tech.ready { box-shadow: inset 0 0 0 2px var(--gold-side); }
-.tech.ready .tech-badge { background: var(--gold); box-shadow: inset 0 0 0 3px var(--gold-side); color: var(--ink); }
+.tech.ready .tech-badge { background: var(--gold); box-shadow: inset 0 0 0 3px var(--gold-side); color: var(--on-gold); }
 .tech.locked { background: transparent; box-shadow: inset 0 0 0 2px var(--paper-edge); }
 .tech.locked .tech-badge { background: var(--paper-sunk); box-shadow: none; }
 .tech.locked strong { color: var(--ink-soft); }
@@ -656,7 +680,7 @@ input:focus { border-color: var(--blue); }
 .lobby-seat-text strong { font-weight: 850; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lobby-seat-text small { font-size: var(--t-xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
 .lobby-you {
-  position: absolute; top: -8px; right: 8px; background: var(--gold); color: var(--ink); border-radius: 999px;
+  position: absolute; top: -8px; right: 8px; background: var(--gold); color: var(--on-gold); border-radius: 999px;
   padding: 0 8px; font-size: var(--t-2xs); font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase;
 }
 .lobby-wait:empty { display: none; }
@@ -757,7 +781,7 @@ input:focus { border-color: var(--blue); }
 }
 
 /* Heroes: the badge beside the name, the earned traits, and the deed bars (Task 10 may refine these). */
-.hero-badge { display: inline-block; align-self: flex-start; background: var(--gold); color: var(--ink); border-radius: 999px; padding: 1px 10px; font-weight: 800; font-size: var(--t-xs); box-shadow: inset 0 0 0 2px var(--gold-side); }
+.hero-badge { display: inline-block; align-self: flex-start; background: var(--gold); color: var(--on-gold); border-radius: 999px; padding: 1px 10px; font-weight: 800; font-size: var(--t-xs); box-shadow: inset 0 0 0 2px var(--gold-side); }
 .traits.earned li { border-left-color: var(--gold-side); }
 .traits.myth li { border-left-color: var(--gold); }
 .traits.carried li { border-left-color: var(--gold-side); }
@@ -773,3 +797,23 @@ input:focus { border-color: var(--blue); }
 .whats-new summary::before { content: '\25B8'; display: inline-block; transition: transform 120ms ease-out; }
 .whats-new[open] summary::before { transform: rotate(90deg); }
 .whats-new p { margin: 2px 0 0; }
+
+/* Settings, over Home: a paper card on a scrim, one choice per row. */
+.home-more { display: flex; gap: var(--s2); justify-content: center; }
+.home-more > button { min-height: 44px; padding: 0 var(--s4) var(--thick); }
+.settings-scrim {
+  position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: var(--s4);
+  background: var(--scrim); animation: fade 160ms ease-out both;
+}
+.settings {
+  width: min(100%, 420px); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s3);
+  background: var(--paper); color: var(--ink); border-radius: var(--r-l); padding: var(--s4) var(--s4) calc(var(--s4) + 5px);
+  box-shadow: inset 0 -5px 0 var(--paper-edge), var(--lift);
+}
+.settings h2, .settings h3 { margin: 0; }
+.settings h3 { font-size: var(--t-m); color: var(--ink-soft); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.style-choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.style-choice { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: var(--s2) var(--s3) calc(var(--s2) + var(--thick)); }
+.style-choice[aria-pressed="true"] { --face: var(--gold); --side: var(--gold-side); --label: var(--on-gold); }
+.style-name { font-weight: 850; font-size: var(--t-l); }
+.style-blurb { font-weight: 600; font-size: var(--t-s); opacity: 0.85; }

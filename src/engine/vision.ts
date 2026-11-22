@@ -77,7 +77,7 @@ export function playerView(s: MatchState, player: PlayerId): PlayerView {
   const units = s.units
     .filter((u) => u.owner === player || (visible.has(u.pos) && canSeeUnit(s, player, u, visible)))
     .map((u) => ({
-      ...u, lure: u.lure === null ? null : { ...u.lure }, heroTraits: [...u.heroTraits],
+      ...u, lure: u.lure === null ? null : { ...u.lure }, heroTraits: [...u.heroTraits], wear: { ...u.wear },
       deeds: u.owner === player ? { ...u.deeds } : freshDeeds(),   // deeds are private; traits and items are public
     }));
   const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => ({ ...c, pendingRewards: [...c.pendingRewards] }));

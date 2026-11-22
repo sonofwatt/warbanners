@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 6;
+export const RULES_VERSION = 7;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -22,6 +22,12 @@ export const DEEDS: readonly DeedId[] = ['fight', 'march', 'survive', 'rest'];
 export type HeroTraitId = 'fierce' | 'tireless' | 'hardy' | 'watchful';
 export const HERO_TRAITS: readonly HeroTraitId[] = ['fierce', 'tireless', 'hardy', 'watchful'];
 export type Deeds = Record<DeedId, number>;
+// Battle wear, drawn in Gritty mode and nowhere read by the rules (engine/wear.ts). Public, like heroTraits.
+export interface Wear {
+  battles: number;                       // attacks it took part in: made, taken or splashed
+  scar: 0 | 1 | 2 | 3;                   // the armour's floor left by past heals; never goes down
+  bleeding: boolean;                     // hurt to battered or worse since its last heal
+}
 export type ItemId = 'draught';
 // What a treasure claim can give, in the order of CONFIG.treasure.table.
 export type TreasureOutcome = 'gold' | 'explore' | 'unit' | 'relic' | 'draught' | 'map' | 'mercenary';
@@ -52,6 +58,7 @@ export interface Unit {
   fresh: boolean;                        // spawned this turn; cleared when its owner's next turn starts
   deeds: Deeds;                          // running totals, never reset; private to the owner (playerView zeroes the rest)
   heroTraits: HeroTraitId[];             // in the order earned; public
+  wear: Wear;                            // cosmetic battle wear; public
   item: ItemId | null;                   // a carried one-use item; public
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }

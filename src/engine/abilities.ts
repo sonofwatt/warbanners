@@ -5,6 +5,7 @@ import { addDeed, maxHpOf } from './heroes';
 import { drankThisTurn } from './items';
 import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
+import { noteHealed } from './wear';
 import { ABILITIES } from './types';
 import type { AbilityId, Action, Handler, MatchState, Unit } from './types';
 
@@ -74,6 +75,7 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     if (a.ability === 'heal') {
       const before = target.hp;
       target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal);
+      noteHealed(target, before, maxHpOf(target));
       if (target.hp > before && !target.fresh) addDeed(s, target, 'survive', 1, ev);
     }
     else if (a.ability === 'taunt') target.taunted = true;

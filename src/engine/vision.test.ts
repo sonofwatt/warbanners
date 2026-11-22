@@ -10,7 +10,7 @@ import type { City, Tile, Unit } from './types';
 type ObjectKeys<T> = { [K in keyof T]-?: Exclude<T[K], null | undefined> extends object ? K : never }[keyof T];
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 // playerView copies exactly these nested objects; a new one must be copied too (and filled in the test below).
-const NESTED: [Same<ObjectKeys<Tile>, never>, Same<ObjectKeys<Unit>, 'lure' | 'deeds' | 'heroTraits'>, Same<ObjectKeys<City>, 'pendingRewards'>] = [true, true, true];
+const NESTED: [Same<ObjectKeys<Tile>, never>, Same<ObjectKeys<Unit>, 'lure' | 'deeds' | 'heroTraits' | 'wear'>, Same<ObjectKeys<City>, 'pendingRewards'>] = [true, true, true];
 
 describe('vision', () => {
   test('a warrior sees one tile, two from a mountain', () => {

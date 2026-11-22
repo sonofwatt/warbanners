@@ -4,6 +4,7 @@ import { UNITS } from './data/units';
 import { distance, parseKey } from './hex';
 import { hasTrait } from './state';
 import { DEEDS } from './types';
+import { noteHealed } from './wear';
 import type { DeedId, Deeds, GameEvent, HeroTraitId, MatchState, Unit } from './types';
 
 export function freshDeeds(): Deeds {
@@ -41,7 +42,10 @@ export function mythTouched(s: MatchState, u: Unit): boolean {
 export function grantTrait(_s: MatchState, u: Unit, trait: HeroTraitId, ev: GameEvent[]): boolean {
   if (!canEarnTraits(u) || u.heroTraits.includes(trait) || u.heroTraits.length >= CONFIG.heroes.maxTraits) return false;
   u.heroTraits.push(trait);
-  if (trait === 'fierce') u.hp += CONFIG.heroes.fierceHp;   // the new health is healed at once
+  if (trait === 'fierce') {   // the new health is healed at once
+    u.hp += CONFIG.heroes.fierceHp;
+    noteHealed(u, u.hp - CONFIG.heroes.fierceHp, maxHpOf(u) - CONFIG.heroes.fierceHp);
+  }
   ev.push({ type: 'heroTrait', unit: u.id, trait, hero: u.heroTraits.length === CONFIG.heroes.heroAt });
   return true;
 }

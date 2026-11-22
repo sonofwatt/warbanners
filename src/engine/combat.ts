@@ -8,6 +8,7 @@ import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { maxMp } from './movement';
+import { noteHurt } from './wear';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
 
@@ -101,6 +102,9 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   const damage = damageFor(effAtk, defenceOf(s, target), coverAt(s, target));
   target.hp -= damage;
   const targetDied = target.hp <= 0;
+  attacker.wear.battles += 1;
+  target.wear.battles += 1;
+  if (!targetDied) noteHurt(target, maxHpOf(target));
 
   // The counter is worked out first so the one `attacked` event can carry it.
   let counter = 0;
@@ -126,6 +130,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     if (hasTrait(attacker, 'chain')) {
       chainLost = Math.max(0, Math.min(CONFIG.chainKillCost, attacker.hp - 1));
       attacker.hp -= chainLost;
+      if (chainLost > 0) noteHurt(attacker, maxHpOf(attacker));
       attacker.attacks += 1;
       chainGranted += 1;
     }
@@ -143,6 +148,8 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     for (const n of s.units) {
       if (n.owner === attacker.owner || distance(centre, parseKey(n.pos)) !== 1) continue;
       n.hp -= splash;
+      n.wear.battles += 1;
+      if (n.hp > 0) noteHurt(n, maxHpOf(n));
       ev.push({ type: 'splashed', target: n.id, damage: splash });
       if (n.hp <= 0) { removeUnit(s, n.id); ev.push({ type: 'died', unit: n.id }); kills += 1; } else splashed.push(n);
     }
@@ -151,6 +158,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   let attackerDied = false;
   if (counter > 0) {
     attacker.hp -= counter;
+    if (attacker.hp > 0) noteHurt(attacker, maxHpOf(attacker));
     if (attacker.hp <= 0) {
       removeUnit(s, attacker.id);
       ev.push({ type: 'died', unit: attacker.id });

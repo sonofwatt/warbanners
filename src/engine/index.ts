@@ -12,6 +12,8 @@ export { canUseItem, useItemRefusal } from './items';
 export { restHealAt } from './turn';
 export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, maxHpOf, mythTouched } from './heroes';
 export { trainable, unitCost } from './training';
+export { freshWear, wearLook, woundStage } from './wear';
+export type { WearStage, BloodLevel } from './wear';
 export { techPrice, canResearch } from './tech';
 export { cityIncome, playerIncome, growthNeeded, unitCapacity } from './economy';
 export { UNITS } from './data/units';

@@ -1,7 +1,10 @@
+import { useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { useApp } from '../app/useApp';
 import { Version } from './Version';
 import { ArtSheet } from './art/ArtSheet';
+import { ArtModeContext } from './art/mode';
+import { useArtMode } from './artMode';
 import { BoardDemo } from './board/BoardDemo';
 import { Home } from './screens/Home';
 import { Join } from './screens/Join';
@@ -33,8 +36,18 @@ function wantsBoard(): { seed: number; turns: number } | null {
 export function App(home: HomeProps = {}): ReactElement {
   if (wantsArtSheet()) return <ArtSheet />;
   const board = wantsBoard();
-  if (board !== null) return <BoardDemo seed={board.seed} turns={board.turns} />;
-  return <ScreenGuard><Screens {...home} /></ScreenGuard>;
+  if (board !== null) return <Styled><BoardDemo seed={board.seed} turns={board.turns} /></Styled>;
+  return <Styled><ScreenGuard><Screens {...home} /></ScreenGuard></Styled>;
+}
+
+// The player's art style: the art reads it from context, and the chrome's dark tokens key off data-art on <html>.
+function Styled({ children }: { children: ReactElement }): ReactElement {
+  const mode = useArtMode();
+  useEffect(() => {
+    const root = document.documentElement;
+    if (mode === 'gritty') root.dataset.art = 'gritty'; else delete root.dataset.art;
+  }, [mode]);
+  return <ArtModeContext.Provider value={mode}>{children}</ArtModeContext.Provider>;
 }
 
 // Shows the screen the store names. Home's updater and install hooks come from main.tsx.

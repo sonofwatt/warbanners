@@ -21,7 +21,7 @@ vi.mock('./data/factions', async (orig) => {
 
 // Strip what plan 5 and rules 6 added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
-  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, ...rest }) => rest) };
+  return { ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, wear: _w, ...rest }) => rest) };
 }
 
 const FIXTURE = new URL('./stage1.fixture.json', import.meta.url);

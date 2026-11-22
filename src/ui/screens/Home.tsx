@@ -9,6 +9,7 @@ import { BannerMark, BannerTile, InfoIcon } from '../icons';
 import { T, fill } from '../text';
 import { HomeScene } from './HomeScene';
 import { NoticeLine } from './NoticeLine';
+import { Settings } from './Settings';
 
 export interface HomeProps {
   // Wired by main.tsx; Home asks for a check each time it appears and offers the saved install prompt.
@@ -108,6 +109,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
   const openOnline = useApp((s) => s.openOnline);
   const openJoin = useApp((s) => s.openJoin);
   const onlineBlocked = useApp((s) => s.onlineBlocked);
+  const [settings, setSettings] = useState(false);
   useConnectionChanges();
 
   useEffect(() => { onCheck?.(); }, [onCheck]);
@@ -142,6 +144,11 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
         <button type="button" className="paper" data-testid="join-with-code" disabled={blocked !== null} onClick={openJoin}>{T.ui.joinWithCode}</button>
       </div>
       {blocked !== null ? <p className="hint" data-testid="online-why">{T.ui[blocked]}</p> : null}
+      {/* Room in this row for more entries beside Settings (Stats). */}
+      <div className="home-more">
+        <button type="button" className="quiet" data-testid="open-settings" onClick={() => setSettings(true)}>{T.ui.settingsButton}</button>
+      </div>
+      {settings ? <Settings onClose={() => setSettings(false)} /> : null}
       <h2>{T.ui.savedMatches}</h2>
       {sorted.length === 0 ? <p className="empty">{T.ui.noSaves}</p> : <ul className="saves">{sorted.map((s) => <SaveRow key={s.id} save={s} />)}</ul>}
       {onlineList.length > 0 ? (

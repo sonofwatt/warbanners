@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
+import { isHero, maxHpOf, parseKey, UNITS, wearLook } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
@@ -8,6 +8,7 @@ import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
+import { useArtLook } from '../art/mode';
 import { keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
 import { prefersReducedMotion } from './Effects';
@@ -203,6 +204,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
   const hidden = UNITS[unit.type].traits.includes('hidden');
   const maxHp = maxHpOf(unit);
   const opacity = p.u.mine && p.u.spent ? 0.55 : p.u.mine && hidden ? 0.7 : undefined;
+  const wear = useArtLook() === 'gritty' ? wearLook(unit, maxHp) : undefined;   // battle wear shows in Gritty only
   return (
     <g
       data-unit={unit.id}
@@ -214,7 +216,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
       <g className="unit-body">
         <g opacity={opacity}>
           {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
-          {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+          {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction], wear })}
         </g>
         <StatusOverlay
           hp={unit.hp}

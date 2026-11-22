@@ -2,7 +2,8 @@ import type { ReactElement, ReactNode } from 'react';
 import type { Tile } from '../../engine';
 import { edgeDirs, THICK, tileCorners } from '../board/layout';
 import type { Pt } from '../board/layout';
-import { GROUND } from './palette';
+import { useArtLook } from './mode';
+import { GROUND, GROUND_GRITTY } from './palette';
 import type { Ground } from './palette';
 import type { Mark } from '../board/mark';
 
@@ -63,7 +64,7 @@ function cross(a: Pt, b: Pt, c: Pt, d: Pt): Pt {
 }
 
 export function TileBase(p: { ground: Ground }): ReactElement {
-  const [top, left, right] = GROUND[p.ground];
+  const [top, left, right] = (useArtLook() === 'gritty' ? GROUND_GRITTY : GROUND)[p.ground];
   const c = topCorners();
   const dn = (q: Pt): Pt => ({ x: q.x, y: q.y + THICK });
   const lowRight = c[0]!;

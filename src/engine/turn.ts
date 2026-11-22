@@ -6,6 +6,7 @@ import { DIRS, add, key, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { cityById, freshAttacks, tileAt, unitAt } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
+import { noteHealed } from './wear';
 import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
 
 // rules 11: what resting would heal the unit where it stands (before the cap at full health): by whose land it
@@ -49,6 +50,7 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
       if (u.owner !== next || !u.rested) continue;
       const before = u.hp;
       u.hp = Math.min(maxHpOf(u), u.hp + restHealAt(s, u, visible));
+      noteHealed(u, before, maxHpOf(u));
       if (u.hp > before && !u.fresh) addDeed(s, u, 'rest', 1, ev);   // a rest that heals, never a fresh unit's
     }
   }
