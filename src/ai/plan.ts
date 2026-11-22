@@ -1,8 +1,8 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
   CONFIG, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
-  parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, growthNeeded, harvestRefusal, key, lureApplies, neighbors,
+  parseKey, reachable, roadRefusal, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
@@ -10,6 +10,7 @@ import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
 import { availableTypes, chooseReward, chooseTech, chooseUnit } from './mix';
 import { PERSONAS } from './persona';
+import { connectingChains } from './roads';
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
 import type { AiInput, Persona } from './types';
@@ -47,6 +48,21 @@ interface Cand {
 }
 
 class OutOfTime extends Error {}
+
+// The believed state with `n` growth added to each listed city, levelling up as the engine's addGrowth does.
+function withGrowth(b: MatchState, ids: readonly number[], n: number): MatchState {
+  const cities = b.cities.map((c) => {
+    if (!ids.includes(c.id)) return c;
+    const g = { ...c, pendingRewards: [...c.pendingRewards], growth: c.growth + n };
+    while (g.growth >= growthNeeded(b, g)) {
+      g.growth -= growthNeeded(b, g);
+      g.level += 1;
+      g.pendingRewards.push(g.level);
+    }
+    return g;
+  });
+  return { ...b, cities };
+}
 
 const has = (u: Unit, t: string): boolean => (UNITS[u.type].traits as readonly string[]).includes(t);
 const unitIn = (s: MatchState, id: number): Unit | undefined => s.units.find((u) => u.id === id);
@@ -309,8 +325,11 @@ class TurnPlanner {
     return this.campTraining(camp) !== null;
   }
 
-  // Harvest, build and walls while the best one's value gain per gold reaches the threshold. Roads are
-  // left out: valueOf has no term a road changes, so a road can never reach a positive threshold.
+  // Harvest, build, walls and roads while the best one's value gain per gold reaches the threshold. A road is
+  // worth nothing to valueOf until it completes a connection, so a road is scored by the chain it belongs to: the
+  // cheapest chain that would join an unlinked city to a capital (roads.ts), valued at the growth the connection
+  // pays both cities, divided by the gold the whole remaining chain costs. Its next tile is laid while that ratio
+  // clears the threshold, one tile per pass and re-planned after each, so gold goes only to chains that pay.
   private economy(): void {
     const need = ECONOMY_THRESHOLD / this.ctx.skill.economy;
     for (;;) {
@@ -328,6 +347,7 @@ class TurnPlanner {
       const before = valueOf(this.b, fresh(this.b));
       const gold = this.b.players[this.me]!.gold;
       let best: { a: Action; r: Applied; ratio: number } | null = null;
+      const road = this.roadCandidate(before, fresh(this.b), gold);
       try {
         for (const a of list) {
           if (!this.allowed(a)) continue;
@@ -338,6 +358,9 @@ class TurnPlanner {
           const ratio = gain / cost;
           if (best === null || ratio > best.ratio) best = { a, r, ratio };
         }
+        if (road !== null && road.ratio >= need && (best === null || road.ratio > best.ratio)) {
+          best = { a: road.a, r: this.probe(this.b, road.a), ratio: road.ratio };
+        }
       } catch (e) {
         // Out of budget partway: the best action found so far is already probed, so it costs nothing more.
         if (e instanceof OutOfTime && best !== null && best.ratio >= need) this.commit(best.a, best.r);
@@ -346,6 +369,24 @@ class TurnPlanner {
       if (best === null || best.ratio < need) return;
       this.commit(best.a, best.r);
     }
+  }
+
+  // The best next road tile: for each chain connectingChains finds, the value of the growth its connection pays
+  // (connectGrowth to the city and to the capital, through valueOf, so it is in the units harvest and buildings are
+  // scored in) over the gold the chain still costs. Only a chain whose next tile can be laid now is a candidate.
+  private roadCandidate(before: number, ctx: Ctx, gold: number): { a: Action; ratio: number } | null {
+    if (gold < CONFIG.road.cost || CONFIG.connectGrowth <= 0) return null;
+    let best: { a: Action; ratio: number } | null = null;
+    for (const chain of connectingChains(this.b, this.me)) {
+      const at = chain.build.find((k) => roadRefusal(this.b, k) === null);
+      if (at === undefined) continue;
+      const a: Action = { type: 'road', at };
+      if (!this.allowed(a)) continue;
+      const paid = withGrowth(this.b, [chain.city, chain.capital], CONFIG.connectGrowth);
+      const ratio = (valueOf(paid, ctx) - before) / (chain.build.length * CONFIG.road.cost);
+      if (best === null || ratio > best.ratio) best = { a, ratio };
+    }
+    return best;
   }
 
   // ---- one unit ----
