@@ -83,6 +83,16 @@ option, and statuses on your units (taunted, blinded) wear off.
 - Growth points come from harvesting and buildings in the city's territory.
 - To go from level `L` to `L+1` a city needs `L+1` growth points (`L+2` for a
   Mongol city). Spare points carry over.
+- Connected cities (since rules 7): a city is connected when a chain of adjacent
+  tiles joins it to its owner's capital, every tile of the chain being a road or
+  a city of that owner. A road inside another player's territory breaks the
+  chain; a road in unclaimed land does not. The first time a city is connected,
+  it and the capital each get +1 growth point (which can level either city, with
+  its reward as usual). This happens once per city for each owner: a connection
+  is never taken back, a second road changes nothing, and a captured city can pay
+  its new owner once more. A capital, captured or not, never earns it for itself,
+  and a player without a capital earns none. It is checked after each action, for
+  the player who acted.
 - Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
   city (or by a Camp on its behalf) count, plus the starting unit for the
   capital. A unit that captures a village or a city counts against that city from
@@ -148,13 +158,17 @@ only comes from a city reward.
 | Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
-| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden, noCityCapture, pathfinder |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 1 | 2 | | hidden, noCityCapture, pathfinder |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
 | Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
 
 Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
+
+The Krypteia Scout's sight is 1 since rules 7 (3 before). A unit sees every tile
+within its sight, so after a move the fog is at least sight + 1 tiles away; with
+sight 1 and 2 tiles of movement a Scout can step into the fog on open ground.
 
 The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section 6).
 
