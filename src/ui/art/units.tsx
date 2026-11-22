@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Ink } from './features';
 import { SKIN } from './palette';
-import { bladeNotch, bloodDrop, bloodSmear, bloodSpot, bloody, crack, dent, dirt, frayedHem, scratches, snappedEnd, tear, worn, wornDisc } from './wear';
+import { bladeNotch, bloodDrip, bloodDrop, bloodPool, bloodSmear, bloodSpot, bloody, brokenPatch, cut, helmBroken, scar, scarred, crack, dent, dirt, frayedHem, scratches, snappedEnd, tear, worn, wornDisc } from './wear';
 import type { Cut } from './wear';
 
 // The eight unit figures every faction shares, and the status marks drawn
@@ -16,6 +16,8 @@ import type { Cut } from './wear';
 export interface WearProps {
   stage: 0 | 1 | 2 | 3 | 4;
   blood: 0 | 1 | 2;
+  /** Once broken and since healed: the helmet keeps its missing piece and the face shows a scar where the blood was. */
+  scarred?: boolean;
 }
 
 export interface FigureProps {
@@ -150,30 +152,46 @@ function warrior(p: FigureProps): ReactElement {
   sword(ink, 8.2, -9.5, 13.5, -19, WOOD_DARK, worn(w, 2) ? { notch: 0.5, snap: worn(w, 4) ? 0.58 : undefined } : undefined);
   if (bloody(w, 1)) bloodSmear(ink, 9.4, -11.6, 5.3, -9.5, 2.8, 1.7);
   hand(ink, 8, -9);
+  if (bloody(w, 2)) bloodSmear(ink, 7.2, -10, 0.4, 1, 1.8, 1.3);
   head(ink, 0, -23);
-  // Shaggy hair and a headband in the owner's dark colour; the headband is lost when broken.
+  // Shaggy hair and a headband in the owner's dark colour. Battered, the band is nicked; broken, it is cut through,
+  // one end hanging loose, and there is a cut above the brow.
   ink.shape('M -6.6 -23.5 C -7.4 -32.5 7.4 -32.5 6.6 -23.5 L 5.2 -25.6 L 2.6 -24.6 L 0 -26 L -2.6 -24.6 L -5.2 -25.6 Z', HAIR);
-  if (!worn(w, 4)) ink.rect(-6.6, -26.4, 13.2, 2, p.colour.dark, 1);
-  // A small round wooden shield with an iron rim and a metal boss: chipped when battered, a piece gone when broken.
+  if (helmBroken(w)) {
+    ink.rect(-6.6, -26.4, 10.6, 2, p.colour.dark, 1);
+    ink.poly([3.4, -26.2, 5.2, -25.8, 7, -20.8, 5.8, -20.4], p.colour.dark);
+    if (worn(w, 4)) cut(ink, -1, -24.2, 1.4, -23.4);
+  } else {
+    ink.rect(-6.6, -26.4, 13.2, 2, p.colour.dark, 1);
+    if (worn(w, 3)) brokenPatch(ink, [3, -26.6, 4.8, -26.6, 4.2, -25, 3.4, -25.2], HAIR, p.colour.dark, 0.5);
+  }
+  // A cut from the hairline down the left temple, and when bloodier a drip running down the cheek from it.
+  // Healed after being broken, a scar sits where that cut bled.
+  if (scarred(w)) scar(ink, -4.4, -24.3, -0.3, 1, 2.8);
+  if (bloody(w, 1)) bloodSmear(ink, -4.4, -24.3, -0.3, 1, 2.8, 1.3);
+  if (bloody(w, 2)) bloodDrip(ink, -5.2, -21.8, 3);
+  // A small round wooden shield with an iron rim and a metal boss: chipped when battered; broken, split down the
+  // plank with the left half gone.
   const cuts: Cut[] = [];
   if (worn(w, 3)) cuts.push({ from: 285, to: 315, inner: 3.9, jag: 0.4 });
-  if (worn(w, 4)) cuts.push({ from: 135, to: 215, inner: 2.4, jag: 0.6 });
+  if (worn(w, 4)) cuts.push({ from: 98, to: 262, inner: 1.6, jag: 0.8 });
   wornDisc(ink, -7, -9, 6, WOOD_DARK, cuts);
   wornDisc(ink, -7, -9, 4.9, WOOD, cuts, 0.9);
-  ink.line(-7, -13.6, -7, -4.4, WOOD_DARK, 0.7);
-  if (worn(w, 1)) scratches(ink, [[-10.2, -11.4, -8.6, -12.4], [-5.4, -6.4, -3.8, -7.6]]);
+  if (!worn(w, 4)) ink.line(-7, -13.6, -7, -4.4, WOOD_DARK, 0.7);
+  if (worn(w, 4)) scratches(ink, [[-5.4, -6.4, -3.8, -7.6]]);
+  else if (worn(w, 1)) scratches(ink, [[-10.2, -11.4, -8.6, -12.4], [-5.4, -6.4, -3.8, -7.6]]);
   if (worn(w, 2)) {
     dent(ink, -4.4, -11.2, 1.2);
-    dent(ink, -9.4, -8.2, 1.1);
+    if (!worn(w, 4)) dent(ink, -9.4, -8.2, 1.1);
   }
   if (worn(w, 3)) crack(ink, [-4.6, -13.2, -5.4, -11.4, -4.6, -10.2, -5.6, -8.6]);
-  if (worn(w, 4)) crack(ink, [-9.4, -9.6, -8.2, -8, -8.8, -6.6, -7.6, -5]);
+  if (worn(w, 4)) crack(ink, [-6.2, -7.4, -4.6, -6.6, -4.2, -5, -2.4, -4.4]);
   ink.circle(-7, -9, 1.7, p.accent);
   if (worn(w, 2)) dent(ink, -6.4, -9.4, 0.7);
   if (bloody(w, 2)) {
     bloodDrop(ink, 3, 0.4, 0.7);
-    bloodSpot(ink, 5.6, 4.6, 0.9);
-  }
+    bloodPool(ink, 4.4, 5.2, 1.1);
+  } else if (bloody(w, 1)) bloodSpot(ink, 5.2, 4.8, 0.9);
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 

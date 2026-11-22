@@ -21,7 +21,7 @@ import {
   standingBody,
 } from './units';
 import type { FigureProps } from './units';
-import { bladeNotch, bloodDrop, bloodSmear, bloodSpot, bloody, crack, dent, dirt, frayedHem, scratches, snappedEnd, tear, worn, wornDisc, SCRATCH } from './wear';
+import { bladeNotch, bloodDrip, bloodDrop, bloodPool, bloodSmear, bloodSpot, bloody, brokenPatch, CRACK, helmBroken, scar, scarred, crack, dent, dirt, frayedHem, scratches, snappedEnd, tear, worn, wornDisc, SCRATCH } from './wear';
 import type { Cut } from './wear';
 
 // The four Spartan and four Mongol figures, drawn like the shared eight: feet
@@ -76,7 +76,12 @@ function hoplite(p: FigureProps): ReactElement {
   if (worn(w, 3)) tear(ink, 5.1, -12.4, 2.4, 3.6, SKIN, p.colour.dark);
   if (bloody(w, 2)) bloodSmear(ink, 3, -0.8, 0.15, 1, 2.2, 1.6);
   hand(ink, 13, -11);
+  if (bloody(w, 2)) bloodSmear(ink, 12.4, -12, -0.3, 1, 2, 1.3);
   head(ink, 0, -22.4);
+  // A cut from under the helmet rim down the right cheek, and when bloodier a drip running down to the chin.
+  if (scarred(w)) scar(ink, 3.5, -23.4, 0.12, 1, 2.8);
+  if (bloody(w, 1)) bloodSmear(ink, 3.5, -23.4, 0.12, 1, 2.8, 1.1);
+  if (bloody(w, 2)) bloodDrip(ink, 3.85, -20.6, 2.6);
   // A bronze helmet with cheek guards, and a horsehair crest arching front to back. Battered, the crest is torn
   // short at the back; broken, the right cheek guard is gone.
   if (worn(w, 3)) {
@@ -88,28 +93,34 @@ function hoplite(p: FigureProps): ReactElement {
   }
   dome(ink, 0, -23.2, 7, p.accent);
   ink.rect(-7, -24.4, 2.8, 7.6, p.accent, 1.2);
-  if (!worn(w, 4)) ink.rect(4.2, -24.4, 2.8, 7.6, p.accent, 1.2);
+  if (!helmBroken(w)) ink.rect(4.2, -24.4, 2.8, 7.6, p.accent, 1.2);
   ink.rect(-7, -25.2, 14, 1.4, BRONZE_RIM);
   if (worn(w, 1)) scratches(ink, [[-4.4, -27.4, -1.8, -28.8]]);
-  if (worn(w, 2)) dent(ink, 3, -27.4, 1.3, BRONZE_LIT);
+  // Dented, then a chip out of the rim (battered); broken, a chunk is gone from the dome, showing the hair under it.
+  if (helmBroken(w)) brokenPatch(ink, [1.4, -29.6, 4.4, -29.4, 6.6, -26.2, 5, -25.8, 4, -27.2, 2.8, -26.2, 2.2, -27.8], HAIR, BRONZE_RIM, 0.8);
+  else if (worn(w, 2)) dent(ink, 3, -27.4, 1.3, BRONZE_LIT);
+  if (worn(w, 3)) brokenPatch(ink, [-1.4, -25.4, 0.8, -25.4, 0.2, -24, -0.6, -24.2], SKIN, BRONZE_RIM, 0.45);
   // The great round shield with a lambda chevron in the owner's dark colour.
   const cuts: Cut[] = [];
   if (worn(w, 3)) cuts.push({ from: 294, to: 326, inner: 6.2, jag: 0.5 });
-  if (worn(w, 4)) cuts.push({ from: 190, to: 246, inner: 5, jag: 0.4 });
+  if (worn(w, 4)) cuts.push({ from: 100, to: 262, inner: 1.8, jag: 0.9 });
   roundShield(ink, -5.6, -9.6, 9.8, p.accent, cuts);
-  ink.poly([-5.6, -17.2, 0.4, -3.6, -2.6, -3.6, -5.6, -11, -8.6, -3.6, -11.6, -3.6], p.colour.dark);
-  if (worn(w, 1)) scratches(ink, [[1, -13, 2.6, -10.8], [-13, -9.2, -11.8, -6.8]], SCRATCH, 1);
+  // Broken, the left half of the shield is gone, and only the chevron's right stroke is left on it.
+  if (worn(w, 4)) ink.poly([-5.6, -17.2, 0.4, -3.6, -2.6, -3.6, -5.6, -11], p.colour.dark);
+  else ink.poly([-5.6, -17.2, 0.4, -3.6, -2.6, -3.6, -5.6, -11, -8.6, -3.6, -11.6, -3.6], p.colour.dark);
+  if (worn(w, 4)) scratches(ink, [[1, -13, 2.6, -10.8]], SCRATCH, 1);
+  else if (worn(w, 1)) scratches(ink, [[1, -13, 2.6, -10.8], [-13, -9.2, -11.8, -6.8]], SCRATCH, 1);
   if (worn(w, 2)) {
     dent(ink, -5.6, -5.6, 1.2, BRONZE_LIT);
     dent(ink, -1.4, -1.8, 1.1, BRONZE_LIT);
   }
   if (worn(w, 3)) crack(ink, [-0.6, -14.4, -1.8, -12.8, -0.8, -11.4, -2.4, -9.8, -2, -8.4]);
-  if (worn(w, 4)) crack(ink, [-10.2, -9.6, -8.8, -8.4, -9.6, -6.8, -8.2, -5.6]);
+  if (worn(w, 4)) crack(ink, [-4.4, -2.6, -3, -4, -1.6, -3.2, -0.4, -5.2, 1.4, -5]);
   if (bloody(w, 1)) bloodSmear(ink, 1.6, -8.8, -0.3, 1, 3, 1.8);
   if (bloody(w, 2)) {
     bloodDrop(ink, 3.6, 1.2, 0.75);
-    bloodSpot(ink, 6.4, 4.4, 0.9);
-  }
+    bloodPool(ink, 4.6, 5.2, 1.1);
+  } else if (bloody(w, 1)) bloodSpot(ink, 5.6, 4.8, 0.9);
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 
@@ -218,6 +229,7 @@ function steppeCap(ink: Ink, x: number, y: number, c: FigureProps['colour'], acc
   if (worn(w, 4)) ink.poly([x - 6.2, y - 3, x + 1.4, y - 3, x + 0.4, y - 1.8, x + 1.6, y - 0.6, x - 5, y - 0.6, x - 6.2, y - 1.8], FUR);
   else ink.rect(x - 6.2, y - 3, 12.4, 2.4, FUR, 1.2);
   if (worn(w, 2)) frayedHem(ink, worn(w, 4) ? x - 5.6 : x + 1.2, y - 0.8, 4.4, FUR, 2, 1.3);
+  if (helmBroken(w)) brokenPatch(ink, [x + 0.6, y - 6.6, x + 3.6, y - 5.8, x + 5.6, y - 2.8, x + 3.4, y - 3.4, x + 2.6, y - 2, x + 1.4, y - 3.8], HAIR, CRACK, 0.6);
 }
 
 function horseArcher(p: FigureProps): ReactElement {
@@ -241,6 +253,10 @@ function horseArcher(p: FigureProps): ReactElement {
   if (worn(w, 3)) tear(ink, 2.6, -15.4, 2.8, 3, SKIN, p.colour.dark);
   head(ink, 0, -25.6, 5.4);
   steppeCap(ink, 0, -25.6, p.colour, p.accent, w);
+  // A cut from under the cap down the left temple, and when bloodier a drip running down the cheek.
+  if (scarred(w)) scar(ink, -4, -26, -0.25, 1, 2.6);
+  if (bloody(w, 1)) bloodSmear(ink, -4, -26, -0.25, 1, 2.6, 1.3);
+  if (bloody(w, 2)) bloodDrip(ink, -4.6, -23.6, 2.6);
   // Turned in the saddle, he draws the bow back over the horse's rump. Dented, the bow is nicked; broken, its
   // lower limb has snapped and the string hangs slack.
   if (worn(w, 4)) {
@@ -264,8 +280,8 @@ function horseArcher(p: FigureProps): ReactElement {
   if (bloody(w, 2)) {
     bloodDrop(ink, 6.2, -8.4, 0.7);
     bloodDrop(ink, 8.2, -11.6, 0.6);
-    bloodSpot(ink, 1.6, 4.6, 0.9);
-  }
+    bloodPool(ink, 1.6, 5.4, 1.1);
+  } else if (bloody(w, 1)) bloodSpot(ink, 1.6, 4.8, 0.9);
   return <g>{[<Shadow key="s" wide />, ...ink.items]}</g>;
 }
 

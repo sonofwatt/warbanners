@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { FIGURES } from './factionUnits';
 import { ACCENT, playerColour } from './palette';
 import type { FigureProps, WearProps } from './units';
-import { BLOOD } from './wear';
+import { BLOOD, SCAR } from './wear';
 
 const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
 const SAMPLES = [
@@ -39,6 +39,20 @@ test('blood 1 and 2 add dark-red fills, and none shows without blood', () => {
       expect(count(none), `${id} ${f} ${stage}`).toBe(0);
       expect(count(one), `${id} ${f} ${stage}`).toBeGreaterThan(0);
       expect(count(two), `${id} ${f} ${stage}`).toBeGreaterThan(count(one));
+    }
+  }
+});
+
+test('a healed, scarred figure differs from an unscarred one and bleeds only with blood', () => {
+  const count = (h: string): number => h.split(`fill="${BLOOD}"`).length - 1;
+  for (const [id, f] of SAMPLES) {
+    for (const stage of [0, 3] as const) {
+      const plain = draw(id, f, { stage, blood: 0 });
+      const healed = draw(id, f, { stage, blood: 0, scarred: true });
+      expect(healed, `${id} ${f} ${stage}`).not.toBe(plain);
+      expect(count(healed), `${id} ${f} ${stage}`).toBe(0);
+      expect(healed, `${id} ${f} ${stage}`).toContain(SCAR);
+      expect(count(draw(id, f, { stage, blood: 1, scarred: true })), `${id} ${f} ${stage}`).toBeGreaterThan(0);
     }
   }
 });

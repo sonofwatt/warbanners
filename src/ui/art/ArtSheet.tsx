@@ -150,6 +150,8 @@ const WEAR_STEPS: readonly (readonly [string, WearProps])[] = [
   ['battered + blood', { stage: 3, blood: 1 }],
   ['broken + blood', { stage: 4, blood: 1 }],
   ['broken + more blood', { stage: 4, blood: 2 }],
+  ['healed after broken', { stage: 3, blood: 0, scarred: true }],
+  ['scarred, wounded again', { stage: 3, blood: 1, scarred: true }],
 ];
 
 /** The figures that have battle wear so far, each in the factions that field it. */
@@ -202,7 +204,7 @@ function BattleWear(): ReactElement {
           </div>
         ))}
         <div data-wear-row="phone" style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 13, color: '#5B574E' }}>At phone size (about 1 pixel per unit): clean, scuffed, dented, battered, battered + blood, broken + blood, broken + more blood</div>
+          <div style={{ fontSize: 13, color: '#5B574E' }}>At phone size (about 1 pixel per unit): clean, scuffed, dented, battered, battered + blood, broken + blood, broken + more blood, healed after broken, scarred and wounded again</div>
           {WEAR_SAMPLES.map(([id, f]) => (
             <WearRow key={`${id}${f}`} id={id} faction={f} scale={1} labels={false} />
           ))}

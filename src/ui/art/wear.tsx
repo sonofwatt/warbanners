@@ -19,6 +19,10 @@ export const DENT = '#1B1D21';
 export const SCRATCH = '#CFCBC0';
 /** A scratch across light steel, where a pale one would not show. */
 export const SCRATCH_DARK = '#666B72';
+/** A healed scar on skin: a little darker and pinker than the skin itself. */
+export const SCAR = '#C98F72';
+/** The stitch ticks across a scar. */
+export const SCAR_DARK = '#A8735B';
 /** A crack running through wood or metal. */
 export const CRACK = '#26231F';
 /** Mud and dust. */
@@ -44,6 +48,16 @@ export function worn(w: WearProps | undefined, n: 1 | 2 | 3 | 4): boolean {
 /** True when the figure shows at least blood level `n` (1 slight, 2 more). */
 export function bloody(w: WearProps | undefined, n: 1 | 2): boolean {
   return w !== undefined && w.blood >= n;
+}
+
+/** True when the figure was once broken and has healed: its headgear keeps the broken piece and its face a scar. */
+export function scarred(w: WearProps | undefined): boolean {
+  return w?.scarred === true;
+}
+
+/** True when headgear should show its broken piece: at the broken stage, or ever after once healed. */
+export function helmBroken(w: WearProps | undefined): boolean {
+  return worn(w, 4) || scarred(w);
 }
 
 // ---- scuffs and scratches ----
@@ -175,6 +189,31 @@ export function wornDisc(ink: Ink, cx: number, cy: number, r: number, fill: stri
   ink.poly(pts, fill);
 }
 
+/**
+ * A piece broken out of a part (a helmet's dome, a cap) drawn over it: the outline `pts` [x0, y0, x1, y1, ...] in the
+ * `edge` colour, and inside it, pulled in toward its middle by `rim`, what shows underneath (hair, skin, lining).
+ * Keep `pts` inside the part, over what lies beneath, so nothing floats past its silhouette.
+ */
+export function brokenPatch(ink: Ink, pts: readonly number[], under: string, edge: string, rim = 0.7): void {
+  let cx = 0;
+  let cy = 0;
+  const n = pts.length / 2;
+  for (let i = 0; i + 1 < pts.length; i += 2) {
+    cx += pts[i]! / n;
+    cy += pts[i + 1]! / n;
+  }
+  const inner: number[] = [];
+  for (let i = 0; i + 1 < pts.length; i += 2) {
+    const dx = pts[i]! - cx;
+    const dy = pts[i + 1]! - cy;
+    const l = Math.hypot(dx, dy) || 1;
+    const k = Math.max(0, l - rim) / l;
+    inner.push(cx + dx * k, cy + dy * k);
+  }
+  ink.poly(pts, edge);
+  ink.poly(inner, under);
+}
+
 // ---- cloth ----
 
 /**
@@ -203,7 +242,36 @@ export function tear(ink: Ink, x: number, y: number, w: number, h: number, under
   ink.poly([x - hw * 0.05, y - hh * 0.7, x + hw * 0.45, y - hh * 0.15, x + hw * 0.7, y + hh * 0.2, x + hw * 0.05, y + hh * 0.7, x - hw * 0.6, y + hh * 0.25, x - hw * 0.1, y - hh * 0.05], under);
 }
 
-// ---- blood (small, dark, restrained: a smear and a few drops, never more) ----
+// ---- blood (dark and dull, never gore: a cut, a smear, a few drops and a pool on the ground) ----
+
+/** A fresh cut on skin from (x1, y1) to (x2, y2): a short dark-red line. Drawn from the broken stage, blood or not. */
+export function cut(ink: Ink, x1: number, y1: number, x2: number, y2: number, width = 0.9): void {
+  ink.line(x1, y1, x2, y2, BLOOD, width);
+}
+
+/**
+ * A healed scar starting at (x, y) and running `len` units in the direction (dx, dy), with `ticks` stitch marks across
+ * it. Give it the same start, direction and length as the face's blood smear so the scar sits where the cut bled.
+ */
+export function scar(ink: Ink, x: number, y: number, dx: number, dy: number, len: number, ticks = 2): void {
+  const l = Math.hypot(dx, dy);
+  const ux = dx / l;
+  const uy = dy / l;
+  ink.line(x, y, x + ux * len, y + uy * len, SCAR, 1);
+  for (let i = 1; i <= ticks; i++) {
+    const t = (len * i) / (ticks + 1);
+    const cx = x + ux * t;
+    const cy = y + uy * t;
+    ink.line(cx + uy * 0.8, cy - ux * 0.8, cx - uy * 0.8, cy + ux * 0.8, SCAR_DARK, 0.7);
+  }
+}
+
+/** A drip running straight down `len` units from (x, y), narrowing, with a bead at its foot. */
+export function bloodDrip(ink: Ink, x: number, y: number, len: number, w = 0.9): void {
+  const h = w / 2;
+  ink.shape(d`M ${x - h} ${y} L ${x + h} ${y} Q ${x + h * 0.4} ${y + len * 0.5} ${x + h * 0.5} ${y + len} L ${x - h * 0.5} ${y + len} Q ${x - h * 0.6} ${y + len * 0.5} ${x - h} ${y} Z`, BLOOD);
+  ink.circle(x, y + len, h * 1.15, BLOOD);
+}
 
 /**
  * A smear of blood starting at (x, y) and trailing `len` units in the direction (dx, dy), `w` wide at its start and
@@ -238,4 +306,15 @@ export function bloodDrop(ink: Ink, x: number, y: number, s = 0.8): void {
 export function bloodSpot(ink: Ink, x: number, y: number, s = 1): void {
   ink.ellipse(x, y, s * 1.3, s * 0.55, BLOOD);
   ink.ellipse(x + s * 1.9, y + s * 0.15, s * 0.45, s * 0.22, BLOOD);
+}
+
+/** A pool of blood on the ground at (x, y), lobed and flat, with a few spatters around it. `s` scales it. */
+export function bloodPool(ink: Ink, x: number, y: number, s = 1): void {
+  ink.ellipse(x, y, s * 2.2, s * 0.85, BLOOD);
+  ink.ellipse(x + s * 1.5, y + s * 0.35, s * 1.3, s * 0.6, BLOOD);
+  ink.ellipse(x - s * 1.6, y - s * 0.15, s * 0.9, s * 0.45, BLOOD);
+  ink.ellipse(x - s * 0.3, y - s * 0.2, s * 0.8, s * 0.3, BLOOD_LIGHT);
+  ink.ellipse(x + s * 3.9, y - s * 0.3, s * 0.45, s * 0.24, BLOOD);
+  ink.ellipse(x - s * 3.4, y + s * 0.55, s * 0.4, s * 0.22, BLOOD);
+  ink.ellipse(x + s * 2.6, y + s * 1.25, s * 0.35, s * 0.2, BLOOD);
 }
