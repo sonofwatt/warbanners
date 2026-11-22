@@ -384,19 +384,21 @@ export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fr
     marks.line(x + 1, PIP_Y + 2, x + 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
   }
   if (p.fresh) marks.glint(left + w + GLINT_GAP, PIP_Y + 0.4, MARK_R, '#FFC93C');
-  else if (p.hunkered === true) {
+  const shield = new Ink();
+  if (!p.fresh && p.hunkered === true) {
     // A steel shield in the glint's slot (a hunkered unit is never fresh): this unit is dug in.
     const cx = left + w + GLINT_GAP;
     const top = PIP_Y + 1.3 - MARK_R;
-    marks.shape(`M ${cx - 3} ${top} L ${cx + 3} ${top} L ${cx + 3} ${top + 2.8} Q ${cx + 3} ${top + 5.6} ${cx} ${top + 6.8} Q ${cx - 3} ${top + 5.6} ${cx - 3} ${top + 2.8} Z`, '#FFFFFF');
-    marks.shape(`M ${cx - 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 2.8} Q ${cx + 2.2} ${top + 5} ${cx} ${top + 5.9} Q ${cx - 2.2} ${top + 5} ${cx - 2.2} ${top + 2.8} Z`, '#7B8C9A');
-    marks.line(cx, top + 1.4, cx, top + 5, '#FFFFFF', 0.6);
+    shield.shape(`M ${cx - 3} ${top} L ${cx + 3} ${top} L ${cx + 3} ${top + 2.8} Q ${cx + 3} ${top + 5.6} ${cx} ${top + 6.8} Q ${cx - 3} ${top + 5.6} ${cx - 3} ${top + 2.8} Z`, '#FFFFFF');
+    shield.shape(`M ${cx - 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 2.8} Q ${cx + 2.2} ${top + 5} ${cx} ${top + 5.9} Q ${cx - 2.2} ${top + 5} ${cx - 2.2} ${top + 2.8} Z`, '#7B8C9A');
+    shield.line(cx, top + 1.4, cx, top + 5, '#FFFFFF', 0.6);
   }
   return (
     <g>
       {ink.items}
       {pips}
       {marks.items}
+      {shield.items.length > 0 ? <g data-hunker-mark="">{shield.items}</g> : null}
     </g>
   );
 }
