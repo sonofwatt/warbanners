@@ -9,6 +9,7 @@ import type { AiClient } from './aiClient';
 import { digestFor } from './digest';
 import { listOnline } from './onlineList';
 import { listSaves } from './saves';
+import { readLines, recentNames } from './stats';
 import type { KeyValue } from './saves';
 import { createAppStore } from './store';
 import type { AppState, Deps } from './store';
@@ -126,6 +127,27 @@ test('the waiting player can resign', async () => {
   guest.get().resignOnline(); await settle(server);
   expect(host.get().screen).toBe('result'); expect(guest.get().screen).toBe('result');
   expect(host.get().state!.winner).toBe(0);
+});
+test('each phone records only its own player once the end is on the server, and remembers the name typed', async () => {
+  const { host, guest, server } = await startedPair();
+  guest.get().resignOnline();
+  // Still sending: the server does not hold the resign yet, so nothing is counted.
+  if (guest.get().online?.sending === true) expect(readLines(guest.kv, 0)).toHaveLength(0);
+  await settle(server);
+  const h = readLines(host.kv, 0);
+  const g = readLines(guest.kv, 0);
+  expect(h.map(l => [l.name, l.kind, l.won, l.opponent?.name])).toEqual([['Ann', 'online', true, 'Ben']]);
+  expect(g.map(l => [l.name, l.kind, l.won, l.opponent?.name])).toEqual([['Ben', 'online', false, 'Ann']]);
+  // The view keeps firing on the result screen and on going home: still one line.
+  host.get().goHome(); guest.get().goHome(); await settle(server);
+  expect(readLines(host.kv, 0)).toHaveLength(1);
+  expect(recentNames(host.kv)).toEqual(['Ann']);
+  expect(recentNames(guest.kv)).toEqual(['Ben']);
+});
+test('online against an AI seat, the line carries its level', async () => {
+  const { host, server } = await startedPair({ second: 'hard' });
+  host.get().resignOnline(); await settle(server);
+  expect(readLines(host.kv, 0)).toMatchObject([{ name: 'Ann', kind: 'online', ai: 'hard', won: false }]);
 });
 test('the other phone\'s moves arrive with effects', async () => {
   const { host, guest, server } = await startedPair();

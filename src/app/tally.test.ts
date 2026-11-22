@@ -8,9 +8,9 @@ import { matchTallies } from './tally';
 const SETTINGS: MatchSettings = { seed: 3, factions: ['spartans', 'mongols'] };
 
 // An independent count of damage dealt, per seat, from the events of a replay.
-function dealtByReplay(settings: MatchSettings, actions: readonly Action[]): [number, number] {
+function dealtByReplay(settings: MatchSettings, actions: readonly Action[]): number[] {
   let s: MatchState = createMatch(settings);
-  const out: [number, number] = [0, 0];
+  const out = [0, 0];
   for (const a of actions) {
     const before = s;
     const r = applyAction(s, a);
@@ -18,9 +18,9 @@ function dealtByReplay(settings: MatchSettings, actions: readonly Action[]): [nu
     for (const e of r.events) {
       if (e.type === 'attacked') {
         const atk = before.units.find(u => u.id === e.unit)!.owner;
-        out[atk] += e.damage;
-        out[1 - atk] += e.counter;
-      } else if (e.type === 'splashed') out[before.current] += e.damage;
+        out[atk]! += e.damage;
+        out[1 - atk]! += e.counter;
+      } else if (e.type === 'splashed') out[before.current]! += e.damage;
     }
     s = r.state;
   }

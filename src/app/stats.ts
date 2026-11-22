@@ -159,6 +159,9 @@ export function summarize(lines: readonly StatLine[], name: string, f: Filter): 
 
 // The lines a finished match gives this phone: the person against the computer, both seats when two people shared
 // the phone, and only this phone's seat online. An unfinished match gives none.
+// A match's key: its id with its start time, so a room code drawn again for a later room is a new match.
+export const matchKey = (record: MatchRecord): string => `${record.id}@${record.createdAt}`;
+
 export function linesFor(record: MatchRecord, mode: 'local' | 'online', mySeat: PlayerId | null, at: number): StatLine[] {
   const t = matchTallies(record.settings, record.actions);
   if (t.winner === null) return [];
@@ -171,7 +174,7 @@ export function linesFor(record: MatchRecord, mode: 'local' | 'online', mySeat: 
     const them = record.players[otherSeat];
     if (me === undefined || them === undefined || me.kind !== 'human') return [];
     return [{
-      match: record.id, at, name: me.name, kind, faction: record.settings.factions[seat]!,
+      match: matchKey(record), at, name: me.name, kind, faction: record.settings.factions[seat]!,
       ai: them.kind === 'ai' ? them.level : null, won: t.winner === seat, rounds: t.rounds, tally: t.tallies[seat]!,
       opponent: { name: them.name, faction: record.settings.factions[otherSeat]!, tally: t.tallies[otherSeat]! },
     }];

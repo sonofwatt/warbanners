@@ -137,7 +137,7 @@ describe('lines for a finished match', () => {
     const rec = finished(newRecord('m', settings, ['Ann', ai], 0));
     const lines = linesFor(rec, 'local', null, 77);
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatchObject({ match: 'm', at: 77, name: 'Ann', kind: 'computer', ai: 'hard', faction: 'spartans', won: true, rounds: 1 });
+    expect(lines[0]).toMatchObject({ match: 'm@0', at: 77, name: 'Ann', kind: 'computer', ai: 'hard', faction: 'spartans', won: true, rounds: 1 });
     expect(lines[0]!.opponent).toMatchObject({ name: 'Hard AI', faction: 'mongols' });
   });
   test('pass the phone: a line for each seat, even the same name twice', () => {

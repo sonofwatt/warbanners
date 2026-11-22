@@ -29,6 +29,8 @@ import { append, newRecord, restore, setAdapt } from './record';
 import type { MatchRecord, Seat } from './record';
 import { listOnline, takePendingRoom } from './onlineList';
 import type { OnlineEntry } from './onlineList';
+import { forgetPlayer as forgetStats, isCounted, linesFor, matchKey, readLines, recentNames, recordLines, rememberNames } from './stats';
+import type { StatLine } from './stats';
 import { deleteSave, listSaves, readSave, withSave, writeSave } from './saves';
 import type { KeyValue, SaveSummary } from './saves';
 import type { UpdateState, Updater } from './update';
@@ -51,7 +53,7 @@ export interface Deps {
 }
 export type SecondSeat = 'human' | AiLevel;
 export interface Setup { names: [string, string]; factions: [FactionId, FactionId]; second?: SecondSeat }   // second: 'human' if left out
-export type Screen = 'home' | 'setup' | 'pass' | 'match' | 'result' | 'onlineSetup' | 'lobby' | 'join';
+export type Screen = 'home' | 'setup' | 'stats' | 'pass' | 'match' | 'result' | 'onlineSetup' | 'lobby' | 'join';
 export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion' | 'blockedUnseen' | 'aiPassed'
   | 'needsConnection' | 'notSetUp' | 'serverOutOfDate' | 'roomGone' | 'updateDuringOnline'
   | 'onlineListDropped' | 'onlineListFailed' | 'resignLost';
@@ -71,6 +73,10 @@ export interface AppState {
   saves: SaveSummary[];
   update: UpdateState;              // what the service worker has reported
   aiBusy: boolean;                  // the AI is playing its turn; the person can only watch or go home
+  statLines: StatLine[];            // this phone's player stats, read when the Stats screen opens
+  names: string[];                  // names typed here before, newest first, to offer at setup
+  openStats(): void;
+  forgetPlayer(name: string): void; // drops a name and its stats from this phone
   openSetup(): void; startMatch(setup: Setup): void; resume(id: string): void; removeSave(id: string): void;
   ready(): void;                    // the player named on the curtain now has the phone
   tap(hit: Hit): void; run(action: Action): void; arm(armed: Armed | null): void; select(sel: Selection): void;
@@ -123,6 +129,10 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
   let turnLog: TurnStep[] = [];
   let aiRun = 0;                    // which AI loop may still act; opening or leaving a match stops the one running
   const kv = deps.kv;
+  // Names typed at setup, kept to offer next time. The default names stand for a blank field and are not offered.
+  const rememberTyped = (names: readonly string[]): void => {
+    rememberNames(kv, names.filter(n => n !== T.ui.playerOne && n !== T.ui.playerTwo));
+  };
 
 
   const store = createStore<AppState>((set, get) => {
@@ -317,12 +327,16 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       screen: 'home', record: null, state: null, viewer: null, selection: NONE, last: null, digest: [],
       notice: null, saves: listSaves(kv), update: { offlineReady: false, updateReady: false }, aiBusy: false,
 
-      openSetup: () => set({ screen: 'setup' }),
+      statLines: [], names: [],
+      openSetup: () => set({ screen: 'setup', names: recentNames(kv) }),
+      openStats: () => set({ screen: 'stats', statLines: readLines(kv, deps.now()) }),
+      forgetPlayer: name => { forgetStats(kv, name); set({ statLines: readLines(kv, deps.now()), names: recentNames(kv) }); },
 
       startMatch: setup => {
+        const second = setup.second ?? 'human';
+        rememberTyped(second === 'human' ? setup.names : [setup.names[0]]);
         const settings = { seed: deps.newSeed(), factions: setup.factions };
         const state = createMatch(settings);
-        const second = setup.second ?? 'human';
         const seats: [string | Seat, string | Seat] = second === 'human' ? setup.names : [setup.names[0], {
           name: T.ai.name[second], kind: 'ai', level: second, salt: deps.newSeed() >>> 0,
           adapt: { dial: second === 'adaptive' ? readDial(kv, setup.names[0]) : LEVEL_DIAL[second], trend: 0 },
@@ -399,11 +413,32 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       },
 
       ...members,
+      openOnline: () => { members.openOnline(); set({ names: recentNames(kv) }); },
+      openJoin: () => { members.openJoin(); set({ names: recentNames(kv) }); },
+      openRoom: code => { set({ names: recentNames(kv) }); members.openRoom(code); },
+      createRoom: input => { rememberTyped([input.name]); return members.createRoom(input); },
+      joinAs: name => { rememberTyped([name]); return members.joinAs(name); },
 
       dismissNotice: () => set({ notice: null }),
       dismissDigest: () => set({ digest: [] }),
     };
   });
+
+  // Every finished match is recorded in the player stats once: here, whatever brought it to an end or reopened it.
+  // Online only once the server holds the end, as Home's list does, and only for this phone's seat.
+  const seen = new Set<string>();
+  const recordIfOver = (s: AppState): void => {
+    const { record, state } = s;
+    if (record === null || state === null || state.winner === null) return;
+    if (s.mode === 'online' && (s.online === null || s.online.sending || s.viewer === null)) return;
+    const key = matchKey(record);
+    if (seen.has(key)) return;
+    seen.add(key);
+    try {
+      if (!isCounted(kv, key)) recordLines(kv, key, linesFor(record, s.mode, s.viewer, deps.now()), deps.now());
+    } catch { /* the stats are lost for this match, never the match */ }
+  };
+  store.subscribe(recordIfOver);
 
   // A room named in the address, or one remembered before an update's reload, opens at once. The address keeps the
   // room while the player is in it (a reload comes back to it) and loses it when they leave (a reload then goes Home).
