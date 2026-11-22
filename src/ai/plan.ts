@@ -400,7 +400,6 @@ class TurnPlanner {
     if (u === undefined || !canHunker(this.b, id) || !this.allowed({ type: 'hunker', unit: id })) return false;
     const danger = this.ctx.danger;
     if ((danger[u.pos] ?? 0) <= 0) return false;
-    const here = parseKey(u.pos);
     // A move that sets up an attack this turn is left to the plan: no hunker while a seen enemy is in strike reach,
     // unless its counter alone would kill the unit (a hopeless charge, which the plan never makes).
     if (c !== null && UNITS[u.type].atk > 0 && u.attacks > 0) {
