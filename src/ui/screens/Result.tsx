@@ -1,7 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import type { AppState } from '../../app/store';
 import { roundOf } from '../../app/record';
+import type { MatchRecord } from '../../app/record';
+import { matchTallies } from '../../app/tally';
+import type { Tally } from '../../app/tally';
 import { useApp } from '../../app/useApp';
 import { ACCENT, playerColour } from '../art/palette';
 import { BannerTile, HomeIcon } from '../icons';
@@ -19,6 +22,29 @@ const CONFETTI: readonly [number, number, number, 'main' | 'gold' | 'grass' | 's
 // here. A finished match opened from Home has no last action and stays quiet.
 export function resultSound(last: AppState['last']): SoundName | null {
   return last !== null && last.events.some((e) => e.type === 'matchOver') ? 'win' : null;
+}
+
+const ROWS: readonly [keyof Tally, string][] = [
+  ['dealt', T.stats.tallyDealt], ['kills', T.stats.tallyKills], ['deaths', T.stats.tallyDeaths],
+  ['cities', T.stats.tallyCities], ['heroes', T.stats.tallyHeroes], ['treasures', T.stats.tallyTreasures],
+];
+
+// Both sides' numbers for this match, counted from its actions.
+function TallyTable({ record }: { record: MatchRecord }): ReactElement {
+  const { settings, actions } = record;
+  const t = useMemo(() => matchTallies(settings, actions), [settings, actions]);
+  const [a, b] = [record.players[0]?.name ?? '', record.players[1]?.name ?? ''];
+  return (
+    <table className="result-tally" data-testid="result-tally">
+      <caption>{T.stats.tallyTitle}</caption>
+      <thead><tr><td /><th scope="col">{a}</th><th scope="col">{b}</th></tr></thead>
+      <tbody>
+        {ROWS.map(([k, label]) => (
+          <tr key={k}><th scope="row">{label}</th><td>{t.tallies[0][k]}</td><td>{t.tallies[1][k]}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 export function Result(): ReactElement | null {
@@ -59,6 +85,7 @@ export function Result(): ReactElement | null {
         {adaptive?.kind === 'ai' ? <p data-testid="ai-settled">{T.ai.settled(Math.round(adaptive.adapt.dial * 10))}</p> : null}
         {sending ? <p className="online-line" data-testid="result-sending" role="status">{T.ui.sending}</p> : null}
       </div>
+      <TallyTable record={record} />
       <button type="button" className="primary big" data-testid="result-home" onClick={goHome}><HomeIcon />{T.ui.homeButton}</button>
     </div>
   );

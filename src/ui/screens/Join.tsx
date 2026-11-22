@@ -6,6 +6,7 @@ import type { SessionFailure, SessionView } from '../../online/session';
 import { CODE_LENGTH, isRoomCode, MAX_NAME } from '../../online/wire';
 import { HomeIcon, InfoIcon } from '../icons';
 import { T, fill } from '../text';
+import { NameChips } from './NameChips';
 import { NoticeLine } from './NoticeLine';
 
 /** A sentence for every refusal the session can report, naming both rules numbers where it knows them. */
@@ -54,7 +55,8 @@ function RoomEntry({ v }: { v: SessionView }): ReactElement {
   const joinAs = useApp((s) => s.joinAs);
   const takeSeat = useApp((s) => s.takeSeat);
   const updateForRoom = useApp((s) => s.updateForRoom);
-  const [name, setName] = useState('');
+  const names = useApp((s) => s.names);
+  const [name, setName] = useState(() => names[0] ?? '');
   const [busy, setBusy] = useState(false);
   const busyWhile = (p: Promise<void>): void => { setBusy(true); void p.finally(() => setBusy(false)); };
   const room = v.room;
@@ -87,6 +89,7 @@ function RoomEntry({ v }: { v: SessionView }): ReactElement {
           <label>
             <span>{T.ui.yourName}</span>
             <input data-testid="join-name" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={name} onChange={(e) => setName(e.target.value)} />
+            <NameChips names={names} taken={[name.trim()]} onPick={setName} />
           </label>
           <button type="submit" className="primary big" data-testid="join" disabled={busy}>{T.ui.joinButton}</button>
         </form>

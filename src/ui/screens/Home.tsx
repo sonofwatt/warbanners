@@ -102,6 +102,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
   const notice = useApp((s) => s.notice);
   const update = useApp((s) => s.update);
   const openSetup = useApp((s) => s.openSetup);
+  const openStats = useApp((s) => s.openStats);
   const dismissNotice = useApp((s) => s.dismissNotice);
   const applyUpdate = useApp((s) => s.applyUpdate);
   const onlineList = useApp((s) => s.onlineList);
@@ -142,6 +143,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
         <button type="button" className="paper" data-testid="join-with-code" disabled={blocked !== null} onClick={openJoin}>{T.ui.joinWithCode}</button>
       </div>
       {blocked !== null ? <p className="hint" data-testid="online-why">{T.ui[blocked]}</p> : null}
+      <button type="button" className="paper" data-testid="open-stats" onClick={openStats}>{T.stats.open}</button>
       <h2>{T.ui.savedMatches}</h2>
       {sorted.length === 0 ? <p className="empty">{T.ui.noSaves}</p> : <ul className="saves">{sorted.map((s) => <SaveRow key={s.id} save={s} />)}</ul>}
       {onlineList.length > 0 ? (

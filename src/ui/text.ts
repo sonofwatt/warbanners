@@ -223,12 +223,31 @@ const ai = {
   settled: (n: number): string => `The AI finished at level ${n} of 10.`,
 };
 
-export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
+const stats = {
+  open: 'Stats', title: 'Stats', empty: 'No finished matches yet. Stats appear here after your first match ends.',
+  player: 'Player', kind: 'Match', faction: 'Faction', ai: 'Computer',
+  kinds: { all: 'All', computer: 'Computer', pass: 'Pass the phone', online: 'Online' },
+  bothFactions: 'Both', anyAi: 'Any',
+  played: 'Played', wins: 'Won', winRate: 'Win rate', streak: 'Win run now', bestStreak: 'Best win run',
+  avgDealt: 'Damage a match', avgTaken: 'Damage taken a match', kills: 'Kills', deaths: 'Units lost',
+  cities: 'Cities taken', heroes: 'Heroes', treasures: 'Treasures', avgRounds: 'Turns a match', favourite: 'Favourite',
+  none: '-', noMatches: 'No matches with these filters.',
+  recent: 'Recent matches',
+  won: 'Won against {name}', lost: 'Lost against {name}',
+  recentLine: '{faction}, {kind}, {n} turns, {date}',
+  sideLine: '{name}: {dealt} damage, {kills} kills, {deaths} units lost',
+  forget: 'Forget {name}', forgetAsk: 'Forget {name} and all their stats on this phone?', forgetYes: 'Yes, forget', forgetNo: 'Keep',
+  usedName: 'Use the name {name}', recentNames: 'Names used before',
+  tallyTitle: 'This match', tallyDealt: 'Damage dealt', tallyKills: 'Kills', tallyDeaths: 'Units lost',
+  tallyCities: 'Cities taken', tallyHeroes: 'Heroes', tallyTreasures: 'Treasures',
+};
+
+export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai, stats } as {
   unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; heroTrait: Record<HeroTraitId, Entry>;
   deed: Record<DeedId, string>; item: Record<ItemId, Entry>; treasure: Record<TreasureOutcome, string>; ability: Record<AbilityId, Entry>;
   reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
   resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
-  reason: Record<string, string>; ui: typeof ui; ai: typeof ai;
+  reason: Record<string, string>; ui: typeof ui; ai: typeof ai; stats: typeof stats;
 };
 
 export function fill(template: string, values: Record<string, string | number>): string {
