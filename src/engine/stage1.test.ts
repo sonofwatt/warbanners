@@ -17,7 +17,7 @@ vi.mock('./data/config', async (orig) => {
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
-      ...m.CONFIG, closedFog: false, connectGrowth: 0, capitalMoves: false,
+      ...m.CONFIG, closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false },
       buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };
@@ -31,10 +31,10 @@ vi.mock('./data/factions', async (orig) => {
   return { FACTIONS: { ...m.FACTIONS, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
 });
 
-// Strip what plan 5, rules 6 and rules 7 added, so a stage 1 state hashes as it did on rules 3.
+// Strip what plan 5, rules 6 and rules 7 (with hunker) added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
   return {
-    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, ...rest }) => rest),
+    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, hunkered: _k, ...rest }) => rest),
     cities: s.cities.map(({ linked: _l, ...rest }) => rest),
   };
 }

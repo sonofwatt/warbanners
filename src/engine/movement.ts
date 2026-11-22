@@ -1,4 +1,5 @@
 import { CONFIG } from './data/config';
+import { endHunker } from './hunker';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
 import { DIRS, add, distance, key, parseKey } from './hex';
@@ -143,6 +144,7 @@ function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): v
   const old = target.pos;
   target.pos = dest; target.enteredTurn = s.stamp;
   ev.push({ type: 'lured', unit: target.id, from: old, to: dest });
+  endHunker(target, ev);   // rules 7: pulled off its ground
 }
 
 export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev) => {

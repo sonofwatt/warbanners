@@ -67,7 +67,7 @@ export function spawnUnit(
     id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, bonusMp: 0, attacks: 0, home,
     enteredTurn: s.stamp, moved: false, acted: false, rested: false,
     taunted: false, blinded: false, lure: null, fresh: true,
-    deeds: freshDeeds(), heroTraits: [], item: null, itemTurn: null,
+    deeds: freshDeeds(), heroTraits: [], item: null, itemTurn: null, hunkered: false,
   };
   s.nextUnitId += 1;
   s.units.push(u);

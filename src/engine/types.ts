@@ -54,6 +54,7 @@ export interface Unit {
   deeds: Deeds;                          // running totals, never reset; private to the owner (playerView zeroes the rest)
   heroTraits: HeroTraitId[];             // in the order earned; public
   item: ItemId | null;                   // a carried one-use item; public
+  hunkered: boolean;                     // rules 7: dug in until it moves or acts of its own accord; public
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {
@@ -78,6 +79,7 @@ export type Action =
   | { type: 'capture'; unit: number }
   | { type: 'claimTreasure'; unit: number }
   | { type: 'useItem'; unit: number }
+  | { type: 'hunker'; unit: number }
   | { type: 'train'; city: number; unitType: UnitTypeId }
   | { type: 'campTrain'; unit: number; unitType: UnitTypeId; to: HexKey }
   | { type: 'harvest'; at: HexKey }
@@ -105,6 +107,8 @@ export type GameEvent =
   // trait: the relic's gift; found: the treasure a map shows; unit: the id of a spawned Warrior or Sellsword
   | { type: 'treasure'; at: HexKey; outcome: TreasureOutcome; trait?: HeroTraitId; found?: HexKey; unit?: number }
   | { type: 'usedItem'; unit: number; item: ItemId }
+  | { type: 'hunkered'; unit: number }                              // rules 7
+  | { type: 'hunkerEnded'; unit: number }                           // rules 7: it moved, acted or was lured
   | { type: 'connected'; city: number; capital: number }           // rules 7: roads first joined the city to the capital
   | { type: 'cityLevel'; city: number; level: number }
   | { type: 'reward'; city: number; reward: RewardId }

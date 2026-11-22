@@ -73,7 +73,8 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     const target = unitAt(s, a.target)!;
     if (a.ability === 'heal') {
       const before = target.hp;
-      target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal);
+      const bonus = target.hunkered ? CONFIG.hunker.abilityHealBonus : 0;   // rules 7
+      target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal + bonus);
       if (target.hp > before && !target.fresh) addDeed(s, target, 'survive', 1, ev);
     }
     else if (a.ability === 'taunt') target.taunted = true;

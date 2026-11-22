@@ -3,6 +3,7 @@ import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
 import { canCapture, canClaimTreasure, captureHandler, claimTreasureHandler, resignHandler } from './capture';
 import { canUseItem, useItemHandler } from './items';
+import { canHunker, endHunker, hunkerHandler } from './hunker';
 import { researchHandler } from './tech';
 import { campTrainHandler, trainHandler } from './training';
 import { endTurnHandler } from './turn';
@@ -41,6 +42,7 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   capture: captureHandler,
   claimTreasure: claimTreasureHandler,
   useItem: useItemHandler,
+  hunker: hunkerHandler,
   resign: resignHandler,
   endTurn: endTurnHandler,
 };
@@ -63,6 +65,13 @@ export function applyAction(state: MatchState, action: Action): Result {
     const draft = structuredClone(state);
     const events: GameEvent[] = [];
     const actor = draft.current;
+    // rules 7: any action of a hunkered unit's own (move, attack, ability, capture, claim, drink, camp training) ends
+    // its hunker before the action is worked out, so it has no hunker defence against a counter. A refusal drops the draft.
+    const own = (copy as { unit?: unknown }).unit;
+    if (type !== 'hunker' && typeof own === 'number') {
+      const u = draft.units.find((x) => x.id === own);
+      if (u !== undefined && u.owner === actor) endHunker(u, events);
+    }
     const reason = handler(draft, copy as Action, events);
     if (reason !== null) return { ok: false, reason };
     if (draft.players[actor]?.alive === true) payConnections(draft, actor, events);   // rules 7, for the player who acted
@@ -100,6 +109,7 @@ export function legalActions(s: MatchState): Action[] {
     if (canCapture(s, u.id)) out.push({ type: 'capture', unit: u.id });
     if (canClaimTreasure(s, u.id)) out.push({ type: 'claimTreasure', unit: u.id });
     if (canUseItem(s, u.id)) out.push({ type: 'useItem', unit: u.id });
+    if (canHunker(s, u.id)) out.push({ type: 'hunker', unit: u.id });
     if (hasTrait(u, 'camp')) {
       const around = neighbors(parseKey(u.pos)).map(key).filter((k) => tileAt(s, k) !== undefined).sort();
       for (const unitType of unitTypes) {

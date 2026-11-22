@@ -6,6 +6,7 @@ import type { HexKey } from './hex';
 import { isSteadied } from './abilities';
 import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
+import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { maxMp } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
@@ -46,6 +47,11 @@ export function defenceOf(s: MatchState, u: Unit): number {
   const mates = s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
     && distance(here, parseKey(n.pos)) === 1).length;
   return base + Math.min(CONFIG.phalanxMax, mates * CONFIG.phalanxBonus);
+}
+
+// rules 7: the defence a unit has when it is attacked: defenceOf plus the hunker bonus (cover multiplies after).
+export function guardOf(s: MatchState, u: Unit): number {
+  return defenceOf(s, u) + hunkerDef(u);
 }
 
 // rules 10
@@ -98,7 +104,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   const attackerFrom = attacker.pos;
 
   const effAtk = attackOf(s, attacker) * healthFactor(attacker);
-  const damage = damageFor(effAtk, defenceOf(s, target), coverAt(s, target));
+  const damage = damageFor(effAtk, guardOf(s, target), coverAt(s, target));
   target.hp -= damage;
   const targetDied = target.hp <= 0;
 

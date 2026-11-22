@@ -47,6 +47,10 @@ export const CONFIG = deepFreeze({
   // rules 6: a chain unit that earns a hero trait from its own attack gets no extra attack from that kill.
   levelUpEndsChain: true,
   restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
+  // rules 7, Hunker: +def when attacked (before cover), +restBonus to a resting heal, +abilityHealBonus to a Heal. Beside a
+  // seen enemy a hunkered unit still heals the regular resting heal times besideEnemyShare, rounded up. Off removes the
+  // action; only the provenance tests turn it off.
+  hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5 },
   treasure: {
     gold: 5, exploreRadius: 4, unit: 'warrior',
     table: ['gold', 'explore', 'unit', 'relic', 'draught', 'map', 'mercenary'],
@@ -93,6 +97,7 @@ export const CONFIG = deepFreeze({
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number; chainKillCost: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
+  hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number };
   treasure: {
     gold: number; exploreRadius: number; unit: string; table: readonly TreasureOutcome[];
     mapRadius: number; mercenary: UnitTypeId; mercenaryTrait: HeroTraitId;
