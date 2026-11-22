@@ -68,6 +68,8 @@ body {
   background: var(--sky);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+/* In a match the phone's own bars match what they touch: the paper of the top bar above, the sea below. */
+body:has(.screen.match) { background: linear-gradient(to bottom, var(--paper) 0 50%, var(--sea) 50% 100%); }
 
 h1, h2, p { overflow-wrap: anywhere; }
 h1 { font-weight: 900; letter-spacing: -0.01em; line-height: 1.1; }

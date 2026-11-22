@@ -74,6 +74,8 @@ export function nextUnitDisabled(p: { canAct: number; aiBusy: boolean; locked: b
 
 // The one line over the board about the online match: the connection, the other player's, or the clock.
 // The notices the match screen shows; the rest wait for Home.
+/** The top bar's paper (--paper in theme.css), for the status bar above it. */
+const MATCH_THEME_COLOUR = '#FFF8E8';
 const MATCH_NOTICES: ReadonlySet<Notice> = new Set<Notice>(['saveFailed', 'blockedUnseen', 'aiPassed', 'resignLost', 'onlineListFailed', 'onlineListDropped']);
 
 type OnlineLine = { text: string; testid: string } | null;
@@ -112,6 +114,15 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const [later, setLater] = useState<number[]>([]);
   // Each tap on Next unit asks the board, once, to bring the unit it selected into view.
   const [revealed, setRevealed] = useState(0);
+
+  // The phone's status bar takes the top bar's paper while a match is open (the sky colour comes back on leaving).
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (meta === null) return undefined;
+    const before = meta.content;
+    meta.content = MATCH_THEME_COLOUR;
+    return () => { meta.content = before; };
+  }, []);
 
   // End turn waits a moment after the screen appears, so the tap that ended the curtain cannot end the turn too.
   // Against the AI the screen stays up, so it waits again each time the person's turn comes back.
