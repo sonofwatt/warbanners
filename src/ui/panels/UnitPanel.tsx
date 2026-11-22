@@ -45,6 +45,11 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
           {unit.heroTraits.map((t) => <li key={t}><strong>{T.heroTrait[t].name}</strong><span>{T.heroTrait[t].blurb}</span></li>)}
         </ul>
       ) : null}
+      {unit.hunkered ? (
+        <ul className="traits hunkered" aria-label={T.ui.hunkered}>
+          <li><strong>{T.ui.hunkered}</strong><span>{T.ui.hunkeredBlurb}</span></li>
+        </ul>
+      ) : null}
       {myth ? (
         <ul className="traits myth" aria-label={T.ui.mythTouch}>
           <li><strong>{T.ui.mythTouch}</strong><span>{T.ui.mythTouchBlurb}</span></li>

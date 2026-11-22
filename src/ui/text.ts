@@ -114,6 +114,9 @@ const reason: Record<string, string> = {
   'tile is not next to the camp': 'That tile is not next to the camp',
   'camp was trained this turn': 'The camp is too new to train',
   'camp already used this turn': 'The camp has already acted this turn',
+  'already hunkered': 'This unit is already hunkered',
+  'siege engines cannot hunker': 'Siege engines cannot hunker',
+  'unit already acted this turn': 'This unit has already acted this turn',
 };
 
 const ui = {
@@ -208,10 +211,12 @@ const ui = {
   hero: 'Hero', heroTraits: 'Earned', deeds: 'Deeds', carrying: 'Carrying', drink: 'Drink draught',
   mythTouch: 'Myth touch', mythTouchBlurb: `Beside another Spartan hero: +${H.mythAtk} attack and +${H.mythDef} defence.`,
   digestTrait: 'Your {unit} earned {trait}.', digestHero: 'Your {unit} is now a hero.',
-  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground.`,
+  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground. A unit that has not moved or acted can Hunker: it holds its tile with ${CONFIG.hunker.def} more defence when attacked and heals more while it rests, until it moves or acts again.`,
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',
+  hunker: 'Hunker', hunkered: 'Hunkered',
+  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, heals ${CONFIG.hunker.restBonus} more when it rests and ${CONFIG.hunker.abilityHealBonus} more from a Heal, and still heals a little with an enemy beside it. It ends when the unit moves or acts.`,
 } as const;
 
 const ai = {

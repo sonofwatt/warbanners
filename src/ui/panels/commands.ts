@@ -56,6 +56,10 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
       out.push(arming(`camp-${unitType}`, `${T.ui.train} ${T.unit[unitType].name}`, unitCost(state, unit.owner, unitType), { kind: 'campTrain', unitType }));
     }
   }
+  // rules 7: last, so a unit's own moves and abilities come first
+  if (ix.hunkers.includes(unit.id)) {
+    out.push({ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: unit.id }, arm: null });
+  }
   return out;
 }
 

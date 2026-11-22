@@ -176,6 +176,7 @@ export function ArtSheet(): ReactElement {
             ['taunted', { hp: 20, maxHp: 20, taunted: true }],
             ['blinded', { hp: 12, maxHp: 15, blinded: true }],
             ['both, 40 health', { hp: 25, maxHp: 40, taunted: true, blinded: true }],
+            ['hunkered', { hp: 7, maxHp: 10, hunkered: true }],
           ] as const
         ).map(([label, s]) => (
           <Cell key={label} label={label} ground="grass" tall>

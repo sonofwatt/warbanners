@@ -717,6 +717,7 @@ input:focus { border-color: var(--blue); }
 .traits.earned li { border-left-color: var(--gold-side); }
 .traits.myth li { border-left-color: var(--gold); }
 .traits.carried li { border-left-color: var(--gold-side); }
+.traits.hunkered li { border-left-color: var(--rock); }   /* rules 7: dug in, steel like the shield on the board */
 .deeds { list-style: none; margin: var(--s2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .deed-row { display: grid; grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr) auto; align-items: center; gap: var(--s2); font-size: var(--t-s); font-weight: 650; min-width: 0; }
 .deed-count { font-variant-numeric: tabular-nums; color: var(--ink-soft); }

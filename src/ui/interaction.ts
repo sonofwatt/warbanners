@@ -17,6 +17,7 @@ export interface ActionIndex {
   moves: Record<number, HexKey[]>; attacks: Record<number, HexKey[]>; lures: Record<number, HexKey[]>;
   abilities: Record<number, Partial<Record<AbilityId, HexKey[]>>>;
   captures: number[]; claims: number[]; items: number[];   // items: unit ids with a legal useItem (not counted in activeUnits)
+  hunkers: number[];                                       // unit ids with a legal hunker (not counted in activeUnits)
   campTrain: Record<number, Partial<Record<UnitTypeId, HexKey[]>>>;
   train: Record<number, UnitTypeId[]>; walls: number[]; rewards: number[];
   harvest: HexKey[]; build: Record<HexKey, BuildingId[]>; road: HexKey[]; research: TechId[];
@@ -47,7 +48,7 @@ function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): v
 
 export function indexActions(actions: readonly Action[]): ActionIndex {
   const ix: ActionIndex = {
-    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], claims: [], items: [], campTrain: {}, train: {},
+    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], claims: [], items: [], hunkers: [], campTrain: {}, train: {},
     walls: [], rewards: [], harvest: [], build: {}, road: [], research: [], activeUnits: [],
   };
   const active = new Set<number>();
@@ -67,6 +68,7 @@ export function indexActions(actions: readonly Action[]): ActionIndex {
       case 'capture': if (!ix.captures.includes(a.unit)) ix.captures.push(a.unit); active.add(a.unit); break;
       case 'claimTreasure': if (!ix.claims.includes(a.unit)) ix.claims.push(a.unit); active.add(a.unit); break;
       case 'useItem': if (!ix.items.includes(a.unit)) ix.items.push(a.unit); break;
+      case 'hunker': if (!ix.hunkers.includes(a.unit)) ix.hunkers.push(a.unit); break;
       case 'campTrain': {
         const per = ix.campTrain[a.unit] ?? (ix.campTrain[a.unit] = {});
         const list = per[a.unitType] ?? (per[a.unitType] = []);

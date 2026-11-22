@@ -56,8 +56,8 @@ test('unit commands: abilities arm, a camp lists what it can train, a lure asks,
   const piper = addUnit(ps, 'piper', 0, 0, 0); addUnit(ps, 'hoplite', 0, 1, 0, { hp: 7 }); addUnit(ps, 'warrior', 1, -1, 0);
   const pix = ixOf(ps);
   const pc = unitCommands(unitSel(piper.id), ps, pix);
-  expect(pc.map(c => c.id)).toEqual(['ability-heal', 'ability-taunt']);
-  expect(pc.every(c => c.arm !== null && c.action === null)).toBe(true);
+  expect(pc.map(c => c.id)).toEqual(['ability-heal', 'ability-taunt', 'hunker']);
+  expect(pc.slice(0, 2).every(c => c.arm !== null && c.action === null)).toBe(true);
   const armed = byId(unitCommands(unitSel(piper.id, { armed: { kind: 'ability', ability: 'heal' } }), ps, pix));
   expect(armed['ability-heal']!.label).toBe(T.ui.cancel);
   expect(armed['ability-taunt']!.label).toBe(T.ability.taunt.name);
@@ -68,9 +68,12 @@ test('unit commands: abilities arm, a camp lists what it can train, a lure asks,
   cs.tiles['2,0']!.village = true; const taker = addUnit(cs, 'warrior', 0, 2, 0);
   const cix = ixOf(cs);
   const cc = unitCommands(unitSel(camp.id), cs, cix);
-  expect(cc.every(c => c.id.startsWith('camp-'))).toBe(true);
+  expect(cc.slice(0, -1).every(c => c.id.startsWith('camp-'))).toBe(true);
+  expect(cc.at(-1)!.id).toBe('hunker');
   expect(byId(cc)['camp-warrior']).toMatchObject({ cost: 2, arm: { kind: 'campTrain', unitType: 'warrior' } });
-  expect(unitCommands(unitSel(taker.id), cs, cix)).toEqual([expect.objectContaining({ id: 'capture', action: { type: 'capture', unit: taker.id } })]);
+  expect(unitCommands(unitSel(taker.id), cs, cix)).toEqual([
+    expect.objectContaining({ id: 'capture', action: { type: 'capture', unit: taker.id } }), expect.objectContaining({ id: 'hunker' }),
+  ]);
 
   const ls = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
   addCity(ls, 0, 0, 3); addCity(ls, 1, 0, -3);
@@ -91,6 +94,7 @@ test('a unit that has waited on a treasure is offered Claim treasure', () => {
   s.tiles['2,0']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 2, 0);
   expect(unitCommands(unitSel(finder.id), s, ixOf(s))).toEqual([
     { id: 'claimTreasure', label: T.ui.claimTreasure, cost: null, enabled: true, why: null, action: { type: 'claimTreasure', unit: finder.id }, arm: null },
+    { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: finder.id }, arm: null },
   ]);
   const walker = addUnit(s, 'warrior', 0, -2, 0, { moved: true }); s.tiles['-2,0']!.treasure = true;   // arrived this turn
   expect(unitCommands(unitSel(walker.id), s, ixOf(s))).toEqual([]);
@@ -105,4 +109,16 @@ test('Drink draught is offered when useItem is legal', () => {
   expect(byId(unitCommands(unitSel(plain.id), s, ix))['useItem']).toBeUndefined();
   drinker.fresh = true;    // too new to drink: no longer legal
   expect(byId(unitCommands(unitSel(drinker.id), s, ixOf(s)))['useItem']).toBeUndefined();
+});
+
+test('rules 7: Hunker is offered to a unit that has done nothing, never to a Catapult, a moved or a hunkered unit', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const idle = addUnit(s, 'warrior', 0, 2, 0);
+  const cat = addUnit(s, 'catapult', 0, -2, 0);
+  const moved = addUnit(s, 'warrior', 0, -2, 2, { moved: true });
+  const dug = addUnit(s, 'warrior', 0, 2, -2, { hunkered: true });
+  const ix = ixOf(s);
+  expect(unitCommands(unitSel(idle.id), s, ix).find(c => c.id === 'hunker')).toEqual(
+    { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: idle.id }, arm: null });
+  for (const u of [cat, moved, dug]) expect(unitCommands(unitSel(u.id), s, ix).some(c => c.id === 'hunker')).toBe(false);
 });

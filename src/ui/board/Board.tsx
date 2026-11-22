@@ -223,9 +223,10 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
           fresh={unit.fresh}
           taunted={unit.taunted}
           blinded={unit.blinded}
+          hunkered={unit.hunkered}
         />
         {unit.item !== null ? (
-          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh))} 0)`}><ItemBadge item={unit.item} /></g>
+          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered))} 0)`}><ItemBadge item={unit.item} /></g>
         ) : null}
       </g>
     </g>

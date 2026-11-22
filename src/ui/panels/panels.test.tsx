@@ -172,3 +172,11 @@ test('a deed bar never overfills', () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'mongols', { deeds: { fight: 9999, march: 0, survive: 0, rest: 0 } })} commands={[]} onCommand={noop} />);
   expect(html).toContain(`${CONFIG.heroes.thresholds.fight}/${CONFIG.heroes.thresholds.fight}`);
 });
+test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
+  for (const own of [true, false]) {
+    const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', { hunkered: true }, own)} commands={[]} onCommand={noop} />);
+    expect(html).toContain(`aria-label="${T.ui.hunkered}"`); expect(html).toContain(T.ui.hunkeredBlurb);
+  }
+  const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
+  expect(plain).not.toContain(`aria-label="${T.ui.hunkered}"`);
+});

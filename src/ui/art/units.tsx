@@ -323,7 +323,7 @@ const PIP_GAP = 1;
 export const PIP_Y = -42;
 /** The spacing of the marks beside the plate, centre to centre. */
 export const MARK_STEP = 7.6;
-/** The radius of the round marks (taunted, blinded) and of the glint. */
+/** The radius of the round marks (taunted, blinded) and of the glint; the hunker shield is about as big. */
 export const MARK_R = 3.4;
 /** Where the "new" glint sits, right of the plate's right end. */
 export const GLINT_GAP = 5;
@@ -343,7 +343,7 @@ export function plateRight(maxHp: number): number {
  * Drawn above a figure: one health pip per 5 health, full for health left.
  * `spent` is not drawn here: the caller dims the whole figure.
  */
-export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fresh: boolean; taunted: boolean; blinded: boolean }): ReactElement {
+export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fresh: boolean; taunted: boolean; blinded: boolean; hunkered?: boolean }): ReactElement {
   const total = pipCount(p.maxHp);
   const full = Math.min(total, Math.max(0, Math.ceil(p.hp / 5)));
   const w = plateWidth(p.maxHp);
@@ -384,6 +384,14 @@ export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fr
     marks.line(x + 1, PIP_Y + 2, x + 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
   }
   if (p.fresh) marks.glint(left + w + GLINT_GAP, PIP_Y + 0.4, MARK_R, '#FFC93C');
+  else if (p.hunkered === true) {
+    // A steel shield in the glint's slot (a hunkered unit is never fresh): this unit is dug in.
+    const cx = left + w + GLINT_GAP;
+    const top = PIP_Y + 1.3 - MARK_R;
+    marks.shape(`M ${cx - 3} ${top} L ${cx + 3} ${top} L ${cx + 3} ${top + 2.8} Q ${cx + 3} ${top + 5.6} ${cx} ${top + 6.8} Q ${cx - 3} ${top + 5.6} ${cx - 3} ${top + 2.8} Z`, '#FFFFFF');
+    marks.shape(`M ${cx - 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 2.8} Q ${cx + 2.2} ${top + 5} ${cx} ${top + 5.9} Q ${cx - 2.2} ${top + 5} ${cx - 2.2} ${top + 2.8} Z`, '#7B8C9A');
+    marks.line(cx, top + 1.4, cx, top + 5, '#FFFFFF', 0.6);
+  }
   return (
     <g>
       {ink.items}
