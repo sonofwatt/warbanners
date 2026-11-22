@@ -40,8 +40,9 @@ Mongol expansion (Spartans about 1.6 cities against 6.2). Each lever was measure
 | C + B | 57.0% | 55.5% |
 
 C alone is the best candidate. Separately the first seat wins about 54% against 41% whatever the levers (the map is
-mirrored, so it is tempo). Under test: C with the second seat starting on 12 or 14 gold (`CONFIG.startGold`). Raw
-outputs are in the workspace repo under `sim-results/`. Next: pick C (plus a seat fix if it helps), record it in
+mirrored, so it is tempo). Second seat start gold on top of C: 12 is not enough, 14 tips hard the other way, so
+run 13 next. Full tables: `docs/superpowers/plans/2026-11-22-rules-7-balance-log.md` on `connected-cities`; raw
+outputs in the workspace repo under `sim-results/`. Next: pick C (plus a seat fix if it helps), record it in
 the rules file and a tuning log, then merge and deploy 0.5.0 (check `npx firebase database:get /rooms` first:
 never deploy a RULES_VERSION bump during a live online match).
 
