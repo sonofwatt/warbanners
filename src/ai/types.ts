@@ -30,14 +30,14 @@ export interface Skill {
   evals: number;         // work budget per plan (engine probes; a reachable() call counts 1, an applyAction 1)
 }
 
-// How a faction likes to play: scoring weights plus orders for research, training and level rewards.
+// How a faction likes to play: scoring weights, a research preference and the army mix it aims for (mix.ts).
 export interface Persona {
   formation: number;     // per bond between two own units (Hoplite pairs count twice), see assess.ts; below 0 spreads out
   hold: number;          // per own unit near a threatened own city; a garrison on an own city tile counts 3 times
   spread: number;        // per own city, on top of the city's value
   raid: number;          // a mounted unit that attacked and ends out of every seen enemy's reach
   forestPenalty: number; // a mounted unit ending its turn in forest
-  techOrder: TechId[];
-  trainOrder: UnitTypeId[];
-  rewardPick: Partial<Record<number, 0 | 1>>; // level: choice
+  techOrder: TechId[];   // preferred research order, before the desire for the units a tech unlocks
+  mix: Partial<Record<UnitTypeId, number>>;   // target army mix, as relative shares of units; a type left out is never trained
+  counter: number;       // weight on training types that answer the enemy units and cities seen
 }

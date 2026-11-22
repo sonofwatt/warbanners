@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
   CONFIG, FACTIONS, UNITS, attackOf, baseAttackOf, coverAt, damageFor, defenceOf, distance, isHero, key, maxHpOf, maxMp,
-  mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
+  growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -28,6 +28,14 @@ const BOND_CAP = 4;               // formation weight one unit can have: two hop
 export const GOLD_WEIGHT = 0.25;  // valueOf's weight on gold (times skill.economy)
 const HERO_TRAIT_WORTH = 3;       // per trait a unit has earned or found
 const HERO_WORTH = 3;             // more again for a hero
+const LEVEL_WORTH = 10;           // per own city level, and per share of the way to the next, times skill.economy: a level
+                                  // brings a reward and room for a unit, so growth is bought on the way, not only for the last step
+const STEADY_VALUE = 1;           // per own unit a steady unit shields from a lure
+const STEADY_CAP = 2;
+const TAUNT_VALUE = 1.5;          // a taunt that turns an enemy's blow onto a Hoplite
+const BADLY_WOUNDED = 0.4;        // a unit at or below this share of its health is badly wounded
+const WOUNDED_CARE = 3;           // its danger weight is at least this times skill.focus
+const WOUNDED_PULL_CUT = 0.75;    // and its objective pull is cut by this share times skill.focus
 const ITEM_WORTH = 1;             // a carried draught (Task 8: 2 kept hard from drinking for a kill)
 
 // Its gold cost; a unit that cannot be bought (champion, support) counts as 8.
@@ -81,9 +89,11 @@ function strikeOf(b: MatchState, u: Unit): number {
   return STRIKE_SHARE * best;
 }
 
-// Tiles from which a unit could attack next turn: full movement (ignoring terrain) plus its range.
+// Tiles from which a unit could attack next turn: full movement (ignoring terrain) plus its range. Whole tiles: since
+// rules 6 a Mongol rider has an odd number of half-points, and a fractional radius made `range` list no real tile, so
+// the danger map left out every Mongol rider.
 function threatReach(b: MatchState, u: Unit): number {
-  return maxMp(b, u) / 2 + UNITS[u.type].range;
+  return Math.floor(maxMp(b, u) / 2) + UNITS[u.type].range;
 }
 
 // Most damage seen enemies could deal to a Warrior-defence unit on each tile next turn. Tiles left
@@ -218,6 +228,29 @@ function lazyVisible(b: MatchState, me: PlayerId): Visible {
   return () => (set ??= visibleTiles(b, me));
 }
 
+// A steady unit (the Piper) keeps the units beside it from being lured: worth this much for each own unit beside it
+// that a seen luring enemy could reach next turn, up to STEADY_CAP of them.
+function steadyCredit(b: MatchState, u: Unit): number {
+  const lurers = b.units.filter((e) => e.owner !== u.owner && has(e, 'retreat')
+    && FACTIONS[b.players[e.owner]?.faction ?? 'spartans'].canLure);
+  if (lurers.length === 0) return 0;
+  const at = parseKey(u.pos);
+  const shielded = b.units.filter((o) => o.owner === u.owner && o.id !== u.id && distance(at, parseKey(o.pos)) === 1
+    && lurers.some((e) => distance(parseKey(e.pos), parseKey(o.pos)) <= threatReach(b, e))).length;
+  return STEADY_VALUE * Math.min(STEADY_CAP, shielded);
+}
+
+// A taunt makes the enemy on `at` attack only a phalanx unit (the Hoplite) while one is in its range. Worth
+// TAUNT_VALUE when an own phalanx unit and another own unit are both within its reach next turn, so the taunt turns
+// its blow from the weaker unit onto the Hoplite; 0 otherwise. valueOf has no term for it, so the planner adds it.
+export function tauntCredit(b: MatchState, me: PlayerId, at: HexKey): number {
+  const e = b.units.find((x) => x.pos === at && x.owner !== me);
+  if (e === undefined || e.taunted) return 0;
+  const reach = threatReach(b, e);
+  const near = b.units.filter((o) => o.owner === me && distance(parseKey(o.pos), parseKey(at)) <= reach);
+  return near.some((o) => has(o, 'phalanx')) && near.some((o) => !has(o, 'phalanx')) ? TAUNT_VALUE : 0;
+}
+
 // Every value term that belongs to one own unit, except formation (a pair term) and exploring.
 function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   const { persona, skill, danger, goals, me } = ctx;
@@ -243,8 +276,10 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
     v += share * worth * Math.min(missing, restHealAt(b, u, visible())) / maxHp;
   }
 
+  // A badly wounded unit keeps out of reach even at the skill levels that weigh danger little: it falls back to heal.
   const threat = danger[u.pos] ?? 0;
-  v -= skill.danger * worth * Math.min(1, threat / u.hp);
+  const care = hpShare <= BADLY_WOUNDED ? Math.max(skill.danger, WOUNDED_CARE * skill.focus) : skill.danger;
+  v -= care * worth * Math.min(1, threat / u.hp);
 
   // Hold: a garrison on an own city tile always; inside the territory or next to an own city only while
   // that city is threatened (has a defend objective). Elsewhere the army is free to march.
@@ -255,6 +290,7 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   }
   if (isMounted(u) && u.acted && threat === 0) v += persona.raid;
   if (isMounted(u) && tile?.terrain === 'forest') v -= persona.forestPenalty;
+  if (has(u, 'steady')) v += steadyCredit(b, u);
   v += strikeOf(b, u);
 
   // The pull of the most attractive objective, its value less its distance. While a seen enemy is in
@@ -268,7 +304,9 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
     if (noCapture && (g.kind === 'enemyCity' || g.kind === 'enemyCapital')) continue;   // it can never take one
     pull = Math.max(pull, g.value - distance(at, parseKey(g.at)));
   }
-  if (pull > -Infinity) v += OBJECTIVE_PULL * pull;
+  // A badly wounded unit is pulled less toward its goals, more so as the skill rises, so it falls back to heal.
+  const drive = hpShare <= BADLY_WOUNDED ? 1 - WOUNDED_PULL_CUT * skill.focus : 1;
+  if (pull > -Infinity) v += OBJECTIVE_PULL * drive * pull;
   return v;
 }
 
@@ -282,7 +320,7 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
   for (const c of b.cities) {
     const worth = cityWorth(c) + persona.spread;
     if (c.owner === me) {
-      v += worth; growth += c.growth;
+      v += worth; growth += c.growth + LEVEL_WORTH * (c.level + c.growth / growthNeeded(b, c));
       v -= exposureCost(b, ctx, c);
     } else v -= worth;
   }

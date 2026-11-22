@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { adaptiveSeries, runMatch, summarize } from './sim';
+import { adaptiveSeries, census, runMatch, summarize } from './sim';
 import type { SimOpts } from './sim';
 import { CONFIG, applyAction, createMatch } from '../engine';
 import type { GameEvent, MatchState } from '../engine';
@@ -39,7 +39,13 @@ test.runIf(process.env.SLOW === '1')('ten normal matches: legal, finished, only 
 // least 0.15 with 12 of 16 above 0, but a seed takes 45 to 85 s, so 16 would add over 10 minutes to the SLOW suite.
 // This runs the fewest seeds that keep both assertions with margin: 10 and 11 (0.372 and 0.564 on rules 6, mean 0.468),
 // the same bound (mean at least 0.15, three quarters of the seeds above 0) applied to them; about 95 s for both.
-const ADAPT_SEEDS = [10, 11];
+// The unit mix (2026-11-21-ai-unit-mix-log.md): over start seeds 1 to 16 the gaps are 0.268, 0.039, 0.211, 0.547,
+// 0.000, -0.337, 0.195, 0.210, 0.470, 0.030, 0.186, 0.468, 0.744, 0.535, 0.146, 0.072 (mean 0.237, 14 of 16 above 0).
+// The rule: run the seeds whose gap is nearest the 16-seed mean, so the check reads typical seeds, not lucky ones;
+// re-pick by this rule when the AI changes. The nearest three are 3 (0.211), 8 (0.210) and 1 (0.268), but three took
+// 227 s against 160 s for two, so the check runs the nearest two. The bound is the same: mean at least 0.15 and three
+// quarters above 0, which for two seeds means both.
+const ADAPT_SEEDS = [3, 8];
 test.runIf(process.env.SLOW === '1')('adaptive climbs against a strong opponent and drops against a weak one', () => {
   const gaps = ADAPT_SEEDS.map((seed) => {
     const strong = adaptiveSeries({ opponentDial: 0.85, matches: 4, seed, maxRounds: 60 });
@@ -95,3 +101,29 @@ test('the summary takes the mean total of traits and treasures', () => {
   expect(sum.perFaction.spartans.heroes).toBe(1);
   expect(sum.perFaction.spartans.draughtsDrunk).toBe(2);
 });
+test('the census counts abilities, claims, camp training and rewards as the actions and events of a match', () => {
+  const o: SimOpts = { seed: 3, factions: ['spartans', 'mongols'], seats: [{ level: 'normal' }, { level: 'normal' }], maxRounds: 25 };
+  const r = runMatch(o);
+  let s: MatchState = createMatch({ seed: o.seed, factions: o.factions });
+  const want = [{} as Record<string, number>, {} as Record<string, number>];
+  const rewards = [{} as Record<string, number>, {} as Record<string, number>];
+  const bump = (m: Record<string, number>, k: string): void => { m[k] = (m[k] ?? 0) + 1; };
+  for (const a of r.actions) {
+    const me = s.current;
+    if (a.type === 'ability') bump(want[me]!, a.ability);
+    if (a.type === 'claimTreasure') bump(want[me]!, 'treasure');
+    if (a.type === 'campTrain') bump(want[me]!, 'campTrain');
+    const res = applyAction(s, a);
+    if (!res.ok) throw new Error(res.reason);
+    for (const e of res.events) if (e.type === 'reward') bump(rewards[me]!, e.reward);
+    s = res.state;
+  }
+  for (const p of [0, 1] as const) {
+    const t = r.sides[p].tactics;
+    for (const k of ['heal', 'taunt', 'hasten', 'dustStorm', 'treasure', 'campTrain'] as const) expect(t[k] ?? 0, k).toBe(want[p]![k] ?? 0);
+    expect(r.sides[p].rewards).toEqual(rewards[p]);
+    expect(r.sides[p].techs).toEqual(s.players[p]!.techs);
+  }
+  const c = census([r]);
+  expect(c.tactics.spartans.treasure!.total).toBe(r.sides[0].tactics.treasure ?? 0);
+}, 120_000);

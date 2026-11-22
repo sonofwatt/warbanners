@@ -4,7 +4,7 @@ import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/
 import type { MatchState } from '../engine';
 import { aiInputFor, believedState, viewKey } from './input';
 import { planTurn } from './plan';
-import { draughtFinish, hiddenScout, hopelessCharge, lureFromCity, safeLure } from './scenarios';
+import { draughtFinish, hiddenScout, hopelessCharge, killOrChip, lureFromCity, pipersTaunt, safeLure, woundedHoplite } from './scenarios';
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
 
@@ -131,5 +131,32 @@ test('hard Mongols lure when the pull is safe', () => {
   for (const seed of [0, 1, 2, 3]) {
     const plan = planTurn(aiInputFor(safeLure(), 1), { dial: LEVEL_DIAL.hard, seed, refused: [] });
     expect(plan.actions.some(a => a.type === 'attack' && a.lure === true), `seed ${seed}`).toBe(true);
+  }
+});
+
+// Hexonia habits, growing with the skill (skill.focus): a badly wounded unit falls back out of reach to heal, and a kill
+// is taken over chip damage. Before them a hard AI walked this Hoplite on toward the riders, and a normal AI chipped the
+// Hoplite instead of killing the Warrior on one seed in three.
+test('a badly wounded Hoplite steps back out of the riders\' reach at normal and hard', () => {
+  for (const dial of [LEVEL_DIAL.normal, LEVEL_DIAL.hard]) for (let seed = 0; seed < 5; seed++) {
+    const plan = planTurn(aiInputFor(woundedHoplite(), 0), { dial, seed, refused: [] });
+    const to = plan.actions.find((a) => a.type === 'move' && a.unit === 0);
+    expect(to?.type === 'move' && ['0,2', '-1,2'].includes(to.to), `dial ${dial} seed ${seed}`).toBe(true);
+  }
+});
+test('a kill is taken over chip damage: always at hard, nearly always at normal', () => {
+  const kills = (dial: number): number => Array.from({ length: 20 }, (_, seed) => planTurn(aiInputFor(killOrChip(), 1), { dial, seed, refused: [] }))
+    .filter((p) => p.actions.some((a) => a.type === 'attack' && a.target === '-1,1')).length;
+  expect(kills(LEVEL_DIAL.hard)).toBe(20);
+  expect(kills(LEVEL_DIAL.normal)).toBeGreaterThanOrEqual(16);
+});
+
+// A taunt changes nothing valueOf measures, so it is credited (tauntCredit) when it turns an enemy's blow from a weaker
+// unit onto a Hoplite.
+test('a Piper taunts a rider that could strike its Archer, so the blow falls on the Hoplite', () => {
+  for (const dial of [LEVEL_DIAL.normal, LEVEL_DIAL.hard]) {
+    const taunts = Array.from({ length: 10 }, (_, seed) => planTurn(aiInputFor(pipersTaunt(), 0), { dial, seed, refused: [] }))
+      .filter((p) => p.actions.some((a) => a.type === 'ability' && a.ability === 'taunt' && a.target === '0,-1')).length;
+    expect(taunts, `dial ${dial}`).toBeGreaterThanOrEqual(dial === LEVEL_DIAL.hard ? 10 : 3);
   }
 });

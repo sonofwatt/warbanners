@@ -1,6 +1,6 @@
 // Bulk AI-against-AI matches for tuning: plays whole matches with the real turn driver and measures each side.
-import { CONFIG, UNITS, createMatch, distance, isHero, parseKey } from '../engine';
-import type { Action, FactionId, HeroTraitId, MatchState, PlayerId, TreasureOutcome, UnitTypeId } from '../engine';
+import { CONFIG, FACTIONS, UNITS, createMatch, distance, isHero, parseKey, reachable } from '../engine';
+import type { Action, FactionId, HeroTraitId, MatchState, PlayerId, RewardId, TechId, Trait, TreasureOutcome, Unit, UnitTypeId } from '../engine';
 import { adaptStep, betweenMatches, gapOf, standingOf } from './adapt';
 import type { AdaptState } from './adapt';
 import { runAiTurn } from './driver';
@@ -20,7 +20,32 @@ export interface SideMetrics {
   doubleKills: number;   // turns in which one unit made 2 or more kills
   mountedTiles: number;  // tiles moved (hex distance of each move action) by mounted units
   mountedTurns: number;  // mounted units the side had at the start of each of its turns
+  // The census (2026-11-21-ai-unit-mix-log.md): how often each tactic was used, whether it was possible at all,
+  // the level rewards taken and the techs held at the end.
+  tactics: Partial<Record<Tactic, number>>;
+  possible: Partial<Record<Tactic, boolean>>;
+  rewards: Partial<Record<RewardId, number>>;
+  techs: TechId[];
 }
+
+// Every tactic the census counts. Abilities and passive traits count when they act: heal, taunt, hasten and dustStorm
+// when used; steady when an enemy rider that could lure hits a unit a Piper steadies; inspire when a mounted unit
+// attacks beside a friendly inspire unit; doubleStrike for a second attack by one unit in a turn; splash for an attack
+// that splashes. retreat is a move after an attack by a unit with the retreat trait; pathfinder a move onto a tile its
+// owner had not explored.
+export const TACTICS = [
+  'lure', 'retreat', 'chainKill', 'heal', 'taunt', 'hasten', 'dustStorm', 'steady', 'inspire', 'doubleStrike', 'splash',
+  'treasure', 'draught', 'pathfinder', 'campTrain',
+] as const;
+export type Tactic = typeof TACTICS[number];
+
+// The trait a unit needs at the start of its owner's turn for each tactic to be possible that turn (a pathfinder step
+// also needs an unexplored tile in reach then).
+const TACTIC_TRAIT: Partial<Record<Tactic, Trait>> = {
+  lure: 'retreat', retreat: 'retreat', chainKill: 'chain', heal: 'heal', taunt: 'taunt', hasten: 'hasten',
+  dustStorm: 'dustStorm', steady: 'steady', inspire: 'inspire', doubleStrike: 'doubleStrike', splash: 'splash',
+  pathfinder: 'pathfinder', campTrain: 'camp',
+};
 export interface SimResult {
   seed: number; factions: [FactionId, FactionId]; winner: PlayerId | null; stalled: boolean; adjudged: PlayerId | null;
   rounds: number; refusals: number; nonMoveRefusals: number; replans: number; dials: number[]; sides: [SideMetrics, SideMetrics];
@@ -41,8 +66,32 @@ function emptySide(): SideMetrics {
     cities: 0, citiesAtRound10: 0, unitsTrained: {}, attacks: 0, kills: 0, lures: 0, lureOntoCapturable: 0, luredCaptures: 0,
     raidRetreats: 0, mountedAttacks: 0, adjacentShare: 0, forestEntriesWithLittleMp: 0,
     traitsEarned: {}, heroes: 0, heroesLost: 0, treasures: {}, draughtsDrunk: 0, chainKills: 0, chainSweeps: 0, doubleKills: 0,
-    mountedTiles: 0, mountedTurns: 0,
+    mountedTiles: 0, mountedTurns: 0, tactics: {}, possible: { treasure: true }, rewards: {}, techs: [],
   };
+}
+
+const hasT = (u: Unit, t: Trait): boolean => (UNITS[u.type].traits as readonly string[]).includes(t);
+const besideOwn = (s: MatchState, u: Unit, t: Trait): boolean => s.units.some((n) => n.id !== u.id && n.owner === u.owner
+  && hasT(n, t) && distance(parseKey(n.pos), parseKey(u.pos)) === 1);
+const tally = (side: SideMetrics, t: Tactic): void => { side.tactics[t] = (side.tactics[t] ?? 0) + 1; };
+
+// Which tactics the side could use this turn, from the units it has as the turn starts.
+function markPossible(s: MatchState, me: PlayerId, side: SideMetrics): void {
+  const faction = s.players[me]!.faction;
+  const rival = s.players.find((p) => p.id !== me);
+  const explored = new Set(s.players[me]!.explored);
+  for (const u of s.units) {
+    if (u.owner !== me) continue;
+    for (const [t, trait] of Object.entries(TACTIC_TRAIT) as [Tactic, Trait][]) {
+      if (!hasT(u, trait)) continue;
+      if (t === 'lure' && !FACTIONS[faction].canLure) continue;
+      if (t === 'steady' && (rival === undefined || !FACTIONS[rival.faction].canLure)) continue;
+      // a pathfinder step needs an unexplored tile within the move; a Scout sees 3 tiles and moves 2, so it seldom has one
+      if (t === 'pathfinder' && !Object.keys(reachable(s, u.id)).some((k) => !explored.has(k))) continue;
+      side.possible[t] = true;
+    }
+    if (u.item === 'draught') side.possible.draught = true;
+  }
 }
 
 // The share of p's units that stand next to another of p's units.
@@ -93,7 +142,10 @@ export function runMatch(o: SimOpts): SimResult {
     replans += log.replans;
 
     side.mountedTurns += s.units.filter((u) => u.owner === me && isMounted(u.type)).length;
+    markPossible(s, me, side);
     const attackedBy = new Set<number>();
+    const hitBy = new Set<number>();              // units that attacked this turn (for double strikes)
+    const retreatReady = new Set<number>();       // retreat units that attacked and have not moved since
     const killsBy = new Map<number, number>();   // this turn's kills by each of my attacking units
     for (const step of log.steps) {
       const { action, events, before } = step;
@@ -110,9 +162,24 @@ export function runMatch(o: SimOpts): SimResult {
         side.attacks += 1;
         const u = before.units.find((x) => x.id === action.unit);
         if (u !== undefined && isMounted(u.type)) { side.mountedAttacks += 1; attackedBy.add(u.id); }
+        if (u !== undefined) {
+          if (hitBy.has(u.id) && hasT(u, 'doubleStrike')) tally(side, 'doubleStrike');
+          hitBy.add(u.id);
+          if (hasT(u, 'retreat')) retreatReady.add(u.id);
+          if (hasT(u, 'mounted') && besideOwn(before, u, 'inspire')) tally(side, 'inspire');
+          const victim = before.units.find((x) => x.pos === action.target);
+          if (victim !== undefined && hasT(u, 'retreat') && FACTIONS[before.players[me]!.faction].canLure
+            && besideOwn(before, victim, 'steady')) tally(sides[victim.owner]!, 'steady');
+        }
+        if (events.some((e) => e.type === 'splashed')) tally(side, 'splash');
       }
+      if (action.type === 'campTrain') tally(side, 'campTrain');
+      if (action.type === 'ability') tally(side, action.ability);
+      if (action.type === 'claimTreasure') tally(side, 'treasure');
       if (action.type === 'move') {
         const u = before.units.find((x) => x.id === action.unit);
+        if (u !== undefined && retreatReady.has(u.id)) { tally(side, 'retreat'); retreatReady.delete(u.id); }
+        if (u !== undefined && hasT(u, 'pathfinder') && !before.players[me]!.explored.includes(action.to)) tally(side, 'pathfinder');
         if (u !== undefined && attackedBy.has(u.id)) { side.raidRetreats += 1; attackedBy.delete(u.id); }
         if (u !== undefined && isMounted(u.type)) side.mountedTiles += distance(parseKey(u.pos), parseKey(action.to));
         if (u !== undefined && isMounted(u.type) && before.tiles[action.to]?.terrain === 'forest'
@@ -129,7 +196,7 @@ export function runMatch(o: SimOpts): SimResult {
             side.kills += 1;
             if (attacker !== undefined) {
               killsBy.set(attacker.id, (killsBy.get(attacker.id) ?? 0) + 1);
-              if (isChain(attacker.type)) side.chainKills += 1;
+              if (isChain(attacker.type)) { side.chainKills += 1; tally(side, 'chainKill'); }
             }
           }
           if (dead !== undefined && isHero(dead)) sides[dead.owner]!.heroesLost += 1;
@@ -146,9 +213,12 @@ export function runMatch(o: SimOpts): SimResult {
           side.treasures[e.outcome] = (side.treasures[e.outcome] ?? 0) + 1;
         } else if (e.type === 'usedItem') {
           const owner = before.units.find((x) => x.id === e.unit)?.owner;
-          if (owner !== undefined && e.item === 'draught') sides[owner]!.draughtsDrunk += 1;
+          if (owner !== undefined && e.item === 'draught') { sides[owner]!.draughtsDrunk += 1; tally(sides[owner]!, 'draught'); }
+        } else if (e.type === 'reward') {
+          side.rewards[e.reward] = (side.rewards[e.reward] ?? 0) + 1;
         } else if (e.type === 'lured') {
           side.lures += 1;
+          tally(side, 'lure');
           const target = before.units.find((x) => x.id === e.unit);
           if (target !== undefined && capturableFor(before, target.owner, e.to)) {
             side.lureOntoCapturable += 1;
@@ -175,6 +245,7 @@ export function runMatch(o: SimOpts): SimResult {
   for (const p of [0, 1] as const) {
     sides[p].cities = citiesOf(s, p);
     sides[p].citiesAtRound10 = at10[p];
+    sides[p].techs = [...s.players[p]!.techs];
     const sh = shares[p]!;
     sides[p].adjacentShare = sh.length === 0 ? 0 : sh.reduce((x, y) => x + y, 0) / sh.length;
   }
@@ -264,6 +335,55 @@ export function adaptiveSeries(o: { opponentDial: number; matches: number; seed:
     const last = r.dials.at(-1) ?? dial;
     const won = r.winner ?? r.adjudged;
     dial = betweenMatches(last, won === null ? 'none' : won === seat ? 'ai' : 'person');
+  }
+  return out;
+}
+
+export interface Census {
+  // per faction and trainable type: matches where the side held the type's tech, and of those, matches it trained one
+  units: Record<FactionId, Partial<Record<UnitTypeId, { had: number; trained: number; total: number }>>>;
+  // per faction and reward: times taken
+  rewards: Record<FactionId, Partial<Record<RewardId, number>>>;
+  // per faction and tactic: matches where it was possible, matches where it was used, and uses in all
+  tactics: Record<FactionId, Partial<Record<Tactic, { possible: number; used: number; total: number }>>>;
+  chivalry: Record<FactionId, { had: number; knights: number }>;   // matches with chivalry, and of those with a Knight
+}
+
+// The types a faction can train: a cost, and either no faction or its own.
+export function trainableTypes(f: FactionId): UnitTypeId[] {
+  return (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].cost !== null && (UNITS[t].faction === null || UNITS[t].faction === f));
+}
+
+export function census(results: readonly SimResult[]): Census {
+  const out: Census = {
+    units: { spartans: {}, mongols: {} }, rewards: { spartans: {}, mongols: {} }, tactics: { spartans: {}, mongols: {} },
+    chivalry: { spartans: { had: 0, knights: 0 }, mongols: { had: 0, knights: 0 } },
+  };
+  for (const r of results) for (const p of [0, 1] as const) {
+    const f = r.factions[p];
+    const side = r.sides[p];
+    const techs = new Set<TechId>([...side.techs, FACTIONS[f].startTech]);
+    for (const t of trainableTypes(f)) {
+      const tech = UNITS[t].tech;
+      const row = out.units[f][t] ??= { had: 0, trained: 0, total: 0 };
+      const n = side.unitsTrained[t] ?? 0;
+      row.total += n;
+      if (tech !== null && !techs.has(tech)) continue;
+      row.had += 1;
+      if (n > 0) row.trained += 1;
+    }
+    if (techs.has('chivalry')) {
+      out.chivalry[f].had += 1;
+      if ((side.unitsTrained.knight ?? 0) > 0) out.chivalry[f].knights += 1;
+    }
+    for (const [w, n] of Object.entries(side.rewards) as [RewardId, number][]) out.rewards[f][w] = (out.rewards[f][w] ?? 0) + n;
+    for (const t of TACTICS) {
+      const row = out.tactics[f][t] ??= { possible: 0, used: 0, total: 0 };
+      const n = side.tactics[t] ?? 0;
+      row.total += n;
+      if (side.possible[t] === true || n > 0) row.possible += 1;
+      if (n > 0) row.used += 1;
+    }
   }
   return out;
 }

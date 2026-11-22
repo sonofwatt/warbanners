@@ -25,6 +25,16 @@ test('danger comes only from seen enemies', () => {
   const { state } = hiddenScout();
   expect(Object.values(dangerMap(believedState(aiInputFor(state, 1)), 1)).every(v => v === 0)).toBe(true);
 });
+// Rules 6 gave a Mongol rider an odd number of half-points (a Horseman has 5). The danger map once took range() of the
+// fractional reach, which lists no real tile, so the Spartan AI saw no danger from any Mongol rider.
+test('danger covers a Mongol rider\'s whole-tile reach', () => {
+  const s = blankMatch();
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  addUnit(s, 'horseman', 1, 0, -2);
+  const d = dangerMap(s, 0);
+  expect(d['0,1']).toBeGreaterThan(0);              // 3 tiles: 2 of movement (5 half-points) and 1 of range
+  expect(d['0,2'] ?? 0).toBe(0);
+});
 test('a hoplite beside a hoplite is worth more to the Spartans than one alone', () => {
   const b = believedState(aiInputFor(spartanLine(), 0));
   const ctx = makeCtx(b, 0, LEVEL_DIAL.normal);   // test helper: skillFor, PERSONAS[faction], dangerMap, objectives, empty hurt
