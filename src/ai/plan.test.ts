@@ -3,7 +3,7 @@ import { applyAction, createMatch, visibleTiles } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
 import type { MatchState } from '../engine';
 import { aiInputFor, believedState, viewKey } from './input';
-import { planTurn } from './plan';
+import { planTurn, withGrowth } from './plan';
 import { draughtFinish, hiddenScout, hopelessCharge, killOrChip, lureFromCity, pipersTaunt, safeLure, woundedHoplite } from './scenarios';
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
@@ -159,4 +159,17 @@ test('a Piper taunts a rider that could strike its Archer, so the blow falls on 
       .filter((p) => p.actions.some((a) => a.type === 'ability' && a.ability === 'taunt' && a.target === '0,-1')).length;
     expect(taunts, `dial ${dial}`).toBeGreaterThanOrEqual(dial === LEVEL_DIAL.hard ? 10 : 3);
   }
+});
+test('withGrowth levels cities through the engine, several levels at once, and leaves the state it was given alone', () => {
+  const s = blankMatch();                                       // player 0 Spartans, player 1 Mongols
+  const sp = addCity(s, 0, 0, 0, { level: 1, growth: 1 });
+  const mo = addCity(s, 1, 2, 0, { level: 1, growth: 0 });
+  const other = addCity(s, 0, -2, 0, { level: 1, growth: 0 });
+  const before = structuredClone(s);
+  const g = withGrowth(s, [sp.id, mo.id], 6);
+  const at = (id: number) => g.cities.find((c) => c.id === id)!;
+  expect([at(sp.id).level, at(sp.id).growth, at(sp.id).pendingRewards]).toEqual([3, 2, [2, 3]]);
+  expect([at(mo.id).level, at(mo.id).growth, at(mo.id).pendingRewards]).toEqual([2, 3, [2]]);
+  expect(at(other.id)).toBe(s.cities.find((c) => c.id === other.id));
+  expect(s).toEqual(before);
 });

@@ -13,7 +13,7 @@ export { restHealAt } from './turn';
 export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, maxHpOf, mythTouched } from './heroes';
 export { trainable, unitCost } from './training';
 export { techPrice, canResearch } from './tech';
-export { cityIncome, playerIncome, growthNeeded, unitCapacity } from './economy';
+export { cityIncome, playerIncome, growthNeeded, addGrowth, unitCapacity } from './economy';
 export { isConnected } from './connect';
 export { UNITS } from './data/units';
 export { TECHS } from './data/techs';

@@ -1,7 +1,7 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
-  CONFIG, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, growthNeeded, harvestRefusal, key, lureApplies, neighbors,
+  CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
+  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
   parseKey, reachable, roadRefusal, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
@@ -49,16 +49,13 @@ interface Cand {
 
 class OutOfTime extends Error {}
 
-// The believed state with `n` growth added to each listed city, levelling up as the engine's addGrowth does.
-function withGrowth(b: MatchState, ids: readonly number[], n: number): MatchState {
+// The believed state with `n` growth added to each listed city, through the engine's own addGrowth on copies
+// of those cities (its cityLevel events are dropped: they only matter to the match, not to a valuation).
+export function withGrowth(b: MatchState, ids: readonly number[], n: number): MatchState {
   const cities = b.cities.map((c) => {
     if (!ids.includes(c.id)) return c;
-    const g = { ...c, pendingRewards: [...c.pendingRewards], growth: c.growth + n };
-    while (g.growth >= growthNeeded(b, g)) {
-      g.growth -= growthNeeded(b, g);
-      g.level += 1;
-      g.pendingRewards.push(g.level);
-    }
+    const g = { ...c, pendingRewards: [...c.pendingRewards] };
+    addGrowth(b, g, n, []);
     return g;
   });
   return { ...b, cities };
