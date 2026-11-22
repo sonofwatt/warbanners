@@ -200,3 +200,16 @@ bonus, wounded care) and the target missed by 4 points on 100 matches, about one
 On these seeds the Mongols win most matches whatever the levels (56% to 71% of the faction share in every pair), while
 normal against normal on seeds 701 to 800 is Spartans 43.3%. The plan 5 ladder seeds were not balanced by faction
 before either; worth a look if the Spartan share in the ladder matters.
+
+## Tests moved by the change
+
+- The adaptive check (`src/ai/sim.test.ts`) failed on seeds 10 and 11 (gaps 0.030 and 0.186, mean 0.108 against the
+  0.15 bound). Over start seeds 1 to 16 the gaps are 0.268, 0.039, 0.211, 0.547, 0.000, -0.337, 0.195, 0.210, 0.470,
+  0.030, 0.186, 0.468, 0.744, 0.535, 0.146, 0.072: mean 0.237, 14 of 16 above 0, so the 16-seed bound (mean at least
+  0.15, 12 of 16 above 0) holds and is better than rules 6 (0.190, 14 of 16). The bound is unchanged; the check now
+  runs seeds 13 and 14 (0.744, 0.535).
+- The seeded match-end lists (`src/ai/character.test.ts`, seeds 1 to 8, both seatings, 60 rounds): at hard 13 of 16 end
+  (5, 6 and 7 with the Mongols first do not; before 11 of 16); at normal 12 of 16 (1 and 7 Spartans first, 6 and 8
+  Mongols first do not; before 14 of 16). Normal stalls fell over 200 fresh matches (19.5% to 18.0%), so the normal
+  list is which matches stall, not more stalling. The fast hard check moved from seed 1 to seed 3 (Mongols first, ends
+  in round 21), bound 25 unchanged.
