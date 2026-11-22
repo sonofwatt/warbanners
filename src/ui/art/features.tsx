@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { BuildingId, FactionId, Resource, Terrain } from '../../engine';
+import { useGraded } from './mode';
 import { ACCENT } from './palette';
 import { edgeCorners, r1 } from './tiles';
 
@@ -136,7 +137,7 @@ const GROVES: readonly (readonly [number, number, number])[][] = [
   [[-10, -7, 0.8], [3, -9, 0.8], [13, -2, 0.7]],
 ];
 
-export function Grove(p: { variant: number }): ReactElement {
+function GroveArt(p: { variant: number }): ReactElement {
   const ink = new Ink();
   for (const [x, y, s] of [...GROVES[Math.abs(Math.trunc(p.variant)) % 3]!].sort((a, b) => a[1] - b[1])) tree(ink, x, y, s);
   return ink.done();
@@ -184,7 +185,7 @@ function water(variant: number): ReactElement {
   return ink.done();
 }
 
-export function TerrainFeature(p: { terrain: Terrain; variant: number }): ReactElement | null {
+function TerrainFeatureArt(p: { terrain: Terrain; variant: number }): ReactElement | null {
   const v = Math.abs(Math.trunc(p.variant));
   switch (p.terrain) {
     case 'field':
@@ -260,7 +261,7 @@ function ore(): ReactElement {
   return ink.done();
 }
 
-export function ResourceMark(p: { resource: Resource }): ReactElement {
+function ResourceMarkArt(p: { resource: Resource }): ReactElement {
   switch (p.resource) {
     case 'orchard':
       return orchard();
@@ -377,7 +378,7 @@ function market(): ReactElement {
   return ink.done();
 }
 
-export function BuildingMark(p: { building: BuildingId }): ReactElement {
+function BuildingMarkArt(p: { building: BuildingId }): ReactElement {
   switch (p.building) {
     case 'farm':
       return farm();
@@ -394,7 +395,7 @@ export function BuildingMark(p: { building: BuildingId }): ReactElement {
 
 const DIRT = '#D8B977';
 
-export function Road(p: { links: readonly number[] }): ReactElement {
+function RoadArt(p: { links: readonly number[] }): ReactElement {
   const ink = new Ink();
   for (const d of [...p.links].sort((a, b) => a - b)) {
     const [a, b] = edgeCorners(d);
@@ -408,7 +409,7 @@ export function Road(p: { links: readonly number[] }): ReactElement {
 
 const HUT: HouseColours = { front: '#E6D5B0', side: '#C9B68E', roof: '#9A8878', roofSide: '#7E6E60' };
 
-export function Village(): ReactElement {
+function VillageArt(): ReactElement {
   const ink = new Ink(1.15);
   house(ink, -7, -1, 11, 7, HUT, 10);
   ink.rect(-8.5, -5, 3, 4, '#6B5A48');
@@ -421,7 +422,7 @@ export function Village(): ReactElement {
   return ink.done();
 }
 
-export function Treasure(): ReactElement {
+function TreasureArt(): ReactElement {
   const ink = new Ink(1.2);
   ink.shadow(1, 4, 10, 2.8);
   ink.circle(-9, 4, 1.4, '#E7B53C');
@@ -553,7 +554,7 @@ function palisade(ink: Ink): void {
   }
 }
 
-export function CityMark(p: {
+function CityMarkArt(p: {
   faction: FactionId;
   colour: Colour;
   level: number;
@@ -584,4 +585,47 @@ export function CityMark(p: {
     ink.star(-12, -30, 6.2, '#FFC21A');
   }
   return ink.done();
+}
+
+// The exported pieces, drawn in Gritty's overcast grade when that style is on (art/mode.ts).
+const EMPTY = <g />;
+export function Grove(p: { variant: number }): ReactElement {
+  return useGraded(GroveArt(p));
+}
+
+export function TerrainFeature(p: { terrain: Terrain; variant: number }): ReactElement | null {
+  const art = TerrainFeatureArt(p);
+  const graded = useGraded(art ?? EMPTY);
+  return art === null ? null : graded;
+}
+
+export function ResourceMark(p: { resource: Resource }): ReactElement {
+  return useGraded(ResourceMarkArt(p));
+}
+
+export function BuildingMark(p: { building: BuildingId }): ReactElement {
+  return useGraded(BuildingMarkArt(p));
+}
+
+export function Road(p: { links: readonly number[] }): ReactElement {
+  return useGraded(RoadArt(p));
+}
+
+export function Village(): ReactElement {
+  return useGraded(VillageArt());
+}
+
+export function Treasure(): ReactElement {
+  return useGraded(TreasureArt());
+}
+
+export function CityMark(p: {
+  faction: FactionId;
+  colour: Colour;
+  level: number;
+  capital: boolean;
+  walls: boolean;
+  pending: boolean;
+}): ReactElement {
+  return useGraded(CityMarkArt(p));
 }

@@ -21,6 +21,8 @@ import {
   standingBody,
 } from './units';
 import type { FigureProps } from './units';
+import { bladeNotch, bloodDrop, bloodSmear, bloodSpot, bloody, crack, dent, dirt, frayedHem, scratches, snappedEnd, tear, worn, wornDisc, SCRATCH } from './wear';
+import type { Cut } from './wear';
 
 // The four Spartan and four Mongol figures, drawn like the shared eight: feet
 // near (0, 4), inside x -20..20 and y -36..8. The two champions, the King's
@@ -30,6 +32,8 @@ import type { FigureProps } from './units';
 export type FactionFigure = 'hoplite' | 'kingsGuard' | 'piper' | 'scout' | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp';
 
 const BRONZE_RIM = '#8A6420';
+/** The lit lip under a dent in bronze. */
+const BRONZE_LIT = '#C7AD7C';
 const PIPE = '#EFE3C4';
 const LEAF = '#5DB866';
 const DUN = '#C3925A';
@@ -44,33 +48,68 @@ const FELT = '#F2ECDD';
 const FELT_DARK = '#D8CDB6';
 const FUR = '#7A5230';
 
-/** A round hoplite shield face-on at (x, y): a dark rim, the metal face and a boss. */
-function roundShield(ink: Ink, x: number, y: number, r: number, metal: string): void {
-  ink.circle(x, y, r, BRONZE_RIM);
-  ink.circle(x, y, r - 1.1, metal);
+/** A round hoplite shield face-on at (x, y): a dark rim, the metal face and a boss. `cuts` break pieces out of it. */
+function roundShield(ink: Ink, x: number, y: number, r: number, metal: string, cuts: readonly Cut[] = []): void {
+  wornDisc(ink, x, y, r, BRONZE_RIM, cuts);
+  wornDisc(ink, x, y, r - 1.1, metal, cuts, 1);
 }
 
 // ---- Spartans ----
 
 function hoplite(p: FigureProps): ReactElement {
   const ink = new Ink();
-  // The long spear, held upright and a little forward, taller than the man.
-  ink.line(12, 3.6, 14.4, -30, WOOD_DARK, 1.6);
-  ink.poly([14.8, -36, 16.6, -30.2, 14.4, -28.6, 12.4, -30.6], STEEL_DARK);
-  ink.poly([14.8, -36, 14.4, -28.6, 12.4, -30.6], STEEL);
+  const w = p.wear;
+  // The long spear, held upright and a little forward, taller than the man. When broken it is snapped above the
+  // hand and its head is gone.
+  if (worn(w, 4)) {
+    ink.line(12, 3.6, 13.6, -19, WOOD_DARK, 1.6);
+    snappedEnd(ink, 13.6, -19, 2.4, -33.6, 2, WOOD_DARK);
+  } else {
+    ink.line(12, 3.6, 14.4, -30, WOOD_DARK, 1.6);
+    ink.poly([14.8, -36, 16.6, -30.2, 14.4, -28.6, 12.4, -30.6], STEEL_DARK);
+    ink.poly([14.8, -36, 14.4, -28.6, 12.4, -30.6], STEEL);
+    if (worn(w, 2)) bladeNotch(ink, 14.4, -28.6, 14.8, -36, 0.45, -1, 1.1, 1.1);
+  }
   standingBody(ink, p.colour);
+  if (worn(w, 1)) dirt(ink, 4.4, -2.2, 4);
+  if (worn(w, 2)) frayedHem(ink, 3.4, -2, 3.1, p.colour.dark, 2, worn(w, 4) ? 2.4 : 1.6);
+  if (worn(w, 3)) tear(ink, 5.1, -12.4, 2.4, 3.6, SKIN, p.colour.dark);
+  if (bloody(w, 2)) bloodSmear(ink, 3, -0.8, 0.15, 1, 2.2, 1.6);
   hand(ink, 13, -11);
   head(ink, 0, -22.4);
-  // A bronze helmet with cheek guards, and a horsehair crest arching front to back.
-  ink.shape('M -9.4 -24.4 C -10 -36 7.6 -36 9.6 -27.6 C 6 -31.6 -4.6 -32.6 -6.4 -25 Z', p.colour.main);
-  ink.shape('M -6.4 -25 C -4.6 -32.6 6 -31.6 9.6 -27.6 C 5.6 -29.4 -3 -30 -4.4 -25.4 Z', p.colour.dark);
+  // A bronze helmet with cheek guards, and a horsehair crest arching front to back. Battered, the crest is torn
+  // short at the back; broken, the right cheek guard is gone.
+  if (worn(w, 3)) {
+    ink.shape('M -9.4 -24.4 C -10 -36 1.6 -36.4 4.6 -31.6 L 3.4 -31.2 L 3.8 -29.8 L 2.2 -30 L 1.8 -29.2 C -2.4 -30.6 -5.4 -29.4 -6.4 -25 Z', p.colour.main);
+    ink.shape('M -6.4 -25 C -5.2 -30.6 -1.2 -31.4 1.8 -29.2 C -1.4 -29.8 -3.4 -29.2 -4.4 -25.4 Z', p.colour.dark);
+  } else {
+    ink.shape('M -9.4 -24.4 C -10 -36 7.6 -36 9.6 -27.6 C 6 -31.6 -4.6 -32.6 -6.4 -25 Z', p.colour.main);
+    ink.shape('M -6.4 -25 C -4.6 -32.6 6 -31.6 9.6 -27.6 C 5.6 -29.4 -3 -30 -4.4 -25.4 Z', p.colour.dark);
+  }
   dome(ink, 0, -23.2, 7, p.accent);
   ink.rect(-7, -24.4, 2.8, 7.6, p.accent, 1.2);
-  ink.rect(4.2, -24.4, 2.8, 7.6, p.accent, 1.2);
+  if (!worn(w, 4)) ink.rect(4.2, -24.4, 2.8, 7.6, p.accent, 1.2);
   ink.rect(-7, -25.2, 14, 1.4, BRONZE_RIM);
+  if (worn(w, 1)) scratches(ink, [[-4.4, -27.4, -1.8, -28.8]]);
+  if (worn(w, 2)) dent(ink, 3, -27.4, 1.3, BRONZE_LIT);
   // The great round shield with a lambda chevron in the owner's dark colour.
-  roundShield(ink, -5.6, -9.6, 9.8, p.accent);
+  const cuts: Cut[] = [];
+  if (worn(w, 3)) cuts.push({ from: 294, to: 326, inner: 6.2, jag: 0.5 });
+  if (worn(w, 4)) cuts.push({ from: 190, to: 246, inner: 5, jag: 0.4 });
+  roundShield(ink, -5.6, -9.6, 9.8, p.accent, cuts);
   ink.poly([-5.6, -17.2, 0.4, -3.6, -2.6, -3.6, -5.6, -11, -8.6, -3.6, -11.6, -3.6], p.colour.dark);
+  if (worn(w, 1)) scratches(ink, [[1, -13, 2.6, -10.8], [-13, -9.2, -11.8, -6.8]], SCRATCH, 1);
+  if (worn(w, 2)) {
+    dent(ink, -5.6, -5.6, 1.2, BRONZE_LIT);
+    dent(ink, -1.4, -1.8, 1.1, BRONZE_LIT);
+  }
+  if (worn(w, 3)) crack(ink, [-0.6, -14.4, -1.8, -12.8, -0.8, -11.4, -2.4, -9.8, -2, -8.4]);
+  if (worn(w, 4)) crack(ink, [-10.2, -9.6, -8.8, -8.4, -9.6, -6.8, -8.2, -5.6]);
+  if (bloody(w, 1)) bloodSmear(ink, 1.6, -8.8, -0.3, 1, 3, 1.8);
+  if (bloody(w, 2)) {
+    bloodDrop(ink, 3.6, 1.2, 0.75);
+    bloodSpot(ink, 6.4, 4.4, 0.9);
+  }
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 
@@ -166,29 +205,67 @@ function scout(p: FigureProps): ReactElement {
 
 // ---- Mongols ----
 
-/** A cap with a turned-up fur brim and a point of metal on top, on a head at (x, y). */
-function steppeCap(ink: Ink, x: number, y: number, c: FigureProps['colour'], accent: string): void {
+/**
+ * A cap with a turned-up fur brim and a point of metal on top, on a head at (x, y). Worn: the brim frays (dented),
+ * the point bends over (battered), then the point is gone and half the brim torn away (broken).
+ */
+function steppeCap(ink: Ink, x: number, y: number, c: FigureProps['colour'], accent: string, w?: FigureProps['wear']): void {
   dome(ink, x, y - 0.8, 5.8, c.dark);
-  ink.poly([x - 1.6, y - 6.2, x, y - 10, x + 1.6, y - 6.2], accent);
-  ink.rect(x - 6.2, y - 3, 12.4, 2.4, FUR, 1.2);
+  if (worn(w, 4)) {
+    // The point has been knocked off.
+  } else if (worn(w, 3)) ink.poly([x - 1.6, y - 6.2, x + 2.6, y - 9, x + 3.4, y - 7.6, x + 1.6, y - 6.2], accent);
+  else ink.poly([x - 1.6, y - 6.2, x, y - 10, x + 1.6, y - 6.2], accent);
+  if (worn(w, 4)) ink.poly([x - 6.2, y - 3, x + 1.4, y - 3, x + 0.4, y - 1.8, x + 1.6, y - 0.6, x - 5, y - 0.6, x - 6.2, y - 1.8], FUR);
+  else ink.rect(x - 6.2, y - 3, 12.4, 2.4, FUR, 1.2);
+  if (worn(w, 2)) frayedHem(ink, worn(w, 4) ? x - 5.6 : x + 1.2, y - 0.8, 4.4, FUR, 2, 1.3);
 }
 
 function horseArcher(p: FigureProps): ReactElement {
   const ink = new Ink();
+  const w = p.wear;
   horse(ink, DUN, DUN_DARK, MANE);
+  // Mud thrown up on the near legs and belly, and scuffs on the flank.
+  if (worn(w, 1)) {
+    dirt(ink, -10.6, 1.4, 3.4);
+    dirt(ink, 4.8, 1.6, 3.4);
+  }
+  if (worn(w, 3)) {
+    dirt(ink, -6.6, -3.6, 4.4);
+    dirt(ink, 6.4, -6.4, 3.2);
+  }
   rider(ink, p.colour, p.colour.main);
+  if (worn(w, 2)) frayedHem(ink, -5, -10.2, 3.4, p.colour.main, 2, worn(w, 4) ? 2.4 : 1.6);
   ink.rect(-5, -13.6, 10, 1.8, p.accent);
+  if (worn(w, 1)) scratches(ink, [[1.6, -20, 3.8, -18.8], [-3.6, -15.8, -1.6, -14.6]]);
+  if (worn(w, 2)) dent(ink, 2.6, -12.7, 0.9);
+  if (worn(w, 3)) tear(ink, 2.6, -15.4, 2.8, 3, SKIN, p.colour.dark);
   head(ink, 0, -25.6, 5.4);
-  steppeCap(ink, 0, -25.6, p.colour, p.accent);
-  // Turned in the saddle, he draws the bow back over the horse's rump.
-  ink.stroke('M -8.4 -30.8 Q -10.6 -30.6 -11.6 -28 Q -17.6 -17.4 -11.6 -6.8 Q -10.6 -4.2 -8.4 -4', WOOD_DARK, 1.8);
-  ink.stroke('M -11.4 -28.4 L 1.8 -17.4 L -11.4 -6.4', STRING, 0.6);
+  steppeCap(ink, 0, -25.6, p.colour, p.accent, w);
+  // Turned in the saddle, he draws the bow back over the horse's rump. Dented, the bow is nicked; broken, its
+  // lower limb has snapped and the string hangs slack.
+  if (worn(w, 4)) {
+    ink.stroke('M -8.4 -30.8 Q -10.6 -30.6 -11.6 -28 Q -15.8 -20.6 -14.1 -13.2', WOOD_DARK, 1.8);
+    snappedEnd(ink, -14.1, -13.2, 1.7, 7.4, 2, WOOD_DARK);
+    ink.stroke('M -11.4 -28.4 L 1.8 -17.4 Q -2.6 -12.6 -4.6 -8.6', STRING, 0.7);
+  } else {
+    ink.stroke('M -8.4 -30.8 Q -10.6 -30.6 -11.6 -28 Q -17.6 -17.4 -11.6 -6.8 Q -10.6 -4.2 -8.4 -4', WOOD_DARK, 1.8);
+    ink.stroke('M -11.4 -28.4 L 1.8 -17.4 L -11.4 -6.4', STRING, 0.6);
+  }
+  if (worn(w, 2)) bladeNotch(ink, -12.6, -25.4, -14.6, -21, 0.5, -1, 0.9, 0.9);
+  if (worn(w, 3)) crack(ink, [-14.4, -22.6, -15.6, -20.8], SCRATCH, 0.8);
   ink.line(-4.6, -17.4, -12.6, -17.4, p.colour.main, 3);
+  if (worn(w, 4)) tear(ink, -8.6, -17.4, 2.6, 2.4, SKIN, p.colour.dark);
   ink.line(2, -17.4, -17.2, -17.4, WOOD, 0.9);
   ink.poly([-19.8, -17.4, -16.6, -18.9, -16.6, -15.9], STEEL_DARK);
   ink.poly([2.4, -17.4, 4.4, -19, 4.4, -15.8], p.accent);
   hand(ink, -13, -17.4);
   hand(ink, 1.6, -17.4);
+  if (bloody(w, 1)) bloodSmear(ink, 1.4, -17, 0.25, 1, 2.6, 1.5);
+  if (bloody(w, 2)) {
+    bloodDrop(ink, 6.2, -8.4, 0.7);
+    bloodDrop(ink, 8.2, -11.6, 0.6);
+    bloodSpot(ink, 1.6, 4.6, 0.9);
+  }
   return <g>{[<Shadow key="s" wide />, ...ink.items]}</g>;
 }
 

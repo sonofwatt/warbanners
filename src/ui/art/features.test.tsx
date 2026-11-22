@@ -21,7 +21,7 @@ test('no gradients anywhere', () => {
 });
 
 test('a field has no feature and the others do', () => {
-  expect(TerrainFeature({ terrain: 'field', variant: 0 })).toBeNull();
+  expect(html(<TerrainFeature terrain="field" variant={0} />)).toBe('<svg></svg>');
   for (const t of ['forest', 'mountain', 'water'] as const) {
     expect(html(<TerrainFeature terrain={t} variant={0} />).length).toBeGreaterThan(20);
   }

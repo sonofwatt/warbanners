@@ -14,6 +14,8 @@ import { HeroMark, ItemBadge, itemBadgeX } from './hero';
 import { SHARED_FIGURES, StatusOverlay } from './units';
 import type { SharedFigure } from './units';
 import { ACCENT } from './palette';
+import { ArtModeContext } from './mode';
+import type { WearProps } from './units';
 
 // A development page that shows every piece of ground art at 2 pixels per
 // board unit, each with a small label. Open it with ?sheet=1.
@@ -139,6 +141,77 @@ function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId
   );
 }
 
+/** The wear stages shown for each sample figure, left to right, each with its label. */
+const WEAR_STEPS: readonly (readonly [string, WearProps])[] = [
+  ['clean', { stage: 0, blood: 0 }],
+  ['scuffed', { stage: 1, blood: 0 }],
+  ['dented', { stage: 2, blood: 0 }],
+  ['battered', { stage: 3, blood: 0 }],
+  ['battered + blood', { stage: 3, blood: 1 }],
+  ['broken + blood', { stage: 4, blood: 1 }],
+  ['broken + more blood', { stage: 4, blood: 2 }],
+];
+
+/** The figures that have battle wear so far, each in the factions that field it. */
+const WEAR_SAMPLES: readonly (readonly [UnitTypeId, FactionId])[] = [
+  ['warrior', 'spartans'],
+  ['warrior', 'mongols'],
+  ['hoplite', 'spartans'],
+  ['horseArcher', 'mongols'],
+];
+
+/** One figure through every wear stage, each on its own tile with a label, at `scale` pixels per unit. */
+function WearRow(p: { id: UnitTypeId; faction: FactionId; scale: number; labels: boolean }): ReactElement {
+  const step = 56;
+  const w = WEAR_STEPS.length * step;
+  const h = p.labels ? 92 : 84;
+  return (
+    <svg width={w * p.scale} height={h * p.scale} viewBox={`${-step / 2} -50 ${w} ${h}`} style={{ display: 'block', maxWidth: '100%', height: 'auto' }}>
+      {WEAR_STEPS.map(([label, wear], i) => (
+        <g key={label} transform={`translate(${i * step} 0)`}>
+          <TileBase ground="grass" />
+          {FIGURES[p.id]({ colour: playerColour(p.faction), accent: ACCENT[p.faction], wear })}
+          {p.labels ? (
+            <text x={0} y={39} textAnchor="middle" fontSize={5} fill="#2B2B2A">
+              {label}
+            </text>
+          ) : null}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+/** Battle wear on the sample figures: plain on Bright ground, then each stage on Gritty ground, big and phone size. */
+function BattleWear(): ReactElement {
+  return (
+    <section data-sheet="wear" style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 16, margin: '0 0 6px' }}>Battle wear</h2>
+      <div data-wear-row="bright" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', marginBottom: 6 }}>
+        {WEAR_SAMPLES.map(([id, f]) => (
+          <Cell key={`${id}${f}`} label={`${id}, ${f}, bright`} ground="grass" tall>
+            {FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
+          </Cell>
+        ))}
+      </div>
+      <ArtModeContext.Provider value="gritty">
+        {WEAR_SAMPLES.map(([id, f]) => (
+          <div key={`${id}${f}`} data-wear-row={`${id}-${f}`} style={{ marginBottom: 6 }}>
+            <div style={{ fontSize: 13, color: '#5B574E' }}>{`${id}, ${f}, gritty`}</div>
+            <WearRow id={id} faction={f} scale={2.5} labels />
+          </div>
+        ))}
+        <div data-wear-row="phone" style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 13, color: '#5B574E' }}>At phone size (about 1 pixel per unit): clean, scuffed, dented, battered, battered + blood, broken + blood, broken + more blood</div>
+          {WEAR_SAMPLES.map(([id, f]) => (
+            <WearRow key={`${id}${f}`} id={id} faction={f} scale={1} labels={false} />
+          ))}
+        </div>
+      </ArtModeContext.Provider>
+    </section>
+  );
+}
+
 const MARKS: readonly Mark[] = ['move', 'attack', 'ability', 'selected'];
 const FACTIONS: readonly FactionId[] = ['spartans', 'mongols'];
 const VARIANTS = [0, 1, 2] as const;
@@ -147,6 +220,7 @@ export function ArtSheet(): ReactElement {
   return (
     <main style={{ background: '#F4F1EA', color: '#2B2B2A', padding: 16, minHeight: '100dvh', boxSizing: 'border-box' }}>
       <h1 style={{ fontSize: 20, margin: '0 0 12px' }}>Warbanners art sheet</h1>
+      <BattleWear />
       <Section title="Figures side by side">
         <Lineup faction="spartans" scale={PX} ids={SHARED_IDS} />
         <Lineup faction="mongols" scale={PX} ids={SHARED_IDS} />

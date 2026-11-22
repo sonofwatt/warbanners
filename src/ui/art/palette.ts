@@ -11,14 +11,41 @@ export const GROUND: Record<Ground, readonly [string, string, string]> = {
   fog: ['#E9EEF2', '#CBD3DA', '#B9C2CA'],
 };
 
-/** Gritty mode's grounds: the same five, darker and duller, with fog as a near-black murk. */
+/**
+ * Gritty mode's grounds: the same five under a low, overcast sky. Olive-grey grass, cold slate water, wet stone,
+ * drab sand, and fog as a near-black murk. Mood only: muted and cool, so small bright figures read on top.
+ */
 export const GROUND_GRITTY: Record<Ground, readonly [string, string, string]> = {
-  grass: ['#61784A', '#4C613A', '#405331'],
-  water: ['#3F6276', '#314F61', '#294353'],
-  rock: ['#827B6E', '#666055', '#58534A'],
-  sand: ['#9E8B62', '#806F4D', '#706143'],
-  fog: ['#33383E', '#282C31', '#22262A'],
+  grass: ['#5A6B4C', '#47563C', '#3C4934'],
+  water: ['#465C68', '#374A55', '#2E3F49'],
+  rock: ['#79766F', '#5F5C57', '#53504B'],
+  sand: ['#8A8068', '#6E6652', '#615A48'],
+  fog: ['#2C3136', '#23272B', '#1E2125'],
 };
+
+/** The overcast grade Gritty gives the scenery (trees, rocks, buildings, cities): less colour, less light, a cold cast. */
+export const GRADE = { keep: 0.5, light: 0.78, cast: [70, 84, 98] as const, castShare: 0.14 };
+
+const graded = new Map<string, string>();
+
+/** A #RRGGBB colour under Gritty's grade; anything else is returned as it is. */
+export function grade(colour: string): string {
+  const hit = graded.get(colour);
+  if (hit !== undefined) return hit;
+  const m = /^#([0-9a-f]{6})$/i.exec(colour);
+  if (m === null) return colour;
+  const n = Number.parseInt(m[1]!, 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const luma = 0.299 * rgb[0]! + 0.587 * rgb[1]! + 0.114 * rgb[2]!;
+  const out = rgb.map((c, i) => {
+    const muted = luma + (c - luma) * GRADE.keep;
+    const lit = muted * GRADE.light;
+    return Math.round(lit * (1 - GRADE.castShare) + GRADE.cast[i]! * GRADE.castShare);
+  });
+  const hex = `#${out.map((c) => Math.max(0, Math.min(255, c)).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+  graded.set(colour, hex);
+  return hex;
+}
 
 export const SKIN = '#E8B88A';
 

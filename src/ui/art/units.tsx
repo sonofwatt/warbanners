@@ -1,15 +1,27 @@
 import type { ReactElement } from 'react';
 import { Ink } from './features';
 import { SKIN } from './palette';
+import { bladeNotch, bloodDrop, bloodSmear, bloodSpot, bloody, crack, dent, dirt, frayedHem, scratches, snappedEnd, tear, worn, wornDisc } from './wear';
+import type { Cut } from './wear';
 
 // The eight unit figures every faction shares, and the status marks drawn
 // above one. A figure stands with its feet near (0, 4), the centre of the
 // tile's top face being the origin, and stays inside x -20..20, y -36..8.
 // Everything in the owner's colour comes from props; the rest is neutral.
 
+/**
+ * How worn a figure looks in Gritty mode: stage 0 clean, 1 scuffed, 2 dented, 3 battered, 4 broken; blood 0 none,
+ * 1 slight, 2 more. Absent (Bright mode, or a fresh unit in a panel) draws the figure exactly as before.
+ */
+export interface WearProps {
+  stage: 0 | 1 | 2 | 3 | 4;
+  blood: 0 | 1 | 2;
+}
+
 export interface FigureProps {
   colour: { main: string; dark: string };
   accent: string;
+  wear?: WearProps;
 }
 
 export type SharedFigure = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult' | 'sellsword';
@@ -69,8 +81,17 @@ export function hand(ink: Ink, x: number, y: number): void {
   ink.circle(x, y, 1.9, SKIN);
 }
 
-/** A blade from hilt (x1, y1) to point (x2, y2), with a crossguard. */
-function sword(ink: Ink, x1: number, y1: number, x2: number, y2: number, guard: string): void {
+/**
+ * How a sword is worn: `notch` (0..1 along the blade) nicks its edge there, `snap` (0..1) breaks the blade off at
+ * that fraction of its length with a jagged end.
+ */
+export interface SwordWear {
+  notch?: number;
+  snap?: number;
+}
+
+/** A blade from hilt (x1, y1) to point (x2, y2), with a crossguard. With no `wear` it draws exactly as always. */
+export function sword(ink: Ink, x1: number, y1: number, x2: number, y2: number, guard: string, wear?: SwordWear): void {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy);
@@ -79,8 +100,13 @@ function sword(ink: Ink, x1: number, y1: number, x2: number, y2: number, guard: 
   // Two-tone blade: shaded steel, its lit edge on the left.
   const lx = nx < 0 ? nx : -nx;
   const ly = nx < 0 ? ny : -ny;
-  ink.line(x1, y1, x2, y2, STEEL_DARK, 2.6);
-  ink.line(x1 + lx * 0.5, y1 + ly * 0.5, x2 + lx * 0.5, y2 + ly * 0.5, STEEL, 1.4);
+  const k = wear?.snap ?? 1;
+  const ex = x1 + dx * k;
+  const ey = y1 + dy * k;
+  ink.line(x1, y1, ex, ey, STEEL_DARK, 2.6);
+  ink.line(x1 + lx * 0.5, y1 + ly * 0.5, ex + lx * 0.5, ey + ly * 0.5, STEEL, 1.4);
+  if (wear?.snap !== undefined) snappedEnd(ink, ex, ey, dx, dy, 2.8, STEEL_DARK);
+  if (wear?.notch !== undefined && wear.notch < k) bladeNotch(ink, x1, y1, x2, y2, wear.notch, lx === nx ? 1 : -1, 1.3);
   ink.line(x1 + nx * 2.6, y1 + ny * 2.6, x1 - nx * 2.6, y1 - ny * 2.6, guard, 1.4);
 }
 
@@ -112,19 +138,42 @@ export function rider(ink: Ink, c: FigureProps['colour'], torso: string): void {
 
 function warrior(p: FigureProps): ReactElement {
   const ink = new Ink();
+  const w = p.wear;
   standingBody(ink, p.colour);
-  // A short sword held low and forward in the right hand.
-  sword(ink, 8.2, -9.5, 13.5, -19, WOOD_DARK);
+  if (worn(w, 1)) dirt(ink, 3, -0.4, 3.8);
+  if (worn(w, 2)) frayedHem(ink, 0.6, -2, 5.9, p.colour.dark, 3, worn(w, 4) ? 2.4 : 1.6);
+  // A rent across the chest, and at the end a second one low on the tunic.
+  if (worn(w, 3)) tear(ink, 1.6, -13.2, 4.4, 4, SKIN, p.colour.dark);
+  if (worn(w, 4)) tear(ink, -2.4, -6.6, 3.2, 2.8, SKIN, p.colour.dark);
+  if (bloody(w, 2)) bloodSmear(ink, -3, -1.6, 0.1, 1, 2.4, 1.6);
+  // A short sword held low and forward in the right hand: nicked when dented, snapped off when broken.
+  sword(ink, 8.2, -9.5, 13.5, -19, WOOD_DARK, worn(w, 2) ? { notch: 0.5, snap: worn(w, 4) ? 0.58 : undefined } : undefined);
+  if (bloody(w, 1)) bloodSmear(ink, 9.4, -11.6, 5.3, -9.5, 2.8, 1.7);
   hand(ink, 8, -9);
   head(ink, 0, -23);
-  // Shaggy hair and a headband in the owner's dark colour.
+  // Shaggy hair and a headband in the owner's dark colour; the headband is lost when broken.
   ink.shape('M -6.6 -23.5 C -7.4 -32.5 7.4 -32.5 6.6 -23.5 L 5.2 -25.6 L 2.6 -24.6 L 0 -26 L -2.6 -24.6 L -5.2 -25.6 Z', HAIR);
-  ink.rect(-6.6, -26.4, 13.2, 2, p.colour.dark, 1);
-  // A small round wooden shield with an iron rim and a metal boss.
-  ink.circle(-7, -9, 6, WOOD_DARK);
-  ink.circle(-7, -9, 4.9, WOOD);
+  if (!worn(w, 4)) ink.rect(-6.6, -26.4, 13.2, 2, p.colour.dark, 1);
+  // A small round wooden shield with an iron rim and a metal boss: chipped when battered, a piece gone when broken.
+  const cuts: Cut[] = [];
+  if (worn(w, 3)) cuts.push({ from: 285, to: 315, inner: 3.9, jag: 0.4 });
+  if (worn(w, 4)) cuts.push({ from: 135, to: 215, inner: 2.4, jag: 0.6 });
+  wornDisc(ink, -7, -9, 6, WOOD_DARK, cuts);
+  wornDisc(ink, -7, -9, 4.9, WOOD, cuts, 0.9);
   ink.line(-7, -13.6, -7, -4.4, WOOD_DARK, 0.7);
+  if (worn(w, 1)) scratches(ink, [[-10.2, -11.4, -8.6, -12.4], [-5.4, -6.4, -3.8, -7.6]]);
+  if (worn(w, 2)) {
+    dent(ink, -4.4, -11.2, 1.2);
+    dent(ink, -9.4, -8.2, 1.1);
+  }
+  if (worn(w, 3)) crack(ink, [-4.6, -13.2, -5.4, -11.4, -4.6, -10.2, -5.6, -8.6]);
+  if (worn(w, 4)) crack(ink, [-9.4, -9.6, -8.2, -8, -8.8, -6.6, -7.6, -5]);
   ink.circle(-7, -9, 1.7, p.accent);
+  if (worn(w, 2)) dent(ink, -6.4, -9.4, 0.7);
+  if (bloody(w, 2)) {
+    bloodDrop(ink, 3, 0.4, 0.7);
+    bloodSpot(ink, 5.6, 4.6, 0.9);
+  }
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 
