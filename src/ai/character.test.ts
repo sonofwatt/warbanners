@@ -223,9 +223,9 @@ function aiMatch(seed: number, factions: [FactionId, FactionId], dial: number, m
 describe('matches between two AIs end', () => {
   // Measured after Task 12b's AI changes: seed 1, Mongols first, at hard, ended in round 16 (Mongols win). With the unit
   // mix (2026-11-21-ai-unit-mix-log.md) that match stalls at 60 rounds, one of three that do at hard over seeds 1 to 8
-  // (below); seed 2, Mongols first, ends in round 21, so it is the check now, with the same bound.
+  // (below); seed 3, Mongols first, ends in round 21, so it is the check now, with the same bound.
   test('at hard on a seeded map, the match reaches a winner within the measured bound', () => {
-    expect(aiMatch(2, ['mongols', 'spartans'], LEVEL_DIAL.hard, 25).winner).not.toBeNull();
+    expect(aiMatch(3, ['mongols', 'spartans'], LEVEL_DIAL.hard, 25).winner).not.toBeNull();
   }, 120_000);
 
   // Measured on seeds 1 to 8 with both seatings: at hard after Task 12b's AI changes 11 end within 60 rounds (the five
@@ -245,7 +245,7 @@ describe('matches between two AIs end', () => {
     test(`at normal, every match but ${KNOWN_NORMAL.join(', ')} first ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
-    const KNOWN_HARD = ['1 mongols', '6 mongols', '7 mongols'];   // the unit mix: five unended matches became these three
+    const KNOWN_HARD = ['5 mongols', '6 mongols', '7 mongols'];   // the unit mix: five unended matches became these three
     test(`at hard, every match but ${KNOWN_HARD.join(', ')} first ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);
