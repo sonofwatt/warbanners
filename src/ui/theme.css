@@ -59,9 +59,11 @@
 
 html, body { overflow-x: hidden; }
 
+/* The page itself never scrolls: the app is exactly the screen's height, and a screen whose content is taller scrolls
+   inside itself (browser tests open on a 412x915 phone, but Chrome's bars leave a real Pixel about 780 to 840 px). */
 body {
   margin: 0;
-  min-height: 100dvh;
+  height: 100dvh; overflow: hidden;
   color: var(--ink);
   background: var(--sky);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -126,12 +128,12 @@ input {
 input::placeholder { color: var(--ink-soft); opacity: 1; font-weight: 500; }
 input:focus { border-color: var(--blue); }
 
-.app { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+.app { height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; overflow: hidden; }
 .muted { color: var(--ink-soft); }
 
 /* ---- Home, setup, curtain, result: one centred column that never exceeds the screen. ---- */
 .screen:not(.match) {
-  flex: 1; display: flex; flex-direction: column; gap: var(--s3);
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--s3);
   width: 100%; max-width: 480px; margin: 0 auto; padding: var(--s4);
 }
 .screen h1 { margin: 0; }
@@ -179,7 +181,8 @@ input:focus { border-color: var(--blue); }
 /* Home sits in the middle of a tall screen, so the strip of board under the saves never floats far below them. */
 .screen.home { justify-content: safe center; }
 /* A strip of the board under the saved matches: decoration only. */
-.home-scene { display: block; width: 100%; max-width: 420px; height: auto; margin: var(--s2) auto 0; flex: none; }
+/* It takes the room left over, up to its own size, and gives it up first on a short screen. */
+.home-scene { display: block; width: 100%; max-width: 420px; flex: 1 1 0; min-height: 0; max-height: 166px; margin: var(--s2) auto 0; }
 /* Quiet but legible: 13px, ink on the sky (8 to 1) on Home, soft ink on paper inside the Menu sheet. */
 .version { text-align: center; font-size: var(--t-s); font-weight: 650; padding: var(--s3) var(--s3) var(--s4); color: var(--ink); overflow-wrap: anywhere; }
 .menu .version { color: var(--ink-soft); padding: var(--s3) 0 0; margin: 0; }
@@ -724,4 +727,8 @@ input:focus { border-color: var(--blue); }
 .deed-row meter::-webkit-meter-bar { background: var(--paper-2); border-radius: 999px; border: 0; height: 10px; }
 .deed-row meter::-webkit-meter-optimum-value { background: var(--gold); border-radius: 999px; }
 .deed-row meter::-moz-meter-bar { background: var(--gold); border-radius: 999px; }
-.whats-new { margin: 0; font-size: var(--t-s); font-weight: 650; color: var(--ink-soft); max-width: 32em; }
+.whats-new { margin: 2px 0 0; font-size: var(--t-s); font-weight: 650; color: var(--ink-soft); max-width: 32em; }
+.whats-new summary { cursor: pointer; font-weight: 800; color: var(--ink); min-height: 32px; display: flex; align-items: center; gap: 4px; }
+.whats-new summary::before { content: '\25B8'; display: inline-block; transition: transform 120ms ease-out; }
+.whats-new[open] summary::before { transform: rotate(90deg); }
+.whats-new p { margin: 2px 0 0; }

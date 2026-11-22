@@ -87,7 +87,7 @@ describe.runIf(process.env.BROWSER === '1')('heroes in the browser', () => {
     try {
       await page.getByTestId('new-match').waitFor();
       expect(APP_VERSION).toBe('0.4.4');
-      expect(await page.locator('.whats-new').textContent()).toBe(T.ui.whatsNew);
+      expect(await page.locator('.whats-new p').textContent()).toBe(T.ui.whatsNew);
       expect(await page.locator('.version').textContent()).toContain('0.4.4');
     } finally {
       await close();

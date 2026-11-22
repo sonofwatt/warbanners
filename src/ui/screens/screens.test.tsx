@@ -278,7 +278,7 @@ test('the result of an adaptive match says where the AI settled', () => {
 test('Home shows the what is new line', () => {
   const { store } = fakeStore();
   const html = render(store, <Home />);
-  expect(html).toContain(`<p class="whats-new">${T.ui.whatsNew}</p>`);
+  expect(html).toContain(`<details class="whats-new"><summary>${T.ui.whatsNewLabel}</summary><p>${T.ui.whatsNew}</p></details>`);
 });
 
 // A Mongol viewer with an archer at 0,0 (sees two tiles), an enemy Spartan hero A at 2,0 in sight, and the

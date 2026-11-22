@@ -27,6 +27,8 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
         {isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
         <p className="blurb">{T.unit[type].blurb}</p>
       </CardHead>
+      {/* The actions come first, under the name, so the card never has to be scrolled to reach them. */}
+      <CommandList commands={commands} onCommand={onCommand} />
       <Stats stats={[
         { icon: <HeartIcon />, label: T.ui.health, value: `${unit.hp}/${stats.maxHp}` },
         { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },
@@ -70,7 +72,6 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
           })}
         </ul>
       ) : null}
-      <CommandList commands={commands} onCommand={onCommand} />
     </section>
   );
 }

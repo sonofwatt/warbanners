@@ -28,8 +28,8 @@ export function CityPanel(p: CityPanelProps): ReactElement {
   return (
     <section className="panel city-panel">
       {picture !== null ? <CardHead picture={picture} title={title} faction={p.faction} /> : <h2>{title}</h2>}
-      <Stats stats={stats} />
       <CommandList commands={p.commands} onCommand={p.onCommand} />
+      <Stats stats={stats} />
     </section>
   );
 }

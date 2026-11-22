@@ -208,6 +208,7 @@ const ui = {
   hero: 'Hero', heroTraits: 'Earned', deeds: 'Deeds', carrying: 'Carrying', drink: 'Drink draught',
   mythTouch: 'Myth touch', mythTouchBlurb: `Beside another Spartan hero: +${H.mythAtk} attack and +${H.mythDef} defence.`,
   digestTrait: 'Your {unit} earned {trait}.', digestHero: 'Your {unit} is now a hero.',
+  whatsNewLabel: 'What is new',
   whatsNew: 'New: the computer now builds every unit its side can train, Knights and Catapults too, and answers what it sees: spearmen against riders, riders against archers. It picks its city rewards by the situation and grows its cities further. It finishes off wounded units, pulls its own badly hurt units back to heal and sees the danger from Mongol riders again.',
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
