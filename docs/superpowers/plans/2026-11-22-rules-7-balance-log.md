@@ -55,3 +55,27 @@ Same command and seeds. The phalanx brace (b41a1fb and before) is not in these r
 
 C with 13 gold for the second seat evens the seats at normal and slightly over-corrects at hard. Raw outputs: the
 private `warbanners-workspace` repo, `sim-results/rules7-hunker/`.
+
+## Rerun with the brace and momentum in (dccfe7c, 2026-11-23)
+
+Same command and seeds. Momentum replaces the chain health cost and the brace chain stop.
+
+| Setup | Spartans normal | Spartans hard | Seats normal (first / second) | Seats hard (first / second) | Stalls normal / hard |
+|---|---|---|---|---|---|
+| Rules 7 as built | 24.0% | 25.0% | 56.0 / 39.8 | 48.3 / 49.5 | 8.5% / 4.5% |
+| C | 49.0% | 46.3% | 59.0 / 37.0 | 55.8 / 42.5 | 8.0% / 3.5% |
+| C, start gold 10, 12 | 50.2% | 49.8% | 50.0 / 44.8 | 53.0 / 45.5 | 10.5% / 3.0% |
+| C, start gold 10, 13 | 49.8% | 46.5% | 44.8 / 50.5 | 43.0 / 54.8 | 9.5% / 4.5% |
+
+Chains got longer, as expected without the health cost. Sweeps (one unit, 3 or more kills in a turn) per 100 matches:
+
+| Setup | Before momentum (normal / hard) | With momentum (normal / hard) |
+|---|---|---|
+| Rules 7 as built | 22.5 / 21.5 | 34.0 / 35.0 |
+| C | 32.0 / 29.0 | 56.0 / 39.0 |
+| C, start gold 10, 13 | 41.0 / 39.0 | 65.5 / 60.0 |
+
+Chain units' share of all kills rose about 2 to 3 points (to 17 to 21%). Faction balance barely moved; the seat lever
+did: 13 gold now tips both levels to the second seat, and 12 is the closer fit (first seat 5 points ahead at normal,
+7.5 at hard, against 13's 6 and 12 points the other way). Raw outputs: the private `warbanners-workspace` repo,
+`sim-results/rules7-momentum/`.
