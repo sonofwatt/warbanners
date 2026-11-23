@@ -247,11 +247,11 @@ Worked examples (all at full health on a field unless said):
 | steadfast | Counter-attack factor 1.25 in place of 0.75 |
 | doubleStrike | Two attacks per turn |
 | retreat | Keeps its remaining movement after attacking |
-| chain | Each kill gives one more attack this turn. Since rules 5 each kill also costs the unit health: see stage2-rules.md, section 9. Since rules 7 killing a braced Hoplite (see phalanx) gives no extra attack and costs no health |
+| chain | Each kill gives one more attack this turn. Since rules 7 the unit has momentum (Knight 7, Khan's Guard 8 at the start of each of its owner's turns): each kill costs the dead unit's price, and only a kill it can pay for gives the extra attack; an attack it cannot pay for does 1 less damage per missing point (at least 1) and ends the chain. See stage2-rules.md, section 9 (rules 5 to 6: each kill cost 2 health instead) |
 | splash | Enemy units next to the target take half the damage dealt to the target, rounded, at least 1. No counter from them |
 | siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
 | mounted | A tag other rules refer to |
-| phalanx | +1 defence for each friendly Hoplite next to it, at most +2. Since rules 7 a Hoplite with at least two friendly Hoplites next to it is braced: +2 more defence when a chain unit (Knight, Khan's Guard) attacks it (added with the hunker bonus, before cover multiplies; never on its counter or its own attacks), and a chain unit that kills it gets no extra attack and pays no chain cost. Bracing is judged when the attack is made |
+| phalanx | +1 defence for each friendly Hoplite next to it, at most +2. Since rules 7 a Hoplite with at least two friendly Hoplites next to it is braced: +2 more defence when a chain unit (Knight, Khan's Guard) attacks it (added with the hunker bonus, before cover multiplies; never on its counter or its own attacks), and a chain unit pays a momentum price of 4 to kill it in place of the Hoplite's 2 (stage2-rules.md, section 9; the brace no longer stops the chain by itself). Bracing is judged when the attack is made |
 | unbowed | Attack is not reduced by lost health, when attacking and when striking back |
 | hidden | Enemies see it only from a tile next to it (their unit or their city) |
 | noCityCapture | Cannot capture an enemy city (villages are still allowed) |
@@ -401,4 +401,7 @@ Mongols
 - The Krypteia Scout's sight is 1 (section 8).
 - Hunker, a unit action for defence and healing (section 11).
 - Phalanx brace: a Hoplite with two friendly Hoplites beside it has +2 defence
-  against chain attackers, and killing it ends the chain (traits table).
+  against chain attackers, and costs a chain unit 4 momentum to kill (traits table).
+- Momentum replaces the rules 5 chain health cost: a chain unit pays each kill's
+  momentum price, and only a paid kill gives the extra attack; an attack it cannot
+  pay for is cut by the shortfall and ends the chain (stage2-rules.md, section 9).
