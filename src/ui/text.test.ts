@@ -28,11 +28,11 @@ test('what a tech unlocks comes from the data', () => {
   for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId).length, id).toBeGreaterThan(0);
 });
 test('digest lines read as sentences', () => {
-  expect(digestText({ kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
-  expect(digestText({ kind: 'unitHurt', unitType: 'warrior', damage: 4, by: null })).toBe('Your Warrior took 4 damage.');
-  expect(digestText({ kind: 'cityLost' })).toBe('You lost a city.');
-  expect(digestText({ kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');
-  expect(digestText({ kind: 'treasureTaken' })).toBe('The enemy claimed a treasure.');
+  expect(digestText({ at: '0,0', kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
+  expect(digestText({ at: '0,0', kind: 'unitHurt', unitType: 'warrior', damage: 4, by: null })).toBe('Your Warrior took 4 damage.');
+  expect(digestText({ at: '0,0', kind: 'cityLost' })).toBe('You lost a city.');
+  expect(digestText({ at: '0,0', kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');
+  expect(digestText({ at: '0,0', kind: 'treasureTaken' })).toBe('The enemy claimed a treasure.');
 });
 
 test('every hero trait, deed, item and treasure outcome has text, and blurbs carry the CONFIG numbers', () => {
@@ -51,6 +51,6 @@ test('the sellsword blurb names its trait through the text table', () => {
   expect(T.unit.sellsword.blurb).toContain(T.heroTrait[CONFIG.treasure.mercenaryTrait].name);
 });
 test('hero digest lines read as sentences', () => {
-  expect(digestText({ kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' })).toBe('Your Warrior earned Hardy.');
-  expect(digestText({ kind: 'heroMade', unitType: 'warrior' })).toBe('Your Warrior is now a hero.');
+  expect(digestText({ at: '0,0', kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' })).toBe('Your Warrior earned Hardy.');
+  expect(digestText({ at: '0,0', kind: 'heroMade', unitType: 'warrior' })).toBe('Your Warrior is now a hero.');
 });

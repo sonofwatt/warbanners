@@ -141,9 +141,9 @@ test('the menu shows the same version line as Home', () => {
   expect(home).toContain(`>${line}</footer>`);
 });
 test('the digest card shows six lines and counts the rest', () => {
-  const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost' }));
+  const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost', at: '0,0' }));
   const html = renderToStaticMarkup(<DigestCard lines={lines} />);
-  expect(html.match(/<li>/g)).toHaveLength(6); expect(html).toContain('and 2 more');
+  expect(html.match(/<li>/g)).toHaveLength(6); expect(html.match(/data-testid="digest-line"/g)).toHaveLength(6); expect(html).toContain('and 2 more');
 });
 test('a city panel without own-city figures shows only level and walls', () => {
   const html = renderToStaticMarkup(<CityPanel level={3} walls commands={[]} onCommand={noop} />);
