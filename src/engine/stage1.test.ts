@@ -10,14 +10,14 @@ import type { Action, MatchState } from './types';
 // Rules 6 changes movement from the first action (a mounted Mongol starts with a half-point bonus, not a tile), so this
 // file switches the rules 6 movement off through CONFIG and the faction data, as stage1.dormant.test.ts does; stage 2,
 // momentum (rules 7) and the chain level-up stay on. Rules 7's connection growth, moving capitals, the Lumber camp cost of 4, the Lumber camp
-// and Market growth of 2 and Scout sight 1 are switched off the same way (connectGrowth 0, capitalMoves false, cost 3, growth 1, sight 3).
+// and Market growth of 2 and Scout sight 1, equal start gold and no Spartan growth discount are switched off the same way (startGold [10, 10], Spartan growthExtra 0, connectGrowth 0, capitalMoves false, cost 3, growth 1, sight 3).
 // The record test below is meant for the rules 3 engine, never this one.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
-      ...m.CONFIG, closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false },
+      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false },
       buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };
@@ -28,7 +28,7 @@ vi.mock('./data/units', async (orig) => {
 });
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
-  return { FACTIONS: { ...m.FACTIONS, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
+  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
 });
 
 // Strip what plan 5, rules 6 and rules 7 (with hunker and momentum) added, so a stage 1 state hashes as it did on rules 3.
