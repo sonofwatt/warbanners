@@ -4,12 +4,12 @@ import { addDeed, maxHpOf } from './heroes';
 import { maxMp, ridingBonus } from './movement';
 import { DIRS, add, key, parseKey } from './hex';
 import type { HexKey } from './hex';
-import { cityById, freshAttacks, tileAt, unitAt } from './state';
+import { cityById, freshAttacks, momentumStart, tileAt, unitAt } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
 
 // rules 11: what resting would heal the unit where it stands (before the cap at full health): by whose land it
-// is on, and nothing while an enemy unit its owner can see stands on a tile next to it (an unseen one changes
+// is on, plus the hunker bonus (rules 7), and nothing (a hunkered unit: a share) while an enemy unit its owner can see stands on a tile next to it (an unseen one changes
 // nothing, so the healing never gives it away). `visible` is visibleTiles(s, u.owner), passed in by callers
 // that ask about many units.
 export function restHealAt(s: MatchState, u: Unit, visible: ReadonlySet<HexKey> = visibleTiles(s, u.owner)): number {
@@ -18,7 +18,16 @@ export function restHealAt(s: MatchState, u: Unit, visible: ReadonlySet<HexKey> 
     const o = unitAt(s, k);
     return o !== undefined && o.owner !== u.owner && canSeeUnit(s, u.owner, o, visible);
   };
-  if (DIRS.some((d) => seenEnemy(key(add(at, d))))) return 0;
+  const regular = regularRestHeal(s, u);
+  if (DIRS.some((d) => seenEnemy(key(add(at, d))))) {
+    // rules 7: a hunkered unit still heals beside a seen enemy, a share of the regular heal rounded up, with no bonus
+    return u.hunkered ? Math.ceil(regular * CONFIG.hunker.besideEnemyShare) : 0;
+  }
+  return regular + (u.hunkered ? CONFIG.hunker.restBonus : 0);
+}
+
+// The resting heal by whose land the unit is on, with no hunker bonus and no enemy beside it.
+function regularRestHeal(s: MatchState, u: Unit): number {
   const cityId = tileAt(s, u.pos)?.cityId ?? null;
   if (cityId === null) return CONFIG.restHeal.neutral;
   const owner = cityById(s, cityId)?.owner;
@@ -56,6 +65,7 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
     if (u.owner !== next) continue;
     u.mp = maxMp(s, u); u.bonusMp = ridingBonus(s, u);
     u.attacks = freshAttacks(u.type);
+    u.momentum = momentumStart(u.type);   // rules 7
     u.moved = false;
     u.acted = false;
     u.fresh = false;

@@ -27,7 +27,9 @@ export function spartanLine(): MatchState {
   const s = base(0);
   addUnit(s, 'hoplite', 0, 0, 1);
   addUnit(s, 'hoplite', 0, 2, 0);
-  addUnit(s, 'scout', 0, 1, -1);
+  // A Watchful Scout on a mountain sees 3 tiles, as every Scout did before rules 7, so both riders stay in view.
+  addUnit(s, 'scout', 0, 1, -1, { heroTraits: ['watchful'] });
+  setTile(s, 1, -1, { terrain: 'mountain' });
   addUnit(s, 'horseman', 1, 0, -3);
   addUnit(s, 'horseArcher', 1, 1, -3);
   return finish(s);
@@ -85,7 +87,7 @@ export function woundedHoplite(): MatchState {
   const s = base(0);
   s.players[0]!.techs.push('bronze');
   addUnit(s, 'hoplite', 0, 0, 1, { hp: 4 });
-  addUnit(s, 'scout', 0, 1, 0);
+  addUnit(s, 'scout', 0, 0, -1);                       // beside both riders: since rules 7 a Scout sees 1 tile (was 1,0)
   addUnit(s, 'horseman', 1, 0, -2);
   addUnit(s, 'horseman', 1, 1, -2);
   for (const p of s.players) p.gold = 0;

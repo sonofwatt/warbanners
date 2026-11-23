@@ -93,6 +93,22 @@ test('a seen enemy city is a goal; a taken enemy capital is not', () => {
   b.cities.find(c => c.pos === '2,-5')!.owner = 0;
   expect(objectives(b, 0, PERSONAS.spartans).some(o => o.at === '2,-5')).toBe(false);
 });
+test('the enemy capital goal follows a moved capital (rules 7), and the old capital tile is then an ordinary city', () => {
+  const s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  setTile(s, 0, -3, { terrain: 'field' });
+  const next = addCity(s, 1, 0, -3);
+  const old = s.cities.find(c => c.pos === '2,-5')!;
+  old.capital = false; next.capital = true; next.linked = true;   // as if 2,-5 had been taken back by its first owner
+  const goals = objectives(believedState(aiInputFor(s, 0)), 0, PERSONAS.spartans);
+  expect(goals.some(o => o.kind === 'enemyCapital' && o.at === '0,-3')).toBe(true);
+  expect(goals.filter(o => o.at === '2,-5').map(o => o.kind)).toEqual(['enemyCity']);
+});
+test('an unexplored enemy capital tile stays a goal: the start is known to both', () => {
+  const b = believedState(aiInputFor(createMatch({ seed: 42, factions: ['spartans', 'mongols'] }), 0));
+  expect(b.players[0]!.explored).not.toContain('2,-5');
+  expect(objectives(b, 0, PERSONAS.spartans)).toContainEqual({ at: '2,-5', kind: 'enemyCapital', value: 14 });
+});
 test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored tile', () => {
   for (const [seed, turns] of [[3, 90]] as const) {
     const s = randomPlayout(seed, turns);
@@ -105,7 +121,11 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
       for (const [to, mp] of Object.entries(reachable(b, u.id))) {
         const r = applyAction(b, { type: 'move', unit: u.id, to });
         expect(r.ok).toBe(true); if (!r.ok) continue;
-        if (r.events.some(e => e.type === 'lured')) continue;
+        // moveScore does not price a hero trait the march earns; since rules 7 this position has a Horseman one move
+        // from Tireless, so those moves are left out as lures are. For the same reason, a move that ends a Hunker (since
+        // the rules 7 Spartan growth discount and 12 start gold this position has a hunkered Defender) is left out:
+        // moveScore does not price the hunker it gives up
+        if (r.events.some(e => e.type === 'lured' || e.type === 'heroTrait' || e.type === 'hunkerEnded')) continue;
         const fresh = r.state.players[s.current]!.explored.length - b.players[s.current]!.explored.length;
         expect(moveScore(b, ctx, u.id, to, mp)).toBeCloseTo(valueOf(r.state, ctx) - before + 0.9 * fresh, 6);
         checked++;
@@ -113,7 +133,7 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
     }
     expect(checked).toBeGreaterThan(0);
   }
-});
+}, 60_000);   // a 90-turn random playout and every reachable move: well over the default 5 s under load
 test('the value rewards a capture and punishes standing in danger', () => {
   const b = believedState(aiInputFor(openVillage(), 1));
   const ctx = makeCtx(b, 1, 1);

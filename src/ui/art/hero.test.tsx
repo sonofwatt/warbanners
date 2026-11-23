@@ -89,6 +89,19 @@ test('the draught badge takes the glint\'s slot, and moves one slot right when t
   expect(Math.min(...extents(html(<ItemBadge item="draught" />)).map((p) => p.x)) + itemBadgeX(10, false)).toBeGreaterThan(plateRight);
 });
 
+test('the hunker shield takes the glint\'s slot, stays on the plate\'s row, and the draught badge moves past it', () => {
+  const shield = extents(html(<StatusOverlay hp={MOST_HP} maxHp={MOST_HP} spent={false} fresh={false} taunted={false} blinded={false} hunkered />));
+  const plain = extents(html(<StatusOverlay hp={MOST_HP} maxHp={MOST_HP} spent={false} fresh={false} taunted={false} blinded={false} />));
+  const plateRight = Math.max(...plain.map((p) => p.x));
+  const extra = shield.filter((p) => p.x > plateRight);
+  expect(extra.length).toBeGreaterThan(0);
+  for (const p of extra) {
+    expect(p.x, p.where).toBeLessThan(itemBadgeX(MOST_HP, true) + Math.min(...extents(html(<ItemBadge item="draught" />)).map((q) => q.x)));
+    expect(p.y, p.where).toBeGreaterThanOrEqual(-46);
+    expect(p.y, p.where).toBeLessThan(-36);
+  }
+});
+
 test('the hero mark is unlike the taunted, blinded and fresh marks', () => {
   const mark = html(<HeroMark accent={ACCENT.spartans} />);
   for (const colour of ['#E0563F', '#6F6A80', '#FFC93C']) expect(mark).not.toContain(colour);

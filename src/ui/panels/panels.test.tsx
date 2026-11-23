@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
-import { CONFIG, FACTIONS, UNITS, createMatch, legalActions, statsOf, thresholdOf } from '../../engine';
+import { CONFIG, FACTIONS, UNITS, createMatch, isBraced, legalActions, statsOf, thresholdOf } from '../../engine';
 import type { DeedId, MatchState, Unit } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import type { DigestLine } from '../../app/digest';
@@ -77,9 +77,9 @@ test("a Mongol rider's card names the riding by territory rule; a Spartan rider'
   expect(card('warrior', 'mongols')).not.toContain(T.ui.ridingByTerritory);
   expect(T.trait.mounted.blurb).not.toContain('Mongol');
 });
-test("a Knight's card says a kill that earns a hero trait ends the chain", () => {
+test("a Knight's card says momentum pays for the chain and a kill that earns a hero trait ends it", () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans')} commands={[]} onCommand={noop} />);
-  expect(html).toContain('A kill that earns a hero trait ends the chain.');
+  expect(html).toContain('A kill costs momentum'); expect(html).toContain('as does a kill that earns a hero trait.');
 });
 test('the city panel shows growth, units and a row of units to train', () => {
   const c = open.cities[0]!;
@@ -195,4 +195,32 @@ test('the draught line and the myth touch line', () => {
 test('a deed bar never overfills', () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'mongols', { deeds: { fight: 9999, march: 0, survive: 0, rest: 0 } })} commands={[]} onCommand={noop} />);
   expect(html).toContain(`${CONFIG.heroes.thresholds.fight}/${CONFIG.heroes.thresholds.fight}`);
+});
+test('rules 7: a braced Hoplite shows a Braced line, any viewer; an unbraced one does not', () => {
+  const s = blankMatch({ factions: ['spartans', 'mongols'] });
+  const h = addUnit(s, 'hoplite', 0, 0, 0); addUnit(s, 'hoplite', 0, 1, 0);
+  const html = (mine: boolean) => renderToStaticMarkup(<UnitPanel {...panelOf(s, h, mine)} braced={isBraced(s, h)} commands={[]} onCommand={noop} />);
+  expect(html(true)).not.toContain(`aria-label="${T.ui.braced}"`);
+  addUnit(s, 'hoplite', 0, 0, 1);
+  for (const own of [true, false]) {
+    expect(html(own)).toContain(`aria-label="${T.ui.braced}"`); expect(html(own)).toContain(T.ui.bracedBlurb.replace(/'/g, '&#x27;'));
+  }
+});
+test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
+  for (const own of [true, false]) {
+    const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', { hunkered: true }, own)} commands={[]} onCommand={noop} />);
+    expect(html).toContain(`aria-label="${T.ui.hunkered}"`); expect(html).toContain(T.ui.hunkeredBlurb);
+  }
+  const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
+  expect(plain).not.toContain(`aria-label="${T.ui.hunkered}"`);
+});
+test('rules 7: a chain unit shows its momentum left of its start, any viewer; a unit without chain shows none', () => {
+  for (const own of [true, false]) {
+    const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans', { momentum: 5 }, own)} commands={[]} onCommand={noop} />);
+    expect(html).toContain(`aria-label="${T.ui.momentum}"`); expect(html).toContain('Momentum 5 of 7');
+  }
+  const guard = renderToStaticMarkup(<UnitPanel {...lone('khansGuard', 'mongols', {})} commands={[]} onCommand={noop} />);
+  expect(guard).toContain('Momentum 8 of 8');
+  const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
+  expect(plain).not.toContain(`aria-label="${T.ui.momentum}"`);
 });

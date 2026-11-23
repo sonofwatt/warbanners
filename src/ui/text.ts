@@ -1,5 +1,5 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, UNITS } from '../engine';
+import { CONFIG, FACTIONS, UNITS } from '../engine';
 import type {
   AbilityId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
@@ -35,7 +35,7 @@ const unit: Record<UnitTypeId, Entry> = {
   hoplite: { name: 'Hoplite', blurb: 'A Spartan spear fighter whose defence grows with each other Hoplite beside it, up to 2.' },
   kingsGuard: { name: "King's Guard", blurb: 'The Spartan champion, a mighty fighter whose attack does not weaken as it is hurt.' },
   piper: { name: 'Piper', blurb: 'A Spartan helper who heals friends, taunts enemies and keeps friends beside it from being lured.' },
-  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees far and is seen by enemies only from the next tile.' },
+  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees only the next tile, can step into the fog and is seen by enemies only from the next tile.' },
   horseArcher: { name: 'Horse Archer', blurb: 'A Mongol rider who shoots two tiles away and keeps moving after attacking.' },
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
   skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },
@@ -47,7 +47,7 @@ const trait: Record<Trait, Entry> = {
   steadfast: { name: 'Steadfast', blurb: 'Strikes back harder than usual when attacked.' },
   doubleStrike: { name: 'Double strike', blurb: 'Can attack twice each turn.' },
   retreat: { name: 'Retreat', blurb: 'Keeps its remaining movement after attacking.' },
-  chain: { name: 'Chain', blurb: `Gets one more attack this turn for every kill, at the cost of ${CONFIG.chainKillCost} health (never below 1). A kill that earns a hero trait ends the chain.` },
+  chain: { name: 'Chain', blurb: 'Each turn starts with momentum. A kill costs momentum by the kind of unit killed and gives one more attack this turn. An attack it lacks the momentum for does 1 less damage per missing point and ends the chain, as does a kill that earns a hero trait.' },
   splash: { name: 'Splash', blurb: 'Enemy units beside the target take half the damage the target takes.' },
   siege: { name: 'Siege', blurb: 'Cannot attack after moving or move after attacking, and never strikes back.' },
   mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders.' },
@@ -114,6 +114,9 @@ const reason: Record<string, string> = {
   'tile is not next to the camp': 'That tile is not next to the camp',
   'camp was trained this turn': 'The camp is too new to train',
   'camp already used this turn': 'The camp has already acted this turn',
+  'already hunkered': 'This unit is already hunkered',
+  'siege engines cannot hunker': 'Siege engines cannot hunker',
+  'unit already acted this turn': 'This unit has already acted this turn',
 };
 
 const ui = {
@@ -211,10 +214,17 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: 'New: the game fits your screen with nothing to scroll. Actions sit at the top right of each card. A city shows its units in a row: tap one to see it and train it. A greyed button that needs a tech opens the tech tree at that tech. Cancel now clears a chosen ability, and a tap on the board no longer presses a button on the card it opens. The Train button for a picked unit sits at the top right of the city card, and the units you can train now come first, cheapest first. The phone remembers the names you type and offers them at setup, and the new Stats screen on Home keeps the wins, kills and more for each name. Tap a line of the turn report to see where it happened, and what a treasure gave now stays up long enough to read.',
+  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground. A unit that has not moved or acted can Hunker: it holds its tile with ${CONFIG.hunker.def} more defence when attacked and heals more while it rests, until it moves or acts again. A Hoplite with ${CONFIG.brace.mates} Hoplites beside it is braced: it has ${CONFIG.brace.def} more defence against chain riders, and a chain rider pays more momentum to kill it. Chain riders now chain on momentum instead of health: each kill spends some, and an attack they cannot pay for hits softer and ends the chain. Spartan cities need ${-FACTIONS.spartans.growthExtra} less growth to level up, and the second player starts with ${CONFIG.startGold[1]} gold. Tap a line of the turn report to see where it happened, and what a treasure gave stays up long enough to read.`,
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',
+  momentum: 'Momentum',
+  momentumLeft: (left: number, start: number) => `Momentum ${left} of ${start}`,
+  momentumSpent: (spent: number) => `-${spent} momentum`,
+  momentumBlurb: 'Spent on kills: a kill gives one more attack while there is momentum to pay for it. It comes back each turn.',
+  hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
+  bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
+  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, heals ${CONFIG.hunker.restBonus} more when it rests and ${CONFIG.hunker.abilityHealBonus} more from a Heal, and still heals a little with an enemy beside it. It ends when the unit moves or acts.`,
 } as const;
 
 const ai = {

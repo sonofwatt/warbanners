@@ -6,6 +6,7 @@ import type { HexKey } from './hex';
 import { isSteadied } from './abilities';
 import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
+import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { maxMp } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
@@ -37,15 +38,54 @@ export function attackOf(s: MatchState, u: Unit): number {
   return inspired ? base + CONFIG.inspireAtk : base;
 }
 
+// Friendly phalanx units next to a phalanx unit (0 for any other unit).
+function phalanxMates(s: MatchState, u: Unit): number {
+  if (!hasTrait(u, 'phalanx')) return 0;
+  const here = parseKey(u.pos);
+  return s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
+    && distance(here, parseKey(n.pos)) === 1).length;
+}
+
 // Base defence plus Hardy and the myth touch, plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
 export function defenceOf(s: MatchState, u: Unit): number {
   const base = UNITS[u.type].def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0)
     + (mythTouched(s, u) ? CONFIG.heroes.mythDef : 0);
-  if (!hasTrait(u, 'phalanx')) return base;
-  const here = parseKey(u.pos);
-  const mates = s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
-    && distance(here, parseKey(n.pos)) === 1).length;
-  return base + Math.min(CONFIG.phalanxMax, mates * CONFIG.phalanxBonus);
+  return base + Math.min(CONFIG.phalanxMax, phalanxMates(s, u) * CONFIG.phalanxBonus);
+}
+
+// rules 7, phalanx brace: a phalanx unit with at least CONFIG.brace.mates friendly phalanx units beside it.
+export function isBraced(s: MatchState, u: Unit): boolean {
+  return phalanxMates(s, u) >= CONFIG.brace.mates;
+}
+
+// rules 7: the brace counts only when a chain unit attacks the braced unit.
+export function bracedAgainst(s: MatchState, target: Unit, attacker: Unit): boolean {
+  return hasTrait(attacker, 'chain') && isBraced(s, target);
+}
+
+// rules 7: the defence a unit has when this attacker attacks it: defenceOf plus the hunker bonus, plus the brace
+// against a chain attacker (cover multiplies after). Never used for a counter-attack.
+export function guardOf(s: MatchState, u: Unit, attacker: Unit): number {
+  return defenceOf(s, u) + hunkerDef(u) + (bracedAgainst(s, u, attacker) ? CONFIG.brace.def : 0);
+}
+
+// rules 7: the momentum a chain attacker pays to kill this target: its type's price, or the braced price for a braced
+// Hoplite (judged as the attack is made).
+export function momentumPrice(s: MatchState, target: Unit, attacker: Unit): number {
+  return bracedAgainst(s, target, attacker) ? CONFIG.momentum.bracedPrice : CONFIG.momentum.price[target.type];
+}
+
+// rules 7: the points of momentum this attacker lacks to pay for this target; 0 when it can pay or has no chain.
+export function momentumShort(s: MatchState, target: Unit, attacker: Unit): number {
+  if (!hasTrait(attacker, 'chain')) return 0;
+  return Math.max(0, momentumPrice(s, target, attacker) - attacker.momentum);
+}
+
+// The damage this attacker's hit does to this target at effective attack effAtk: the formula against its guard and
+// cover, less 1 per missing point of momentum (rules 7), never below 1. The attack itself and every estimate use it.
+export function strikeDamage(s: MatchState, target: Unit, attacker: Unit, effAtk: number): number {
+  const full = damageFor(effAtk, guardOf(s, target, attacker), coverAt(s, target));
+  return Math.max(1, full - momentumShort(s, target, attacker));
 }
 
 // rules 10
@@ -98,7 +138,11 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   const attackerFrom = attacker.pos;
 
   const effAtk = attackOf(s, attacker) * healthFactor(attacker);
-  const damage = damageFor(effAtk, defenceOf(s, target), coverAt(s, target));
+  // rules 7: the price and the shortfall are judged now, before the target can fall
+  const price = momentumPrice(s, target, attacker);
+  const short = momentumShort(s, target, attacker);
+  const damage = strikeDamage(s, target, attacker, effAtk);
+  if (short > 0) attacker.momentum = 0;                     // a short attack spends what is left, kill or not
   target.hp -= damage;
   const targetDied = target.hp <= 0;
 
@@ -120,12 +164,12 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     removeUnit(s, target.id);
     ev.push({ type: 'died', unit: target.id });
     kills += 1;
-    // rules 5: the kill costs a chain unit health, never below 1, then grants the extra attack. Its event follows the
-    // advance, so the number shows where the rider ends up.
-    let chainLost = 0;
-    if (hasTrait(attacker, 'chain')) {
-      chainLost = Math.max(0, Math.min(CONFIG.chainKillCost, attacker.hp - 1));
-      attacker.hp -= chainLost;
+    // rules 7: a chain unit pays the kill's price out of its momentum and gets one more attack. A short attack pays
+    // nothing more and gets none: the chain ends. Its event follows the advance, so it shows where the rider ends up.
+    const chain = hasTrait(attacker, 'chain');
+    const paid = chain && short === 0;
+    if (paid) {
+      attacker.momentum -= price;
       attacker.attacks += 1;
       chainGranted += 1;
     }
@@ -134,7 +178,8 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
       attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
       ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
     }
-    if (chainLost > 0) ev.push({ type: 'chainCost', unit: attacker.id, damage: chainLost });
+    if (paid && price > 0) ev.push({ type: 'momentum', unit: attacker.id, spent: price, left: attacker.momentum });
+    if (chain && !paid) ev.push({ type: 'chainEnded', unit: attacker.id });
   }
 
   if (hasTrait(attacker, 'splash')) {

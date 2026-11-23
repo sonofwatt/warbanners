@@ -227,7 +227,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await page.getByTestId('end-turn').tap();
       await throughCurtain(page, 'Player 2');
       expect(await text(page, 'who')).toBe('Player 2');
-      expect(await text(page, 'gold')).toBe('10');
+      expect(await text(page, 'gold')).toBe('12');   // the second seat starts with 12 gold (rules 7)
       expect(await text(page, 'turn')).toBe('Turn 1');
 
       await page.reload();
@@ -236,7 +236,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       expect(await count(page, '[data-hex]')).toBe(0);
       await page.getByTestId('continue').tap();
       await throughCurtain(page, 'Player 2');
-      expect(await text(page, 'gold')).toBe('10');
+      expect(await text(page, 'gold')).toBe('12');
 
       await page.getByTestId('open-menu').tap();
       await page.getByTestId('resign').tap();

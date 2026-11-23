@@ -396,6 +396,8 @@ input:focus { border-color: var(--blue); }
 .command { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .command button { justify-content: space-between; gap: var(--s2); padding: 0 var(--s3) var(--thick); text-align: left; min-height: 48px; font-size: var(--t-ml); }
 .command-label { min-width: 0; overflow-wrap: anywhere; }
+/* In a card's head a label breaks only between words, never inside one ("Hun ker"). */
+.card-actions .command-label { overflow-wrap: normal; }
 .cost { display: inline-flex; align-items: center; gap: 3px; font-weight: 850; font-variant-numeric: tabular-nums; flex: none; }
 .cost .icon { width: 20px; height: 20px; }
 .why { font-size: var(--t-xs); font-weight: 600; color: var(--ink-soft); padding: 0 var(--s1); line-height: 1.25; }
@@ -779,6 +781,9 @@ input:focus { border-color: var(--blue); }
 .traits.earned li { border-left-color: var(--gold-side); }
 .traits.myth li { border-left-color: var(--gold); }
 .traits.carried li { border-left-color: var(--gold-side); }
+.traits.hunkered li { border-left-color: var(--rock); }   /* rules 7: dug in, steel like the shield on the board */
+.traits.braced li { border-left-color: var(--rock); }     /* rules 7: shields locked, steel like the hunker line */
+.traits.momentum li { border-left-color: var(--gold-side); }  /* rules 7: momentum, the hero tone of its board number */
 .deeds { list-style: none; margin: var(--s2) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .deed-row { display: grid; grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr) auto; align-items: center; gap: var(--s2); font-size: var(--t-s); font-weight: 650; min-width: 0; }
 .deed-count { font-variant-numeric: tabular-nums; color: var(--ink-soft); }

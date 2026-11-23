@@ -58,14 +58,15 @@ centre `(0,0)` is always a plain field.
 
 - Each player: their capital (level 1, territory radius 1), one starting unit on
   the capital tile, their faction's starting tech.
-- Each player starts with 10 gold.
+- The first player starts with 10 gold and the second with 12 (both 10 before rules 7).
 - Each player has explored whatever their capital and starting unit can see.
 
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, capture, claim a treasure, train, harvest, build, lay
-a road, build walls, research, choose a city reward. Then end the turn.
+move, attack, use an ability, hunker (since rules 7, see 11), capture, claim a
+treasure, train, harvest, build, lay a road, build walls, research, choose a city
+reward. Then end the turn.
 
 At the start of each of your turns except your first: you are paid income, and your
 units that did nothing at all on your previous turn heal (see Resting in 11). Then
@@ -82,7 +83,18 @@ option, and statuses on your units (taunted, blinded) wear off.
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
 - To go from level `L` to `L+1` a city needs `L+1` growth points (`L+2` for a
-  Mongol city). Spare points carry over.
+  Mongol city, `L` for a Spartan city since rules 7). Spare points carry over.
+- Connected cities (since rules 7): a city is connected when a chain of adjacent
+  tiles joins it to its owner's capital, every tile of the chain being a road or
+  a city of that owner. A road inside another player's territory breaks the
+  chain; a road in unclaimed land does not. The first time a city is connected,
+  it and the capital each get +1 growth point (which can level either city, with
+  its reward as usual). This happens once per city for each owner: a connection
+  is never taken back, a second road changes nothing, and each capture lets the
+  city pay its new owner once more (a player who retakes a city can earn it again). A player has at most one capital, and a city connects
+  only to its owner's capital; the capital never earns the bonus for itself, and
+  a player without a capital earns none. It is checked after each action, for
+  the player who acted.
 - Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
   city (or by a Camp on its behalf) count, plus the starting unit for the
   capital. A unit that captures a village or a city counts against that city from
@@ -109,9 +121,9 @@ Things you can do on a tile in your territory (one building per tile):
 | Harvest orchard | tech `foraging` | 2 | +1, the orchard is used up |
 | Harvest game | tech `hunting` | 2 | +1, the game is used up |
 | Build Farm on cropland | tech `farming` | 5 | +2 |
-| Build Lumber camp on a forest tile with no resource | tech `forestry` | 3 | +1 |
+| Build Lumber camp on a forest tile with no resource | tech `forestry` | 4 (3 before rules 7) | +2 (+1 before rules 7) |
 | Build Mine on ore | tech `bronze` | 5 | +2 |
-| Build Market on a field with no resource, one per city | tech `markets` | 6 | +1, and +2 income |
+| Build Market on a field with no resource, one per city | tech `markets` | 6 | +2 (+1 before rules 7), and +2 income |
 | Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
 | Road, on any field or forest tile that is yours or unclaimed | tech `roads` | 1 | none |
 
@@ -148,13 +160,17 @@ only comes from a city reward.
 | Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
-| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden, noCityCapture, pathfinder |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 1 | 2 | | hidden, noCityCapture, pathfinder |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
 | Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
 
 Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
+
+The Krypteia Scout's sight is 1 since rules 7 (3 before). A unit sees every tile
+within its sight, so after a move the fog is at least sight + 1 tiles away; with
+sight 1 and 2 tiles of movement a Scout can step into the fog on open ground.
 
 The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section 6).
 
@@ -231,11 +247,11 @@ Worked examples (all at full health on a field unless said):
 | steadfast | Counter-attack factor 1.25 in place of 0.75 |
 | doubleStrike | Two attacks per turn |
 | retreat | Keeps its remaining movement after attacking |
-| chain | Each kill gives one more attack this turn. Since rules 5 each kill also costs the unit health: see stage2-rules.md, section 9 |
+| chain | Each kill gives one more attack this turn. Since rules 7 the unit has momentum (Knight 7, Khan's Guard 8 at the start of each of its owner's turns): each kill costs the dead unit's price, and only a kill it can pay for gives the extra attack; an attack it cannot pay for does 1 less damage per missing point (at least 1) and ends the chain. See stage2-rules.md, section 9 (rules 5 to 6: each kill cost 2 health instead) |
 | splash | Enemy units next to the target take half the damage dealt to the target, rounded, at least 1. No counter from them |
 | siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
 | mounted | A tag other rules refer to |
-| phalanx | +1 defence for each friendly Hoplite next to it, at most +2 |
+| phalanx | +1 defence for each friendly Hoplite next to it, at most +2. Since rules 7 a Hoplite with at least two friendly Hoplites next to it is braced: +2 more defence when a chain unit (Knight, Khan's Guard) attacks it (added with the hunker bonus, before cover multiplies; never on its counter or its own attacks), and a chain unit pays a momentum price of 4 to kill it in place of the Hoplite's 2 (stage2-rules.md, section 9; the brace no longer stops the chain by itself). Bracing is judged when the attack is made |
 | unbowed | Attack is not reduced by lost health, when attacking and when striking back |
 | hidden | Enemies see it only from a tile next to it (their unit or their city) |
 | noCityCapture | Cannot capture an enemy city (villages are still allowed) |
@@ -254,11 +270,34 @@ as an attack would):
 | hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
 | dustStorm | Sky Caller | a tile within 2 with at least one enemy unit you can see on it or next to it | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
 
+Hunker (since rules 7): an action, like an ability but for any unit except one with
+the `siege` trait (the Catapult never hunkers). A unit may hunker only if it has not
+moved, attacked, used an ability, captured, claimed a treasure or drunk a draught
+this turn, was not trained this turn, and is not hunkered already. Hunkering uses up
+its movement and attacks for the turn, but it is not doing something for resting:
+a unit that only hunkered still rests. A hunkered unit stays hunkered over later
+turns until it takes an action of its own (moves, attacks, uses an ability,
+captures, claims a treasure, drinks a draught, or a Camp trains), or a lure pulls it
+off its tile. Being attacked, striking back, being healed, taunted or blinded do not
+end it. While hunkered:
+
+- When it is attacked it has +1 defence, added before cover (`(def + 1) * cover`).
+  It gets nothing when it attacks, and attacking ends it first, so the counter it
+  takes is worked out without the bonus.
+- Its resting heal is 1 more (see Resting), and it still heals with a seen enemy
+  next to it.
+- A Heal on it gives 1 more: +5 health, up to its maximum.
+
+Both players see that a unit is hunkered (a shield beside its health on the board).
+The numbers are `CONFIG.hunker`.
+
 Resting: a unit that did nothing at all on its owner's previous turn heals at the
 start of the next turn: 4 if it stands in its owner's territory, 2 on land no city
 claims, 1 in an enemy's territory, and nothing while an enemy unit its owner can
 see (section 14) stands on a tile next to it. An enemy its owner cannot see changes
-nothing.
+nothing. Hunkering does not count as doing something. A hunkered unit heals 1 more
+(5, 3 and 2), and with a seen enemy next to it still heals half the regular heal,
+rounded up and without the extra 1: 2, 1 and 1.
 
 ## 12. Treasures, capture, winning
 
@@ -280,6 +319,15 @@ nothing.
   not. Any city reward its previous owner had
   not yet chosen is dropped. City tribute is paid only by factions that have a
   tribute rule.
+- Captured capitals (since rules 7): a captured capital becomes an ordinary city
+  for its captor (no capital income, no capital banner), and it can earn the
+  connection bonus (see 6) for its new owner like any other city. If the player
+  who lost it still has cities, one of them becomes their capital at once: the
+  highest level, then the most growth points toward the next level, then the
+  nearest (hex distance) to the lost capital's tile, then the lowest city id. The
+  new capital counts as connected. Cities that already earned the bonus keep it
+  and earn nothing more; the others can now connect to the new capital. Before
+  rules 7 a captured capital stayed a capital, so a player could hold two.
 - A player with no cities is eliminated and their units are removed. The last
   player left wins. Either player may resign at any time, on their own turn or the other's; resigning eliminates them.
 
@@ -288,6 +336,8 @@ nothing.
 Spartans
 
 - Start with `bronze`.
+- A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
+  from level `L` to `L+1`.
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
 - Units: Hoplite, King's Guard (champion), Piper (support), Krypteia Scout.
 
@@ -342,3 +392,20 @@ Mongols
   next to.
 - You can only attack or target a unit you currently see. A unit whose range is
   longer than its sight (the Catapult) needs another unit to spot for it.
+
+## Rules 7 changes
+
+- Connected cities: the first time roads join a city to its owner's capital, both
+  gain 1 growth (section 6).
+- A captured capital is an ordinary city for its captor, and the loser's best city
+  becomes their capital (section 12).
+- Lumber camp costs 4 and gives 2 growth, a Market gives 2 growth (section 6).
+- The Krypteia Scout's sight is 1 (section 8).
+- Hunker, a unit action for defence and healing (section 11).
+- Phalanx brace: a Hoplite with two friendly Hoplites beside it has +2 defence
+  against chain attackers, and costs a chain unit 4 momentum to kill (traits table).
+- Momentum replaces the rules 5 chain health cost: a chain unit pays each kill's
+  momentum price, and only a paid kill gives the extra attack; an attack it cannot
+  pay for is cut by the shortfall and ends the chain (stage2-rules.md, section 9).
+- A Spartan city needs 1 less growth to level up (sections 6 and 13).
+- The second player starts with 12 gold instead of 10 (section 4).

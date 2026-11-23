@@ -60,6 +60,14 @@ export function freshAttacks(type: UnitTypeId): number {
   return CONFIG.attacksPerTurn.base;
 }
 
+// rules 7, momentum: a type's momentum at the start of each of its owner's turns (0 for a type without chain).
+export function momentumStart(type: UnitTypeId): number {
+  if (!UNITS[type].traits.includes('chain')) return 0;
+  const start = CONFIG.momentum.start[type];
+  if (start === undefined) throw new Error(`no momentum start for ${type}`);
+  return start;
+}
+
 export function spawnUnit(
   s: MatchState, type: UnitTypeId, owner: PlayerId, pos: HexKey, home: number | null,
 ): Unit {
@@ -67,7 +75,7 @@ export function spawnUnit(
     id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, bonusMp: 0, attacks: 0, home,
     enteredTurn: s.stamp, moved: false, acted: false, rested: false,
     taunted: false, blinded: false, lure: null, fresh: true,
-    deeds: freshDeeds(), heroTraits: [], item: null, itemTurn: null,
+    deeds: freshDeeds(), heroTraits: [], item: null, itemTurn: null, hunkered: false, momentum: momentumStart(type),
   };
   s.nextUnitId += 1;
   s.units.push(u);
@@ -92,7 +100,7 @@ export function foundCity(s: MatchState, owner: PlayerId, pos: HexKey, capital: 
   const c: City = {
     id: s.nextCityId, pos, owner, capital, level: CONFIG.newCity.level, growth: CONFIG.newCity.growth,
     radius: CONFIG.newCity.radius, walls: false, market: false,
-    incomeBonus: 0, capacityBonus: 0, pendingRewards: [],
+    incomeBonus: 0, capacityBonus: 0, pendingRewards: [], linked: capital,
   };
   s.nextCityId += 1;
   s.cities.push(c);

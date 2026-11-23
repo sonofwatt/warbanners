@@ -3,12 +3,16 @@ import { applyAction, createMatch, visibleTiles } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, setTile } from '../engine/testkit';
 import type { MatchState } from '../engine';
 import { aiInputFor, believedState, viewKey } from './input';
-import { planTurn } from './plan';
+import { planTurn, withGrowth } from './plan';
 import { draughtFinish, hiddenScout, hopelessCharge, killOrChip, lureFromCity, pipersTaunt, safeLure, woundedHoplite } from './scenarios';
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
 
-const fixtures = () => [randomPlayout(7, 160), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })];
+// Built once and shared: the engine never mutates a state it is given. Since the rules 7 Spartan growth discount and 12 start
+// gold the random playouts hold more units and take about 44 s to build (seed 7 to turn 160 alone 25 s), so the first test
+// to ask pays that and has a 120 s limit; the rest find them ready.
+let cached: MatchState[] | null = null;
+const fixtures = (): MatchState[] => (cached ??= [randomPlayout(7, 160), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })]);
 test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is played, dial %f', (dial) => {
   for (const s of fixtures()) {
     const input = aiInputFor(s, s.current);
@@ -22,12 +26,12 @@ test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is pla
     expect(plan.actions.some(a => a.type === 'resign')).toBe(false);
     expect(plan.evals).toBeLessThanOrEqual(skillFor(dial).evals);
   }
-}, 30_000);
+}, 120_000);
 test('same input and seed give the same plan; another seed may differ only below hard', () => {
-  const input = aiInputFor(randomPlayout(7, 160), 0);
+  const input = aiInputFor(fixtures()[0]!, 0);
   expect(planTurn(input, { dial: 0.5, seed: 9, refused: [] })).toEqual(planTurn(structuredClone(input), { dial: 0.5, seed: 9, refused: [] }));
   expect(planTurn(input, { dial: 1, seed: 9, refused: [] })).toEqual(planTurn(input, { dial: 1, seed: 10, refused: [] }));
-}, 30_000);
+}, 120_000);
 test('a refused action is never planned again', () => {
   const { state } = hiddenScout();
   const input = aiInputFor(state, 1);
@@ -51,7 +55,7 @@ test('the deadline ends the turn early with legal actions', () => {
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 30_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(7, 164), 0);         // 25 units; re-picked for rules 6 ((7, 236) has 29 now), earlier for Task 8
+  const input = aiInputFor(randomPlayout(9, 256), 0);         // 25 units; re-picked for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);
@@ -158,5 +162,67 @@ test('a Piper taunts a rider that could strike its Archer, so the blow falls on 
     const taunts = Array.from({ length: 10 }, (_, seed) => planTurn(aiInputFor(pipersTaunt(), 0), { dial, seed, refused: [] }))
       .filter((p) => p.actions.some((a) => a.type === 'ability' && a.ability === 'taunt' && a.target === '0,-1')).length;
     expect(taunts, `dial ${dial}`).toBeGreaterThanOrEqual(dial === LEVEL_DIAL.hard ? 10 : 3);
+  }
+});
+test('withGrowth levels cities through the engine, several levels at once, and leaves the state it was given alone', () => {
+  const s = blankMatch();                                       // player 0 Spartans, player 1 Mongols
+  const sp = addCity(s, 0, 0, 0, { level: 1, growth: 1 });
+  const mo = addCity(s, 1, 2, 0, { level: 1, growth: 0 });
+  const other = addCity(s, 0, -2, 0, { level: 1, growth: 0 });
+  const before = structuredClone(s);
+  const g = withGrowth(s, [sp.id, mo.id], 6);
+  const at = (id: number) => g.cities.find((c) => c.id === id)!;
+  expect([at(sp.id).level, at(sp.id).growth, at(sp.id).pendingRewards]).toEqual([4, 1, [2, 3, 4]]);   // Spartans: 7 growth pays 1 + 2 + 3 and leaves 1 toward level 4
+  expect([at(mo.id).level, at(mo.id).growth, at(mo.id).pendingRewards]).toEqual([2, 3, [2]]);
+  expect(at(other.id)).toBe(s.cities.find((c) => c.id === other.id));
+  expect(s).toEqual(before);
+});
+
+// Rules 7, Hunker. Player 1 (the AI) has no gold, so no city trains and no guard steps off to make room.
+function hunkerField(): MatchState {
+  const s = blankMatch(); addCity(s, 0, -3, 0, { capital: true }); addCity(s, 1, 3, 0, { capital: true });
+  s.current = 1; s.players[1]!.gold = 0;
+  return s;
+}
+test('rules 7: a garrison with no attack to make hunkers when a seen enemy could reach it; a quiet one does not', () => {
+  const s = hunkerField();
+  const guard = addUnit(s, 'warrior', 1, 3, 0);
+  addUnit(s, 'horseman', 0, 1, 0);                                    // seen, two tiles off, across water
+  for (const [q, r] of [[2, 0], [2, -1], [1, 1], [2, 1]] as const) setTile(s, q, r, { terrain: 'water' });
+  const quiet = hunkerField();
+  const idle = addUnit(quiet, 'warrior', 1, 3, 0);
+  for (const dial of [0, 0.5, 1]) for (let seed = 0; seed < 4; seed++) {
+    const mine = (st: MatchState, id: number) => planTurn(aiInputFor(st, 1), { dial, seed, refused: [] }).actions
+      .filter((a) => 'unit' in a && a.unit === id);
+    expect(mine(s, guard.id)).toEqual([{ type: 'hunker', unit: guard.id }]);
+    expect(mine(quiet, idle.id).some((a) => a.type === 'hunker')).toBe(false);
+  }
+});
+test('rules 7: a wounded unit with no safe tile to reach and only a hopeless attack hunkers', () => {
+  const s = hunkerField();
+  const hurt = addUnit(s, 'warrior', 1, 0, -2, { hp: 2 });
+  addUnit(s, 'spearman', 0, -1, -2);                                  // its counter would kill the warrior
+  for (const [q, r] of [[1, -3], [1, -2], [0, -1]] as const) setTile(s, q, r, { terrain: 'water' });
+  for (const dial of [0, 0.5, 1]) {
+    const plan = planTurn(aiInputFor(s, 1), { dial, seed: 1, refused: [] });
+    expect(plan.actions.filter((a) => 'unit' in a && a.unit === hurt.id)).toEqual([{ type: 'hunker', unit: hurt.id }]);
+  }
+  const refused = [{ type: 'hunker', unit: hurt.id } as const];
+  expect(planTurn(aiInputFor(s, 1), { dial: 1, seed: 1, refused }).actions).not.toContainEqual(refused[0]);
+});
+// rules 7, momentum: a Knight with 2 momentum beside two Hoplites of 1 health, one braced (price 4) and one not
+// (price 2), with a Warrior of 1 health behind the unbraced one. Killing the unbraced Hoplite is paid and opens a
+// second kill; the braced one is short and ends the chain. The plan takes the paid kill first.
+test('a chain rider takes the kill it can pay for first', () => {
+  const s = blankMatch({ factions: ['spartans', 'spartans'] });
+  addCity(s, 0, -3, 3, { capital: true }); addCity(s, 1, 3, -3, { capital: true });
+  const k = addUnit(s, 'knight', 0, 0, 0, { momentum: 2 });
+  addUnit(s, 'hoplite', 1, 1, 0, { hp: 1 });
+  addUnit(s, 'warrior', 1, 2, 0, { hp: 1 });
+  addUnit(s, 'hoplite', 1, -1, 0, { hp: 1 }); addUnit(s, 'hoplite', 1, -2, 0); addUnit(s, 'hoplite', 1, -2, 1);
+  for (const dial of [0.5, 0.85, 1]) for (const seed of [1, 2, 3]) {
+    const plan = planTurn(aiInputFor(s, 0), { dial, seed, refused: [] });
+    const first = plan.actions.find((a) => a.type === 'attack' && a.unit === k.id);
+    expect(first, `dial ${dial} seed ${seed}`).toMatchObject({ target: '1,0' });
   }
 });

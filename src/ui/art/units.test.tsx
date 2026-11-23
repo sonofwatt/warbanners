@@ -94,7 +94,8 @@ test('the overlay marks taunted, blinded and fresh, sits above the head, and ign
   const o = (x: Partial<Parameters<typeof StatusOverlay>[0]>) =>
     html(<StatusOverlay hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} {...x} />);
   const plain = o({});
-  expect(new Set([plain, o({ taunted: true }), o({ blinded: true }), o({ fresh: true })]).size).toBe(4);
+  expect(new Set([plain, o({ taunted: true }), o({ blinded: true }), o({ fresh: true }), o({ hunkered: true })]).size).toBe(5);
+  for (const p of extents(o({ taunted: true, blinded: true, hunkered: true }))) expect(p.y, p.where).toBeLessThan(-36);
   expect(o({ spent: true })).toBe(plain);
   for (const p of extents(o({ taunted: true, blinded: true, fresh: true }))) expect(p.y, p.where).toBeLessThan(-36);
 });

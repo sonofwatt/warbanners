@@ -43,7 +43,8 @@ export function ItemBadge(p: { item: ItemId }): ReactElement {
   return <g data-item={p.item}>{ink.items}</g>;
 }
 
-/** Where the item badge goes for a unit of this maximum health: the glint's slot, or one slot past it when the glint is shown. */
-export function itemBadgeX(maxHp: number, fresh: boolean): number {
-  return plateRight(maxHp) + GLINT_GAP + (fresh ? MARK_STEP : 0);
+/** Where the item badge goes for a unit of this maximum health: the glint's slot, or one slot past it when the glint
+ * or the hunker shield (which shares the glint's slot) is shown. */
+export function itemBadgeX(maxHp: number, slotTaken: boolean): number {
+  return plateRight(maxHp) + GLINT_GAP + (slotTaken ? MARK_STEP : 0);
 }

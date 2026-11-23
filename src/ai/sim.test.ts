@@ -127,3 +127,24 @@ test('the census counts abilities, claims, camp training and rewards as the acti
   const c = census([r]);
   expect(c.tactics.spartans.treasure!.total).toBe(r.sides[0].tactics.treasure ?? 0);
 }, 120_000);
+test('the census counts roads laid and connections as the actions and events of a match', () => {
+  const o: SimOpts = { seed: 3, factions: ['mongols', 'spartans'], seats: [{ level: 'normal' }, { level: 'normal' }], maxRounds: 25 };
+  const r = runMatch(o);
+  let s: MatchState = createMatch({ seed: o.seed, factions: o.factions });
+  const roads = [0, 0]; const connections = [0, 0];
+  for (const a of r.actions) {
+    const me = s.current;
+    if (a.type === 'road') roads[me]! += 1;
+    const res = applyAction(s, a);
+    if (!res.ok) throw new Error(res.reason);
+    connections[me]! += res.events.filter((e) => e.type === 'connected').length;
+    s = res.state;
+  }
+  for (const p of [0, 1] as const) {
+    expect(r.sides[p].roadsLaid).toBe(roads[p]);
+    expect(r.sides[p].connections).toBe(connections[p]);
+  }
+  const c = census([r]);
+  expect(c.roads.mongols).toEqual({ laid: roads[0], connections: connections[0], matchesConnected: connections[0]! > 0 ? 1 : 0 });
+  expect(c.roads.spartans).toEqual({ laid: roads[1], connections: connections[1], matchesConnected: connections[1]! > 0 ? 1 : 0 });
+}, 120_000);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
-  DEEDS, growthNeeded, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
+  DEEDS, growthNeeded, isBraced, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
@@ -211,14 +211,14 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (u !== undefined) {
       const owner = state.players[u.owner]!.faction;
       const commands = u.owner === viewer ? unitCommands(selection, state, ix) : [];
-      // The myth touch and the movement are judged on what the viewer believes, never on the whole match, so an
+      // The myth touch, the brace and the movement are judged on what the viewer believes, never on the whole match, so an
       // enemy's card cannot tell of a hero or a helper beside it that the viewer has not seen.
       const believed = believedState(aiInputFor(state, viewer));
       const myth = mythTouched(believed, u);
       const thresholds = u.owner === viewer
         ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
       panel = (
-        <UnitPanel unit={u} faction={owner} stats={statsOf(believed, u)} myth={myth} thresholds={thresholds}
+        <UnitPanel unit={u} faction={owner} stats={statsOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
           commands={commands} onCommand={onCommand} />
       );
     }

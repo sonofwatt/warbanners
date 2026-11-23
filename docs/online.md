@@ -94,6 +94,8 @@ The phone that finds the disagreement writes `desync/<uid>` and shows the desync
 
 Rules 4 (heroes and treasures) adds one action, `{"type":"useItem","unit":<id>}`, which drinks a carried draught. `database.rules.json` did not change for it, and nothing needed to. The rules special-case only the exact `endTurn` and `resign` strings; any other action that contains `player` or a backslash is refused, and `useItem` contains neither, so it is accepted like a move or an attack (a string of at most 512 characters, written once at `head.n`). Versions are compared as values: a seat's `rules` must equal the room's `meta/rulesVersion`, whatever number that is, so moving `RULES_VERSION` from 3 to 4 needs no edit to the rules. A rules 3 room cannot be continued on 0.4.0: a phone on rules 4 sees a room whose `rulesVersion` is 3 as a different rules version and writes nothing to it, and the same holds the other way round. Finish or leave such rooms before updating. The deploy rule below still applies to any later rules change, and never to a `RULES_VERSION` bump while an online match is being played.
 
+Rules 7 adds `{"type":"hunker","unit":<id>}` the same way: it contains neither `player` nor a backslash, so `database.rules.json` accepts it like `useItem`, with no edit.
+
 ## Rules 5: the chain kill cost
 
 Rules 5 (0.4.1) makes a chain unit pay health for each kill (docs/rules/stage2-rules.md, section 9). It adds no action and

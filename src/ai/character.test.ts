@@ -223,10 +223,21 @@ function aiMatch(seed: number, factions: [FactionId, FactionId], dial: number, m
 describe('matches between two AIs end', () => {
   // Measured after Task 12b's AI changes: seed 1, Mongols first, at hard, ended in round 16 (Mongols win). With the unit
   // mix (2026-11-21-ai-unit-mix-log.md) that match stalls at 60 rounds, one of three that do at hard over seeds 1 to 8
-  // (below); seed 3, Mongols first, ends in round 21, so it is the check now, with the same bound.
-  test('at hard on a seeded map, the match reaches a winner within the measured bound', () => {
-    expect(aiMatch(3, ['mongols', 'spartans'], LEVEL_DIAL.hard, 25).winner).not.toBeNull();
-  }, 120_000);
+  // (below); seed 3, Mongols first, ends in round 21, so it was the check, with the same bound. With connecting roads
+  // (rules 7, Task 2) every one of seeds 1 to 8 in both seatings ends within 60 rounds at hard; seed 3 Mongols first now
+  // takes 28, and seed 3 Spartans first ends in round 20. With captured capitals moving and Lumber camp and Market
+  // growth 2 (rules 7, Task 1b) Mongols first ended in round 25, and with the Lumber camp at 4 gold in 29 (Spartans
+  // first in 20). From that seat the Mongols take every village and city but the Spartan capital and one other by round
+  // 16, and those two, behind Spartan city cover, fall in rounds 24 and 28. The capital is the last city taken, so the
+  // moving capital plays no part (the match is the same, capture for capture, with capitalMoves off). The finish there
+  // swings with each rules 7 number (21, 28, 25, 29), so that seating gets its own bound, 33: the last measure plus the
+  // four rounds of margin the first had. Spartans first kept 25 until the Spartan growth discount and the second seat's
+  // 12 gold (rules 7): Mongols first then ends in round 32 (inside 33) and Spartans first in 28, so that seating gets 32,
+  // the last measure plus the same four rounds of margin.
+  test.each([['mongols', 'spartans', 33], ['spartans', 'mongols', 32]] as [FactionId, FactionId, number][])(
+    'at hard on a seeded map, %s first against %s, the match reaches a winner within %i rounds', (first, second, bound) => {
+      expect(aiMatch(3, [first, second], LEVEL_DIAL.hard, bound).winner).not.toBeNull();
+    }, 120_000);
 
   // Measured on seeds 1 to 8 with both seatings: at hard after Task 12b's AI changes 11 end within 60 rounds (the five
   // named below do not); at normal with plan 5 Task 8's numbers 14, and again 14 with rules 6 (the two named below do not). Matches still stall at
@@ -234,6 +245,8 @@ describe('matches between two AIs end', () => {
   // so these tests name the matches known not to end; any other match failing to end is a regression.
   describe.runIf(process.env.SLOW === '1')('many seeds (SLOW=1)', () => {
     const seatings: [FactionId, FactionId][] = [['spartans', 'mongols'], ['mongols', 'spartans']];
+    // The title's list of known exceptions, if any.
+    const but = (known: readonly string[]): string => (known.length === 0 ? '' : ` but ${known.join(', ')} first`);
     // The matches that reach no winner within `bound` rounds, named as "seed first-faction".
     const unended = (dial: number, bound: number): string[] => [1, 2, 3, 4, 5, 6, 7, 8]
       .flatMap((seed) => seatings.map((f) => (aiMatch(seed, f, dial, bound).winner === null ? [`${seed} ${f[0]}`] : [])))
@@ -241,12 +254,28 @@ describe('matches between two AIs end', () => {
     // rules 6: was 5 mongols and 8 mongols, which then ended. The unit mix: '1 mongols' and '8 spartans' end, four others
     // do not. Over 200 fresh normal matches stalls fell (19.5% to 18.0%, 2026-11-21-ai-unit-mix-log.md), so the four are
     // which matches stall, not more stalling.
-    const KNOWN_NORMAL = ['1 spartans', '6 mongols', '7 spartans', '8 mongols'];
-    test(`at normal, every match but ${KNOWN_NORMAL.join(', ')} first ends within 60 rounds`, () => {
+    // Connecting roads (rules 7, Task 2): 15 of the 16 end; the four above end and '6 spartans' does not (both sides
+    // bank gold, 651 and 298 by round 60, with every tech, the Spartans at 30 units trading cities back and forth).
+    // Captured capitals moving and growth 2 (rules 7, Task 1b): all 16 end, '6 spartans' in 31 (the longest, 1 mongols,
+    // in 59). With the Lumber camp at 4 gold all 16 still end ('6 spartans' in 44; the longest, 7 mongols, in 56).
+    // Hunker (rules 7): '7 spartans' ends in 83 rounds, the Mongols winning, after 90 hunkers in all. Hunkered garrisons hold
+    // cities longer. The AI with Hunker against the AI without it, 56 matches at each level, factions and seats swapped:
+    // normal 30 to 26, hard 32 to 23 and a stall, so the AI is not worse; this seed is which match stalls.
+    // Momentum (rules 7, replacing the chain health cost): '7 spartans' now ends in 51 rounds and '6 spartans' does not
+    // (it ends in 73, the Mongols winning). The same with or without the AI's switch to strikeDamage, so the rule moved
+    // it: still one stall of 16, a different match.
+    // Spartan growth discount and the second seat's 12 gold (rules 7): '5 mongols' now stalls too (SLOW run 2026-11-23), two
+    // of 16 for the first time; the Spartans level sooner, so the same AI plays a longer game from the same maps. At hard
+    // all 16 still end. Not a regression in the AI: the rules moved which matches stall.
+    const KNOWN_NORMAL: string[] = ['6 spartans', '5 mongols'];
+    test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
-    const KNOWN_HARD = ['5 mongols', '6 mongols', '7 mongols'];   // the unit mix: five unended matches became these three
-    test(`at hard, every match but ${KNOWN_HARD.join(', ')} first ends within 60 rounds`, () => {
+    // The unit mix: five unended matches became '5 mongols', '6 mongols' and '7 mongols'. Connecting roads (rules 7,
+    // Task 2): all 16 end within 60 rounds (the longest, 6 mongols, in 42). Rules 7, Task 1b: all 16 still end (the
+    // longest, 6 mongols, in 51), and with the Lumber camp at 4 gold (the longest, 6 mongols, in 41).
+    const KNOWN_HARD: string[] = [];
+    test(`at hard, every match${but(KNOWN_HARD)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);
   });

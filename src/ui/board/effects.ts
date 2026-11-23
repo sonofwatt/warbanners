@@ -100,9 +100,9 @@ export function effectsFor(
         }
         break;
       }
-      case 'chainCost': {
+      case 'momentum': {
         const at = unitPos(e.unit);
-        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: `-${e.damage}`, tone: 'hurt', delay });
+        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: T.ui.momentumSpent(e.spent), tone: 'hero', delay });
         break;
       }
       case 'splashed': {

@@ -40,6 +40,18 @@ export function eliminate(s: MatchState, p: PlayerId, ev: GameEvent[]): void {
   }
 }
 
+// rules 12 (rules version 7): a player who lost their capital and still has cities gets a new one at once: the highest
+// level, then the most growth points, then the nearest to the lost capital's tile, then the lowest id. It starts linked.
+function moveCapital(s: MatchState, p: PlayerId, lost: HexKey, ev: GameEvent[]): void {
+  const from = parseKey(lost);
+  const next = s.cities.filter((c) => c.owner === p)
+    .map((c) => ({ c, d: distance(from, parseKey(c.pos)) }))
+    .sort((a, b) => b.c.level - a.c.level || b.c.growth - a.c.growth || a.d - b.d || a.c.id - b.c.id)[0]!.c;
+  next.capital = true;
+  next.linked = true;
+  ev.push({ type: 'capitalMoved', player: p, city: next.id });
+}
+
 export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s, a, ev) => {
   if (!canCapture(s, a.unit)) return 'cannot capture here';
   const u = unitById(s, a.unit)!;
@@ -58,11 +70,15 @@ export const captureHandler: Handler<Extract<Action, { type: 'capture' }>> = (s,
     for (const x of s.units) if (x.home === existing.id) x.home = null;
     if (u.home !== null) u.home = existing.id;
     existing.pendingRewards = [];
+    const lostCapital = existing.capital && CONFIG.capitalMoves;
+    if (lostCapital) existing.capital = false;          // rules 7: an ordinary city for its captor
+    existing.linked = existing.capital;                 // rules 7: a new owner can earn the connection bonus again
     if (def.tributeCityBase > 0) captor.gold += def.tributeCityBase + existing.level;
     cityId = existing.id;
     u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;
     ev.push({ type: 'captured', city: cityId, by: u.owner });
     if (!s.cities.some((c) => c.owner === previous)) eliminate(s, previous, ev);
+    else if (lostCapital) moveCapital(s, previous, existing.pos, ev);
     return null;
   }
   u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp;

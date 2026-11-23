@@ -29,7 +29,7 @@ export const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] =
   { name: 'capture', types: ['captured'] },
   { name: 'levelUp', types: ['heroTrait'] },
   { name: 'fall', types: ['died'] },
-  { name: 'chainCost', types: ['chainCost'] },
+  { name: 'chainCost', types: ['momentum'] },   // rules 7: momentum plays the old chain cost cue
   { name: 'hit', types: ['attacked', 'splashed'] },
   { name: 'train', types: ['trained'] },
   { name: 'treasure', types: ['treasure'] },
@@ -70,7 +70,7 @@ export const HEARD_RULES: { [T in GameEvent['type']]?: Rule<T> } = {
   advanced: rule<'advanced'>(unitSeen),
   died: rule<'died'>(unitSeen),
   heroTrait: rule<'heroTrait'>(unitSeen),
-  chainCost: rule<'chainCost'>(unitSeen),
+  momentum: rule<'momentum'>(unitSeen),
   ability: rule<'ability'>(unitSeen),
   usedItem: rule<'usedItem'>(unitSeen),
   attacked: rule<'attacked'>((e, h) => h.seenUnits.has(e.target)),

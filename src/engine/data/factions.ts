@@ -16,7 +16,7 @@ export interface FactionDef {
 export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
   spartans: {
     startTech: 'bronze', startUnit: 'scout', champion: 'kingsGuard', support: 'piper',
-    cityCover: 2, canBuildWalls: false, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 0,
+    cityCover: 2, canBuildWalls: false, growthExtra: -1, mountedMoveBonus: 0, mountedDiscount: 0,
     forestStopsMounted: false, relayRiders: false, territoryRiding: false, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: true, mythTouch: true,
   },
   mongols: {

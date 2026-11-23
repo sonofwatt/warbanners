@@ -13,10 +13,10 @@ test('income', () => {
 });
 test('growth levels a city and queues the reward; Mongols need one more', () => {
   const s = blankMatch(); const c = addCity(s, 0, 0, 0); const ev: GameEvent[] = [];
-  addGrowth(s, c, 2, ev);
+  addGrowth(s, c, 1, ev);                                            // a Spartan city leaves level L on L growth (rules 7 discount)
   expect(c).toMatchObject({ level: 2, growth: 0, pendingRewards: [2] });
   expect(ev).toContainEqual({ type: 'cityLevel', city: c.id, level: 2 });
-  const m = addCity(s, 1, 3, 0); addGrowth(s, m, 2, []);
+  const m = addCity(s, 1, 3, 0); addGrowth(s, m, 2, []);      // a Mongol city needs L + 2, two more than a Spartan one
   expect(m).toMatchObject({ level: 1, growth: 2 });
   addGrowth(s, m, 1, []); expect(m.level).toBe(2);
 });
@@ -48,7 +48,7 @@ test('scout reward explores every tile within 3, sorted and without duplicates',
 test('growth reward can level the city again and queue another reward', () => {
   const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 4, growth: 3, pendingRewards: [4] });
   const t = must(applyAction(s, { type: 'chooseReward', city: c.id, choice: 1 }));
-  expect(cityById(t, c.id)).toMatchObject({ level: 5, growth: 0, pendingRewards: [5] });
+  expect(cityById(t, c.id)).toMatchObject({ level: 5, growth: 1, pendingRewards: [5] });
 });
 test('reward unit steps aside when the city is occupied, and becomes gold when boxed in', () => {
   const s = blankMatch({ radius: 1 }); const c = addCity(s, 0, 0, 0, { level: 5, pendingRewards: [5] }); addUnit(s, 'warrior', 0, 0, 0);
@@ -74,9 +74,9 @@ test('harvest and build', () => {
   const s = blankMatch(); const c = addCity(s, 0, 0, 0); give(s, 0, 'foraging', 'farming', 'bronze', 'markets');
   setTile(s, 1, 0, { resource: 'orchard' }); setTile(s, 0, 1, { resource: 'cropland' }); setTile(s, -1, 0, { terrain: 'mountain', resource: 'ore' });
   let t = must(applyAction(s, { type: 'harvest', at: '1,0' }));
-  expect(t.tiles['1,0']!.resource).toBeNull(); expect(t.players[0]!.gold).toBe(18); expect(cityById(t, c.id)!.growth).toBe(1);
+  expect(t.tiles['1,0']!.resource).toBeNull(); expect(t.players[0]!.gold).toBe(18); expect(cityById(t, c.id)).toMatchObject({ level: 2, growth: 0 });   // the harvest's 1 growth fills a Spartan level 1 bar
   t = must(applyAction(t, { type: 'build', at: '0,1', building: 'farm' }));
-  expect(t.tiles['0,1']!.building).toBe('farm'); expect(cityById(t, c.id)!.level).toBe(2);
+  expect(t.tiles['0,1']!.building).toBe('farm'); expect(cityById(t, c.id)).toMatchObject({ level: 3, growth: 0 });   // the farm's 2 growth fills level 2
   expect(applyAction(t, { type: 'build', at: '0,1', building: 'farm' }).ok).toBe(false);     // already built
   expect(applyAction(t, { type: 'build', at: '-1,0', building: 'farm' }).ok).toBe(false);    // wrong tile
   t = must(applyAction(t, { type: 'build', at: '0,-1', building: 'market' }));

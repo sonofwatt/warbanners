@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
-import { createMatch, playerView } from '../../engine';
+import { applyAction, createMatch, playerView } from '../../engine';
+import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import type { PlayerView, Unit } from '../../engine';
 import { Board } from './Board';
 import { boardBounds } from './layout';
@@ -114,6 +115,26 @@ test('the capital is drawn as a city in the owner\'s colour, with a closed borde
   expect(cap).toContain('#B3261E'); // the Spartan red
   const html = draw();
   expect((html.match(/<line[^>]*stroke="#B3261E"[^>]*stroke-width="2.4"/g) ?? []).length).toBeGreaterThanOrEqual(18);
+});
+
+// rules 7: a taken capital is an ordinary city, and the capital marker moves to the loser's new capital.
+test('the capital marker follows a moved capital', () => {
+  const m = blankMatch({ radius: 6 });
+  addCity(m, 0, -2, 5, { capital: true });
+  const old = addCity(m, 1, 2, -5, { capital: true });
+  const next = addCity(m, 1, 4, -2, { level: 2 });
+  const w = addUnit(m, 'warrior', 0, 2, -5);
+  const r = applyAction(m, { type: 'capture', unit: w.id });
+  if (!r.ok) throw new Error(r.reason);
+  const view = playerView(r.state, 1);
+  const marks = (v: PlayerView): string => draw({ view: v });
+  const flag = (v: PlayerView, id: number, capital: boolean): PlayerView =>
+    ({ ...v, cities: v.cities.map((c) => (c.id === id ? { ...c, capital } : c)) });
+  expect(view.cities.find((c) => c.id === next.id)!.capital).toBe(true);
+  expect(tileMarkup(marks(view), next.pos)).toBe(tileMarkup(marks(flag(view, next.id, true)), next.pos));
+  expect(tileMarkup(marks(view), next.pos)).not.toBe(tileMarkup(marks(flag(view, next.id, false)), next.pos));
+  expect(tileMarkup(marks(view), old.pos)).toBe(tileMarkup(marks(flag(view, old.id, false)), old.pos));
+  expect(tileMarkup(marks(view), old.pos)).not.toBe(tileMarkup(marks(flag(view, old.id, true)), old.pos));
 });
 
 test('a veiled tile is dimmed whole: its ground and everything standing on it, but not a unit on it', () => {

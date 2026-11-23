@@ -156,6 +156,12 @@ const censusLines = (['spartans', 'mongols'] as const).flatMap((f) => [
     .filter((t) => (cen.tactics[f][t]?.possible ?? 0) > 0)
     .map((t) => { const r = cen.tactics[f][t]!; return `${t} ${ratio(r.used, r.possible)} ${f2(r.total / (n || 1))}`; }).join(', ')}`,
 ]);
+const roadLines = (['spartans', 'mongols'] as const).map((f) => {
+  const r = cen.roads[f];
+  const played = results.filter((x) => x.factions.includes(f)).length;
+  return `census ${f} roads: laid per match ${f2(r.laid / (played || 1))}  connections per match ${f2(r.connections / (played || 1))}`
+    + `  matches with a connection ${ratio(r.matchesConnected, played)}`;
+});
 const travelLine = `travel: tiles moved per mounted unit per turn  mongols ${travel('mongols')}  spartans ${travel('spartans')}`;
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
@@ -177,4 +183,5 @@ console.log([
   chainLine,
   travelLine,
   ...censusLines,
+  ...roadLines,
 ].join('\n'));
