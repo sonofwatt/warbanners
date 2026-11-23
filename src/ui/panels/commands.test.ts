@@ -25,6 +25,17 @@ test('once the tile is free a warrior can be trained', () => {
   const c = byId(cityCommands(0, moved, ixOf(moved)));
   expect(c['train-warrior']).toMatchObject({ enabled: true, why: null, action: { type: 'train', city: 0, unitType: 'warrior' } });
 });
+test('the units to train come trainable first, then the rest, each part cheapest first', () => {
+  const moved = must(applyAction(open, { type: 'move', unit: 0, to: '-1,4' }));
+  const train = cityCommands(0, moved, ixOf(moved)).filter(c => c.unit !== undefined);
+  const ready = train.filter(c => c.enabled);
+  expect(ready.length).toBeGreaterThan(0);
+  expect(train.slice(0, ready.length).every(c => c.enabled)).toBe(true);
+  const costs = (cs: Command[]) => cs.map(c => c.cost ?? 0);
+  const ascending = (xs: number[]) => xs.every((x, i) => i === 0 || xs[i - 1]! <= x);
+  expect(ascending(costs(ready))).toBe(true);
+  expect(ascending(costs(train.slice(ready.length)))).toBe(true);
+});
 test('tile commands: legal ones, blocked ones with a reason, and nothing irrelevant', () => {
   expect(byId(tileCommands('-2,4', open, ixOf(open)))['build-mine']).toMatchObject({ enabled: true, cost: 5, action: { type: 'build', at: '-2,4', building: 'mine' } });
   const s42 = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });

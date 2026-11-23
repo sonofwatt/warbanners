@@ -90,6 +90,9 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
       out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null, unit: type, ...(missing !== null ? { tech: missing } : {}) });
     }
   }
+  // The row of units to train: what the city can train now first, then the rest, each part cheapest first (a stable
+  // sort, so equal costs keep the units' own order).
+  out.sort((a, b) => Number(b.enabled) - Number(a.enabled) || (a.cost ?? 0) - (b.cost ?? 0));
   const walls = { id: 'walls', label: T.ui.walls, cost: CONFIG.walls.cost, arm: null };
   if (ix.walls.includes(cityId)) {
     out.push({ ...walls, enabled: true, why: null, action: { type: 'buildWalls', city: cityId } });

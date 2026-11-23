@@ -211,7 +211,7 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: 'New: the game fits your screen with nothing to scroll. Actions sit at the top right of each card. A city shows its units in a row: tap one to see it and train it. A greyed button that needs a tech opens the tech tree at that tech. Cancel now clears a chosen ability, and a tap on the board no longer presses a button on the card it opens.',
+  whatsNew: 'New: the game fits your screen with nothing to scroll. Actions sit at the top right of each card. A city shows its units in a row: tap one to see it and train it. A greyed button that needs a tech opens the tech tree at that tech. Cancel now clears a chosen ability, and a tap on the board no longer presses a button on the card it opens. The Train button for a picked unit sits at the top right of the city card, and the units you can train now come first, cheapest first.',
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',

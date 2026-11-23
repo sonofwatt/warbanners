@@ -68,8 +68,13 @@ body {
   background: var(--sky);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-/* In a match the phone's own bars match what they touch: the paper of the top bar above, the sea below. */
-body:has(.screen.match) { background: linear-gradient(to bottom, var(--paper) 0 50%, var(--sea) 50% 100%); }
+/* In a match the phone's own bars match what they touch: the paper of the top bar above (the meta theme-color, set by
+   Match), the sea below. The page's colour is the sea, with a fixed strip of paper over any top inset. Android's
+   gesture bar in the installed app takes the manifest's colours (vite.config.ts), which are the sea too. */
+html:has(.screen.match), body:has(.screen.match) { background: var(--sea); }
+body:has(.screen.match)::before, body:has(.screen.match)::after { content: ''; position: fixed; left: 0; right: 0; pointer-events: none; }
+body:has(.screen.match)::before { top: 0; height: env(safe-area-inset-top); background: var(--paper); }
+body:has(.screen.match)::after { bottom: 0; height: env(safe-area-inset-bottom); background: var(--sea); }
 
 h1, h2, p { overflow-wrap: anywhere; }
 h1 { font-weight: 900; letter-spacing: -0.01em; line-height: 1.1; }
@@ -333,6 +338,9 @@ input:focus { border-color: var(--blue); }
   border-radius: var(--r-l) var(--r-l) 0 0; border-top: var(--thick) solid var(--paper-edge);
   animation: fade 160ms ease-out both;
 }
+/* A city's card (head, the row of units, its numbers: about 340 px) fits whole until a unit is picked; only then
+   may it scroll, to the unit's numbers and traits. */
+.selection:has(.city-panel) { max-height: max(40dvh, min(360px, 60dvh)); }
 .panel h2 { margin: 0; font-size: var(--t-2xl); display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s2); }
 .card-head { display: flex; flex-direction: column; gap: var(--s2); }
 /* The head row: picture, name, and the card's action buttons on the upper right. */
@@ -345,22 +353,18 @@ input:focus { border-color: var(--blue); }
 /* A city's units to train: a row of pictures scrolled sideways, and the picked unit's card under it. */
 .shop { margin-top: var(--s3); scroll-margin-top: var(--s2); }
 .shop-strip { list-style: none; margin: 0; padding: 4px 4px var(--s2); display: flex; gap: var(--s2); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
-.shop-strip li { flex: none; scroll-snap-align: start; }
+.shop-strip li { flex: none; scroll-snap-align: start; display: flex; }
+/* Every card in the row is as tall as the tallest (a two-line name), with the costs on one line along the bottom. */
 .shop-item { flex-direction: column; gap: 2px; width: 86px; min-height: 0; padding: var(--s1) var(--s1) calc(var(--s1) + var(--thick)); font-size: var(--t-xs); line-height: 1.1; }
 .shop-item[aria-pressed="true"] { --face: var(--gold); --side: var(--gold-side); }
 .shop-picture { position: relative; width: 56px; height: 56px; display: grid; place-items: center; }
 .shop-picture .picture { width: 56px; height: auto; display: block; }
 .shop-picture > .icon { position: absolute; top: -2px; right: -4px; width: 18px; height: 18px; color: var(--ink-soft); }
 .shop-item.unready .picture { opacity: 0.5; }
-.shop-name { text-align: center; overflow-wrap: normal; }
+.shop-name { text-align: center; overflow-wrap: normal; flex: 1 0 auto; display: flex; align-items: center; }
 .shop-hint { margin: var(--s1) 0 0; font-size: var(--t-s); font-weight: 600; color: var(--ink-soft); }
 .shop-card { margin-top: var(--s2); background: var(--paper-2); border-radius: var(--r); padding: var(--s3); }
-.shop-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s2); margin-bottom: var(--s2); }
-.shop-card h3 { margin: 0; font-size: var(--t-xl); font-weight: 850; }
-.shop-card .command { flex: 0 0 auto; max-width: 45%; }
-/* The name with the description under it, running up to the Train button. */
-.shop-card-text { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--s1); }
-.shop-card-text .blurb { margin: 0; }
+.shop-card h3 { margin: 0 0 var(--s1); font-size: var(--t-xl); font-weight: 850; }
 .picture-frame { flex: none; width: 68px; height: 68px; border-radius: var(--r); background: var(--sky); display: grid; place-items: center; overflow: hidden; }
 .picture-frame .picture { width: 64px; height: auto; display: block; }
 .card-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
