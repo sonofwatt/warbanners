@@ -48,7 +48,7 @@ test('unexplored tiles take the explored mirror terrain, else field', () => {
 test('the believed state is playable by the engine', () => {
   const b = believedState(aiInputFor(randomPlayout(7, 160), 0));
   for (const a of legalActions(b).slice(0, 40)) expect(applyAction(b, a).ok).toBe(true);
-}, 30_000);                                         // a 160-turn random playout: about 5 s alone, more under load
+}, 120_000);                                        // a 160-turn random playout: about 25 s alone since rules 7's Spartan growth discount, more under load
 test('every scenario is a legal position with the right player to move', () => {
   const cases: [string, ReturnType<typeof spartanLine>, number][] = [
     ['spartanLine', spartanLine(), 0], ['riderRaid', riderRaid(), 1], ['openVillage', openVillage(), 1],

@@ -264,7 +264,10 @@ describe('matches between two AIs end', () => {
     // Momentum (rules 7, replacing the chain health cost): '7 spartans' now ends in 51 rounds and '6 spartans' does not
     // (it ends in 73, the Mongols winning). The same with or without the AI's switch to strikeDamage, so the rule moved
     // it: still one stall of 16, a different match.
-    const KNOWN_NORMAL: string[] = ['6 spartans'];
+    // Spartan growth discount and the second seat's 12 gold (rules 7): '5 mongols' now stalls too (SLOW run 2026-11-23), two
+    // of 16 for the first time; the Spartans level sooner, so the same AI plays a longer game from the same maps. At hard
+    // all 16 still end. Not a regression in the AI: the rules moved which matches stall.
+    const KNOWN_NORMAL: string[] = ['6 spartans', '5 mongols'];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);

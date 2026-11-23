@@ -133,7 +133,7 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
     }
     expect(checked).toBeGreaterThan(0);
   }
-});
+}, 60_000);   // a 90-turn random playout and every reachable move: well over the default 5 s under load
 test('the value rewards a capture and punishes standing in danger', () => {
   const b = believedState(aiInputFor(openVillage(), 1));
   const ctx = makeCtx(b, 1, 1);
