@@ -9,7 +9,7 @@ import type { Action, MatchState } from './types';
 // With stage 2 switched off through CONFIG alone (no trait can be earned, a treasure draws among stage 1's
 // three outcomes, since rules 7 every momentum price is 0 so a chain kill costs nothing, and since rules 6 the old fog rule, the flat Mongol move
 // bonus of a whole tile and endless chains are back through CONFIG and the faction data, and since rules 7 no connection
-// growth, no capital moves, a growth of 1 for a Lumber camp and a Market, the Lumber camp's old cost of 3, and the Scout's sight of 3 and no Hunker through CONFIG and
+// growth, no capital moves, a growth of 1 for a Lumber camp, equal start gold, no Spartan growth discount, and a Market, the Lumber camp's old cost of 3, and the Scout's sight of 3 and no Hunker through CONFIG and
 // the unit data), the current rules must replay every recorded rules 3 playout hash for hash. CONFIG is deep-frozen, so the factories build new objects. This file is
 // alone because vi.mock binds a whole file.
 vi.mock('./data/config', async (orig) => {
@@ -18,6 +18,7 @@ vi.mock('./data/config', async (orig) => {
   return {
     CONFIG: {
       ...m.CONFIG,
+      startGold: [10, 10],
       momentum: { ...m.CONFIG.momentum, price: Object.fromEntries(Object.keys(m.CONFIG.momentum.price).map((k) => [k, 0])), bracedPrice: 0 },
       closedFog: false,
       levelUpEndsChain: false,
@@ -37,7 +38,7 @@ vi.mock('./data/config', async (orig) => {
 
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
-  return { FACTIONS: { ...m.FACTIONS, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
+  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
 });
 
 vi.mock('./data/units', async (orig) => {

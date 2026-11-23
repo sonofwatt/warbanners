@@ -7,7 +7,7 @@ import type { BuildingId, DeedId, HeroTraitId, Resource, RewardId, TechId, Terra
 export const CONFIG = deepFreeze({
   mapRadius: 6,
   capitals: ['-2,5', '2,-5'],
-  startGold: [10, 10],
+  startGold: [10, 12],
   terrain: {
     field: { enterCost: 2, cover: 1 },
     forest: { enterCost: 4, cover: 1.25 },

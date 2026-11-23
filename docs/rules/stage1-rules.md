@@ -58,7 +58,7 @@ centre `(0,0)` is always a plain field.
 
 - Each player: their capital (level 1, territory radius 1), one starting unit on
   the capital tile, their faction's starting tech.
-- Each player starts with 10 gold.
+- The first player starts with 10 gold and the second with 12 (both 10 before rules 7).
 - Each player has explored whatever their capital and starting unit can see.
 
 ## 5. Turn
@@ -83,7 +83,7 @@ option, and statuses on your units (taunted, blinded) wear off.
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
 - To go from level `L` to `L+1` a city needs `L+1` growth points (`L+2` for a
-  Mongol city). Spare points carry over.
+  Mongol city, `L` for a Spartan city since rules 7). Spare points carry over.
 - Connected cities (since rules 7): a city is connected when a chain of adjacent
   tiles joins it to its owner's capital, every tile of the chain being a road or
   a city of that owner. A road inside another player's territory breaks the
@@ -336,6 +336,8 @@ rounded up and without the extra 1: 2, 1 and 1.
 Spartans
 
 - Start with `bronze`.
+- A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
+  from level `L` to `L+1`.
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
 - Units: Hoplite, King's Guard (champion), Piper (support), Krypteia Scout.
 
@@ -405,3 +407,5 @@ Mongols
 - Momentum replaces the rules 5 chain health cost: a chain unit pays each kill's
   momentum price, and only a paid kill gives the extra attack; an attack it cannot
   pay for is cut by the shortfall and ends the chain (stage2-rules.md, section 9).
+- A Spartan city needs 1 less growth to level up (sections 6 and 13).
+- The second player starts with 12 gold instead of 10 (section 4).
