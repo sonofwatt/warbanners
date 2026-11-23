@@ -160,7 +160,7 @@ const ui = {
   tagline: 'Face a friend or the AI, here or online.',
   installHint: 'Keep {name} on your home screen.',
   movesFirst: 'Moves first',
-  digestTitle: 'While you were away',
+  digestTitle: 'While you were away', backToReport: 'Back to report',
   screenFailed: 'Something went wrong on this screen. Your saved matches are safe.',
   blockedUnseen: 'Something unseen blocks the way.',
   aiPassed: 'The AI could not decide and passed its turn.',
@@ -214,7 +214,7 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground. A unit that has not moved or acted can Hunker: it holds its tile with ${CONFIG.hunker.def} more defence when attacked and heals more while it rests, until it moves or acts again. A Hoplite with ${CONFIG.brace.mates} Hoplites beside it is braced: it has ${CONFIG.brace.def} more defence against chain riders, and a chain rider that kills it gets no extra attack.`,
+  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground. A unit that has not moved or acted can Hunker: it holds its tile with ${CONFIG.hunker.def} more defence when attacked and heals more while it rests, until it moves or acts again. A Hoplite with ${CONFIG.brace.mates} Hoplites beside it is braced: it has ${CONFIG.brace.def} more defence against chain riders, and a chain rider that kills it gets no extra attack. Tap a line of the turn report to see where it happened, and what a treasure gave stays up long enough to read.`,
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',
@@ -229,12 +229,32 @@ const ai = {
   settled: (n: number): string => `The AI finished at level ${n} of 10.`,
 };
 
-export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
+const stats = {
+  open: 'Stats', title: 'Stats', empty: 'No finished matches yet. Stats appear here after your first match ends.',
+  player: 'Player', kind: 'Match', faction: 'Faction', ai: 'Computer',
+  kinds: { all: 'All', computer: 'Computer', pass: 'Pass the phone', online: 'Online' },
+  bothFactions: 'Both', anyAi: 'Any',
+  played: 'Played', wins: 'Won', winRate: 'Win rate', streak: 'Win run now', bestStreak: 'Best win run',
+  avgDealt: 'Damage a match', avgTaken: 'Damage taken a match', kills: 'Kills', deaths: 'Units lost',
+  cities: 'Cities taken', heroes: 'Heroes', treasures: 'Treasures', avgRounds: 'Turns a match', favourite: 'Favourite',
+  none: '-', noMatches: 'No matches with these filters.',
+  recent: 'Recent matches',
+  won: 'Won against {name}', lost: 'Lost against {name}',
+  recentLine: '{faction}, {kind}, {turns}, {date}',
+  turns: (n: number): string => (n === 1 ? '1 turn' : `${n} turns`),
+  sideLine: '{name}: {dealt} damage, {kills} kills, {deaths} units lost',
+  forget: 'Forget {name}', forgetAsk: 'Forget {name} and all their stats on this phone?', forgetYes: 'Yes, forget', forgetNo: 'Keep',
+  usedName: 'Use the name {name}', recentNames: 'Names used before',
+  tallyTitle: 'This match', tallyDealt: 'Damage dealt', tallyKills: 'Kills', tallyDeaths: 'Units lost',
+  tallyCities: 'Cities taken', tallyHeroes: 'Heroes', tallyTreasures: 'Treasures',
+};
+
+export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai, stats } as {
   unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; heroTrait: Record<HeroTraitId, Entry>;
   deed: Record<DeedId, string>; item: Record<ItemId, Entry>; treasure: Record<TreasureOutcome, string>; ability: Record<AbilityId, Entry>;
   reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
   resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
-  reason: Record<string, string>; ui: typeof ui; ai: typeof ai;
+  reason: Record<string, string>; ui: typeof ui; ai: typeof ai; stats: typeof stats;
 };
 
 export function fill(template: string, values: Record<string, string | number>): string {

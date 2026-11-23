@@ -60,7 +60,7 @@ test('while the curtain is up the app draws no Hud, no digest and no board slot'
   store.getState().startMatch(SETUP);
   store.getState().ready();
   store.getState().run({ type: 'endTurn' });
-  store.setState({ digest: [{ kind: 'cityLost' }] }); // the store keeps these set during the curtain
+  store.setState({ digest: [{ kind: 'cityLost', at: '0,0' }] }); // the store keeps these set during the curtain
   const s = store.getState();
   expect(s.screen).toBe('pass');
   expect(s.last).not.toBeNull();

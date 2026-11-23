@@ -13,6 +13,7 @@ import { Pass } from './screens/Pass';
 import { Result } from './screens/Result';
 import { ScreenGuard } from './screens/ScreenGuard';
 import { Setup } from './screens/Setup';
+import { Stats } from './screens/Stats';
 
 /** True when the page URL asks for the art sheet (?sheet=1). False in Node, where there is no location. */
 function wantsArtSheet(): boolean {
@@ -43,6 +44,7 @@ function Screens(home: HomeProps): ReactElement {
   const version = <Version as="footer" />;
   if (screen === 'home') return <main className="app"><Home {...home} />{version}</main>;
   if (screen === 'setup') return <main className="app"><Setup /></main>;
+  if (screen === 'stats') return <main className="app"><Stats /></main>;
   if (screen === 'pass') return <main className="app"><Pass /></main>;
   if (screen === 'match') return <main className="app"><Match /></main>;
   if (screen === 'onlineSetup') return <main className="app"><OnlineSetup /></main>;

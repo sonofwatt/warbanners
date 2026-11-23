@@ -3,13 +3,17 @@ import { T } from '../text';
 import type { GameEvent, HexKey, MatchState, PlayerId, UnitTypeId } from '../../engine';
 
 export type Effect =
-  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number }
+  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number; ms?: number }
   | { kind: 'lunge'; unit: number; toward: HexKey; delay: number }
   | { kind: 'fall'; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
   | { kind: 'burst'; at: HexKey; tone: 'build' | 'capture' | 'level' | 'treasure'; delay: number };
 
 export const EFFECT_MS = 450;
 export const MAX_TOTAL_MS = 1200;
+/** What a claimed treasure gave stays up three times as long as other effects, so it can be read. */
+export const TREASURE_TEXT_MS = EFFECT_MS * 3;
+/** How long one effect plays: its own time, or EFFECT_MS. */
+export const effectMs = (f: Effect): number => (f.kind === 'number' ? f.ms ?? EFFECT_MS : EFFECT_MS);
 const STEP_MS = 120;
 const COUNTER_MS = 150;
 
@@ -50,7 +54,7 @@ export function watchMs(events: readonly GameEvent[], before: MatchState, after:
   const list = effectsFor(events, before, after, visible, seenUnits, viewer);
   const moved = events.some((e) => (e.type === 'moved' || e.type === 'lured' || e.type === 'advanced') && seenUnits.has(e.unit));
   if (list.length === 0) return moved ? EFFECT_MS : 0;
-  return Math.max(...list.map((f) => f.delay)) + EFFECT_MS;
+  return Math.max(...list.map((f) => f.delay + effectMs(f)));
 }
 
 // Turn the events of one action into short on-board effects. The state is already final;
@@ -123,12 +127,12 @@ export function effectsFor(
       case 'treasure': {
         if (e.outcome === 'gold') {
           const gain = (after.players[before.current]?.gold ?? 0) - (before.players[before.current]?.gold ?? 0);
-          if (gain > 0) mine.push({ kind: 'number', at: e.at, text: `+${gain}`, tone: 'gold', delay });
+          if (gain > 0) mine.push({ kind: 'number', at: e.at, text: `+${gain}`, tone: 'gold', delay, ms: TREASURE_TEXT_MS });
           else mine.push({ kind: 'burst', at: e.at, tone: 'treasure', delay });
         } else if (before.current === viewer) {
           // The find words are the claimer's alone; the other side keeps the plain burst.
           const text = e.outcome === 'relic' && e.trait !== undefined ? T.heroTrait[e.trait].name : T.treasure[e.outcome];
-          mine.push({ kind: 'number', at: e.at, text, tone: 'find', delay });
+          mine.push({ kind: 'number', at: e.at, text, tone: 'find', delay, ms: TREASURE_TEXT_MS });
         } else mine.push({ kind: 'burst', at: e.at, tone: 'treasure', delay });
         break;
       }

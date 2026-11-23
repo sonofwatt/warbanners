@@ -9,6 +9,7 @@ import { ACCENT, playerColour } from '../art/palette';
 import { TileBase } from '../art/tiles';
 import { HomeIcon, SwapIcon } from '../icons';
 import { MAX_NAME } from '../../online/wire';
+import { NameChips } from './NameChips';
 import { T, fill } from '../text';
 
 // Each people shown by one of its own soldiers, in its colours.
@@ -39,7 +40,8 @@ const seatLabel = (s: SecondSeat): string => (s === 'human' ? T.ui.person : T.ai
 export function Setup(): ReactElement {
   const startMatch = useApp((s) => s.startMatch);
   const goHome = useApp((s) => s.goHome);
-  const [first, setFirst] = useState('');
+  const names = useApp((s) => s.names);
+  const [first, setFirst] = useState(() => names[0] ?? '');
   const [second, setSecond] = useState('');
   const [seat, setSeat] = useState<SecondSeat>('human');
   const [swapped, setSwapped] = useState(false);
@@ -56,11 +58,13 @@ export function Setup(): ReactElement {
         <label>
           <span>{fill(T.ui.nameLabel, { n: 1 })}</span>
           <input data-testid="name-0" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerOne} value={first} onChange={(e) => setFirst(e.target.value)} />
+          <NameChips names={names} taken={[first.trim(), second.trim()]} onPick={setFirst} testid="name-chip-0" />
         </label>
         {seat === 'human' ? (
           <label>
             <span>{fill(T.ui.nameLabel, { n: 2 })}</span>
             <input data-testid="name-1" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerTwo} value={second} onChange={(e) => setSecond(e.target.value)} />
+            <NameChips names={names} taken={[first.trim(), second.trim()]} onPick={setSecond} testid="name-chip-1" />
           </label>
         ) : null}
       </div>

@@ -3,7 +3,7 @@ import type { AnimationEvent, ReactElement } from 'react';
 import type { FactionId, HexKey } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { ACCENT, playerColour } from '../art/palette';
-import { EFFECT_MS } from './effects';
+import { EFFECT_MS, effectMs } from './effects';
 import type { Effect } from './effects';
 import { FIGURE_H, hexToBoard } from './layout';
 
@@ -82,7 +82,7 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
     <g className="fx" pointerEvents="none" aria-hidden="true" ref={ref}>
       {p.effects.map((f, i) => {
         if (!live.has(i) || f.kind === 'lunge') return null;
-        const style = { animationDelay: `${f.delay}ms`, animationDuration: `${EFFECT_MS}ms` };
+        const style = { animationDelay: `${f.delay}ms`, animationDuration: `${effectMs(f)}ms` };
         let body: ReactElement | null = null;
         if (f.kind === 'number') {
           body = (

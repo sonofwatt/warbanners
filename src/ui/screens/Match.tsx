@@ -9,7 +9,7 @@ import { roundOf } from '../../app/record';
 import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { formatClock } from '../../online/clock';
-import { T, fill } from '../text';
+import { T, digestText, fill } from '../text';
 import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
 import { hearingFor, isMuted, play, setMuted, soundFor } from '../sound';
@@ -66,6 +66,9 @@ export function turnFocus(held: TurnFocus | null, key: string, focus: HexKey): T
 
 export type Sheet = 'none' | 'tech' | 'menu';
 
+// While a turn report line is shown on the board, the board pans and zooms but takes no taps.
+const noTap = (): void => {};
+
 // Next unit is greyed, like End turn, while the AI plays, during End turn's lock and while a sheet or overlay is
 // up, and also when none of the viewer's units can still act.
 export function nextUnitDisabled(p: { canAct: number; aiBusy: boolean; locked: boolean; covered: boolean }): boolean {
@@ -114,6 +117,11 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const [later, setLater] = useState<number[]>([]);
   // Each tap on Next unit asks the board, once, to bring the unit it selected into view.
   const [revealed, setRevealed] = useState(0);
+  // The turn report line being looked at on the board (its card is put away meanwhile), and a count that asks the
+  // board, once per tap, to centre on that line's tile.
+  const [peek, setPeek] = useState<number | null>(null);
+  const [centred, setCentred] = useState(0);
+  useEffect(() => { setPeek(null); }, [digest]);
 
   // The phone's status bar takes the top bar's paper while a match is open (the sky colour comes back on leaving).
   useEffect(() => {
@@ -176,10 +184,14 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     focusHeld.current = turnFocus(focusHeld.current, `${roundOf(state)}:${viewer}`, data.focus ?? '0,0');
   }
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
-  const items = useMemo(
-    () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, ready: data.ready, selectedUnit, spentUnits: data.spent })),
-    [data, selectedUnit],
-  );
+  // The tile of the turn report line being looked at is ringed, so it can be found when the board's edge stops the
+  // view short of centring it.
+  const peekAt = peek !== null ? digest[peek]?.at : undefined;
+  const items = useMemo(() => {
+    if (data === null) return null;
+    const marks = peekAt === undefined ? data.marks : { ...data.marks, [peekAt]: 'selected' as const };
+    return buildScene({ view: data.view, radius: data.radius, marks, ready: data.ready, selectedUnit, spentUnits: data.spent });
+  }, [data, selectedUnit, peekAt]);
   if (state === null || record === null || viewer === null || data === null || items === null) return null;
 
   const { view, ix } = data;
@@ -282,9 +294,11 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     || (online !== null && (!online.connected || online.returning || online.verifying || online.blocked || online.phase !== 'playing'));
   const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
   const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
+  const peeked = peek !== null ? digest[peek] : undefined;
+  const showLine = (i: number): void => { setPeek(i); setCentred((n) => n + 1); };
 
   return (
-    <div className={side ? 'screen match has-side' : 'screen match'} data-testid="match">
+    <div className={`screen match${side ? ' has-side' : ''}${peeked !== undefined ? ' peeking' : ''}`} data-testid="match">
       <Hud
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
@@ -294,8 +308,10 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         onOpenTech={() => { setTechFocus(null); setSheet('tech'); }} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
       />
       <div className="board-slot" data-testid="board-slot">
-        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}
+        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
+          onTap={peeked !== undefined ? noTap : tap}
           reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
+          centre={centred > 0 && peeked !== undefined ? { n: centred, at: peeked.at } : null}
         >
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
@@ -317,10 +333,16 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
           onHome={goHome} onClose={() => setSheet('none')} onlineNote={isOnline ? T.ui.homeWaits : undefined}
         />
       ) : null}
-      {digest.length > 0 ? (
+      {digest.length > 0 && peeked === undefined ? (
         <div className="overlay" data-testid="digest">
-          <DigestCard lines={digest} />
+          <DigestCard lines={digest} onShow={showLine} />
           <button type="button" className="primary" data-testid="digest-ok" onClick={dismissDigest}>{T.ui.gotIt}</button>
+        </div>
+      ) : null}
+      {peeked !== undefined ? (
+        <div className="digest-peek" data-testid="digest-peek">
+          <p>{digestText(peeked)}</p>
+          <button type="button" className="primary" data-testid="digest-back" onClick={() => setPeek(null)}>{T.ui.backToReport}</button>
         </div>
       ) : null}
       {desync ? (

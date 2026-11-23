@@ -57,6 +57,11 @@ export function startCamera(focus: Pt, bounds: Box, vp: Viewport): Camera {
   return clampCamera({ cx: focus.x, cy: focus.y, scale: DEFAULT_TILE_PX / TILE_W }, bounds, vp);
 }
 
+/** The camera moved so the board point p is in the middle of the slot (as near as the clamp allows), zoom kept. */
+export function centreOn(c: Camera, p: Pt, bounds: Box, vp: Viewport): Camera {
+  return clampCamera({ cx: p.x, cy: p.y, scale: c.scale }, bounds, vp);
+}
+
 /** Dragging by (dx, dy) pixels moves the board with the finger, so the centre moves the other way. */
 export function panBy(c: Camera, dxPx: number, dyPx: number, bounds: Box, vp: Viewport): Camera {
   return clampCamera({ cx: c.cx - dxPx / c.scale, cy: c.cy - dyPx / c.scale, scale: c.scale }, bounds, vp);

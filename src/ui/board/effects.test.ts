@@ -5,7 +5,7 @@ import { CONFIG, applyAction, playerView } from '../../engine';
 import type { GameEvent, MatchState } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import { T } from '../text';
-import { EFFECT_MS, MAX_TOTAL_MS, effectsFor, seenBy, watchMs } from './effects';
+import { EFFECT_MS, MAX_TOTAL_MS, TREASURE_TEXT_MS, effectsFor, seenBy, watchMs } from './effects';
 
 /** Every unit in either state: for the tests about tiles, where every unit is in sight. */
 const everyone = (...states: MatchState[]): Set<number> => new Set(states.flatMap((x) => x.units.map((u) => u.id)));
@@ -235,7 +235,11 @@ test('a trait shows its name over the unit; a non-gold find shows its words to t
     [{ type: 'treasure', at: '2,0', outcome: 'relic', trait: 'fierce' }, T.heroTrait.fierce.name],
   ];
   for (const [e, text] of finds) {
-    expect(effectsFor([e], s, s, all, everyone(s), 0)).toEqual([{ kind: 'number', at: '2,0', text, tone: 'find', delay: 0 }]);
+    expect(effectsFor([e], s, s, all, everyone(s), 0)).toEqual([{ kind: 'number', at: '2,0', text, tone: 'find', delay: 0, ms: TREASURE_TEXT_MS }]);
     expect(effectsFor([e], s, s, all, everyone(s), 1)).toEqual([{ kind: 'burst', at: '2,0', tone: 'treasure', delay: 0 }]);
   }
+});
+
+test('what a claimed treasure gave stays up three times as long as other effects', () => {
+  expect(TREASURE_TEXT_MS).toBe(EFFECT_MS * 3);
 });

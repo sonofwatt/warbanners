@@ -8,7 +8,7 @@ import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
-import { keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
+import { centreOn, keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
 import { prefersReducedMotion } from './Effects';
 import { boardBounds, hexToBoard, tileBox } from './layout';
@@ -27,6 +27,7 @@ export interface BoardProps {
   children?: ReactNode; // effects, drawn inside the camera transform
   viewer?: PlayerId; // whose board this is: only their own cities show a reward waiting
   reveal?: { n: number; at: HexKey } | null; // each new n pans, the least it must, to bring the tile at `at` into view
+  centre?: { n: number; at: HexKey } | null; // each new n puts the tile at `at` in the middle of the slot (the turn report)
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -270,10 +271,10 @@ export function Board(p: BoardProps): ReactElement {
   if (cam.current === null) cam.current = startCamera(hexToBoard(p.focus), bounds, vp.current);
 
   // The latest props for the event handlers, which are attached once.
-  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null });
+  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null });
   // A layout effect, so a resize observed in the same frame as a new selection already sees it.
   useLayoutEffect(() => {
-    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null };
+    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null };
   });
 
   const frame = useRef(0);
@@ -357,6 +358,16 @@ export function Board(p: BoardProps): ReactElement {
     touched.current = true;
     schedule();
   }, [revealN, schedule]);
+
+  // A request to look at a tile (a line of the turn report): the tile goes to the middle of the slot, zoom kept.
+  const centreN = p.centre?.n ?? 0;
+  useEffect(() => {
+    const { centre, bounds: b } = latest.current;
+    if (centreN === 0 || centre === null || cam.current === null || !measured.current) return;
+    cam.current = centreOn(cam.current, hexToBoard(centre.at), b, vp.current);
+    touched.current = true;
+    schedule();
+  }, [centreN, schedule]);
 
   useGestures(svgRef, (out) => {
     const c = cam.current;

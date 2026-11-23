@@ -9,6 +9,7 @@ import type { AiClient } from './aiClient';
 import { digestFor } from './digest';
 import { listOnline } from './onlineList';
 import { listSaves } from './saves';
+import { readLines, recentNames } from './stats';
 import type { KeyValue } from './saves';
 import { createAppStore } from './store';
 import type { AppState, Deps } from './store';
@@ -127,6 +128,27 @@ test('the waiting player can resign', async () => {
   expect(host.get().screen).toBe('result'); expect(guest.get().screen).toBe('result');
   expect(host.get().state!.winner).toBe(0);
 });
+test('each phone records only its own player once the end is on the server, and remembers the name typed', async () => {
+  const { host, guest, server } = await startedPair();
+  guest.get().resignOnline();
+  // Still sending: the server does not hold the resign yet, so nothing is counted.
+  if (guest.get().online?.sending === true) expect(readLines(guest.kv, 0)).toHaveLength(0);
+  await settle(server);
+  const h = readLines(host.kv, 0);
+  const g = readLines(guest.kv, 0);
+  expect(h.map(l => [l.name, l.kind, l.won, l.opponent?.name])).toEqual([['Ann', 'online', true, 'Ben']]);
+  expect(g.map(l => [l.name, l.kind, l.won, l.opponent?.name])).toEqual([['Ben', 'online', false, 'Ann']]);
+  // The view keeps firing on the result screen and on going home: still one line.
+  host.get().goHome(); guest.get().goHome(); await settle(server);
+  expect(readLines(host.kv, 0)).toHaveLength(1);
+  expect(recentNames(host.kv)).toEqual(['Ann']);
+  expect(recentNames(guest.kv)).toEqual(['Ben']);
+});
+test('online against an AI seat, the line carries its level', async () => {
+  const { host, server } = await startedPair({ second: 'hard' });
+  host.get().resignOnline(); await settle(server);
+  expect(readLines(host.kv, 0)).toMatchObject([{ name: 'Ann', kind: 'online', ai: 'hard', won: false }]);
+});
 test('the other phone\'s moves arrive with effects', async () => {
   const { host, guest, server } = await startedPair();
   const seq = guest.get().last?.seq ?? 0;
@@ -244,7 +266,11 @@ test('a resign that loses its race tells the player', async () => {
   server.failNext('u1');
   guest.get().resignOnline(); await settle(server);
   expect(guest.get().screen).toBe('match'); expect(guest.get().notice).toBe('resignLost');
+  // The resign never landed, so nothing is counted, and the real end is counted when it comes.
+  expect(readLines(guest.kv, 0)).toHaveLength(0);
   expect(host.get().state!.winner).toBeNull();
+  guest.get().resignOnline(); await settle(server);
+  expect(readLines(guest.kv, 0)).toMatchObject([{ name: 'Ben', won: false }]);
 });
 test('an unfinished online match dropped from the list for room is reported', async () => {
   const kv = memoryKv();
