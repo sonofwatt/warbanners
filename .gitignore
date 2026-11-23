@@ -9,3 +9,4 @@ firebase-debug.log
 auth-debug.log
 .firebase/
 dist-emu/
+*.tsbuildinfo
