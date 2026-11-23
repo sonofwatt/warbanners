@@ -231,8 +231,10 @@ describe('matches between two AIs end', () => {
   // 16, and those two, behind Spartan city cover, fall in rounds 24 and 28. The capital is the last city taken, so the
   // moving capital plays no part (the match is the same, capture for capture, with capitalMoves off). The finish there
   // swings with each rules 7 number (21, 28, 25, 29), so that seating gets its own bound, 33: the last measure plus the
-  // four rounds of margin the first had. Spartans first keeps 25.
-  test.each([['mongols', 'spartans', 33], ['spartans', 'mongols', 25]] as [FactionId, FactionId, number][])(
+  // four rounds of margin the first had. Spartans first kept 25 until the Spartan growth discount and the second seat's
+  // 12 gold (rules 7): Mongols first then ends in round 32 (inside 33) and Spartans first in 28, so that seating gets 32,
+  // the last measure plus the same four rounds of margin.
+  test.each([['mongols', 'spartans', 33], ['spartans', 'mongols', 32]] as [FactionId, FactionId, number][])(
     'at hard on a seeded map, %s first against %s, the match reaches a winner within %i rounds', (first, second, bound) => {
       expect(aiMatch(3, [first, second], LEVEL_DIAL.hard, bound).winner).not.toBeNull();
     }, 120_000);
