@@ -54,4 +54,4 @@ Same command and seeds. The phalanx brace (b41a1fb and before) is not in these r
 | C, start gold 10, 13 | 45.3% | 45.3% | 47.3 / 46.5 | 44.5 / 53.5 | 12.5% / 4.0% |
 
 C with 13 gold for the second seat evens the seats at normal and slightly over-corrects at hard. Raw outputs: the
-workspace repo, `sim-results/` (hk-*.txt).
+private `warbanners-workspace` repo, `sim-results/rules7-hunker/`.
