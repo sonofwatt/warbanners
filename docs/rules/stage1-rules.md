@@ -90,8 +90,8 @@ option, and statuses on your units (taunted, blinded) wear off.
   chain; a road in unclaimed land does not. The first time a city is connected,
   it and the capital each get +1 growth point (which can level either city, with
   its reward as usual). This happens once per city for each owner: a connection
-  is never taken back, a second road changes nothing, and a captured city can pay
-  its new owner once more. A player has at most one capital, and a city connects
+  is never taken back, a second road changes nothing, and each capture lets the
+  city pay its new owner once more (a player who retakes a city can earn it again). A player has at most one capital, and a city connects
   only to its owner's capital; the capital never earns the bonus for itself, and
   a player without a capital earns none. It is checked after each action, for
   the player who acted.
