@@ -206,3 +206,19 @@ test('rules 7: a wounded unit with no safe tile to reach and only a hopeless att
   const refused = [{ type: 'hunker', unit: hurt.id } as const];
   expect(planTurn(aiInputFor(s, 1), { dial: 1, seed: 1, refused }).actions).not.toContainEqual(refused[0]);
 });
+// rules 7, momentum: a Knight with 2 momentum beside two Hoplites of 1 health, one braced (price 4) and one not
+// (price 2), with a Warrior of 1 health behind the unbraced one. Killing the unbraced Hoplite is paid and opens a
+// second kill; the braced one is short and ends the chain. The plan takes the paid kill first.
+test('a chain rider takes the kill it can pay for first', () => {
+  const s = blankMatch({ factions: ['spartans', 'spartans'] });
+  addCity(s, 0, -3, 3, { capital: true }); addCity(s, 1, 3, -3, { capital: true });
+  const k = addUnit(s, 'knight', 0, 0, 0, { momentum: 2 });
+  addUnit(s, 'hoplite', 1, 1, 0, { hp: 1 });
+  addUnit(s, 'warrior', 1, 2, 0, { hp: 1 });
+  addUnit(s, 'hoplite', 1, -1, 0, { hp: 1 }); addUnit(s, 'hoplite', 1, -2, 0); addUnit(s, 'hoplite', 1, -2, 1);
+  for (const dial of [0.5, 0.85, 1]) for (const seed of [1, 2, 3]) {
+    const plan = planTurn(aiInputFor(s, 0), { dial, seed, refused: [] });
+    const first = plan.actions.find((a) => a.type === 'attack' && a.unit === k.id);
+    expect(first, `dial ${dial} seed ${seed}`).toMatchObject({ target: '1,0' });
+  }
+});

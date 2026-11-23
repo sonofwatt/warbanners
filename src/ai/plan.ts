@@ -1,8 +1,8 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
   CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, guardOf, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
-  parseKey, reachable, roadRefusal, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+  canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, defenceOf, distance, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
+  parseKey, reachable, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
@@ -77,7 +77,7 @@ function canKillThisTurn(b: MatchState, u: Unit): boolean {
   const at = parseKey(u.pos);
   const atk = attackOf(b, u) * healthFactor(u);
   return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
-    && damageFor(atk, guardOf(b, e, u), coverAt(b, e)) >= e.hp);
+    && strikeDamage(b, e, u, atk) >= e.hp);
 }
 
 // Units are taken killers first, then ranged, melee, supports, the Camp, the rest.
