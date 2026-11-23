@@ -5,7 +5,7 @@ export { hashState, canonical } from './hash';
 export { rngNext, rngInt } from './rng';
 export { playerView, visibleTiles } from './vision';
 export { reachable, maxMp } from './movement';
-export { attackTargets, attackOf, baseAttackOf, defenceOf, guardOf, statsOf, coverAt, damageFor, lureApplies } from './combat';
+export { attackTargets, attackOf, baseAttackOf, bracedAgainst, defenceOf, guardOf, isBraced, statsOf, coverAt, damageFor, lureApplies } from './combat';
 export { abilityTargets } from './abilities';
 export { canCapture, canClaimTreasure } from './capture';
 export { canUseItem, useItemRefusal } from './items';

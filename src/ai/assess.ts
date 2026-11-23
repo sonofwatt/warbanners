@@ -83,7 +83,7 @@ function strikeOf(b: MatchState, u: Unit): number {
   let best = 0;
   for (const e of b.units) {
     if (e.owner === u.owner || distance(at, parseKey(e.pos)) > def.range) continue;
-    const dmg = damageFor(atk, guardOf(b, e), coverAt(b, e));
+    const dmg = damageFor(atk, guardOf(b, e, u), coverAt(b, e));
     best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
   return STRIKE_SHARE * best;

@@ -77,7 +77,7 @@ function canKillThisTurn(b: MatchState, u: Unit): boolean {
   const at = parseKey(u.pos);
   const atk = attackOf(b, u) * healthFactor(u);
   return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
-    && damageFor(atk, guardOf(b, e), coverAt(b, e)) >= e.hp);
+    && damageFor(atk, guardOf(b, e, u), coverAt(b, e)) >= e.hp);
 }
 
 // Units are taken killers first, then ranged, melee, supports, the Camp, the rest.

@@ -38,20 +38,35 @@ export function attackOf(s: MatchState, u: Unit): number {
   return inspired ? base + CONFIG.inspireAtk : base;
 }
 
+// Friendly phalanx units next to a phalanx unit (0 for any other unit).
+function phalanxMates(s: MatchState, u: Unit): number {
+  if (!hasTrait(u, 'phalanx')) return 0;
+  const here = parseKey(u.pos);
+  return s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
+    && distance(here, parseKey(n.pos)) === 1).length;
+}
+
 // Base defence plus Hardy and the myth touch, plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
 export function defenceOf(s: MatchState, u: Unit): number {
   const base = UNITS[u.type].def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0)
     + (mythTouched(s, u) ? CONFIG.heroes.mythDef : 0);
-  if (!hasTrait(u, 'phalanx')) return base;
-  const here = parseKey(u.pos);
-  const mates = s.units.filter((n) => n.id !== u.id && n.owner === u.owner && hasTrait(n, 'phalanx')
-    && distance(here, parseKey(n.pos)) === 1).length;
-  return base + Math.min(CONFIG.phalanxMax, mates * CONFIG.phalanxBonus);
+  return base + Math.min(CONFIG.phalanxMax, phalanxMates(s, u) * CONFIG.phalanxBonus);
 }
 
-// rules 7: the defence a unit has when it is attacked: defenceOf plus the hunker bonus (cover multiplies after).
-export function guardOf(s: MatchState, u: Unit): number {
-  return defenceOf(s, u) + hunkerDef(u);
+// rules 7, phalanx brace: a phalanx unit with at least CONFIG.brace.mates friendly phalanx units beside it.
+export function isBraced(s: MatchState, u: Unit): boolean {
+  return phalanxMates(s, u) >= CONFIG.brace.mates;
+}
+
+// rules 7: the brace counts only when a chain unit attacks the braced unit.
+export function bracedAgainst(s: MatchState, target: Unit, attacker: Unit): boolean {
+  return hasTrait(attacker, 'chain') && isBraced(s, target);
+}
+
+// rules 7: the defence a unit has when this attacker attacks it: defenceOf plus the hunker bonus, plus the brace
+// against a chain attacker (cover multiplies after). Never used for a counter-attack.
+export function guardOf(s: MatchState, u: Unit, attacker: Unit): number {
+  return defenceOf(s, u) + hunkerDef(u) + (bracedAgainst(s, u, attacker) ? CONFIG.brace.def : 0);
 }
 
 // rules 10
@@ -104,7 +119,8 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   const attackerFrom = attacker.pos;
 
   const effAtk = attackOf(s, attacker) * healthFactor(attacker);
-  const damage = damageFor(effAtk, guardOf(s, target), coverAt(s, target));
+  const braced = bracedAgainst(s, target, attacker);       // judged now, before the target can fall
+  const damage = damageFor(effAtk, guardOf(s, target, attacker), coverAt(s, target));
   target.hp -= damage;
   const targetDied = target.hp <= 0;
 
@@ -127,9 +143,10 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     ev.push({ type: 'died', unit: target.id });
     kills += 1;
     // rules 5: the kill costs a chain unit health, never below 1, then grants the extra attack. Its event follows the
-    // advance, so the number shows where the rider ends up.
+    // advance, so the number shows where the rider ends up. rules 7: a braced target stops the chain: no extra attack,
+    // and so no health cost either.
     let chainLost = 0;
-    if (hasTrait(attacker, 'chain')) {
+    if (hasTrait(attacker, 'chain') && !braced) {
       chainLost = Math.max(0, Math.min(CONFIG.chainKillCost, attacker.hp - 1));
       attacker.hp -= chainLost;
       attacker.attacks += 1;

@@ -51,6 +51,9 @@ export const CONFIG = deepFreeze({
   // seen enemy a hunkered unit still heals the regular resting heal times besideEnemyShare, rounded up. Off removes the
   // action; only the provenance tests turn it off.
   hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5 },
+  // rules 7, phalanx brace: a phalanx unit with at least `mates` friendly phalanx units beside it is braced. Against a
+  // chain attacker it has +def defence (before cover), and a chain kill of it grants no extra attack and costs no health.
+  brace: { mates: 2, def: 2 },
   treasure: {
     gold: 5, exploreRadius: 4, unit: 'warrior',
     table: ['gold', 'explore', 'unit', 'relic', 'draught', 'map', 'mercenary'],
@@ -98,6 +101,7 @@ export const CONFIG = deepFreeze({
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number; chainKillCost: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
   hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number };
+  brace: { mates: number; def: number };
   treasure: {
     gold: number; exploreRadius: number; unit: string; table: readonly TreasureOutcome[];
     mapRadius: number; mercenary: UnitTypeId; mercenaryTrait: HeroTraitId;
