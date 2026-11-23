@@ -32,14 +32,15 @@ test('a killing blow: lunge, number, fall, in order', () => {
   expect(effectsFor(r.events, s, r.state, new Set(['0,0']), everyone(s, r.state), 0).filter((f) => 'at' in f && f.at === '1,0')).toEqual([]);
 });
 
-test('a knight kill shows its chain cost as a hurt number on the tile it rode into', () => {
+test('a knight kill shows the momentum it paid in the hero tone on the tile it rode into', () => {
   const s = blankMatch();
   const knight = addUnit(s, 'knight', 0, 0, 0);
   addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
   const r = applyAction(s, { type: 'attack', unit: knight.id, target: '1,0' });
   if (!r.ok) throw new Error(r.reason);
   const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state), 0);
-  expect(fx.at(-1)).toMatchObject({ kind: 'number', at: '1,0', text: `-${CONFIG.chainKillCost}`, tone: 'hurt' });
+  expect(fx.at(-1)).toMatchObject({ kind: 'number', at: '1,0', text: T.ui.momentumSpent(CONFIG.momentum.price.warrior), tone: 'hero' });
+  expect(T.ui.momentumSpent(2)).toBe('-2 momentum');
 });
 
 test('the fall comes 120 ms after the blow', () => {

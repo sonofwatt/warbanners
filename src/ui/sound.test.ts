@@ -90,7 +90,7 @@ test('new events have their own sounds', () => {
   expect(soundFor([{ type: 'researched', tech: 'bronze' }], hear([], TILES, 0))).toBe('research');
   expect(soundFor([{ type: 'treasure', at: '0,0', outcome: 'gold' } as never], ALL)).toBe('treasure');
   expect(soundFor([{ type: 'heroTrait', unit: 1, trait: 'fierce', hero: false }], ALL)).toBe('levelUp');
-  expect(soundFor([{ type: 'chainCost', unit: 1, damage: 1 }], ALL)).toBe('chainCost');
+  expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], ALL)).toBe('chainCost');
   expect(soundFor([{ type: 'built', at: '0,0', what: 'road' }], ALL)).toBe('build');
 });
 
@@ -100,7 +100,7 @@ test('the most rewarding event wins', () => {
     capture: { type: 'captured', city: 0, by: 1 },
     levelUp: { type: 'heroTrait', unit: 1, trait: 'fierce', hero: false },
     fall: { type: 'died', unit: 2 },
-    chainCost: { type: 'chainCost', unit: 1, damage: 1 },
+    chainCost: { type: 'momentum', unit: 1, spent: 2, left: 5 },
     hit: { type: 'attacked', unit: 1, target: 2, damage: 3, counter: 0 },
     train: { type: 'trained', unit: 1, at: '0,0' },
     treasure: { type: 'treasure', at: '0,0', outcome: 'gold' },
@@ -115,11 +115,11 @@ test('the most rewarding event wins', () => {
   }
 });
 
-test('chain cost and level up are heard only for a unit the viewer can see', () => {
+test('momentum and level up are heard only for a unit the viewer can see', () => {
   const seen = hear([2]);
-  expect(soundFor([{ type: 'chainCost', unit: 1, damage: 1 }], seen)).toBeNull();
+  expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], seen)).toBeNull();
   expect(soundFor([{ type: 'heroTrait', unit: 1, trait: 'fierce', hero: false }], seen)).toBeNull();
-  expect(soundFor([{ type: 'chainCost', unit: 1, damage: 1 }], hear([1]))).toBe('chainCost');
+  expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], hear([1]))).toBe('chainCost');
 });
 
 test('the take picker never repeats the last take when there are three', () => {

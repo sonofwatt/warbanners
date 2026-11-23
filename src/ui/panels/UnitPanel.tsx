@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, isHero } from '../../engine';
+import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, isHero, momentumStart } from '../../engine';
 import type { DeedId, FactionId, Unit, statsOf } from '../../engine';
 import { BootIcon, HeartIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
@@ -47,6 +47,11 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
       {unit.heroTraits.length > 0 ? (
         <ul className="traits earned" aria-label={T.ui.heroTraits}>
           {unit.heroTraits.map((t) => <li key={t}><strong>{T.heroTrait[t].name}</strong><span>{T.heroTrait[t].blurb}</span></li>)}
+        </ul>
+      ) : null}
+      {def.traits.includes('chain') ? (
+        <ul className="traits momentum" aria-label={T.ui.momentum}>
+          <li><strong>{T.ui.momentumLeft(unit.momentum, momentumStart(type))}</strong><span>{T.ui.momentumBlurb}</span></li>
         </ul>
       ) : null}
       {unit.hunkered ? (

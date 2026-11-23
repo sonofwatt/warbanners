@@ -77,9 +77,9 @@ test("a Mongol rider's card names the riding by territory rule; a Spartan rider'
   expect(card('warrior', 'mongols')).not.toContain(T.ui.ridingByTerritory);
   expect(T.trait.mounted.blurb).not.toContain('Mongol');
 });
-test("a Knight's card says a kill that earns a hero trait ends the chain", () => {
+test("a Knight's card says momentum pays for the chain and a kill that earns a hero trait ends it", () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans')} commands={[]} onCommand={noop} />);
-  expect(html).toContain('A kill that earns a hero trait ends the chain.');
+  expect(html).toContain('A kill costs momentum'); expect(html).toContain('as does a kill that earns a hero trait.');
 });
 test('the city panel shows growth, units and a row of units to train', () => {
   const c = open.cities[0]!;
@@ -213,4 +213,14 @@ test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
   }
   const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
   expect(plain).not.toContain(`aria-label="${T.ui.hunkered}"`);
+});
+test('rules 7: a chain unit shows its momentum left of its start, any viewer; a unit without chain shows none', () => {
+  for (const own of [true, false]) {
+    const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans', { momentum: 5 }, own)} commands={[]} onCommand={noop} />);
+    expect(html).toContain(`aria-label="${T.ui.momentum}"`); expect(html).toContain('Momentum 5 of 7');
+  }
+  const guard = renderToStaticMarkup(<UnitPanel {...lone('khansGuard', 'mongols', {})} commands={[]} onCommand={noop} />);
+  expect(guard).toContain('Momentum 8 of 8');
+  const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
+  expect(plain).not.toContain(`aria-label="${T.ui.momentum}"`);
 });
