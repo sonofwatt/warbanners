@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
 import { expect, test } from 'vitest';
-import { RULES_VERSION } from '../../engine';
+import { CONFIG, RULES_VERSION } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import { createAppStore } from '../../app/store';
 import type { Deps } from '../../app/store';
@@ -186,11 +186,13 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
 });
 
-test('with equal start gold, setup says only who moves first; a gold difference is still told', () => {
+test('setup tells the second seat\'s extra start gold; with equal gold it says only who moves first', () => {
   const { store } = fakeStore();
   const html = render(store, <Setup />);
-  expect(html).not.toContain('more gold');
-  expect(html).toContain(`>${fill(T.ui.firstMoves, { first: T.ui.playerOne })}<`);
+  const extra = CONFIG.startGold[1] - CONFIG.startGold[0];                 // 2 since rules 7: the second seat starts with 12 gold
+  expect(extra).toBeGreaterThan(0);
+  expect(html).toContain(`>${fill(T.ui.setupLine, { first: T.ui.playerOne, second: T.ui.playerTwo, n: extra })}<`);
+  expect(html).not.toContain(fill(T.ui.firstMoves, { first: T.ui.playerOne }));
   expect(setupLine('Ann', 'Ben', 0)).toBe('Ann moves first.');
   expect(setupLine('Ann', 'Ben', 2)).toBe('Ann moves first and Ben starts with 2 more gold.');
 });
