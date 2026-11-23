@@ -259,7 +259,10 @@ describe('matches between two AIs end', () => {
     // Hunker (rules 7): '7 spartans' ends in 83 rounds, the Mongols winning, after 90 hunkers in all. Hunkered garrisons hold
     // cities longer. The AI with Hunker against the AI without it, 56 matches at each level, factions and seats swapped:
     // normal 30 to 26, hard 32 to 23 and a stall, so the AI is not worse; this seed is which match stalls.
-    const KNOWN_NORMAL: string[] = ['7 spartans'];
+    // Momentum (rules 7, replacing the chain health cost): '7 spartans' now ends in 51 rounds and '6 spartans' does not
+    // (it ends in 73, the Mongols winning). The same with or without the AI's switch to strikeDamage, so the rule moved
+    // it: still one stall of 16, a different match.
+    const KNOWN_NORMAL: string[] = ['6 spartans'];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
