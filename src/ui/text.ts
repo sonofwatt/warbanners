@@ -214,11 +214,12 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground. A unit that has not moved or acted can Hunker: it holds its tile with ${CONFIG.hunker.def} more defence when attacked and heals more while it rests, until it moves or acts again.`,
+  whatsNew: `New: the first time roads join a city to your capital, both cities gain ${CONFIG.connectGrowth} growth. A captured capital is an ordinary city for its captor, and the best city of the side that lost it becomes the new capital. Lumber camps cost ${CONFIG.buildings.lumberCamp.cost} gold and give ${CONFIG.buildings.lumberCamp.growth} growth, and Markets give ${CONFIG.buildings.market.growth}. The Krypteia Scout now sees only the next tile, so it can step into the fog on open ground. A unit that has not moved or acted can Hunker: it holds its tile with ${CONFIG.hunker.def} more defence when attacked and heals more while it rests, until it moves or acts again. A Hoplite with ${CONFIG.brace.mates} Hoplites beside it is braced: it has ${CONFIG.brace.def} more defence against chain riders, and a chain rider that kills it gets no extra attack.`,
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',
-  hunker: 'Hunker', hunkered: 'Hunkered',
+  hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
+  bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider that kills it gets no extra attack from the kill and loses no health for it.`,
   hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, heals ${CONFIG.hunker.restBonus} more when it rests and ${CONFIG.hunker.abilityHealBonus} more from a Heal, and still heals a little with an enemy beside it. It ends when the unit moves or acts.`,
 } as const;
 

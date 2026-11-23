@@ -10,12 +10,13 @@ import { UnitPicture } from './Picture';
 
 export interface UnitPanelProps {
   unit: Unit; faction: FactionId; stats: ReturnType<typeof statsOf>; myth: boolean;
+  braced?: boolean;                              // rules 7: a Hoplite with enough Hoplite mates beside it
   thresholds: Record<DeedId, number> | null;     // null for a unit the viewer does not own: its deeds stay hidden
   commands: Command[]; onCommand: (c: Command) => void;
 }
 
 // An enemy unit gets the same card with an empty command list.
-export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
+export function UnitPanel({ unit, faction, stats, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
   const riding = def.traits.includes('mounted') && FACTIONS[faction].territoryRiding;     // rules 13, a faction rule rather than a trait
@@ -51,6 +52,11 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
       {unit.hunkered ? (
         <ul className="traits hunkered" aria-label={T.ui.hunkered}>
           <li><strong>{T.ui.hunkered}</strong><span>{T.ui.hunkeredBlurb}</span></li>
+        </ul>
+      ) : null}
+      {braced ? (
+        <ul className="traits braced" aria-label={T.ui.braced}>
+          <li><strong>{T.ui.braced}</strong><span>{T.ui.bracedBlurb}</span></li>
         </ul>
       ) : null}
       {myth ? (

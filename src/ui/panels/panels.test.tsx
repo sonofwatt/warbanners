@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
-import { CONFIG, FACTIONS, UNITS, createMatch, legalActions, statsOf, thresholdOf } from '../../engine';
+import { CONFIG, FACTIONS, UNITS, createMatch, isBraced, legalActions, statsOf, thresholdOf } from '../../engine';
 import type { DeedId, MatchState, Unit } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import type { DigestLine } from '../../app/digest';
@@ -195,6 +195,16 @@ test('the draught line and the myth touch line', () => {
 test('a deed bar never overfills', () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'mongols', { deeds: { fight: 9999, march: 0, survive: 0, rest: 0 } })} commands={[]} onCommand={noop} />);
   expect(html).toContain(`${CONFIG.heroes.thresholds.fight}/${CONFIG.heroes.thresholds.fight}`);
+});
+test('rules 7: a braced Hoplite shows a Braced line, any viewer; an unbraced one does not', () => {
+  const s = blankMatch({ factions: ['spartans', 'mongols'] });
+  const h = addUnit(s, 'hoplite', 0, 0, 0); addUnit(s, 'hoplite', 0, 1, 0);
+  const html = (mine: boolean) => renderToStaticMarkup(<UnitPanel {...panelOf(s, h, mine)} braced={isBraced(s, h)} commands={[]} onCommand={noop} />);
+  expect(html(true)).not.toContain(`aria-label="${T.ui.braced}"`);
+  addUnit(s, 'hoplite', 0, 0, 1);
+  for (const own of [true, false]) {
+    expect(html(own)).toContain(`aria-label="${T.ui.braced}"`); expect(html(own)).toContain(T.ui.bracedBlurb.replace(/'/g, '&#x27;'));
+  }
 });
 test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
   for (const own of [true, false]) {
