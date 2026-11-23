@@ -233,7 +233,7 @@ describe('matches between two AIs end', () => {
   // swings with each rules 7 number (21, 28, 25, 29), so that seating gets its own bound, 33: the last measure plus the
   // four rounds of margin the first had. Spartans first keeps 25.
   test.each([['mongols', 'spartans', 33], ['spartans', 'mongols', 25]] as [FactionId, FactionId, number][])(
-    'at hard on a seeded map, %s first, the match reaches a winner within %i rounds', (first, second, bound) => {
+    'at hard on a seeded map, %s first against %s, the match reaches a winner within %i rounds', (first, second, bound) => {
       expect(aiMatch(3, [first, second], LEVEL_DIAL.hard, bound).winner).not.toBeNull();
     }, 120_000);
 

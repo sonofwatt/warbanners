@@ -101,7 +101,7 @@ test.each([1, 2, 3, 4, 5, 6])('seed %i: abilities in random play keep every inva
   let again = start;
   for (const a of log) again = must(applyAction(again, a));
   expect(hashState(again)).toBe(hashState(s));
-});
+}, 30_000);   // seed 6 took over the default 5 s once Spartan cities level sooner (rules 7), as its game now runs the full 60 turns
 test('the ability soak applied every ability at least once', () => {
   expect(abilityCounts.heal).toBeGreaterThan(0);
   expect(abilityCounts.taunt).toBeGreaterThan(0);
