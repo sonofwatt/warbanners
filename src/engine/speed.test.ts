@@ -31,7 +31,7 @@ test.each([
   expect(acts).toHaveLength(count);
   expect(digest(acts)).toBe(legal);
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
-}, 30_000);
+}, 120_000);   // since rules 7's levers seed 7 to turn 160 takes about 25 s to build here, and more on a CI runner
 test('legalActions on a 25-unit position is fast', () => {
   const s = randomPlayout(4, 104);              // re-picked for rules 7's Spartan growth discount and 12 start gold: (9, 256) has 26 units now, and seed 5's 25-unit turns have 684 legal actions (14 ms); this one has 203 legal actions; earlier (9, 256) for rules 7's Hunker: (9, 274) has 26 units now; this one has 208 legal actions and takes about 3.6 ms; earlier (9, 274) re-picked for rules 7's Lumber camp cost 4: (8, 292) has 29 units now, and the even 25-unit turns of seed 4 take 8 ms, not about 5; this one has 255 legal actions and takes 4.3 ms; earlier (8, 292) re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
   expect(s.units).toHaveLength(25);

@@ -50,15 +50,15 @@ test('never a hopeless charge, never a lure onto its own city', () => {
 });
 test('the deadline ends the turn early with legal actions', () => {
   let t = 0; const now = () => (t += 10);
-  const plan = planTurn(aiInputFor(randomPlayout(7, 160), 0), { dial: 1, seed: 1, refused: [], now, deadlineMs: 100 });
+  const plan = planTurn(aiInputFor(fixtures()[0]!, 0), { dial: 1, seed: 1, refused: [], now, deadlineMs: 100 });   // seed 7, turn 160
   expect(plan.cutShort).toBe(true);
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
-}, 30_000);
+}, 120_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(9, 256), 0);         // 25 units; re-picked for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
+  const input = aiInputFor(randomPlayout(4, 104), 0);         // 25 units; re-picked for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
-  expect(performance.now() - t0).toBeLessThan(1200);   // rules 7: about 500 ms on ClaudeComputer and 843 on a loaded CI runner; 0.4.11's position took about 320 against 800, so this keeps that headroom
+  expect(performance.now() - t0).toBeLessThan(800);
   expect(plan.cutShort).toBe(false);
 }, 30_000);
 
