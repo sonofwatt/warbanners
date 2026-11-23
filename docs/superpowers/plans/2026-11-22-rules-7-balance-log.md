@@ -42,3 +42,16 @@ seats start with 10 gold (`CONFIG.startGold`). On top of C:
 - If it holds, put `growthExtra: -1` for the Spartans and `startGold: [10, 13]` into the rules file with a changelog
   line, then the whole-branch review, merge and deploy 0.5.0 (rooms checked first).
 - Raw outputs: the private `warbanners-workspace` repo, `sim-results/`.
+
+## Rerun with hunker in (f3a4275, 2026-11-22)
+
+Same command and seeds. The phalanx brace (b41a1fb and before) is not in these runs; the AI almost never braces.
+
+| Setup | Spartans normal | Spartans hard | Seats normal (first / second) | Seats hard (first / second) | Stalls normal / hard |
+|---|---|---|---|---|---|
+| Rules 7 with hunker | 22.3% | 23.8% | 54.0 / 41.8 | 48.3 / 49.5 | 8.5% / 4.5% |
+| C | 47.3% | 43.0% | 57.8 / 37.5 | 55.3 / 41.8 | 9.5% / 6.0% |
+| C, start gold 10, 13 | 45.3% | 45.3% | 47.3 / 46.5 | 44.5 / 53.5 | 12.5% / 4.0% |
+
+C with 13 gold for the second seat evens the seats at normal and slightly over-corrects at hard. Raw outputs: the
+workspace repo, `sim-results/` (hk-*.txt).
