@@ -49,13 +49,13 @@ test('a captured capital is an ordinary city for its captor: no capital income, 
   const two = applyAction(one, { type: 'road', at: '-2,2' });
   if (!two.ok) throw new Error(two.reason);
   expect(two.events).toContainEqual({ type: 'connected', city: theirs.id, capital: mine.id });
-  expect(cityById(two.state, theirs.id)).toMatchObject({ linked: true, growth: 1 });
-  expect(cityById(two.state, mine.id)!.growth).toBe(1);
+  expect(cityById(two.state, theirs.id)).toMatchObject({ linked: true, level: 2, growth: 0 });   // the 1 paid fills a Spartan level 1 bar
+  expect(cityById(two.state, mine.id)).toMatchObject({ level: 2, growth: 0 });
   const three = applyAction(two.state, { type: 'road', at: '-1,0' });
   if (!three.ok) throw new Error(three.reason);
   expect(three.events.some((e) => e.type === 'connected')).toBe(false);
-  expect(cityById(three.state, theirs.id)!.growth).toBe(1);
-  expect(cityById(three.state, mine.id)!.growth).toBe(1);
+  expect(cityById(three.state, theirs.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(three.state, mine.id)).toMatchObject({ level: 2, growth: 0 });
 });
 
 // The loser (player 1) holds a capital at 0,0 and the cities each case adds; player 0's capital is far away.
