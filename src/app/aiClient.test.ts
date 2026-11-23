@@ -19,7 +19,7 @@ function fake(): Fake {
   return w;
 }
 let cached: ReturnType<typeof aiInputFor> | undefined;
-const input = () => (cached ??= aiInputFor(randomPlayout(7, 160), 0));
+const input = () => (cached ??= aiInputFor(randomPlayout(7, 60), 0));   // any mid-game input will do: the worker is faked, and (7, 160) takes over 20 s to build since rules 7
 const stub = (n: number): Plan => ({ actions: [{ type: 'endTurn' }], expect: [`k${n}`], evals: n, cutShort: false });
 
 test('answers come back by id and stale ones are ignored', async () => {
