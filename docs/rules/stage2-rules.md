@@ -182,3 +182,6 @@ the trait sizes and the treasure table are the first draft, kept. Every run is i
   first, and a Fierce trait still heals its new health at once. The engine emits `{ type: 'chainEnded', unit }` after the
   `heroTrait` event, and the board shows "Chain ends" on the unit; the Chain trait text says so too.
   `CONFIG.levelUpEndsChain` switches the rule (on).
+- A braced Hoplite stops the chain (rules 7): when a chain unit kills a Hoplite that had at least two friendly Hoplites
+  beside it as the attack was made, the kill grants no extra attack and so costs no chain health (no `chainCost` event).
+  The kill still counts for deeds and everything else. `CONFIG.brace` holds the numbers.
