@@ -8,7 +8,11 @@ import { draughtFinish, hiddenScout, hopelessCharge, killOrChip, lureFromCity, p
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
 
-const fixtures = () => [randomPlayout(7, 160), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })];
+// Built once and shared: the engine never mutates a state it is given. Since the rules 7 Spartan growth discount and 12 start
+// gold the random playouts hold more units and take about 44 s to build (seed 7 to turn 160 alone 25 s), so the first test
+// to ask pays that and has a 120 s limit; the rest find them ready.
+let cached: MatchState[] | null = null;
+const fixtures = (): MatchState[] => (cached ??= [randomPlayout(7, 160), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })]);
 test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is played, dial %f', (dial) => {
   for (const s of fixtures()) {
     const input = aiInputFor(s, s.current);
@@ -22,12 +26,12 @@ test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is pla
     expect(plan.actions.some(a => a.type === 'resign')).toBe(false);
     expect(plan.evals).toBeLessThanOrEqual(skillFor(dial).evals);
   }
-}, 30_000);
+}, 120_000);
 test('same input and seed give the same plan; another seed may differ only below hard', () => {
-  const input = aiInputFor(randomPlayout(7, 160), 0);
+  const input = aiInputFor(fixtures()[0]!, 0);
   expect(planTurn(input, { dial: 0.5, seed: 9, refused: [] })).toEqual(planTurn(structuredClone(input), { dial: 0.5, seed: 9, refused: [] }));
   expect(planTurn(input, { dial: 1, seed: 9, refused: [] })).toEqual(planTurn(input, { dial: 1, seed: 10, refused: [] }));
-}, 30_000);
+}, 120_000);
 test('a refused action is never planned again', () => {
   const { state } = hiddenScout();
   const input = aiInputFor(state, 1);
