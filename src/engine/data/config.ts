@@ -41,9 +41,6 @@ export const CONFIG = deepFreeze({
   },
   techBase: [4, 6, 8],
   counterFactor: 0.75, steadfastFactor: 1.25, damageScale: 2.5, splashDivisor: 2,
-  // rules 5: a chain unit loses this much health for each kill it makes with its own attack, never below 1. Picked by
-  // simulated matches (docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md).
-  chainKillCost: 2,
   // rules 6: a chain unit that earns a hero trait from its own attack gets no extra attack from that kill.
   levelUpEndsChain: true,
   restHeal: { home: 4, neutral: 2, enemy: 1 }, abilityHeal: 4, hastenMp: 2, phalanxMax: 2, phalanxBonus: 1, tauntRange: 2, inspireAtk: 1, dustStormRange: 2,
@@ -52,8 +49,22 @@ export const CONFIG = deepFreeze({
   // action; only the provenance tests turn it off.
   hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5 },
   // rules 7, phalanx brace: a phalanx unit with at least `mates` friendly phalanx units beside it is braced. Against a
-  // chain attacker it has +def defence (before cover), and a chain kill of it grants no extra attack and costs no health.
+  // chain attacker it has +def defence (before cover), and it costs the momentum bracedPrice in place of its own price.
   brace: { mates: 2, def: 2 },
+  // rules 7, momentum (replaces the rules 5 chain health cost): a chain unit starts each of its owner's turns with
+  // start[type]. A kill costs the dead unit's price; a paid kill gives one more attack. An attack whose price is more
+  // than the momentum left does 1 less damage per missing point (never below 1), gives no extra attack and sets the
+  // momentum to 0. Draft prices (docs/superpowers/plans/2026-11-23-momentum.md).
+  momentum: {
+    start: { knight: 7, khansGuard: 8 } as Partial<Record<UnitTypeId, number>>,
+    price: {
+      scout: 0,
+      warrior: 1, archer: 1, horseman: 1, spearman: 1, catapult: 1, piper: 1, skyCaller: 1,
+      hoplite: 2, swordsman: 2, horseArcher: 2, knight: 2, sellsword: 2, camp: 2,
+      defender: 3, kingsGuard: 3, khansGuard: 3,
+    },
+    bracedPrice: 4,
+  },
   treasure: {
     gold: 5, exploreRadius: 4, unit: 'warrior',
     table: ['gold', 'explore', 'unit', 'relic', 'draught', 'map', 'mercenary'],
@@ -98,10 +109,11 @@ export const CONFIG = deepFreeze({
   capitalIncome: number; capacityBase: number; growthBase: number;
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
-  counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number; chainKillCost: number;
+  counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
   hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number };
   brace: { mates: number; def: number };
+  momentum: { start: Partial<Record<UnitTypeId, number>>; price: Record<UnitTypeId, number>; bracedPrice: number };
   treasure: {
     gold: number; exploreRadius: number; unit: string; table: readonly TreasureOutcome[];
     mapRadius: number; mercenary: UnitTypeId; mercenaryTrait: HeroTraitId;

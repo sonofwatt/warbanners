@@ -7,7 +7,7 @@ import { createMatch } from './state';
 import type { Action, MatchState } from './types';
 
 // With stage 2 switched off through CONFIG alone (no trait can be earned, a treasure draws among stage 1's
-// three outcomes, since rules 5 a chain kill costs nothing, and since rules 6 the old fog rule, the flat Mongol move
+// three outcomes, since rules 7 every momentum price is 0 so a chain kill costs nothing, and since rules 6 the old fog rule, the flat Mongol move
 // bonus of a whole tile and endless chains are back through CONFIG and the faction data, and since rules 7 no connection
 // growth, no capital moves, a growth of 1 for a Lumber camp and a Market, the Lumber camp's old cost of 3, and the Scout's sight of 3 and no Hunker through CONFIG and
 // the unit data), the current rules must replay every recorded rules 3 playout hash for hash. CONFIG is deep-frozen, so the factories build new objects. This file is
@@ -18,7 +18,7 @@ vi.mock('./data/config', async (orig) => {
   return {
     CONFIG: {
       ...m.CONFIG,
-      chainKillCost: 0,
+      momentum: { ...m.CONFIG.momentum, price: Object.fromEntries(Object.keys(m.CONFIG.momentum.price).map((k) => [k, 0])), bracedPrice: 0 },
       closedFog: false,
       levelUpEndsChain: false,
       connectGrowth: 0,
@@ -51,10 +51,10 @@ interface Fixture {
 }
 const fixture = JSON.parse(readFileSync(new URL('./stage1.fixture.json', import.meta.url), 'utf8')) as Fixture;
 
-// Strip what plan 5, rules 6 and rules 7 (with hunker) added, so a stage 1 state hashes as it did on rules 3.
+// Strip what plan 5, rules 6 and rules 7 (with hunker and momentum) added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
   return {
-    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, hunkered: _k, ...rest }) => rest),
+    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, hunkered: _k, momentum: _m, ...rest }) => rest),
     cities: s.cities.map(({ linked: _l, ...rest }) => rest),
   };
 }

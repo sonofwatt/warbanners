@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { applyAction } from './apply';
 import { CONFIG } from './data/config';
-import { bracedAgainst, coverAt, damageFor, defenceOf, guardOf, isBraced } from './combat';
+import { bracedAgainst, coverAt, damageFor, defenceOf, guardOf, isBraced, momentumPrice } from './combat';
 import { UNITS } from './data/units';
 import { unitById } from './state';
 import { addUnit, blankMatch, must, setTile } from './testkit';
 import type { MatchState, Unit, UnitTypeId } from './types';
 
 // rules 7, phalanx brace: a Hoplite with at least CONFIG.brace.mates friendly Hoplites beside it has CONFIG.brace.def
-// more defence against a chain attacker, and a chain kill of it grants no extra attack and costs no chain health.
+// more defence against a chain attacker, and a chain kill of it costs CONFIG.momentum.bracedPrice momentum.
 const brace = CONFIG.brace;
 
 // Player 0's attacker at 0,0; player 1's Hoplite at 1,0. Mates go on 2,0 and 2,-1: next to the Hoplite, out of the
@@ -96,32 +96,21 @@ describe('phalanx brace: defence', () => {
   });
 });
 
-describe('phalanx brace: the chain stops', () => {
-  test('killing a braced Hoplite grants no extra attack and costs no health; the kill still counts', () => {
-    const { s, a, h } = line('knight', 2, { hp: 1 });
-    addUnit(s, 'warrior', 1, 0, 1);                    // a second target that a chain could reach
-    const r = attack(s, a); const t = must(r);
-    expect(unitById(t, h.id)).toBeUndefined();
-    expect(unitById(t, a.id)).toMatchObject({ hp: 15, attacks: 0, acted: true, pos: '1,0' });
-    expect(r.ok && r.events.some((e) => e.type === 'chainCost')).toBe(false);
-    expect(r.ok && r.events).toContainEqual({ type: 'died', unit: h.id });
-    expect(unitById(t, a.id)!.deeds.fight).toBe(CONFIG.heroes.fightPerAttack + CONFIG.heroes.fightPerKill);
+// The rules 7 brace chain-stop tests were replaced: momentum (rules 7) prices a braced Hoplite at
+// CONFIG.momentum.bracedPrice instead (momentum.test.ts covers the price, the cut and the chain).
+describe('phalanx brace: the momentum price', () => {
+  test('a braced Hoplite costs the braced price, an unbraced one its own price; the kill still counts', () => {
+    const two = line('knight', 2, { hp: 1 });
+    const one = line('knight', 1, { hp: 1 });
+    expect(momentumPrice(two.s, two.h, two.a)).toBe(CONFIG.momentum.bracedPrice);
+    expect(momentumPrice(one.s, one.h, one.a)).toBe(CONFIG.momentum.price.hoplite);
+    const r = attack(two.s, two.a); const t = must(r);
+    expect(unitById(t, two.h.id)).toBeUndefined();
+    expect(unitById(t, two.a.id)).toMatchObject({ hp: 15, attacks: 1, momentum: CONFIG.momentum.start.knight! - CONFIG.momentum.bracedPrice, pos: '1,0' });
+    expect(unitById(t, two.a.id)!.deeds.fight).toBe(CONFIG.heroes.fightPerAttack + CONFIG.heroes.fightPerKill);
   });
-  test('killing an unbraced Hoplite chains as before', () => {
-    const { s, a } = line('knight', 1, { hp: 1 });
-    const t = must(attack(s, a));
-    expect(unitById(t, a.id)).toMatchObject({ hp: 15 - CONFIG.chainKillCost, attacks: 1 });
-  });
-  test("the Khan's Guard is stopped too", () => {
+  test("the Khan's Guard pays the braced price too", () => {
     const { s, a } = line('khansGuard', 2, { hp: 1 });
-    const r = attack(s, a); const t = must(r);
-    expect(unitById(t, a.id)).toMatchObject({ hp: 20, attacks: 0 });
-    expect(r.ok && r.events.some((e) => e.type === 'chainCost')).toBe(false);
-  });
-  test('the brace is judged before the Hoplite falls, so a killed braced Hoplite still stops the chain', () => {
-    // After the kill the dead Hoplite is gone, and its mates are braced by nobody; the stop still applies.
-    const { s, a } = line('knight', 2, { hp: 1 });
-    const t = must(attack(s, a));
-    expect(unitById(t, a.id)!.attacks).toBe(0);
+    expect(unitById(must(attack(s, a)), a.id)).toMatchObject({ hp: 20, attacks: 1, momentum: CONFIG.momentum.start.khansGuard! - CONFIG.momentum.bracedPrice });
   });
 });

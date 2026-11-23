@@ -164,75 +164,21 @@ test('walls raise a Mongol city cover: a Mongol warrior takes 4 from a full Warr
   expect(unitById(must(applyAction(s, { type: 'attack', unit: a.id, target: '1,0' })), d.id)!.hp).toBe(6);
 });
 
-// rules 5: a chain unit pays CONFIG.chainKillCost health for each kill it makes with its own attack, never below 1.
-const cost = CONFIG.chainKillCost;
-test('a chain kill costs the rider health and still grants the extra attack', () => {
-  expect(cost).toBeGreaterThan(0);
-  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0);
-  const w1 = addUnit(s, 'warrior', 1, 1, 0, { hp: 8 }); addUnit(s, 'warrior', 1, 0, 1);
-  const r = applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }); const t = must(r);
-  expect(unitById(t, k.id)).toMatchObject({ hp: 15 - cost, attacks: 1 });
-  expect(r.ok && r.events).toEqual([
-    { type: 'attacked', unit: k.id, target: w1.id, damage: 10, counter: 0 },
-    { type: 'died', unit: w1.id },
-    { type: 'advanced', unit: k.id, from: '0,0', to: '1,0' },
-    { type: 'chainCost', unit: k.id, damage: cost },
-  ]);
-});
-test('the chain cost stops at 1 health', () => {
-  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0, { hp: 2 }); addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
-  const r = applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }); const t = must(r);
-  expect(unitById(t, k.id)).toMatchObject({ hp: 1, attacks: 1 });
-  expect(r.ok && r.events).toContainEqual({ type: 'chainCost', unit: k.id, damage: 1 });
-  const s1 = blankMatch(); const k1 = addUnit(s1, 'knight', 0, 0, 0, { hp: 1 }); addUnit(s1, 'warrior', 1, 1, 0, { hp: 1 });
-  const r1 = applyAction(s1, { type: 'attack', unit: k1.id, target: '1,0' }); const t1 = must(r1);
-  expect(unitById(t1, k1.id)).toMatchObject({ hp: 1, attacks: 1 });
-  expect(r1.ok && r1.events.some((e) => e.type === 'chainCost')).toBe(false);   // nothing lost, nothing to show
-});
-test('no chain cost when the attack does not kill', () => {
-  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0); addUnit(s, 'defender', 1, 1, 0);
-  const r = applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }); const t = must(r);
-  const counter = r.ok ? (r.events.find((e) => e.type === 'attacked') as { counter: number }).counter : -1;
-  expect(counter).toBeGreaterThan(0);
-  expect(unitById(t, k.id)).toMatchObject({ hp: 15 - counter, attacks: 0 });
-  expect(r.ok && r.events.some((e) => e.type === 'chainCost')).toBe(false);
-});
-test('no chain cost when a knight kills by counterattack', () => {
-  const s = blankMatch(); const w = addUnit(s, 'warrior', 0, 0, 0, { hp: 1 }); const k = addUnit(s, 'knight', 1, 1, 0);
-  const r = applyAction(s, { type: 'attack', unit: w.id, target: '1,0' }); const t = must(r);
-  expect(unitById(t, w.id)).toBeUndefined();
-  const damage = r.ok ? (r.events.find((e) => e.type === 'attacked') as { damage: number }).damage : -1;
-  expect(unitById(t, k.id)!.hp).toBe(15 - damage);
-  expect(r.ok && r.events.some((e) => e.type === 'chainCost')).toBe(false);
-});
-test("the Khan's Guard pays the chain cost too", () => {
-  const s = blankMatch({ factions: ['mongols', 'spartans'] }); const g = addUnit(s, 'khansGuard', 0, 0, 0);
-  addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
-  const r = applyAction(s, { type: 'attack', unit: g.id, target: '1,0' }); const t = must(r);
-  expect(unitById(t, g.id)).toMatchObject({ hp: 20 - cost, attacks: 1 });
-  expect(r.ok && r.events).toContainEqual({ type: 'chainCost', unit: g.id, damage: cost });
-});
-test('the chain cost earns no survive deed and leaves the fight deed as it was', () => {
-  const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
-  const t = must(applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }));
-  expect(unitById(t, k.id)!.deeds).toMatchObject({
-    fight: CONFIG.heroes.fightPerAttack + CONFIG.heroes.fightPerKill, survive: 0,
-  });
-});
+// The rules 5 chain health cost tests were replaced by momentum.test.ts (rules 7).
 
 // rules 6: a chain unit that earns a hero trait from its own attack gets no extra attack from that kill.
-test('a chain unit that earns a trait from a kill gets no extra attack, after paying the chain cost', () => {
+test('a chain unit that earns a trait from a kill gets no extra attack, after paying the momentum', () => {
   expect(CONFIG.levelUpEndsChain).toBe(true);
   const need = CONFIG.heroes.agogeThresholds.fight - CONFIG.heroes.fightPerAttack - CONFIG.heroes.fightPerKill;
   const s = blankMatch(); const k = addUnit(s, 'knight', 0, 0, 0, { deeds: { fight: need, march: 0, survive: 0, rest: 0 } });
   const w = addUnit(s, 'warrior', 1, 1, 0, { hp: 1 }); addUnit(s, 'warrior', 1, 2, 0);
   const r = applyAction(s, { type: 'attack', unit: k.id, target: '1,0' }); const t = must(r);
-  expect(unitById(t, k.id)).toMatchObject({ attacks: 0, acted: true, heroTraits: ['fierce'], hp: 15 - cost + CONFIG.heroes.fierceHp });
+  expect(unitById(t, k.id)).toMatchObject({ attacks: 0, acted: true, heroTraits: ['fierce'], hp: 15 + CONFIG.heroes.fierceHp, momentum: CONFIG.momentum.start.knight! - CONFIG.momentum.price.warrior });
   expect(r.ok && r.events).toEqual([
     { type: 'attacked', unit: k.id, target: w.id, damage: expect.any(Number), counter: 0 },
     { type: 'died', unit: w.id },
     { type: 'advanced', unit: k.id, from: '0,0', to: '1,0' },
-    { type: 'chainCost', unit: k.id, damage: cost },
+    { type: 'momentum', unit: k.id, spent: CONFIG.momentum.price.warrior, left: CONFIG.momentum.start.knight! - CONFIG.momentum.price.warrior },
     { type: 'heroTrait', unit: k.id, trait: 'fierce', hero: false },
     { type: 'chainEnded', unit: k.id },
   ]);

@@ -31,10 +31,10 @@ vi.mock('./data/factions', async (orig) => {
   return { FACTIONS: { ...m.FACTIONS, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
 });
 
-// Strip what plan 5, rules 6 and rules 7 (with hunker) added, so a stage 1 state hashes as it did on rules 3.
+// Strip what plan 5, rules 6 and rules 7 (with hunker and momentum) added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
   return {
-    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, hunkered: _k, ...rest }) => rest),
+    ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, hunkered: _k, momentum: _m, ...rest }) => rest),
     cities: s.cities.map(({ linked: _l, ...rest }) => rest),
   };
 }
@@ -89,7 +89,7 @@ test('until stage 2 first changes an outcome, the current rules (rules 6 movemen
     const r = applyAction(s, actions[i]!);
     expect(r.ok, `action ${i}`).toBe(true);
     if (!r.ok) return;
-    if (r.events.some((e) => e.type === 'treasure' || e.type === 'heroTrait' || e.type === 'chainCost')) break;
+    if (r.events.some((e) => e.type === 'treasure' || e.type === 'heroTrait' || e.type === 'momentum' || e.type === 'chainEnded')) break;
     expect(hashState(stage1Shape(r.state) as MatchState), `after action ${i}`).toBe(hashes[i]);
     s = r.state; matched = i + 1;
   }

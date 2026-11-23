@@ -7,7 +7,9 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned again for rules version 7 (Hunker: a hunker action and a hunkered flag on every unit; every digest moved,
+  // re-pinned again for rules version 7 (momentum replaces the chain health cost and the brace chain stop: a momentum
+  // field on every unit moves every digest; seed 7's playout differs after a Knight's chain kill, so its legal count
+  // moved too; none of the three has ended); before that for rules version 7 (Hunker: a hunker action and a hunkered flag on every unit; every digest moved,
   // none of the three has ended); before that for rules version 7 (a Lumber camp costs 4; every digest moved, none of the three has ended); before
   // that for rules version 7 (a captured capital is an ordinary city and the loser's capital moves, and a
   // Lumber camp and a Market give 2 growth; every digest moved, none of the three has ended); before that for rules
@@ -19,9 +21,9 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 160, 70, 'f825171ec85ebc93', 'a1e04a2ab14cf015', 'bbb5d76fb160d44e'],
-  [1, 90, 176, '416dca60af5213ef', '5f651c225dc50fa5', '4871e5dba3f5ad68'],
-  [3, 90, 95, 'd2585d2f34375988', 'c0c7daa8e450093d', '5261133926207a60'],
+  [7, 160, 122, '2539366c17c975d1', 'f22b2efa3133b73d', '218a4701591cd984'],
+  [1, 90, 176, '416dca60af5213ef', '379df1be6433d72b', '809d5d6f50cfbc36'],
+  [3, 90, 95, 'd2585d2f34375988', '56de48e0e1c87909', 'b6c8b84333b60e86'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);

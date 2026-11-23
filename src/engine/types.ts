@@ -55,6 +55,7 @@ export interface Unit {
   heroTraits: HeroTraitId[];             // in the order earned; public
   item: ItemId | null;                   // a carried one-use item; public
   hunkered: boolean;                     // rules 7: dug in until it moves or acts of its own accord; public
+  momentum: number;                      // rules 7: a chain unit's momentum left this turn (0 for any other unit); public
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {
@@ -97,8 +98,8 @@ export type GameEvent =
   | { type: 'splashed'; target: number; damage: number }
   | { type: 'died'; unit: number }
   | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
-  | { type: 'chainCost'; unit: number; damage: number }             // rules 5: the health a chain unit paid for a kill
-  | { type: 'chainEnded'; unit: number }                             // rules 6: a hero trait from the kill ended the chain
+  | { type: 'momentum'; unit: number; spent: number; left: number } // rules 7: the momentum a chain unit paid for a kill
+  | { type: 'chainEnded'; unit: number }                             // rules 6: a hero trait from the kill ended the chain; rules 7: so does a short kill
   | { type: 'lured'; unit: number; from: HexKey; to: HexKey }
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }

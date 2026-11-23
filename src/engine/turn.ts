@@ -4,7 +4,7 @@ import { addDeed, maxHpOf } from './heroes';
 import { maxMp, ridingBonus } from './movement';
 import { DIRS, add, key, parseKey } from './hex';
 import type { HexKey } from './hex';
-import { cityById, freshAttacks, tileAt, unitAt } from './state';
+import { cityById, freshAttacks, momentumStart, tileAt, unitAt } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
 
@@ -65,6 +65,7 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
     if (u.owner !== next) continue;
     u.mp = maxMp(s, u); u.bonusMp = ridingBonus(s, u);
     u.attacks = freshAttacks(u.type);
+    u.momentum = momentumStart(u.type);   // rules 7
     u.moved = false;
     u.acted = false;
     u.fresh = false;
