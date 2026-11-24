@@ -1,5 +1,5 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, FACTIONS, UNITS } from '../engine';
+import { CONFIG, UNITS } from '../engine';
 import type {
   AbilityId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
