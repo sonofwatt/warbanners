@@ -39,7 +39,7 @@ const code = (t: GlTile | undefined): string =>
  * Make the renderer, or null when this device has no WebGL 2 (the board then stays all SVG). The options are for
  * the art sample and tests: an opaque background, and a drawing buffer kept for reading back.
  */
-export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, opts: { background?: string; keepFrame?: boolean } = {}): Terrain3d | null {
+export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: string; keepFrame?: boolean } = {}): Terrain3d | null {
   let renderer: WebGLRenderer;
   try {
     renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: opts.keepFrame === true });
@@ -51,8 +51,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, o
   // The sea behind the board is the slot's own background, so the canvas is clear where there are no tiles.
   if (opts.background !== undefined) renderer.setClearColor(opts.background, 1);
   else renderer.setClearColor(0x000000, 0);
-  const lost = (e: Event): void => { e.preventDefault(); onLost(); };
-  canvas.addEventListener('webglcontextlost', lost);
+  // A lost context is handled by lifecycle.ts (the board shows SVG) and by three.js itself, which rebuilds its GPU
+  // state when the context is restored; geometry and materials are uploaded again on the next frame.
 
   const shared = {
     uLightDir: { value: new Vector3(-0.55, 0.8, 0.28).normalize() }, // from the upper left, as the SVG art
@@ -154,7 +154,6 @@ export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, o
   }
 
   function dispose(): void {
-    canvas.removeEventListener('webglcontextlost', lost);
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
     cache.clear();
     ground.geometry.dispose();

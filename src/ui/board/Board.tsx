@@ -19,6 +19,7 @@ import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers } from '../terrain3d/input';
 import type { SvgLayers } from '../terrain3d/input';
+import { startTerrain3d } from '../terrain3d/lifecycle';
 import { webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
 
@@ -33,10 +34,8 @@ export interface BoardProps {
   reveal?: { n: number; at: HexKey } | null; // each new n pans, the least it must, to bring the tile at `at` into view
   centre?: { n: number; at: HexKey } | null; // each new n puts the tile at `at` in the middle of the slot (the turn report)
   // The 3D terrain: a WebGL canvas under the svg draws the ground, roads, terrain features and resources, loaded
-  // only when this is on. When the device cannot draw it, or loses the context, onTerrain3dFail is called and the
-  // board stays all SVG.
+  // only when this is on. When the device cannot draw it, or loses the context, the board shows SVG instead.
   terrain3d?: boolean;
-  onTerrain3dFail?: () => void;
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -407,50 +406,42 @@ export function Board(p: BoardProps): ReactElement {
   });
 
   // The 3D terrain. three.js is only downloaded once the option is on (a dynamic import, its own chunk), and the
-  // svg keeps drawing the ground until the terrain has drawn its first frame. A failure (no WebGL 2, the chunk
-  // cannot load, the context is lost) falls back to the all-SVG board and tells the owner, who turns the option off.
+  // svg keeps drawing the ground until the terrain has drawn its first frame. No WebGL 2 or a chunk that cannot
+  // load leaves this board all SVG; a lost context shows SVG until the context is restored. Neither touches the
+  // stored option.
   const glWanted = p.terrain3d === true;
   const [glReady, setGlReady] = useState(false);
   const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius) : null), [glWanted, p.items, p.radius]);
   const glLatest = useRef(glData);
-  const failRef = useRef(p.onTerrain3dFail);
   useLayoutEffect(() => {
     glLatest.current = glData;
-    failRef.current = p.onTerrain3dFail;
   });
   useEffect(() => {
-    if (!glWanted) return undefined;
-    let gone = false;
-    const fail = (): void => {
-      if (gone) return;
-      terrain.current?.dispose();
-      terrain.current = null;
-      setGlReady(false);
-      failRef.current?.();
-    };
-    if (!webgl2Available()) {
-      fail();
-      return undefined;
-    }
-    import('../terrain3d/terrain3d').then((m) => {
-      const canvas = canvasRef.current;
-      if (gone || canvas === null) return;
-      const t = m.createTerrain3d(canvas, fail);
-      if (t === null) { fail(); return; }
-      const d = glLatest.current;
-      if (d !== null) {
-        t.setMap(d.map);
-        t.setVeil(d.veiled);
-      }
-      terrain.current = t;
-      shownGl.current = d === null ? null : { key: d.key, veilKey: d.veilKey };
-      write();
-      setGlReady(true);
-    }, fail);
+    const canvas = canvasRef.current;
+    if (!glWanted || canvas === null) return undefined;
+    const stop = startTerrain3d({
+      canvas,
+      load: () => import('../terrain3d/terrain3d'),
+      hasWebgl2: webgl2Available,
+      ready: (t) => {
+        const d = glLatest.current;
+        if (d !== null) {
+          t.setMap(d.map);
+          t.setVeil(d.veiled);
+        }
+        terrain.current = t;
+        shownGl.current = d === null ? null : { key: d.key, veilKey: d.veilKey };
+        write();
+        setGlReady(true);
+      },
+      fallback: () => {
+        terrain.current = null;
+        setGlReady(false);
+      },
+    });
     return () => {
-      gone = true;
-      terrain.current?.dispose();
       terrain.current = null;
+      stop();
       setGlReady(false);
     };
   }, [glWanted, write]);

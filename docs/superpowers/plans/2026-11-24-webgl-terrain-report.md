@@ -85,11 +85,15 @@ tap). The renderer is the approved art sample ported to TypeScript, with David's
 
 ## Failures
 
-- No WebGL 2 (checked before three.js is fetched), the chunk fails to load (offline before it was ever cached),
-  `WebGLRenderer` throws, or the context is lost: the renderer is disposed, the svg board is whole again on the
-  next render, and Match turns the option off on the device (it shows "3D terrain off" in the menu).
+- The stored option is written only by the player's toggle in the menu. No failure changes it.
+- No WebGL 2 (checked before three.js is fetched), the chunk failing to load (offline before it was ever cached) or
+  `WebGLRenderer` throwing: that board stays all SVG for its life (`src/ui/terrain3d/lifecycle.ts`).
+- A lost context (a phone putting the tab away): the loss is prevented (`preventDefault`) so the browser may restore
+  it, and the board shows the whole SVG board meanwhile. On `webglcontextrestored` three.js rebuilds its GPU state,
+  the terrain rebuilds its map and draws, and the 3D layer comes back.
 - The match ending or being left unmounts the board, which disposes every geometry, material and the renderer and
   releases the context.
+- The service worker keeps at most two `terrain3d-*.js` chunks in its runtime cache, so old releases do not pile up.
 
 ## Light
 

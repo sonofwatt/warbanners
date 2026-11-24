@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
   DEEDS, growthNeeded, isBraced, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
@@ -257,8 +257,6 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const side = sheet !== 'none' || panel !== null;
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
   const toggleTerrain3d = (): void => { setTerrain3d(!terrain3d); setTerrain3dState(!terrain3d); };
-  // No WebGL, or the context was lost: the board is all SVG again and the option goes off on this device.
-  const terrain3dFailed = useCallback((): void => { setTerrain3d(false); setTerrain3dState(false); }, []);
   const waiting = isOnline && !myTurn;
   const nextDisabled = waiting || nextUnitDisabled({
     canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
@@ -314,7 +312,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       />
       <div className="board-slot" data-testid="board-slot">
         <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
-          terrain3d={terrain3d} onTerrain3dFail={terrain3dFailed}
+          terrain3d={terrain3d}
           onTap={peeked !== undefined ? noTap : tap}
           reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
           centre={centred > 0 && peeked !== undefined ? { n: centred, at: peeked.at } : null}
