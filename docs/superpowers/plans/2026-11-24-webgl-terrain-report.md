@@ -105,10 +105,10 @@ tap). The renderer is the approved art sample ported to TypeScript, with David's
 
 ## Sizes (vite build)
 
-- Main chunk before: 499.19 kB (gzip 156.61 kB). After: 503.02 kB (gzip 157.91 kB), so 3.8 kB more (1.3 kB gzipped): the option, the svg layers
+- Main chunk before: 499.19 kB (gzip 156.61 kB). After: 503.34 kB (gzip 158.00 kB), so 4.2 kB more (1.4 kB gzipped): the option, the svg layers
   switch, the map signature, the menu line and the icon. It now passes Vite's 500 kB warning line, which was
   already 0.8 kB away.
-- Lazy chunk `terrain3d-*.js`: 508.37 kB (gzip 132.18 kB), three.js plus the renderer. Not precached.
+- Lazy chunk `terrain3d-*.js`: 508.27 kB (gzip 132.13 kB), three.js plus the renderer. Not precached.
 - CSS 38.07 kB before, 38.17 kB after.
 
 ## Test results
