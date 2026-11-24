@@ -280,14 +280,19 @@ describe('matches between two AIs end', () => {
     // The rules 8 kill advance rule (an advance onto or off a mountain ends the turn): '8 mongols' now ends in 51 rounds,
     // and '4 mongols' (62) and '7 spartans' (76) do not, the Mongols winning both: two stalls of 16, as on rules 7. Only
     // the engine changed in that step, so the rule moved which matches stall. At hard all 16 end.
-    const KNOWN_NORMAL: string[] = ['4 mongols', '7 spartans'];
+    // Rules 8's tuning pass (blockade, Mongol growth and tribute, supports capped, the AI pressing on): all 16 end at
+    // normal, the longest '5 spartans' in 54 (each measured in its own process; the same list as the full SLOW file).
+    const KNOWN_NORMAL: string[] = [];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
     // The unit mix: five unended matches became '5 mongols', '6 mongols' and '7 mongols'. Connecting roads (rules 7,
     // Task 2): all 16 end within 60 rounds (the longest, 6 mongols, in 42). Rules 7, Task 1b: all 16 still end (the
     // longest, 6 mongols, in 51), and with the Lumber camp at 4 gold (the longest, 6 mongols, in 41).
-    const KNOWN_HARD: string[] = [];
+    // Rules 8's tuning pass: '5 spartans' does not end within 60 rounds, the first hard stall of these 16 (every other
+    // ends, the longest in 52); over 200 fresh hard matches stalls fell from 9.5% to 5.5%, so this is which match
+    // stalls, not more stalling. Measured each in its own process and in the full SLOW file: the same list.
+    const KNOWN_HARD: string[] = ['5 spartans'];
     test(`at hard, every match${but(KNOWN_HARD)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);

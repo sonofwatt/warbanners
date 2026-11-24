@@ -49,6 +49,11 @@ test.runIf(process.env.SLOW === '1')('ten normal matches: legal, finished, only 
 // 0.536, 0.164, 0.776, 0.337, 0.584, 0.732, -0.032, 0.147, 0.033, 0.401, -0.056, 0.200 (mean 0.303, 12 of 16 above
 // 0, so the 16-seed bound holds). The old seeds 3 and 8 read -0.430 and 0.337, a mean of -0.047 (-0.236 with the
 // rules 7 AI, 0.056 with a flat mountain credit since dropped). The nearest two to the mean are 8 (0.337) and 14 (0.401).
+// Rules 8's tuning pass: over start seeds 1 to 16 the gaps are 0.212, 0.440, 0.000, -0.222, -0.007, -0.455, 0.000,
+// 0.617, -0.165, 0.212, 0.802, 0.491, 0.000, -0.081, -0.314, 0.000 (mean 0.096, 6 of 16 above 0), so the 16-seed bound
+// fails, as it did after the rules 8 additions (mean 0.067). Seeds 8 and 14 read 0.617 and -0.081. Re-picking the
+// seeds nearest the mean (gaps of 0.000) would hide that, so they stay and the check stays red until the adaptive
+// dial is looked at (2026-11-24-rules8-tuning-report.md).
 const ADAPT_SEEDS = [8, 14];
 test.runIf(process.env.SLOW === '1')('adaptive climbs against a strong opponent and drops against a weak one', () => {
   const gaps = ADAPT_SEEDS.map((seed) => {
