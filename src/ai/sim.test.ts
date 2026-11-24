@@ -45,7 +45,11 @@ test.runIf(process.env.SLOW === '1')('ten normal matches: legal, finished, only 
 // re-pick by this rule when the AI changes. The nearest three are 3 (0.211), 8 (0.210) and 1 (0.268), but three took
 // 227 s against 160 s for two, so the check runs the nearest two. The bound is the same: mean at least 0.15 and three
 // quarters above 0, which for two seeds means both.
-const ADAPT_SEEDS = [3, 8];
+// Rules 8 (mountains) re-pick, by the same rule: over start seeds 1 to 16 the gaps are 0.849, -0.138, -0.430, 0.745,
+// 0.536, 0.164, 0.776, 0.337, 0.584, 0.732, -0.032, 0.147, 0.033, 0.401, -0.056, 0.200 (mean 0.303, 12 of 16 above
+// 0, so the 16-seed bound holds). The old seeds 3 and 8 read -0.430 and 0.337, a mean of -0.047 (-0.236 with the
+// rules 7 AI, 0.056 with a flat mountain credit since dropped). The nearest two to the mean are 8 (0.337) and 14 (0.401).
+const ADAPT_SEEDS = [8, 14];
 test.runIf(process.env.SLOW === '1')('adaptive climbs against a strong opponent and drops against a weak one', () => {
   const gaps = ADAPT_SEEDS.map((seed) => {
     const strong = adaptiveSeries({ opponentDial: 0.85, matches: 4, seed, maxRounds: 60 });

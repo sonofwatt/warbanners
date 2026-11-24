@@ -33,15 +33,16 @@ test('rules 8: moveScore knows a climb ends the turn: it is the change in valueO
   expect(moveScore(s, ctx, a.id, '1,0', 0)).toBeCloseTo(valueOf(r.state, ctx) - valueOf(s, ctx) + 0.9 * fresh, 6);
 });
 
-test('rules 8: a ranged unit is worth a little more on a mountain; a melee unit is not', () => {
-  for (const type of ['archer', 'warrior'] as const) {
+test('rules 8: a ranged unit with an enemy in its mountain reach is worth more on the mountain; a melee unit is not', () => {
+  const gain = (type: 'archer' | 'warrior', enemyAt: number): number => {
     const flat = field(); const peak = field();
     setTile(peak, 0, 0, { terrain: 'mountain' });
-    addUnit(flat, type, 0, 0, 0); addUnit(peak, type, 0, 0, 0);
-    const gain = valueOf(peak, makeCtx(peak, 0, LEVEL_DIAL.normal)) - valueOf(flat, makeCtx(flat, 0, LEVEL_DIAL.normal));
-    if (type === 'archer') expect(gain).toBeGreaterThan(0);
-    else expect(gain).toBeCloseTo(0, 6);
-  }
+    for (const s of [flat, peak]) { addUnit(s, type, 0, 0, 0); addUnit(s, 'warrior', 1, enemyAt, 0); }
+    return valueOf(peak, makeCtx(peak, 0, LEVEL_DIAL.normal)) - valueOf(flat, makeCtx(flat, 0, LEVEL_DIAL.normal));
+  };
+  expect(gain('archer', 3)).toBeGreaterThan(0);           // only the mountain's extra tile reaches it (the strike term)
+  expect(gain('archer', 4)).toBeCloseTo(0, 6);            // out of reach either way: no flat credit for a peak
+  expect(gain('warrior', 3)).toBeCloseTo(0, 6);
 });
 
 test('rules 8: a rider that only climbed earns no raid credit; one that acted otherwise still does', () => {

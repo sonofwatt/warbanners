@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
   CONFIG, FACTIONS, UNITS, attackOf, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp,
-  mountainReach, mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
+  mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -36,7 +36,6 @@ const TAUNT_VALUE = 1.5;          // a taunt that turns an enemy's blow onto a H
 const BADLY_WOUNDED = 0.4;        // a unit at or below this share of its health is badly wounded
 const WOUNDED_CARE = 3;           // its danger weight is at least this times skill.focus
 const WOUNDED_PULL_CUT = 0.75;    // and its objective pull is cut by this share times skill.focus
-const MOUNTAIN_PERCH = 1;         // rules 8: a ranged unit on a mountain reaches a tile farther (its strike term counts the rest)
 const ITEM_WORTH = 1;             // a carried draught (Task 8: 2 kept hard from drinking for a kill)
 
 // Its gold cost; a unit that cannot be bought (champion, support) counts as 8.
@@ -83,7 +82,10 @@ function strikeOf(b: MatchState, u: Unit): number {
   const atk = baseAttackOf(u) * healthFactor(u);
   let best = 0;
   for (const e of b.units) {
-    if (e.owner === u.owner || distance(at, parseKey(e.pos)) > attackReach(b, u)) continue;   // the engine's reach (rules 8)
+    // the engine's reach: from a mountain a ranged unit has a tile more (rules 8), which is how the AI values a peak. A
+    // flat credit for standing on one (1, 0.5, or 1 only near a seen enemy) left one or two hard matches stalled at 60
+    // rounds in character.test.ts, so there is none.
+    if (e.owner === u.owner || distance(at, parseKey(e.pos)) > attackReach(b, u)) continue;
     const dmg = strikeDamage(b, e, u, atk);   // the engine's damage, with the momentum cut (rules 7) and the long shot cut (rules 8)
     best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
@@ -296,7 +298,6 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   const climbed = u.turnEnded && tile?.terrain === 'mountain';
   if (isMounted(u) && u.acted && !climbed && threat === 0) v += persona.raid;
   if (isMounted(u) && tile?.terrain === 'forest') v -= persona.forestPenalty;
-  if (mountainReach(b, u) > 0) v += MOUNTAIN_PERCH;
   if (has(u, 'steady')) v += steadyCredit(b, u);
   v += strikeOf(b, u);
 
