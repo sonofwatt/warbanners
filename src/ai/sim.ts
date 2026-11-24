@@ -88,7 +88,7 @@ function markPossible(s: MatchState, me: PlayerId, side: SideMetrics): void {
       if (!hasT(u, trait)) continue;
       if (t === 'lure' && !FACTIONS[faction].canLure) continue;
       if (t === 'steady' && (rival === undefined || !FACTIONS[rival.faction].canLure)) continue;
-      // a pathfinder step needs an unexplored tile within the move; a Scout sees 3 tiles and moves 2, so it seldom has one
+      // a pathfinder step needs an unexplored tile within the move; since rules 8 no unit has the trait (the Scout lost it)
       if (t === 'pathfinder' && !Object.keys(reachable(s, u.id)).some((k) => !explored.has(k))) continue;
       side.possible[t] = true;
     }

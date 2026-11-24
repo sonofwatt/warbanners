@@ -2,7 +2,7 @@
 import {
   CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
   canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, defenceOf, distance, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
-  parseKey, reachable, restHealAt, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+  parseKey, reachable, restHealAt, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, visibleTiles, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
@@ -103,6 +103,8 @@ function lureDestinations(attackerAt: HexKey, targetAt: HexKey): HexKey[] {
 
 class TurnPlanner {
   private b: MatchState;
+  // The planner's visible tiles in `b`, worked out once per state and only when hunkers asks for them.
+  private seen: { b: MatchState; set: ReadonlySet<HexKey> } | null = null;
   private readonly ctx: Ctx;
   private readonly me: number;
   private readonly work: number;     // budget for everything except the final endTurn
@@ -396,6 +398,11 @@ class TurnPlanner {
   // instead of walking off when the danger on its tile is at least a third of its health, and a wounded unit that cannot
   // reach a tile out of reach hunkers where it stands. Units beside a city, and garrisons under a light threat, were
   // tried too: they stalled seeded matches (6 spartans at normal, 6 mongols at hard, in character.test.ts).
+  private visible(): ReadonlySet<HexKey> {
+    if (this.seen === null || this.seen.b !== this.b) this.seen = { b: this.b, set: visibleTiles(this.b, this.me) };
+    return this.seen.set;
+  }
+
   private hunkers(id: number, c: Cand | null): boolean {
     if (c !== null && c.action.type !== 'move') return false;
     const u = unitIn(this.b, id);
@@ -412,7 +419,7 @@ class TurnPlanner {
       if (strikes.some((e) => from.some((f) => distance(f, parseKey(e.pos)) <= UNITS[u.type].range))) return false;
     }
     // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in
-    const met = CONFIG.hunker.healAtTurnEnd ? Math.min(maxHpOf(u), u.hp + restHealAt(this.b, { ...u, hunkered: true })) : u.hp;
+    const met = CONFIG.hunker.healAtTurnEnd ? Math.min(maxHpOf(u), u.hp + restHealAt(this.b, { ...u, hunkered: true }, this.visible())) : u.hp;
     if (this.b.cities.some((x) => x.owner === this.me && x.pos === u.pos) && 3 * (danger[u.pos] ?? 0) >= met) return true;
     if (u.hp >= maxHpOf(u)) return false;
     return c === null || (danger[(c.action as { to: HexKey }).to] ?? 0) > 0;
