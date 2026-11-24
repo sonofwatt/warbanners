@@ -149,3 +149,10 @@ test('blockaded cities make the walls tech the one to buy', () => {
   expect(calm).not.toBe('walls');
   expect(chooseTech(s, 0, PERSONAS.spartans, [...open])).toBe('walls');
 });
+
+test('level 5: with two supports alive the champion is taken, however many are wounded', () => {
+  const hurt = levelFive('spartans', [
+    { type: 'hoplite', hp: 4 }, { type: 'hoplite', hp: 5 }, { type: 'hoplite', hp: 3 }, { type: 'piper' }, { type: 'piper' },
+  ]);
+  expect(chooseReward(hurt, 0, hurt.cities[0]!, 5)).toBe(0);
+});

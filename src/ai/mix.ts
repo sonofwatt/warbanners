@@ -23,6 +23,7 @@ const STRONG_ATK = 5;          // a unit with at least this attack counts as str
 const CHAMPION_STRONG = 2;     // fewer strong units than this call for the champion
 const BIG_ARMY = 16;           // an army this big takes the support even when attacking
 const SUPPORT_ARMY = 8;        // and one this big when it is not attacking; otherwise the champion
+const SUPPORT_CAP = 2;         // with this many support units alive (Pipers, Sky Callers) the champion is taken instead
 const ATTACK_RANGE = 4;        // own units within this of a seen enemy city: the army is attacking
 
 const has = (t: UnitTypeId, trait: string): boolean => (UNITS[t].traits as readonly string[]).includes(trait);
@@ -164,7 +165,10 @@ export function chooseReward(b: MatchState, me: PlayerId, city: City, level: num
     // income, or growth when it brings the next level now
     return growthNeeded(b, city) - city.growth <= CONFIG.rewardGrowth ? 1 : 0;
   }
-  // champion or support
+  // champion or support. Supports barely fight and fill the city's room: a big army that took one at every level
+  // stood at home with a dozen Pipers and hundreds of gold it had no room to spend (stalled sims, 2026-11-24).
+  const support = FACTIONS[b.players[me]!.faction].support;
+  if (own.filter((u) => u.type === support).length >= SUPPORT_CAP) return 0;
   const wounded = own.filter((u) => u.hp < WOUNDED_SHARE * maxHpOf(u)).length;
   if (wounded >= SUPPORT_WOUNDED) return 1;
   const strong = own.filter((u) => UNITS[u.type].atk >= STRONG_ATK).length;
