@@ -101,13 +101,21 @@ tap). The renderer is the approved art sample ported to TypeScript, with David's
 
 ## Sizes (vite build)
 
-- Main chunk before: 499.19 kB (gzip 156.61 kB). After: SEE_MAIN.
-- Lazy chunk `terrain3d-*.js`: SEE_LAZY. Not precached.
+- Main chunk before: 499.19 kB (gzip 156.61 kB). After: 503.02 kB (gzip 157.91 kB), so 3.8 kB more (1.3 kB gzipped): the option, the svg layers
+  switch, the map signature, the menu line and the icon. It now passes Vite's 500 kB warning line, which was
+  already 0.8 kB away.
+- Lazy chunk `terrain3d-*.js`: 508.37 kB (gzip 132.18 kB), three.js plus the renderer. Not precached.
 - CSS 38.07 kB before, 38.17 kB after.
 
 ## Test results
 
-SEE_TESTS
+- `npm test`: 105 files passed, 22 skipped (the gated browser and emulator suites); 1076 tests passed.
+- `npm run build`: passes (typecheck and Vite build); `oxlint` clean on src.
+- `GITHUB_PAGES_BASE=/warbanners/ npm run test:browser`: 18 files, 50 passed, 2 skipped, including the new
+  `terrain3d.test.ts`. One earlier run failed `ai.test.ts` "the page never stands still for 100 ms" (the CPU
+  slowed four times check) under machine load; it passed alone and in the full rerun. Nothing in this branch
+  runs during an AI turn when the option is off.
+- All heavy runs were taken under `flock /tmp/banners-heavy-tests.lock`.
 
 ## Screenshots
 
