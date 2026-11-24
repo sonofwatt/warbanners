@@ -12,6 +12,12 @@ import {
   centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
 } from './layout';
 import type { Bit, Peak, Prop, Setup } from './layout';
+import { massif } from './massif';
+import type { MountainStyle } from './massif';
+
+// Exploration: which mountain form to draw ('peak' is the shipped Matterhorn). Set by createTerrain3d's options.
+let mountainStyle: MountainStyle = 'peak';
+export function setMountainStyle(s: MountainStyle): void { mountainStyle = s; }
 
 const N = 10; // top-face subdivisions per side
 
@@ -502,7 +508,15 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
     out.push(...parts);
   };
   setup.trees.forEach(([x, z, s], i) => put(pine(c.x + x, c.z + z, s * 1.08, seed + i), x, z));
+  const styled = setup.peaks.length > 0 && mountainStyle !== 'peak';
+  if (styled) {
+    const shared = setup.res === 'ore' || setup.t.building === 'mine' || setup.t.treasure;
+    const m = massif(mountainStyle, c.x, c.z, q, r, setup.res === 'ore', shared ? 5 : 0);
+    out.push(...m.parts);
+    for (const d of m.deposits) out.push(...oreCluster(c.x + d.x, c.z + d.z, d.s, d.seed, d.seed > 0.5).map((g) => g.translate(0, d.y - 1.2 * d.s, 0)));
+  }
   for (const p of setup.props as Prop[]) {
+    if (styled && p.y !== undefined) continue; // the massif places its own slope deposits
     if (p.kind === 'orchard') put(fruitTree(c.x + p.x, c.z + p.z, p.s, p.seed), p.x, p.z);
     if (p.kind === 'deer') put(deer(c.x + p.x, c.z + p.z, p.s, p.flip), p.x, p.z);
     if (p.kind === 'ore') {
@@ -511,7 +525,7 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
       else { for (const g of parts) g.translate(0, p.y - 1.2 * p.s, 0); out.push(...parts); } // set into the slope
     }
   }
-  setup.peaks.forEach((p, i) => out.push(...matterhorn(c.x + p.x, c.z + p.z, 0, p, seed + i * 3.7)));
+  if (!styled) setup.peaks.forEach((p, i) => out.push(...matterhorn(c.x + p.x, c.z + p.z, 0, p, seed + i * 3.7)));
   for (const [x, z, size, sd] of setup.tufts) out.push(...tuft(c.x + x, height(x, z), c.z + z, size, sd));
   for (const b of setup.bits) out.push(...bit(b, c.x + b.x, setup.t.terrain === 'water' ? 0 : height(b.x, b.z), c.z + b.z));
   return out;

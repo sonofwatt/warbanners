@@ -7,7 +7,8 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
-import { fogGeometry, tilePieces } from './build';
+import { fogGeometry, setMountainStyle, tilePieces } from './build';
+import type { MountainStyle } from './massif';
 import type { TilePieces } from './build';
 import type { GlMap, GlTile } from './input';
 import { COS_E, EDGE_NB, parse, SQUASH } from './layout';
@@ -39,7 +40,8 @@ const code = (t: GlTile | undefined): string =>
  * Make the renderer, or null when this device has no WebGL 2 (the board then stays all SVG). The options are for
  * the art sample and tests: an opaque background, and a drawing buffer kept for reading back.
  */
-export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: string; keepFrame?: boolean } = {}): Terrain3d | null {
+export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: string; keepFrame?: boolean; mountains?: MountainStyle } = {}): Terrain3d | null {
+  setMountainStyle(opts.mountains ?? 'peak');
   let renderer: WebGLRenderer;
   try {
     renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: opts.keepFrame === true });
