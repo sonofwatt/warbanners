@@ -455,10 +455,11 @@ export function Board(p: BoardProps): ReactElement {
     };
   }, [glWanted, write]);
   // A new map (a road, a harvest, a building, fog lifting) rebuilds the tiles that changed; a new veil only repaints.
+  // Before the browser paints, so the canvas and the svg change in the same frame.
   const shownGl = useRef<{ key: string; veilKey: string } | null>(null);
   const glKey = glData?.key ?? '';
   const glVeilKey = glData?.veilKey ?? '';
-  useEffect(() => {
+  useLayoutEffect(() => {
     const t = terrain.current;
     const d = glLatest.current;
     if (!glReady || t === null || d === null) return;
@@ -467,8 +468,8 @@ export function Board(p: BoardProps): ReactElement {
     if (was?.veilKey !== d.veilKey) t.setVeil(d.veiled);
     if (was?.key === d.key && was.veilKey === d.veilKey) return;
     shownGl.current = { key: d.key, veilKey: d.veilKey };
-    schedule();
-  }, [glReady, glKey, glVeilKey, schedule]);
+    write();
+  }, [glReady, glKey, glVeilKey, write]);
   const gl = glWanted && glReady;
 
   // Units slide. A unit that has just moved is drawn last, on top of everything, while it slides: a
