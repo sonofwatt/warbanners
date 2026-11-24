@@ -72,6 +72,18 @@ test('a heal shows the health actually gained', () => {
   expect(fx).toEqual([{ kind: 'number', at: '1,0', text: '+4', tone: 'heal', delay: 0 }]);
 });
 
+test('rules 8: a hunkered unit healed at the end of the turn shows the number, only where the viewer sees it', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const dug = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
+  const h = applyAction(s, { type: 'hunker', unit: dug.id }); if (!h.ok) throw new Error(h.reason);
+  const r = applyAction(h.state, { type: 'endTurn' }); if (!r.ok) throw new Error(r.reason);
+  const gain = r.state.units.find((u) => u.id === dug.id)!.hp - 3;
+  expect(gain).toBeGreaterThan(0);
+  const fx = effectsFor(r.events, h.state, r.state, new Set(Object.keys(s.tiles)), everyone(h.state, r.state), 0);
+  expect(fx).toContainEqual({ kind: 'number', at: '-3,0', text: `+${gain}`, tone: 'heal', delay: expect.any(Number) as number });
+  expect(effectsFor(r.events, h.state, r.state, new Set(['0,0']), everyone(h.state, r.state), 1).some((f) => f.kind === 'number')).toBe(false);
+});
+
 test('the fall follows a unit that moved earlier in the list', () => {
   const s = blankMatch();
   const u = addUnit(s, 'archer', 1, 0, 0);

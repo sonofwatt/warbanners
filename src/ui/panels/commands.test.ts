@@ -108,7 +108,7 @@ test('a unit that has waited on a treasure is offered Claim treasure', () => {
   s.tiles['2,0']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 2, 0);
   expect(unitCommands(unitSel(finder.id), s, ixOf(s))).toEqual([
     { id: 'claimTreasure', label: T.ui.claimTreasure, cost: null, enabled: true, why: null, action: { type: 'claimTreasure', unit: finder.id }, arm: null },
-    { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: finder.id }, arm: null },
+    { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: finder.id }, arm: null, hint: T.ui.hunkerHint },
   ]);
   const walker = addUnit(s, 'warrior', 0, -2, 0, { moved: true }); s.tiles['-2,0']!.treasure = true;   // arrived this turn
   expect(unitCommands(unitSel(walker.id), s, ixOf(s))).toEqual([]);
@@ -133,6 +133,6 @@ test('rules 7: Hunker is offered to a unit that has done nothing, never to a Cat
   const dug = addUnit(s, 'warrior', 0, 2, -2, { hunkered: true });
   const ix = ixOf(s);
   expect(unitCommands(unitSel(idle.id), s, ix).find(c => c.id === 'hunker')).toEqual(
-    { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: idle.id }, arm: null });
+    { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: idle.id }, arm: null, hint: T.ui.hunkerHint });
   for (const u of [cat, moved, dug]) expect(unitCommands(unitSel(u.id), s, ix).some(c => c.id === 'hunker')).toBe(false);
 });

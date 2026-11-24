@@ -1,5 +1,5 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, UNITS } from '../engine';
+import { CONFIG, FACTIONS, UNITS } from '../engine';
 import type {
   AbilityId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
@@ -127,6 +127,11 @@ function rangedNames(): string {
   return n.length <= 1 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n.at(-1)!}`;
 }
 const tilesWord = (n: number): string => (n === 1 ? '1 tile' : `${n} tiles`);
+// rules 8: the sentence that says which tech lets units climb, from CONFIG (empty when no tech is needed).
+function climbLine(): string {
+  const t = CONFIG.mountain.tech;
+  return t === null ? '' : `Units climb a mountain only once ${tech[t]} is known; stepping off needs nothing. `;
+}
 const longShotPercent = (): number => Math.round(CONFIG.mountain.longShotScale * 100);
 
 const ui = {
@@ -224,7 +229,7 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: `New: on a mountain, ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one.`,
+  whatsNew: `New: on a mountain, ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one${CONFIG.mountain.tech === null ? '' : `, and only a side that knows ${tech[CONFIG.mountain.tech]} may climb`}. Also: cities see only their own land, the ${unit.scout.name} sees ${tilesWord(UNITS.scout.sight)} but no longer steps into the fog, Mongol riders ride their own land like a road but lose the extra half tile and build no roads, and a hunkered unit heals at the end of its turn.`,
   relayRiding: 'Rides Mongol land',
   relayRidingBlurb: 'Every step onto a tile of Mongol territory costs what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',
@@ -233,10 +238,12 @@ const ui = {
   momentumSpent: (spent: number) => `-${spent} momentum`,
   momentumBlurb: 'Spent on kills: a kill gives one more attack while there is momentum to pay for it. It comes back each turn.',
   rangeOnMountain: (n: number) => `${n} (mountain)`,
-  mountainBlurb: `Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
+  climbMountains: 'Climbing mountains',
+  mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
   bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
-  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, heals ${CONFIG.hunker.restBonus} more when it rests and ${CONFIG.hunker.abilityHealBonus} more from a Heal, and still heals a little with an enemy beside it. It ends when the unit moves or acts.`,
+  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, and it heals at the end of each of its turns, ${CONFIG.hunker.restBonus} more than a rest (a little even with an enemy beside it), and ${CONFIG.hunker.abilityHealBonus} more from a Heal. It ends when the unit moves or acts.`,
+  hunkerHint: `Dig in for the turn: +${CONFIG.hunker.def} defence when attacked, and it heals at the end of this turn.`,
 } as const;
 
 const ai = {
@@ -281,16 +288,20 @@ export function reasonText(why: string): string {
   return T.reason[why] ?? (why.charAt(0).toUpperCase() + why.slice(1));
 }
 
-// Names of what a tech opens, read from the unit table and the config.
-export function unlocks(id: TechId): string[] {
+// Names of what a tech opens, read from the unit table and the config. Given a faction, only what that faction gets:
+// its own and the shared units, walls and roads only where it builds them (rules 8: Mongols build no roads).
+export function unlocks(id: TechId, faction?: FactionId): string[] {
   const out: string[] = [];
-  for (const [type, def] of Object.entries(UNITS)) if (def.tech === id) out.push(T.unit[type as UnitTypeId].name);
+  for (const [type, def] of Object.entries(UNITS)) {
+    if (def.tech === id && (faction === undefined || def.faction === null || def.faction === faction)) out.push(T.unit[type as UnitTypeId].name);
+  }
   for (const [b, rule] of Object.entries(CONFIG.buildings)) if (rule.tech === id) out.push(T.building[b as BuildingId]);
   for (const [res, rule] of Object.entries(CONFIG.harvest)) {
     if (rule.tech === id) out.push(`${T.ui.harvest} ${T.resource[res as Resource].toLowerCase()}`);
   }
-  if (CONFIG.walls.tech === id) out.push(T.ui.walls);
-  if (CONFIG.road.tech === id) out.push(T.ui.road);
+  if (CONFIG.walls.tech === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) out.push(T.ui.walls);
+  if (CONFIG.road.tech === id && (faction === undefined || FACTIONS[faction].canBuildRoads)) out.push(T.ui.road);
+  if (CONFIG.mountain.tech === id) out.push(T.ui.climbMountains);   // rules 8
   return out;
 }
 

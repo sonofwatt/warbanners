@@ -209,3 +209,69 @@ describe('hunker: healing', () => {
     expect(unitById(b, near.id)!.hp).toBe(10);
   });
 });
+
+// rules 8: a unit hunkered when its owner ends the turn heals then, and not again at the start of its next turn.
+describe('hunker: healing at the end of the turn (rules 8)', () => {
+  test('the heal lands on the end turn itself, by land: home, unclaimed, enemy, with an event and a rest deed', () => {
+    expect(CONFIG.hunker.healAtTurnEnd).toBe(true);
+    const s = field();
+    const home = addUnit(s, 'warrior', 0, -1, 0, { hp: 3 });
+    const wild = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
+    const enemy = addUnit(s, 'warrior', 0, 3, 1, { hp: 3 });
+    let t = s;
+    for (const u of [home, wild, enemy]) t = must(applyAction(t, hunker(u.id)));
+    const want = [home, wild, enemy].map((u) => restHealAt(t, unitById(t, u.id)!));
+    expect(want).toEqual([CONFIG.restHeal.home + CONFIG.hunker.restBonus, CONFIG.restHeal.neutral + CONFIG.hunker.restBonus, CONFIG.restHeal.enemy + CONFIG.hunker.restBonus]);
+    const r = applyAction(t, end);
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect([home, wild, enemy].map((u) => unitById(r.state, u.id)!.hp)).toEqual(want.map((h) => 3 + h));
+    for (const [i, u] of [home, wild, enemy].entries()) expect(r.events).toContainEqual({ type: 'restHealed', unit: u.id, hp: want[i] });
+    expect(unitById(r.state, home.id)!.deeds.rest).toBe(1);
+    expect(r.events.findIndex((e) => e.type === 'restHealed')).toBeLessThan(r.events.findIndex((e) => e.type === 'turnStarted'));
+  });
+  test('it never heals twice: nothing more when its owner\'s next turn starts', () => {
+    const s = field();
+    const u = addUnit(s, 'warrior', 0, -3, 0, { hp: 1 });
+    const once = must(applyAction(must(applyAction(s, hunker(u.id))), end));
+    const hp = unitById(once, u.id)!.hp;
+    expect(hp).toBe(1 + CONFIG.restHeal.neutral + CONFIG.hunker.restBonus);
+    const next = must(applyAction(once, end));                    // player 0's next turn starts
+    expect(unitById(next, u.id)!.hp).toBe(hp);
+    expect(unitById(next, u.id)!.deeds.rest).toBe(1);
+    const twice = must(applyAction(must(applyAction(next, end)), end));   // still hunkered: one more heal, at its end
+    expect(unitById(twice, u.id)!.hp).toBe(hp + CONFIG.restHeal.neutral + CONFIG.hunker.restBonus);
+  });
+  test('beside a seen enemy as the turn ends it heals the share; an enemy arriving later changes nothing', () => {
+    const s = field();
+    const dug = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
+    addUnit(s, 'warrior', 1, -3, 1);
+    const t = must(applyAction(must(applyAction(s, hunker(dug.id))), end));
+    expect(unitById(t, dug.id)!.hp).toBe(3 + Math.ceil(CONFIG.restHeal.neutral * CONFIG.hunker.besideEnemyShare));
+    const q = field();
+    const calm = addUnit(q, 'warrior', 0, -3, 0, { hp: 3 });
+    const foe = addUnit(q, 'warrior', 1, -5, 2);
+    const a = must(applyAction(must(applyAction(q, hunker(calm.id))), end));
+    const healed = unitById(a, calm.id)!.hp;
+    expect(healed).toBe(3 + CONFIG.restHeal.neutral + CONFIG.hunker.restBonus);
+    const b = must(applyAction(must(applyAction(a, { type: 'move', unit: foe.id, to: '-4,1' })), end));
+    expect(unitById(b, calm.id)!.hp).toBe(healed);                // the foe beside it now: no heal at the start, none lost
+  });
+  test('it heals no further than its max health and emits nothing at full health', () => {
+    const s = field();
+    const u = addUnit(s, 'warrior', 0, -1, 0, { hp: 9 });
+    const full = addUnit(s, 'warrior', 0, -1, 1);
+    const r = applyAction(must(applyAction(must(applyAction(s, hunker(u.id))), hunker(full.id))), end);
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(unitById(r.state, u.id)!.hp).toBe(10);
+    expect(r.events).toContainEqual({ type: 'restHealed', unit: u.id, hp: 1 });
+    expect(r.events.some((e) => e.type === 'restHealed' && e.unit === full.id)).toBe(false);
+    expect(unitById(r.state, full.id)!.deeds.rest).toBe(0);
+  });
+  test('a unit that rests without hunkering still heals at the start of its next turn', () => {
+    const s = field();
+    const u = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
+    const t = must(applyAction(s, end));
+    expect(unitById(t, u.id)!.hp).toBe(3);
+    expect(unitById(must(applyAction(t, end)), u.id)!.hp).toBe(3 + CONFIG.restHeal.neutral);
+  });
+});

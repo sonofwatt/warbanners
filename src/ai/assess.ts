@@ -283,9 +283,11 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   }
 
   // A badly wounded unit keeps out of reach even at the skill levels that weigh danger little: it falls back to heal.
+  // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in.
   const threat = danger[u.pos] ?? 0;
   const care = hpShare <= BADLY_WOUNDED ? Math.max(skill.danger, WOUNDED_CARE * skill.focus) : skill.danger;
-  v -= care * worth * Math.min(1, threat / u.hp);
+  const met = u.hunkered && CONFIG.hunker.healAtTurnEnd ? Math.min(maxHp, u.hp + restHealAt(b, u, visible())) : u.hp;
+  v -= care * worth * Math.min(1, threat / met);
 
   // Hold: a garrison on an own city tile always; inside the territory or next to an own city only while
   // that city is threatened (has a defend objective). Elsewhere the army is free to march.

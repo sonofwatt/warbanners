@@ -10,6 +10,7 @@ import { indexActions } from '../interaction';
 import { T } from '../text';
 import { cityCommands, techRows, tileCommands, unitCommands } from './commands';
 import { CityPanel } from './CityPanel';
+import { CommandList } from './CommandList';
 import { DigestCard } from './DigestCard';
 import { Hud } from './Hud';
 import { versionLine } from '../Version';
@@ -205,6 +206,12 @@ test('rules 7: a braced Hoplite shows a Braced line, any viewer; an unbraced one
   for (const own of [true, false]) {
     expect(html(own)).toContain(`aria-label="${T.ui.braced}"`); expect(html(own)).toContain(T.ui.bracedBlurb.replace(/'/g, '&#x27;'));
   }
+});
+test('rules 8: the hunker button and the Hunkered line say the unit heals at the end of the turn', () => {
+  expect(T.ui.hunkerHint).toContain('heals at the end of this turn');
+  expect(T.ui.hunkeredBlurb).toContain('heals at the end of each of its turns');
+  const html = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.hunkerHint }]} onCommand={noop} />);
+  expect(html).toContain(`title="${T.ui.hunkerHint}"`);
 });
 test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
   for (const own of [true, false]) {

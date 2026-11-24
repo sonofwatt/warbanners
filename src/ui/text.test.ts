@@ -26,6 +26,18 @@ test('what a tech unlocks comes from the data', () => {
   expect(unlocks('shieldwork')).toEqual(expect.arrayContaining(['Defender', T.ui.walls]));
   expect(unlocks('roads')).toEqual(expect.arrayContaining(['Camp', T.ui.road]));
   for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId).length, id).toBeGreaterThan(0);
+  for (const f of ['spartans', 'mongols'] as const) {
+    for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId, f).length, `${f} ${id}`).toBeGreaterThan(0);
+  }
+  // rules 8: the Mongols' Roads opens the Camp and no road; the Spartans' opens the road and no Camp
+  expect(unlocks('roads', 'mongols')).toEqual(['Camp']);
+  expect(unlocks('roads', 'spartans')).toEqual([T.ui.road]);
+  expect(unlocks('shieldwork', 'spartans')).not.toContain(T.ui.walls);
+  // rules 8: the climbing tech says it lets units climb, and the mountain tile says which tech that is
+  const climb = CONFIG.mountain.tech!;
+  expect(unlocks(climb)).toContain(T.ui.climbMountains);
+  for (const id of Object.keys(TECHS)) if (id !== climb) expect(unlocks(id as TechId)).not.toContain(T.ui.climbMountains);
+  expect(T.ui.mountainBlurb).toContain(T.tech[climb]);
 });
 test('digest lines read as sentences', () => {
   expect(digestText({ at: '0,0', kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
@@ -63,4 +75,11 @@ test('rules 8: the mountain text names every ranged type from the unit data and 
     expect(text).toContain(`${Math.round(CONFIG.mountain.longShotScale * 100)}% of the damage`);
   }
   for (const t of (Object.keys(UNITS) as UnitTypeId[]).filter((x) => UNITS[x].range < 2)) expect(T.ui.mountainBlurb).not.toContain(`${T.unit[t].name},`);
+});
+test('rules 8 additions: whatsNew names the climbing tech, the Scout, Mongol riding and the hunker heal', () => {
+  expect(T.ui.whatsNew).toContain(T.tech[CONFIG.mountain.tech!]);
+  expect(T.ui.whatsNew).toContain(`${T.unit.scout.name} sees ${UNITS.scout.sight} tiles`);
+  expect(T.ui.whatsNew).toContain('build no roads');
+  expect(T.ui.whatsNew).toContain('heals at the end of its turn');
+  expect(T.unit.scout.blurb).not.toContain('fog');
 });

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { applyAction, legalActions } from './apply';
+import { applyAction } from './apply';
 import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { hashState } from './hash';

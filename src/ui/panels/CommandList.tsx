@@ -12,7 +12,7 @@ export function CommandList({ commands, onCommand, primary }: { commands: Comman
     <div className="commands">
       {commands.map((c) => (
         <div className="command" key={c.id}>
-          <button type="button" data-testid={`cmd-${c.id}`} disabled={!c.enabled && c.tech === undefined}
+          <button type="button" data-testid={`cmd-${c.id}`} disabled={!c.enabled && c.tech === undefined} title={c.hint}
             className={[c.id === primary ? 'primary' : '', !c.enabled && c.tech !== undefined ? 'needs-tech' : ''].join(' ').trim() || undefined}
             onClick={() => onCommand(c)}>
             <span className="command-label">{c.label}</span>

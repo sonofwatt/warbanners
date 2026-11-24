@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { applyAction } from '../engine';
+import { CONFIG, applyAction, roadRefusal } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { addCity, addUnit, blankMatch, setTile } from '../engine/testkit';
 import { dangerMap, moveScore, objectives, valueOf } from './assess';
@@ -15,9 +15,10 @@ function makeCtx(b: MatchState, me: PlayerId, dial: number): Ctx {
   return { me, skill: skillFor(dial), persona, danger: dangerMap(b, me), goals: objectives(b, me, persona), hurt: new Set() };
 }
 
-// Player 0's city at 0,4, player 1's at 0,-4; every tile explored by both.
+// Player 0's city at 0,4, player 1's at 0,-4; every tile explored by both, and both may climb (CONFIG.mountain.tech).
 function field(factions: ['spartans', 'mongols'] | ['mongols', 'spartans'] = ['spartans', 'mongols']): MatchState {
   const s = blankMatch({ factions }); addCity(s, 0, 0, 4); addCity(s, 1, 0, -4);
+  for (const p of s.players) if (CONFIG.mountain.tech !== null) p.techs.push(CONFIG.mountain.tech);
   return s;
 }
 
@@ -71,5 +72,36 @@ test('rules 8: after a kill advance off a mountain the planner plans no second a
     for (const a of plan.actions) { const r = applyAction(b, a); expect(r.ok).toBe(true); if (!r.ok) break; b = r.state; }
     const knightAttacks = plan.actions.filter((a) => a.type === 'attack' && a.unit === k.id);
     expect(knightAttacks.length).toBeLessThanOrEqual(1);
+  }
+});
+
+// Plays a plan on the believed state and checks every action is legal.
+function playLegal(s: MatchState, me: PlayerId, dial: number, seed: number) {
+  const input = aiInputFor(s, me);
+  const plan = planTurn(input, { dial, seed, refused: [] });
+  let b = believedState(input);
+  for (const a of plan.actions) { const r = applyAction(b, a); expect(r.ok, JSON.stringify(a)).toBe(true); if (!r.ok) break; b = r.state; }
+  return plan.actions;
+}
+
+test('rules 8: without the climbing tech the planner never moves a unit onto a mountain, and its plans stay legal', () => {
+  for (const dial of [0.5, 0.85, 1]) for (const seed of [1, 2, 3]) {
+    const s = field(); s.players[0]!.techs = []; s.players[0]!.gold = 0;   // no gold: it cannot research the tech first
+    for (const q of [-1, 1]) setTile(s, q, 0, { terrain: 'mountain' });
+    setTile(s, 0, -1, { terrain: 'mountain' }); setTile(s, 0, 1, { terrain: 'mountain' });
+    addUnit(s, 'archer', 0, 0, 0); addUnit(s, 'warrior', 0, -1, 1);
+    addUnit(s, 'warrior', 1, 3, 0);
+    const actions = playLegal(s, 0, dial, seed);
+    expect(actions.some((a) => a.type === 'move' && s.tiles[a.to]?.terrain === 'mountain')).toBe(false);
+  }
+});
+
+test('rules 8: a Mongol planner with the roads tech and gold plans no road', () => {
+  for (const dial of [0.5, 1]) for (const seed of [1, 2]) {
+    const s = field(['mongols', 'spartans']); s.players[0]!.techs.push('roads'); s.players[0]!.gold = 60;
+    addCity(s, 0, 3, 1, { capital: false }); s.cities[0]!.capital = true;
+    s.current = 0;
+    expect(roadRefusal(s, '1,3')).toBe('your faction cannot build roads');
+    expect(playLegal(s, 0, dial, seed).some((a) => a.type === 'road')).toBe(false);
   }
 });

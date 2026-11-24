@@ -2,7 +2,7 @@
 import {
   CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
   canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, defenceOf, distance, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
-  parseKey, reachable, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+  parseKey, reachable, restHealAt, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
@@ -411,7 +411,9 @@ class TurnPlanner {
       const strikes = this.b.units.filter((e) => e.owner !== this.me && survivable(e));
       if (strikes.some((e) => from.some((f) => distance(f, parseKey(e.pos)) <= UNITS[u.type].range))) return false;
     }
-    if (this.b.cities.some((x) => x.owner === this.me && x.pos === u.pos) && 3 * (danger[u.pos] ?? 0) >= u.hp) return true;
+    // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in
+    const met = CONFIG.hunker.healAtTurnEnd ? Math.min(maxHpOf(u), u.hp + restHealAt(this.b, { ...u, hunkered: true })) : u.hp;
+    if (this.b.cities.some((x) => x.owner === this.me && x.pos === u.pos) && 3 * (danger[u.pos] ?? 0) >= met) return true;
     if (u.hp >= maxHpOf(u)) return false;
     return c === null || (danger[(c.action as { to: HexKey }).to] ?? 0) > 0;
   }

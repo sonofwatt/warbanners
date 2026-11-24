@@ -7,7 +7,7 @@ import { applyAction, legalActions } from './apply';
 import { attackOf, attackTargets, lureApplies } from './combat';
 import { growthNeeded } from './economy';
 import { hashState } from './hash';
-import { maxMp, reachable } from './movement';
+import { reachable } from './movement';
 import { cityById, unitAt, unitById } from './state';
 import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import { campCity } from './training';

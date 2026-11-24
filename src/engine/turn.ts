@@ -99,6 +99,22 @@ export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s,
     u.lure = null;
   }
 
+  // 2b. rules 8: a unit hunkered as its owner ends the turn heals now, by restHealAt as it stands at this moment, and
+  // not again when that owner's next turn starts. Every heal is worked out before any is applied, as in passTurn.
+  if (CONFIG.hunker.healAtTurnEnd) {
+    const visible = visibleTiles(s, ending);
+    const heals = s.units.filter((u) => u.owner === ending && u.hunkered).map((u) => [u, restHealAt(s, u, visible)] as const);
+    for (const [u, heal] of heals) {
+      u.rested = false;                     // healed for this turn already
+      const before = u.hp;
+      u.hp = Math.min(maxHpOf(u), u.hp + heal);
+      if (u.hp > before) {
+        ev.push({ type: 'restHealed', unit: u.id, hp: u.hp - before });
+        if (!u.fresh) addDeed(s, u, 'rest', 1, ev);   // a rest that heals, never a fresh unit's
+      }
+    }
+  }
+
   // 3 to 5.
   passTurn(s, ending, ev);
   return null;

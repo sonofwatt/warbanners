@@ -1,6 +1,6 @@
 // The AI's road planner: the cheapest chain of roads that would join each of its unlinked cities to its capital.
 // It reads the believed state only, and its idea of what carries a chain is the engine's (src/engine/connect.ts).
-import { CONFIG, key, neighbors, parseKey } from '../engine';
+import { CONFIG, FACTIONS, key, neighbors, parseKey } from '../engine';
 import type { City, HexKey, MatchState, PlayerId } from '../engine';
 
 export interface Chain {
@@ -29,11 +29,11 @@ function buildable(b: MatchState, me: PlayerId, k: HexKey, explored: Set<HexKey>
 
 // For each of `me`'s unlinked non-capital cities that some chain could join to `me`'s capital, the chain with the fewest
 // new roads (a 0-1 search: carrying tiles are free, buildable ones cost one road). A city already joined (nothing to
-// build) is left out, since the engine pays it after the next action anyway. Without the roads tech or a capital there
-// are none. Since rules 7 a player holds one capital: a taken capital is an ordinary city, and the capital moves.
+// build) is left out, since the engine pays it after the next action anyway. Without the roads tech or a capital, or for
+// a faction that builds no roads (the Mongols since rules 8), there are none. Since rules 7 a player holds one capital: a taken capital is an ordinary city, and the capital moves.
 export function connectingChains(b: MatchState, me: PlayerId): Chain[] {
   const self = b.players[me];
-  if (self === undefined || !self.techs.includes(CONFIG.road.tech)) return [];
+  if (self === undefined || !self.techs.includes(CONFIG.road.tech) || !FACTIONS[self.faction].canBuildRoads) return [];
   const capital = b.cities.find((c) => c.owner === me && c.capital);
   if (capital === undefined) return [];
   const cityAt = new Map(b.cities.map((c) => [c.pos, c]));

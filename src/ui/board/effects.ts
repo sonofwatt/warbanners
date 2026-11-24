@@ -124,6 +124,11 @@ export function effectsFor(
         if (was && gain > 0 && known(was.id)) mine.push({ kind: 'number', at: e.target, text: `+${gain}`, tone: 'heal', delay });
         break;
       }
+      case 'restHealed': {                 // rules 8: a hunkered unit healed at the end of its owner's turn
+        const at = unitPos(e.unit);
+        if (seen(at) && known(e.unit)) mine.push({ kind: 'number', at, text: `+${e.hp}`, tone: 'heal', delay });
+        break;
+      }
       case 'treasure': {
         if (e.outcome === 'gold') {
           const gain = (after.players[before.current]?.gold ?? 0) - (before.players[before.current]?.gold ?? 0);

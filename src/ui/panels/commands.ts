@@ -14,6 +14,8 @@ export interface Command {
   action: Action | null; arm: Armed | null;
   /** A city's train command names the unit, so the city card can show it in its row of units. */
   unit?: UnitTypeId;
+  /** Help text for the button (its title), where the label alone does not say what it does. */
+  hint?: string;
   /** Set when a missing tech is all that stands in the way: tapping the command opens the tech tree at it. */
   tech?: TechId;
 }
@@ -64,7 +66,7 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
   }
   // rules 7: last, so a unit's own moves and abilities come first
   if (ix.hunkers.includes(unit.id)) {
-    out.push({ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: unit.id }, arm: null });
+    out.push({ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: unit.id }, arm: null, hint: T.ui.hunkerHint });
   }
   return out;
 }
@@ -148,6 +150,6 @@ export function techRows(state: MatchState, ix: ActionIndex): TechRow[] {
     const status: TechRow['status'] = player.techs.includes(tech) ? 'owned'
       : ix.research.includes(tech) ? 'ready'
         : def.requires !== null && !player.techs.includes(def.requires) ? 'locked' : 'costly';
-    return { tech, branch: Math.floor(i / 3), tier: def.tier, status, price: techPrice(state, me, tech), unlocks: unlocks(tech) };
+    return { tech, branch: Math.floor(i / 3), tier: def.tier, status, price: techPrice(state, me, tech), unlocks: unlocks(tech, player.faction) };
   });
 }

@@ -111,6 +111,7 @@ export type GameEvent =
   | { type: 'usedItem'; unit: number; item: ItemId }
   | { type: 'hunkered'; unit: number }                              // rules 7
   | { type: 'hunkerEnded'; unit: number }                           // rules 7: it moved, acted or was lured
+  | { type: 'restHealed'; unit: number; hp: number }                // rules 8: a hunkered unit healed hp at the end of its owner's turn
   | { type: 'connected'; city: number; capital: number }           // rules 7: roads first joined the city to the capital
   | { type: 'cityLevel'; city: number; level: number }
   | { type: 'reward'; city: number; reward: RewardId }
