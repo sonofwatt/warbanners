@@ -18,6 +18,8 @@ const REST_SHARE = 0.5;           // share of the health a hurt unit would heal 
 const LATE_REST_SHARE = 0.5;      // part of that credit for a unit that moved or acted: it heals the turn after next
 const EXPLORED_WEIGHT = 0.1;
 const OBJECTIVE_PULL = 0.8;         // per tile nearer the most attractive objective (value less distance)
+const PRESS_SHARE = 3;            // own cities at least this many times the enemy's known ones: the army presses on
+const PRESS_PULL = 3;             // and the pull toward enemy cities is this many times as strong
 const NO_COST_WORTH = 8;
 const GARRISON_SHARE = 0.5;       // an enemy unit on its own city tile also carries this share of the city's worth
 const GARRISON_HOLD = 3;          // an own unit on an own city tile holds it at this many times persona.hold
@@ -317,8 +319,17 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   }
   // A badly wounded unit is pulled less toward its goals, more so as the skill rises, so it falls back to heal.
   const drive = hpShare <= BADLY_WOUNDED ? 1 - WOUNDED_PULL_CUT * skill.focus : 1;
-  if (pull > -Infinity) v += OBJECTIVE_PULL * drive * pull;
+  if (pull > -Infinity) v += OBJECTIVE_PULL * drive * pull * pressOf(b, me);
   return v;
+}
+
+// A side that holds PRESS_SHARE times the enemy's known cities presses on to finish the match: its pull toward its
+// goals outweighs the formation and garrison terms that otherwise keep a big army at home. Stalled sims (2026-11-24)
+// ended with 50 units spread over seven cities beside an enemy's last one.
+export function pressOf(b: MatchState, me: PlayerId): number {
+  let own = 0; let theirs = 0;
+  for (const c of b.cities) if (c.owner === me) own += 1; else theirs += 1;
+  return theirs > 0 && own >= PRESS_SHARE * theirs ? PRESS_PULL : 1;
 }
 
 // How good the believed state is for ctx.me; higher is better.

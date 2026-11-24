@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction, createMatch, damageFor, reachable } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, rngFor, setTile } from '../engine/testkit';
-import { dangerMap, exposureCost, followCredit, moveScore, objectives, unitValue, unitWorth, valueOf } from './assess';
+import { dangerMap, exposureCost, followCredit, moveScore, objectives, pressOf, unitValue, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState } from './input';
 import { PERSONAS } from './persona';
@@ -327,4 +327,16 @@ test('rules 8: a blockade counts as the gold it cuts, gained on an enemy city an
   expect(valueOf(s, ctx) - before).toBeCloseTo(ctx.skill.economy * 3 * 2, 9);
   own.incomeBonus = 4;                              // 4 more income, of which the blockade takes 2
   expect(valueOf(s, ctx) - before).toBeCloseTo(ctx.skill.economy * 3 * (2 + 4 - 2), 9);
+});
+test('a side holding three times the enemy cities presses on: its pull toward its goals is three times as strong', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  addCity(s, 0, -3, 3); expect(pressOf(s, 0)).toBe(1);
+  addCity(s, 0, 3, 0); expect(pressOf(s, 0)).toBe(3);
+  expect(pressOf(s, 1)).toBe(1);
+  // the pull part of a unit's worth, one tile nearer the enemy city, alone with no enemy unit about
+  const u = addUnit(s, 'warrior', 0, 0, 0);
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = makeCtx(s, 0, 1);
+  const here = valueOf(s, ctx); u.pos = '0,-1'; const nearer = valueOf(s, ctx);
+  expect(nearer - here).toBeGreaterThan(3 * 0.8 * 0.99);
 });
