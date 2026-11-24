@@ -214,7 +214,7 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: `New: Archers, Horse Archers and Catapults on a mountain shoot ${CONFIG.mountain.rangeBonus} tile farther, a little softer at the farthest tile. Climbing onto or off a mountain now takes the unit's whole turn, so no move crosses one.`,
+  whatsNew: `New: Archers, Horse Archers and Catapults on a mountain shoot ${CONFIG.mountain.rangeBonus} tile farther, a little softer at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one.`,
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',
