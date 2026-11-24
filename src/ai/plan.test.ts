@@ -15,21 +15,26 @@ let cached: MatchState[] | null = null;
 // Seed 7 at 130 turns since rules 8 (it now ends after 135, and a plan on an ended match cannot end its turn).
 const fixtures = (): MatchState[] => (cached ??= [randomPlayout(7, 130), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })]);
 test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is played, dial %f', (dial) => {
-  for (const s of fixtures()) {
+  fixtures().forEach((s, f) => {
     const input = aiInputFor(s, s.current);
     const plan = planTurn(input, { dial, seed: 5, refused: [] });
     let b = believedState(input);
+    expect(b.winner).toBeNull();
+    let wonAt: number | null = null;              // the action after which the believed state was won
     plan.actions.forEach((a, i) => {
-      // After a win in the believed state the planner still ends its turn, for the real match to decide (since rules 8
-      // seed 3's position at 90 turns is one the planner wins); the believed engine refuses that endTurn.
-      if (b.winner !== null && a.type === 'endTurn' && i === plan.actions.length - 1) return;
+      // After a win in the believed state the planner still ends its turn, for the real match to decide, and the
+      // believed engine refuses that endTurn. Allowed only for the one fixture that needs it (since rules 8 seed 3 at
+      // 90 turns is a position the planner wins) and only when the win came from the action just before that endTurn,
+      // so a plan that wins early and queues more actions still fails.
+      if (f === 2 && wonAt === plan.actions.length - 2 && a.type === 'endTurn' && i === plan.actions.length - 1) return;
       const r = applyAction(b, a); expect(r.ok).toBe(true); if (!r.ok) return;
+      if (wonAt === null && r.state.winner !== null) wonAt = i;
       b = r.state; expect(viewKey(aiInputFor(b, s.current))).toBe(plan.expect[i]);
     });
     expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
     expect(plan.actions.some(a => a.type === 'resign')).toBe(false);
     expect(plan.evals).toBeLessThanOrEqual(skillFor(dial).evals);
-  }
+  });
 }, 120_000);
 test('same input and seed give the same plan; another seed may differ only below hard', () => {
   const input = aiInputFor(fixtures()[0]!, 0);
