@@ -91,8 +91,9 @@ option, and statuses on your units (taunted, blinded) wear off.
 - A city's territory is every tile within its radius (1, or 2 after the "borders"
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
-- To go from level `L` to `L+1` a city needs `L+1` growth points (`L+2` for a
-  Mongol city, `L` for a Spartan city since rules 7). Spare points carry over.
+- To go from level `L` to `L+1` a city needs `L+1` growth points (`L` for a
+  Spartan city since rules 7; a Mongol city needed `L+2` before rules 8). Spare
+  points carry over.
 - Connected cities (since rules 7): a city is connected when a chain of adjacent
   tiles joins it to its owner's capital, every tile of the chain being a road or
   a city of that owner. A road inside another player's territory breaks the
@@ -457,7 +458,8 @@ Mongols
   the Camp and leads to `chivalry`. Roads already on the map, built by anyone, work
   for every unit.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
-- Mongol cities need `L+2` growth points to leave level `L`.
+- Mongol cities need `L+1` growth points to leave level `L`, as anyone's (`L+2`
+  before rules 8, when Mongols could build roads to connect their cities).
 - Feigned retreat (lure): when a Mongol unit with `retreat` attacks, the player may
   ask for a lure. If the target survives, is not steadied, and is not in a city,
   then when the attacker next moves this turn the target is pulled one tile toward
@@ -543,3 +545,5 @@ This list and the one above are the file's changelog.
   loses half that turn's income, rounded down, at least 1 gold and keeping at least 1; a quarter with
   Walls, 15% for Spartans who know Deep stores (the `walls` tech, under its Spartan
   name) (sections 6, 7 and 13).
+- Mongol cities level at the common pace: `L+1` growth points to leave level `L`
+  (was `L+2`), in place of the growth roads used to give them (sections 6 and 13).

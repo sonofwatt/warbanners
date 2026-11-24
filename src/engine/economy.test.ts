@@ -12,13 +12,13 @@ test('income', () => {
   const s = blankMatch(); const cap = addCity(s, 0, 0, 0, { capital: true }); addCity(s, 0, 3, 0, { level: 2, incomeBonus: 1, market: true });
   expect(cityIncome(s, cap)).toBe(2); expect(playerIncome(s, 0)).toBe(2 + 5);
 });
-test('growth levels a city and queues the reward; Mongols need one more', () => {
+test('growth levels a city and queues the reward; Mongols need one more than Spartans', () => {
   const s = blankMatch(); const c = addCity(s, 0, 0, 0); const ev: GameEvent[] = [];
   addGrowth(s, c, 1, ev);                                            // a Spartan city leaves level L on L growth (rules 7 discount)
   expect(c).toMatchObject({ level: 2, growth: 0, pendingRewards: [2] });
   expect(ev).toContainEqual({ type: 'cityLevel', city: c.id, level: 2 });
-  const m = addCity(s, 1, 3, 0); addGrowth(s, m, 2, []);      // a Mongol city needs L + 2, two more than a Spartan one
-  expect(m).toMatchObject({ level: 1, growth: 2 });
+  const m = addCity(s, 1, 3, 0); addGrowth(s, m, 1, []);      // a Mongol city needs L + 1 since rules 8 (L + 2 before)
+  expect(m).toMatchObject({ level: 1, growth: 1 });
   addGrowth(s, m, 1, []); expect(m.level).toBe(2);
 });
 test('each reward does what rules 6 says', () => {

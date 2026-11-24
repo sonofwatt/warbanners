@@ -28,8 +28,10 @@ export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
   },
   mongols: {
     startUnit: 'horseman', champion: 'khansGuard', support: 'skyCaller',
-    cityCover: 1.5, canBuildWalls: true, growthExtra: 1, mountedMoveBonus: 0, mountedDiscount: 1,
-    // rules 8: no riding bonus (it was a half-point, ridden by territory) and relay riding for mounted units only
+    cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 1,
+    // rules 8: no riding bonus (it was a half-point, ridden by territory) and relay riding for mounted units only.
+    // growthExtra 0 (1 before rules 8): Mongol cities level as fast as anyone's, for the connection growth they lost
+    // with their roads (2026-11-24-rules8-tuning-report.md)
     forestStopsMounted: true, relayRiders: true, territoryRiding: false, relayMountedOnly: true, canBuildRoads: false, blockadeStores: false, tributeVillage: 3, tributeCityBase: 3, canLure: true, agoge: false, mythTouch: false,
   },
 });

@@ -18,12 +18,12 @@ import type { Action } from './types';
 
 const mongols = () => blankMatch({ factions: ['mongols', 'spartans'] });
 
-test('tribute and slow growth', () => {
+test('tribute, and growth at the common pace since rules 8', () => {
   const s = mongols(); setTile(s, 1, 0, { village: true }); const u = addUnit(s, 'horseman', 0, 1, 0);
   expect(must(applyAction(s, { type: 'capture', unit: u.id })).players[0]!.gold).toBe(23);
   const c = addCity(s, 1, 3, 0, { level: 3 }); const v = addUnit(s, 'horseman', 0, 3, 0); addCity(s, 1, -3, 0);
   expect(must(applyAction(s, { type: 'capture', unit: v.id })).players[0]!.gold).toBe(26);
-  expect(growthNeeded(s, addCity(s, 0, 0, 3))).toBe(3); void c;
+  expect(growthNeeded(s, addCity(s, 0, 0, 3))).toBe(2); void c;               // rules 8: no slow growth (3 before)
 });
 test('inspire: a horseman beside the Khan\'s Guard deals 8 to a warrior', () => {
   const s = mongols(); const h = addUnit(s, 'horseman', 0, 0, 0); addUnit(s, 'khansGuard', 0, -1, 0); const d = addUnit(s, 'warrior', 1, 1, 0);
