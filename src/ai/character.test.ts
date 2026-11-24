@@ -270,7 +270,10 @@ describe('matches between two AIs end', () => {
     // Mountains (rules 8) and the AI's rules 8 changes: '6 spartans' and '5 mongols' now end (in 35 and 48 rounds) and '8
     // mongols' does not (it ends in 67, the Mongols winning): one stall of 16. With the rules 7 AI on the rules 8 engine
     // the three end in 30, 35 and 46. At hard all 16 end.
-    const KNOWN_NORMAL: string[] = ['8 mongols'];
+    // The rules 8 kill advance rule (an advance onto or off a mountain ends the turn): '8 mongols' now ends in 51 rounds,
+    // and '4 mongols' (62) and '7 spartans' (76) do not, the Mongols winning both: two stalls of 16, as on rules 7. Only
+    // the engine changed in that step, so the rule moved which matches stall. At hard all 16 end.
+    const KNOWN_NORMAL: string[] = ['4 mongols', '7 spartans'];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
