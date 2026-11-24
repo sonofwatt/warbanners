@@ -284,6 +284,7 @@ input:focus { border-color: var(--blue); }
 .pill.turn { font-size: var(--t-m); color: var(--ink-soft); font-weight: 800; }
 .pill.turn .icon { width: 18px; height: 18px; }
 .income { color: var(--grass-ink); font-size: var(--t-s); font-weight: 850; }
+.blockade-cut { color: var(--danger); font-size: var(--t-s); font-weight: 850; margin-left: 2px; }
 .hud-actions { display: flex; align-items: center; gap: var(--s2); flex: 1 1 auto; min-width: 0; }
 .hud-buttons { display: flex; gap: 6px; }
 .tool { position: relative; padding: 0 var(--s3) var(--thick); gap: 6px; }

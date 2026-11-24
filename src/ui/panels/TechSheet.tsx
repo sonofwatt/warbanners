@@ -29,7 +29,7 @@ function Rung({ r, focus, focused, onResearch }: {
       ref={r.tech === focus ? focused : undefined} aria-current={r.tech === focus ? 'true' : undefined}>
       <Badge row={r} />
       <div className="tech-info">
-        <strong>{T.tech[r.tech]}</strong>
+        <strong>{r.name}</strong>
         <small>{r.unlocks.length === 0 ? T.ui.unlocksNone : `${T.ui.unlocks}: ${r.unlocks.join(', ')}`}</small>
       </div>
       {r.status === 'ready' ? (

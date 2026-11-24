@@ -18,7 +18,7 @@ vi.mock('./data/config', async (orig) => {
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
-      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1, techTree: 'rules7',
+      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1, techTree: 'rules7', blockade: { ...m.CONFIG.blockade, on: false },
       buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };

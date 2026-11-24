@@ -16,6 +16,8 @@ export interface CityPanelProps {
   faction?: FactionId;
   // Only for the viewer's own city: an enemy city shows just what the board shows (level, walls).
   growth?: number; growthNeeded?: number; units?: number; capacity?: number; income?: number;
+  /** rules 8: blockaded, and the gold the blockade will cut from this city's next income. */
+  blockade?: number;
   commands: Command[]; onCommand: (c: Command) => void;
 }
 
@@ -24,6 +26,7 @@ export function CityPanel(p: CityPanelProps): ReactElement {
   if (p.growth !== undefined && p.growthNeeded !== undefined) stats.push({ icon: <SproutIcon />, label: T.ui.growth, value: `${p.growth}/${p.growthNeeded}` });
   if (p.units !== undefined && p.capacity !== undefined) stats.push({ icon: <PeopleIcon />, label: T.ui.unitsHeld, value: `${p.units}/${p.capacity}` });
   if (p.income !== undefined) stats.push({ icon: <CoinsIcon />, label: T.ui.incomeWord, value: `+${p.income}` });
+  if (p.blockade !== undefined) stats.push({ icon: <CoinsIcon />, label: T.ui.blockaded, value: T.ui.blockadeCut(p.blockade) });
   stats.push({ icon: <WallIcon />, label: T.ui.walls, value: p.walls ? T.ui.yes : T.ui.no });
   // Units to train go in the row of pictures; the walls and the level rewards stay buttons in the head. A picked
   // unit's Train button joins them at the top right, where every card keeps its actions.

@@ -81,6 +81,12 @@ option, and statuses on your units (taunted, blinded) wear off.
 
 - Income per city each turn: its level, +1 if it is a capital, +1 per "income"
   reward taken, +2 if it has a Market.
+- Blockade (since rules 8): a city with 2 or more enemy units on the tiles next to it
+  (seen or not; a unit on the city tile does not count) when its owner's turn starts
+  is blockaded. It loses half of that turn's income, rounded down, and always keeps at
+  least 1 gold. A walled city loses a quarter instead, and a Spartan city whose owner
+  knows `walls` (Deep stores for the Spartans) loses 15%, both rounded down. Growth,
+  research, training and healing are not changed. (`CONFIG.blockade`.)
 - A city's territory is every tile within its radius (1, or 2 after the "borders"
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
@@ -159,7 +165,7 @@ Price: base + (number of cities you hold - 1) * column. Base is 4, 6, 8 for colu
 
 | Branch | Column 1 | Column 2 top | Column 3 top | Column 2 bottom | Column 3 bottom |
 |---|---|---|---|---|---|
-| Orchards | `foraging`: harvest fruit | `defence`: Defender | `walls`: Walls (Mongols) | `orchards`: Orchard | `plantations`: Plantation |
+| Orchards | `foraging`: harvest fruit | `defence`: Defender | `walls`: Walls (Mongols); Deep stores, every city eases a blockade (Spartans) | `orchards`: Orchard | `plantations`: Plantation |
 | Hunting | `trapping`: trap game | `archery`: Archer | `siege`: Catapult | `logging`: Lumber camp | `milling`: Lumber mill |
 | Mountains | `prospecting`: gather jewels, climbing mountains | `spears`: Spearman, Hoplite (Spartans) | `smithing`: Swordsman | `mining`: Mine | `foundry`: Foundry |
 | Plains | `gathering`: harvest wild grain | `riding`: Horseman, Horse Archer and the Camp (Mongols), roads (Spartans) | `chivalry`: Knight | `farming`: Farm | `granary`: Granary, Market |
@@ -415,6 +421,8 @@ Spartans
 - A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
   from level `L` to `L+1`.
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
+  For them the `walls` tech is Deep stores (rules 8): a blockade of any Spartan city
+  takes 15% of its income instead of half (section 6).
 - Units: Hoplite, King's Guard (champion), Piper (support), Krypteia Scout.
 
 Mongols
@@ -530,3 +538,7 @@ This list and the one above are the file's changelog.
   Lumber mill, Foundry, Granary) that replaces it for more gold and more growth. A
   Lumber camp may stand on a game forest. The Market moves to `granary`, the Walls to
   `walls`, roads and the Camp to `riding` (section 6).
+- Blockade: a city with 2 or more enemy units beside it as its owner's turn starts
+  loses half that turn's income, rounded down, keeping at least 1 gold; a quarter with
+  Walls, 15% for Spartans who know Deep stores (the `walls` tech, under its Spartan
+  name) (sections 6, 7 and 13).

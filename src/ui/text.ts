@@ -83,6 +83,8 @@ const reward: Record<RewardId, Entry> = {
   support: { name: 'Support', blurb: "Your faction's support unit appears in this city." },
 };
 
+const pct = (x: number): number => Math.round(100 * x);
+
 // Both trees' techs (the rules 7 names stay for the provenance replays).
 const tech: Record<TechId, string> = {
   foraging: 'Foraging', farming: 'Farming', markets: 'Markets', riding: 'Riding', roads: 'Roads', chivalry: 'Chivalry',
@@ -92,6 +94,8 @@ const tech: Record<TechId, string> = {
   prospecting: 'Prospecting', spears: 'Spears', mining: 'Mining', foundry: 'Foundry',
   gathering: 'Gathering', granary: 'Granary', fishing: 'Fishing',
 };
+// rules 8: a faction's own name for a tech. The Spartans build no walls; for them the walls tech is Deep stores.
+const techFor: Partial<Record<FactionId, Partial<Record<TechId, string>>>> = { spartans: { walls: 'Deep stores' } };
 const branch: Record<BranchId, string> = { orchards: 'Orchards', hunting: 'Hunting', mountains: 'Mountains', plains: 'Plains', waters: 'Waters' };
 const building: Record<BuildingId, string> = {
   farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market',
@@ -243,7 +247,7 @@ const ui = {
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
   // rules 8 (0.6.0) in two sentences, its numbers and names from CONFIG and the tables
-  whatsNew: `New in rules 8: climbing onto or off a mountain takes a whole turn${CONFIG.mountain.tech === null ? '' : ` and needs ${tech[CONFIG.mountain.tech]}`}, and ranged units up there shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther; cities see only their own land, the ${unit.scout.name} sees ${tilesWord(UNITS.scout.sight)}, Mongol riders ride their own land like a road but build no roads, and a hunkered unit heals at the end of its turn. The tech tree has ${BRANCHES.length} branches now, each opening with a resource to gather (${resource.jewels.toLowerCase()} and ${resource.fish.toLowerCase()} are new) and splitting into a row of units and a row of land improvements you can upgrade.`,
+  whatsNew: `New in rules 8: climbing onto or off a mountain takes a whole turn${CONFIG.mountain.tech === null ? '' : ` and needs ${tech[CONFIG.mountain.tech]}`}, and ranged units up there shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther; cities see only their own land, the ${unit.scout.name} sees ${tilesWord(UNITS.scout.sight)}, Mongol riders ride their own land like a road but build no roads, and a hunkered unit heals at the end of its turn. The tech tree has ${BRANCHES.length} branches now, each opening with a resource to gather (${resource.jewels.toLowerCase()} and ${resource.fish.toLowerCase()} are new) and splitting into a row of units and a row of land improvements you can upgrade. A city with ${CONFIG.blockade.minEnemies} or more enemy units beside it as its turn starts is blockaded and loses ${pct(CONFIG.blockade.cut)}% of its income for that turn (${pct(CONFIG.blockade.cutWalls)}% with Walls, ${pct(CONFIG.blockade.cutSpartanTech)}% for Spartans with ${techFor.spartans!.walls!}).`,
   relayRiding: 'Rides Mongol land',
   relayRidingBlurb: 'Every step onto a tile of Mongol territory costs what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',
@@ -255,7 +259,13 @@ const ui = {
   climbMountains: 'Climbing mountains',
   harvestedTag: 'harvested',   // rules 8
   rowTop: 'Army', rowBottom: 'Land', branchLater: 'Boats and more come later.',
-  unlocksNone: 'Nothing for your people',   // rules 8: the Walls tech for the Spartans, who build none
+  unlocksNone: 'Nothing for your people',   // a tech that opens nothing for the viewer's faction (none in rules 8)
+  blockaded: 'Blockaded',                   // rules 8
+  blockadeCut: (n: number) => `-${n} gold`,
+  blockadeHint: (n: number) => `Blockade: ${n} gold less income`,
+  // rules 8: what the walls tech does against a blockade, for those who build walls and for the Spartans' Deep stores
+  wallsBlockade: `Walls: a blockade takes ${pct(CONFIG.blockade.cutWalls)}% of a walled city's income, not ${pct(CONFIG.blockade.cut)}%`,
+  storesBlockade: `Every city: a blockade takes ${pct(CONFIG.blockade.cutSpartanTech)}% of its income, not ${pct(CONFIG.blockade.cut)}%`,
   harvestedBlurb: 'Already harvested, so it gives no more growth by itself, but it can still be built on.',
   mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
@@ -308,6 +318,11 @@ export function reasonText(why: string): string {
 
 // Names of what a tech opens, read from the tech tree in play. Given a faction, only what that faction gets:
 // its own and the shared units, walls and roads only where it builds them (rules 8: Mongols build no roads).
+// A tech's name as the given faction sees it (rules 8: the Spartans' Deep stores).
+export function techName(id: TechId, faction?: FactionId): string {
+  return (faction === undefined ? undefined : techFor[faction]?.[id]) ?? T.tech[id];
+}
+
 export function unlocks(id: TechId, faction?: FactionId): string[] {
   const out: string[] = [];
   for (const type of Object.keys(UNITS) as UnitTypeId[]) {
@@ -316,7 +331,10 @@ export function unlocks(id: TechId, faction?: FactionId): string[] {
   }
   for (const b of Object.keys(CONFIG.buildings) as BuildingId[]) if (buildingTech(b) === id) out.push(T.building[b]);
   for (const res of Object.keys(T.resource) as Resource[]) if (harvestTech(res) === id) out.push(T.harvestVerb[res]);
-  if (wallsTech() === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) out.push(T.ui.walls);
+  if (wallsTech() === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) {
+    out.push(CONFIG.blockade.on ? T.ui.wallsBlockade : T.ui.walls);
+  }
+  if (wallsTech() === id && CONFIG.blockade.on && (faction === undefined || FACTIONS[faction].blockadeStores)) out.push(T.ui.storesBlockade);
   if (roadTech() === id && (faction === undefined || FACTIONS[faction].canBuildRoads)) out.push(T.ui.road);
   if (CONFIG.mountain.tech === id) out.push(T.ui.climbMountains);   // rules 8
   return out;

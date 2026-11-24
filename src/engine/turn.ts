@@ -1,5 +1,5 @@
 import { CONFIG } from './data/config';
-import { applyReward, playerIncome } from './economy';
+import { applyReward, blockadeOf, cityIncome } from './economy';
 import { addDeed, maxHpOf } from './heroes';
 import { maxMp, ridingBonus } from './movement';
 import { DIRS, add, key, parseKey } from './hex';
@@ -52,7 +52,12 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
   // 4. The new player's income, rest healing, fresh movement, and units spawned last turn may act.
   const player = s.players[next]!;
   if (player.turnsTaken > 0) {
-    player.gold += playerIncome(s, next);
+    for (const c of s.cities) {
+      if (c.owner !== next) continue;
+      const b = blockadeOf(s, c);           // rules 8: a blockade cuts the city's income (never below the floor)
+      player.gold += cityIncome(s, c) - b.cut;
+      if (b.blockaded) ev.push({ type: 'blockaded', city: c.id, enemies: b.enemies, gold: b.cut });
+    }
     const visible = visibleTiles(s, next);   // every heal is worked out before any is applied: health changes no vision
     for (const u of s.units) {
       if (u.owner !== next || !u.rested) continue;

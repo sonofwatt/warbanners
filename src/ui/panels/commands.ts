@@ -8,7 +8,7 @@ import type {
   AbilityId, Action, BranchId, BuildingId, HexKey, MatchState, RewardId, TechId, UnitTypeId,
 } from '../../engine';
 import type { ActionIndex, Armed, Selection } from '../interaction';
-import { T, reasonText, unlocks } from '../text';
+import { T, reasonText, techName, unlocks } from '../text';
 
 export interface Command {
   id: string; label: string; cost: number | null; enabled: boolean; why: string | null;
@@ -146,7 +146,7 @@ export function tileCommands(at: HexKey, state: MatchState, ix: ActionIndex): Co
 
 // rules 8: branch and row place the tech on the screen (a column 1 tech heads its branch; row top or bottom after it).
 export interface TechRow {
-  tech: TechId; branch: BranchId; row: 'top' | 'bottom' | null; tier: 1 | 2 | 3; status: 'owned' | 'ready' | 'costly' | 'locked'; price: number; unlocks: string[];
+  tech: TechId; name: string; branch: BranchId; row: 'top' | 'bottom' | null; tier: 1 | 2 | 3; status: 'owned' | 'ready' | 'costly' | 'locked'; price: number; unlocks: string[];
 }
 
 export function techRows(state: MatchState, ix: ActionIndex): TechRow[] {
@@ -156,6 +156,6 @@ export function techRows(state: MatchState, ix: ActionIndex): TechRow[] {
     const status: TechRow['status'] = player.techs.includes(tech) ? 'owned'
       : ix.research.includes(tech) ? 'ready'
         : def.requires !== null && !player.techs.includes(def.requires) ? 'locked' : 'costly';
-    return { tech, branch: def.branch, row: def.row, tier: def.tier, status, price: techPrice(state, me, tech), unlocks: unlocks(tech, player.faction) };
+    return { tech, name: techName(tech, player.faction), branch: def.branch, row: def.row, tier: def.tier, status, price: techPrice(state, me, tech), unlocks: unlocks(tech, player.faction) };
   });
 }

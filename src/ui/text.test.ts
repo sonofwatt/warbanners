@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { BRANCHES, CONFIG, DEEDS, FACTIONS, HERO_TRAITS, TECHS, UNITS } from '../engine';
 import type { BuildingId, ItemId, TreasureOutcome, FactionId, TechId, UnitTypeId } from '../engine';
-import { digestText, reasonText, T, unlocks } from './text';
+import { digestText, reasonText, T, techName, unlocks } from './text';
 
 test('every id the engine knows has a name', () => {
   for (const id of Object.keys(UNITS)) { expect(T.unit[id as UnitTypeId].name).toBeTruthy(); expect(T.unit[id as UnitTypeId].blurb.length).toBeGreaterThan(10); }
@@ -27,19 +27,25 @@ test('what a tech unlocks comes from the data', () => {
   expect(unlocks('spears')).toEqual(expect.arrayContaining(['Spearman', 'Hoplite']));
   expect(unlocks('mining')).toEqual([T.building.mine]);
   expect(unlocks('defence')).toEqual(['Defender']);
-  expect(unlocks('walls')).toEqual([T.ui.walls]);
+  expect(unlocks('walls')).toEqual([T.ui.wallsBlockade, T.ui.storesBlockade]);
   expect(unlocks('granary')).toEqual([T.building.market, T.building.granary]);
   expect(unlocks('foraging')).toEqual([T.harvestVerb.orchard]);
   expect(unlocks('prospecting')).toEqual([T.harvestVerb.jewels, T.ui.climbMountains]);
   expect(unlocks('fishing')).toEqual([T.harvestVerb.fish]);
   for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId).length, id).toBeGreaterThan(0);
-  // rules 8: Riding opens the Camp and no road for the Mongols, the road and no Camp for the Spartans; Walls opens
-  // nothing for the Spartans (they build none), so only that one is empty
+  // rules 8: Riding opens the Camp and no road for the Mongols, the road and no Camp for the Spartans; the walls tech
+  // opens Walls for the Mongols and, as Deep stores, the Spartans' blockade defence; every tech opens something for both
   expect(unlocks('riding', 'mongols')).toEqual(['Horseman', 'Horse Archer', 'Camp']);
   expect(unlocks('riding', 'spartans')).toEqual(['Horseman', T.ui.road]);
-  expect(unlocks('walls', 'spartans')).toEqual([]);
+  expect(unlocks('walls', 'spartans')).toEqual([T.ui.storesBlockade]);
+  expect(unlocks('walls', 'mongols')).toEqual([T.ui.wallsBlockade]);
+  expect(techName('walls', 'spartans')).toBe('Deep stores');
+  expect(techName('walls', 'mongols')).toBe(T.tech.walls);
+  expect(techName('riding', 'spartans')).toBe(T.tech.riding);
+  for (const n of [CONFIG.blockade.cut, CONFIG.blockade.cutWalls]) expect(T.ui.wallsBlockade).toContain(`${Math.round(100 * n)}%`);
+  expect(T.ui.storesBlockade).toContain(`${Math.round(100 * CONFIG.blockade.cutSpartanTech)}%`);
   for (const f of ['spartans', 'mongols'] as const) {
-    for (const id of Object.keys(TECHS)) if (!(f === 'spartans' && id === 'walls')) expect(unlocks(id as TechId, f).length, `${f} ${id}`).toBeGreaterThan(0);
+    for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId, f).length, `${f} ${id}`).toBeGreaterThan(0);
   }
   // rules 8: the climbing tech says it lets units climb, and the mountain tile says which tech that is
   const climb = CONFIG.mountain.tech!;
@@ -89,8 +95,11 @@ test('rules 8 additions: whatsNew names the climbing tech, the Scout, Mongol rid
   expect(T.ui.whatsNew).toContain('heals at the end of its turn');
   expect(T.unit.scout.blurb).not.toContain('fog');
 });
-test('rules 8: whatsNew is two sentences and names the new tree from the data', () => {
-  expect(T.ui.whatsNew.match(/[.!?](\s|$)/g)).toHaveLength(2);
+test('rules 8: whatsNew is three sentences and names the new tree and the blockade from the data', () => {
+  expect(T.ui.whatsNew.match(/[.!?](\s|$)/g)).toHaveLength(3);
+  expect(T.ui.whatsNew).toContain(`${CONFIG.blockade.minEnemies} or more enemy units`);
+  expect(T.ui.whatsNew).toContain(`${Math.round(100 * CONFIG.blockade.cut)}% of its income for that turn`);
+  expect(T.ui.whatsNew).toContain(techName('walls', 'spartans'));
   expect(T.ui.whatsNew).toContain(`${BRANCHES.length} branches`);
   expect(T.ui.whatsNew).toContain(`${CONFIG.mountain.rangeBonus} tile`);
   for (const r of ['jewels', 'fish'] as const) expect(T.ui.whatsNew).toContain(T.resource[r].toLowerCase());

@@ -256,3 +256,18 @@ test('a trait shows its name over the unit; a non-gold find shows its words to t
 test('what a claimed treasure gave stays up three times as long as other effects', () => {
   expect(TREASURE_TEXT_MS).toBe(EFFECT_MS * 3);
 });
+
+test('a blockade shows the gold it cut on the city, to its owner only (rules 8)', () => {
+  const s = blankMatch();
+  const c = addCity(s, 0, 0, 0, { level: 4 });
+  addCity(s, 1, 0, -3);
+  addUnit(s, 'warrior', 1, 1, 0); addUnit(s, 'warrior', 1, 0, 1);
+  s.current = 1; s.players[0]!.turnsTaken = 1;
+  const r = applyAction(s, { type: 'endTurn' });
+  if (!r.ok) throw new Error(r.reason);
+  const e = r.events.find((x) => x.type === 'blockaded') as Extract<GameEvent, { type: 'blockaded' }>;
+  expect(e.gold).toBe(Math.floor(4 * CONFIG.blockade.cut));
+  const all = new Set(Object.keys(s.tiles));
+  expect(effectsFor(r.events, s, r.state, all, everyone(s, r.state), 0)).toContainEqual(expect.objectContaining({ kind: 'number', at: c.pos, text: T.ui.blockadeCut(e.gold) }));
+  expect(effectsFor(r.events, s, r.state, all, everyone(s, r.state), 1).some((f) => f.kind === 'number' && f.at === c.pos)).toBe(false);
+});

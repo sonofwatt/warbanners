@@ -109,8 +109,9 @@ test('the tech sheet lists every tech of the tree in five branches and a researc
   // a branch: its column 1 tech, then a top row and a bottom row; Waters has only column 1 for now
   expect(html).toMatch(/data-testid="branch-orchards".*tech-foraging.*class="rungs row top".*tech-defence.*tech-walls.*class="rungs row bottom".*tech-orchards.*tech-plantations/);
   expect(html).toMatch(/data-testid="branch-waters".*tech-fishing.*branch-later/);
-  // the Spartans build no walls, so their Walls tech says it opens nothing for them
-  expect(html).toMatch(new RegExp(`data-testid="tech-walls".*?${T.ui.unlocksNone}`));
+  // the Spartans build no walls: their walls tech is Deep stores, and says what it does against a blockade
+  expect(html).toMatch(/data-testid="tech-walls".*?<strong>Deep stores<\/strong>/);
+  expect(html).toContain(T.ui.storesBlockade); expect(html).not.toContain(T.ui.unlocksNone);
   expect(html).toContain('data-testid="research-foraging"'); expect(html).not.toContain('data-testid="research-farming"');
 });
 test('a command that waits only on a tech names it and stays tappable; one short of gold does not', () => {
@@ -159,6 +160,12 @@ test('the digest card shows six lines and counts the rest', () => {
   const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost', at: '0,0' }));
   const html = renderToStaticMarkup(<DigestCard lines={lines} />);
   expect(html.match(/<li>/g)).toHaveLength(6); expect(html.match(/data-testid="digest-line"/g)).toHaveLength(6); expect(html).toContain('and 2 more');
+});
+test('an own city under blockade shows the gold it will lose; one that is not shows no such line', () => {
+  const html = renderToStaticMarkup(<CityPanel level={3} walls={false} income={4} blockade={2} commands={[]} onCommand={noop} />);
+  expect(html).toContain(`${T.ui.blockaded}</dt><dd>${T.ui.blockadeCut(2)}`);
+  const free = renderToStaticMarkup(<CityPanel level={3} walls={false} income={4} commands={[]} onCommand={noop} />);
+  expect(free).not.toContain(T.ui.blockaded);
 });
 test('a city panel without own-city figures shows only level and walls', () => {
   const html = renderToStaticMarkup(<CityPanel level={3} walls commands={[]} onCommand={noop} />);

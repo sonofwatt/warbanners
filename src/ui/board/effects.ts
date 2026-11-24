@@ -156,6 +156,12 @@ export function effectsFor(
         if (at) mine.push({ kind: 'burst', at, tone: 'capture', delay });
         break;
       }
+      case 'blockaded': {                  // rules 8: shown to the city's owner only, as its turn starts
+        const at = cityTile(before, after, e.city);
+        const owner = after.cities.find((c) => c.id === e.city)?.owner;
+        if (at && owner === viewer && e.gold > 0) mine.push({ kind: 'number', at, text: T.ui.blockadeCut(e.gold), tone: 'hurt', delay });
+        break;
+      }
       case 'cityLevel': {
         const at = cityTile(before, after, e.city);
         if (at) mine.push({ kind: 'burst', at, tone: 'level', delay });

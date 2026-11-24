@@ -6,6 +6,8 @@ import { T, fill } from '../text';
 
 export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
+  /** rules 8: the gold blockades will cut from the next income (0 or absent: none). */
+  blockade?: number;
   unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean; thinking?: boolean;
   // Online: whose turn it is, in place of the units-to-act line, and the turn clock as m:ss (or Paused).
   // `statusName`, when the status names a player, is drawn on a line of its own and cut with an ellipsis if it is
@@ -49,6 +51,9 @@ export function Hud(p: HudProps): ReactElement {
             <span data-testid="gold">{p.gold}</span>
             <span className="vh">{` ${T.ui.gold.toLowerCase()}, `}</span>
             <span className="income">{`+${p.income}`}</span>
+            {p.blockade !== undefined && p.blockade > 0
+              ? <span className="blockade-cut" data-testid="blockade-cut" title={T.ui.blockadeHint(p.blockade)}>{`-${p.blockade}`}</span>
+              : null}
           </span>
           <span className="pill turn">
             <HourglassIcon />

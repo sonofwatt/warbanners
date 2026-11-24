@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
-  DEEDS, growthNeeded, isBraced, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
+  DEEDS, blockadeOf, growthNeeded, isBraced, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
@@ -39,6 +39,9 @@ export const TIME_UP_MS = 4000;
 export interface MatchData {
   view: PlayerView; ix: ActionIndex; marks: ReturnType<typeof marksFor>; ready: Set<HexKey>; spent: Set<number>;
   focus: HexKey | null; radius: number; factions: [FactionId, FactionId];
+  // rules 8: the gold each of the viewer's blockaded cities would lose as its next turn starts, judged on what the
+  // viewer sees (an unseen enemy is not counted here, so the forecast never gives one away)
+  blockades: Map<number, number>;
 }
 
 // `acts` is false online while the session says it is not this phone's turn (the other phone's turn, a return
@@ -53,7 +56,19 @@ export function matchData(state: MatchState, viewer: PlayerId, selection: Select
     view, ix, marks: marksFor(selection, view, ix), ready: new Set(readyTiles(view, ix)), spent: acts && state.current === viewer ? spentUnits(view, ix) : new Set(),
     focus: capital?.pos ?? first?.pos ?? null, radius: state.radius,
     factions: [state.players[0]!.faction, state.players[1]!.faction],
+    blockades: blockadesSeen(state, viewer),
   };
+}
+
+function blockadesSeen(state: MatchState, viewer: PlayerId): Map<number, number> {
+  const believed = believedState(aiInputFor(state, viewer));
+  const out = new Map<number, number>();
+  for (const c of believed.cities) {
+    if (c.owner !== viewer) continue;
+    const b = blockadeOf(believed, c);
+    if (b.blockaded) out.set(c.id, b.cut);
+  }
+  return out;
 }
 
 // The focus the camera aims at, held for the whole of a turn (`key` names the turn and the player). Without a
@@ -230,7 +245,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       panel = mine ? (
         <CityPanel
           key={city.id} faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
-          units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)}
+          units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)} blockade={data.blockades.get(city.id)}
           walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
       ) : (
@@ -301,7 +316,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     <div className={`screen match${side ? ' has-side' : ''}${peeked !== undefined ? ' peeking' : ''}`} data-testid="match">
       <Hud
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
-        gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
+        gold={player.gold} income={playerIncome(state, viewer)} blockade={[...data.blockades.values()].reduce((a, n) => a + n, 0)} round={roundOf(state)}
         unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting} thinking={aiBusy && !isOnline}
         status={status} statusName={statusName} statusShort={statusShort} clock={clock} clockPaused={online?.clock.kind === 'paused'}
         nextDisabled={nextDisabled} onNextUnit={onNextUnit}
