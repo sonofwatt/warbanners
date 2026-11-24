@@ -4,8 +4,9 @@ import { frames, openApp } from './harness';
 
 // While a card that asks for an answer is up (the turn digest, a city's reward choice), the Hud behind it is
 // dimmed and taps on it do nothing, as before the chrome was restyled; and the card itself stays clear of the
-// Hud. Seed 7: building a mine on the Spartan capital's ore tile at -2,4 levels the city at once, so the reward
-// choice opens on the first move of the match. The digest uses the same overlay.
+// Hud. Seed 7: harvesting the fruit at -2,6 beside the Spartan capital levels the city at once, so the reward
+// choice opens on the first turn of the match (rules 8: Foraging first, 4 gold, then the harvest, 2; before rules 8's
+// tree this built a mine on -2,4, which now waits on Mining). The digest uses the same overlay.
 
 async function tapAt(page: Page, x: number, y: number): Promise<void> {
   await page.touchscreen.tap(x, y);
@@ -24,10 +25,19 @@ async function toReward(page: Page): Promise<void> {
   await page.getByTestId('ready').tap();
   await page.locator('[data-centre]').first().waitFor({ state: 'attached' });
   await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
-  const tile = await page.locator('[data-centre="-2,4"]').boundingBox();
-  if (tile === null) throw new Error('no ore tile');
+  // The turn opens with the Scout selected, and -2,6 is a tile it could move to: let it go first.
+  await page.keyboard.press('Escape');
+  await frames(page);
+  const tile = await page.locator('[data-centre="-2,6"]').boundingBox();
+  if (tile === null) throw new Error('no fruit tile');
   await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
-  await page.getByTestId('cmd-build-mine').tap();
+  // The harvest waits on Foraging: tapping it opens the tech sheet there.
+  await page.getByTestId('cmd-harvest').tap();
+  await page.getByTestId('research-foraging').tap();
+  if (await page.locator('.tech-sheet').count() > 0) await page.getByTestId('close-sheet').tap();
+  await frames(page);
+  if (await page.getByTestId('cmd-harvest').count() === 0) await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await page.getByTestId('cmd-harvest').tap();
   await page.getByTestId('reward-0').waitFor();
   await page.waitForTimeout(250); // the overlay's fade
 }

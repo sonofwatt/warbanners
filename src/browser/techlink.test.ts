@@ -55,6 +55,9 @@ describe.runIf(process.env.BROWSER === '1')('a locked command opens the tech tre
         await page.getByTestId('open-tech').tap();
         await row.waitFor();
         expect(await page.locator('.tech-sheet li.focus').count()).toBe(0);
+        // rules 8: five branches, each its column 1 tech and two rows
+        expect(await page.locator('.tech-sheet .branch').count()).toBe(5);
+        if (process.env.SHOT_DIR) { await frames(page); await page.screenshot({ path: `${process.env.SHOT_DIR}/techsheet-${w}x${h}.png` }); }
       } finally {
         await close();
       }

@@ -462,7 +462,7 @@ input:focus { border-color: var(--blue); }
   margin: 2px 4px 0; font-size: var(--t-xs); font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
 }
 .tech-sheet .rungs { position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.tech-sheet .fork { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-left: 18px; position: relative; }
+.tech-sheet .fork { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-left: 18px; position: relative; }
 /* The fork's rail, down from the column 1 badge, and a short spur into each row. */
 .tech-sheet .fork::before {
   content: ''; position: absolute; left: 21px; top: -6px; bottom: 26px; width: 4px; border-radius: 2px; background: var(--paper-edge);

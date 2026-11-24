@@ -109,6 +109,8 @@ test('the tech sheet lists every tech of the tree in five branches and a researc
   // a branch: its column 1 tech, then a top row and a bottom row; Waters has only column 1 for now
   expect(html).toMatch(/data-testid="branch-orchards".*tech-foraging.*class="rungs row top".*tech-defence.*tech-walls.*class="rungs row bottom".*tech-orchards.*tech-plantations/);
   expect(html).toMatch(/data-testid="branch-waters".*tech-fishing.*branch-later/);
+  // the Spartans build no walls, so their Walls tech says it opens nothing for them
+  expect(html).toMatch(new RegExp(`data-testid="tech-walls".*?${T.ui.unlocksNone}`));
   expect(html).toContain('data-testid="research-foraging"'); expect(html).not.toContain('data-testid="research-farming"');
 });
 test('a command that waits only on a tech names it and stays tappable; one short of gold does not', () => {

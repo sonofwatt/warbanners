@@ -30,7 +30,7 @@ function Rung({ r, focus, focused, onResearch }: {
       <Badge row={r} />
       <div className="tech-info">
         <strong>{T.tech[r.tech]}</strong>
-        <small>{`${T.ui.unlocks}: ${r.unlocks.join(', ')}`}</small>
+        <small>{r.unlocks.length === 0 ? T.ui.unlocksNone : `${T.ui.unlocks}: ${r.unlocks.join(', ')}`}</small>
       </div>
       {r.status === 'ready' ? (
         <button type="button" className="primary" data-testid={`research-${r.tech}`} onClick={() => onResearch(r.tech)}>

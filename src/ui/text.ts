@@ -255,6 +255,7 @@ const ui = {
   climbMountains: 'Climbing mountains',
   harvestedTag: 'harvested',   // rules 8
   rowTop: 'Army', rowBottom: 'Land', branchLater: 'Boats and more come later.',
+  unlocksNone: 'Nothing for your people',   // rules 8: the Walls tech for the Spartans, who build none
   harvestedBlurb: 'Already harvested, so it gives no more growth by itself, but it can still be built on.',
   mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',

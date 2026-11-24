@@ -11,14 +11,14 @@ import type { Persona } from './types';
 // Rules 8's tree (2026-11-24): each order follows the rules 7 one through the new tree. Spartans open Spears (the
 // Hoplite, which their start no longer gives), then the Defender's and Swordsman's rows; Mongols open Riding (riders and
 // the Camp, which their start no longer gives), then the Farm, the Archer's row and Chivalry. Walls (Mongols only) and
-// Fishing (no unit, one harvest) come last for the side that gets nothing else from them. Each order
-// starts with the faction's own start tech, so it names every tech once.
+// Fishing (no unit, one harvest) come last for the side that gets nothing else from them. Each order starts with the
+// faction's own start tech, so it names every tech once.
 export const PERSONAS: Record<FactionId, Persona> = {
   spartans: {
     formation: 1.5, hold: 0.6, spread: 2, raid: 0, forestPenalty: 0,
     techOrder: [
-      'prospecting', 'spears', 'foraging', 'defence', 'smithing', 'gathering', 'farming', 'trapping', 'archery', 'mining', 'riding',
-      'logging', 'granary', 'siege', 'orchards', 'chivalry', 'foundry', 'plantations', 'milling', 'fishing', 'walls',
+      'prospecting', 'spears', 'foraging', 'defence', 'smithing', 'gathering', 'farming', 'trapping', 'archery', 'mining',
+      'riding', 'logging', 'granary', 'siege', 'orchards', 'chivalry', 'foundry', 'plantations', 'milling', 'fishing', 'walls',
     ],
     mix: { hoplite: 6.5, warrior: 0.5, spearman: 0.6, archer: 1.2, defender: 0.8, swordsman: 1, scout: 0.8, catapult: 0.6, horseman: 0.4, knight: 0.6 },
     counter: 1,
@@ -26,8 +26,8 @@ export const PERSONAS: Record<FactionId, Persona> = {
   mongols: {
     formation: -0.25, hold: 0.2, spread: 6, raid: 3, forestPenalty: 1,
     techOrder: [
-      'gathering', 'riding', 'farming', 'trapping', 'foraging', 'archery', 'chivalry', 'prospecting', 'logging', 'granary', 'defence',
-      'walls', 'spears', 'siege', 'smithing', 'orchards', 'mining', 'plantations', 'milling', 'foundry', 'fishing',
+      'gathering', 'riding', 'farming', 'trapping', 'foraging', 'archery', 'chivalry', 'prospecting', 'logging', 'granary',
+      'defence', 'walls', 'spears', 'siege', 'smithing', 'orchards', 'mining', 'plantations', 'milling', 'foundry', 'fishing',
     ],
     mix: { horseArcher: 4, horseman: 2.5, knight: 2, camp: 1.2, warrior: 0.5, archer: 0.6, spearman: 0.4, defender: 1, swordsman: 0.4, catapult: 0.4 },
     counter: 1,
