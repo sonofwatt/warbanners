@@ -3,7 +3,7 @@ import { UNITS } from '../engine';
 import type { MatchState, UnitTypeId } from '../engine';
 import { addCity, addUnit, blankMatch, give, setTile } from '../engine/testkit';
 import { aiInputFor } from './input';
-import { chooseReward, chooseTech, chooseUnit } from './mix';
+import { chooseReward, chooseTech, chooseUnit, techGivesSomething } from './mix';
 import { PERSONAS } from './persona';
 import { planTurn } from './plan';
 import { LEVEL_DIAL } from './types';
@@ -115,4 +115,37 @@ test('growth is bought on the way to a level, and a level reached late in the tu
   expect(harvest).toBeGreaterThanOrEqual(0);
   expect(reward).toBeGreaterThan(harvest);
   expect(plan.actions[reward]).toEqual({ type: 'chooseReward', city: c.id, choice: 1 });
+});
+
+// rules 8: a tech is bought only when it gives the player something now (or leads to a tech that does).
+test('a tech with nothing for the player now is not worth gold: Fishing with no fish, an upgrade with nothing to upgrade, Deep stores in peace', () => {
+  const s = blankMatch();
+  addCity(s, 0, 0, 2); addCity(s, 1, 0, -3);
+  give(s, 0, 'prospecting', 'foraging', 'orchards', 'gathering');
+  const gives = (t: Parameters<typeof techGivesSomething>[3]): boolean => techGivesSomething(s, 0, PERSONAS.spartans, t);
+  expect(gives('fishing')).toBe(false);
+  setTile(s, 1, 2, { terrain: 'water', resource: 'fish' });            // in the city's territory
+  expect(gives('fishing')).toBe(true);
+  expect(gives('plantations')).toBe(false);
+  setTile(s, -1, 2, { terrain: 'field', resource: 'orchard', building: 'orchard' });
+  expect(gives('plantations')).toBe(true);
+  expect(gives('spears')).toBe(true);                                   // the Hoplite
+  expect(gives('walls')).toBe(false);                                   // Deep stores, and no enemy beside a city
+  addUnit(s, 'warrior', 1, 0, 1);
+  expect(gives('walls')).toBe(true);
+  expect(gives('defence')).toBe(true);
+  const m = blankMatch({ factions: ['mongols', 'spartans'] });
+  addCity(m, 0, 0, 2); addCity(m, 1, 0, -3);
+  expect(techGivesSomething(m, 0, PERSONAS.mongols, 'walls')).toBe(true);   // Walls, which the Mongols build
+});
+
+test('blockaded cities make the walls tech the one to buy', () => {
+  const s = blankMatch();
+  addCity(s, 0, 0, 2, { level: 4 }); addCity(s, 1, 0, -3);
+  give(s, 0, 'prospecting', 'foraging', 'defence');
+  const open = ['walls', 'orchards', 'trapping', 'gathering'] as const;
+  const calm = chooseTech(s, 0, PERSONAS.spartans, [...open]);
+  addUnit(s, 'warrior', 1, 1, 2); addUnit(s, 'warrior', 1, 0, 3);
+  expect(calm).not.toBe('walls');
+  expect(chooseTech(s, 0, PERSONAS.spartans, [...open])).toBe('walls');
 });

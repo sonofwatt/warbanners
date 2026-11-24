@@ -1,6 +1,6 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
-  CONFIG, FACTIONS, UNITS, attackOf, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp,
+  CONFIG, FACTIONS, UNITS, attackOf, blockadeLoss, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp,
   mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
@@ -26,6 +26,7 @@ const EXPOSED_SHARE = 0.5;        // share of an own city's worth lost while it 
 const FOLLOW_SHARE = 0.75;        // share of a broken bond's loss forgiven while the partner can still follow
 const BOND_CAP = 4;               // formation weight one unit can have: two hoplite partners, as the phalanx cap
 export const GOLD_WEIGHT = 0.25;  // valueOf's weight on gold (times skill.economy)
+const BLOCKADE_WEIGHT = 3;        // rules 8: per gold a blockade of an enemy city cuts (times skill.economy), as income is weighed
 const HERO_TRAIT_WORTH = 3;       // per trait a unit has earned or found
 const HERO_WORTH = 3;             // more again for a hero
 const LEVEL_WORTH = 10;           // per own city level, and per share of the way to the next, times skill.economy: a level
@@ -334,7 +335,10 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
       v -= exposureCost(b, ctx, c);
     } else v -= worth;
   }
-  v += skill.economy * (3 * playerIncome(b, me) + GOLD_WEIGHT * self.gold + 3 * self.techs.length + growth);
+  // rules 8: income is counted after the blockades of own cities, and every blockaded enemy city is worth its cut
+  let cut = 0;
+  for (const p of b.players) if (p.id !== me) cut += blockadeLoss(b, p.id);
+  v += skill.economy * (3 * (playerIncome(b, me) - blockadeLoss(b, me)) + BLOCKADE_WEIGHT * cut + GOLD_WEIGHT * self.gold + 3 * self.techs.length + growth);
   v += EXPLORED_WEIGHT * self.explored.length;
 
   const visible = lazyVisible(b, me);

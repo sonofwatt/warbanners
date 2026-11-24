@@ -8,7 +8,7 @@ import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
-import { availableTypes, chooseReward, chooseTech, chooseUnit } from './mix';
+import { availableTypes, chooseReward, chooseTech, chooseUnit, techGivesSomething } from './mix';
 import { PERSONAS } from './persona';
 import { connectingChains } from './roads';
 import { skillFor } from './skill';
@@ -252,7 +252,8 @@ class TurnPlanner {
   }
 
   private research(): void {
-    const open = this.ctx.persona.techOrder.filter((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t }));
+    const open = this.ctx.persona.techOrder.filter((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t })
+      && techGivesSomething(this.b, this.me, this.ctx.persona, t));
     const tech = chooseTech(this.b, this.me, this.mixPersona, open) ?? undefined;
     if (tech === undefined || !this.live()) return;
     const left = this.b.players[this.me]!.gold - techPrice(this.b, this.me, tech);
