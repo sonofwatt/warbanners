@@ -18,7 +18,7 @@ vi.mock('./data/config', async (orig) => {
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
-      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false },
+      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1,
       buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };
@@ -29,7 +29,7 @@ vi.mock('./data/units', async (orig) => {
 });
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
-  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
+  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2, relayMountedOnly: false, canBuildRoads: true } } };
 });
 
 // Strip what plan 5, rules 6, rules 7 (with hunker and momentum) and rules 8 (turnEnded) added, so a stage 1 state hashes as it did on rules 3.

@@ -4,7 +4,7 @@ export { applyAction, legalActions, replay } from './apply';
 export { hashState, canonical } from './hash';
 export { rngNext, rngInt } from './rng';
 export { playerView, visibleTiles } from './vision';
-export { reachable, maxMp, mountainStep } from './movement';
+export { reachable, maxMp, mountainStep, canClimb } from './movement';
 export { attackReach, longShot, mountainReach, attackTargets, attackOf, baseAttackOf, bracedAgainst, defenceOf, guardOf, isBraced, momentumPrice, momentumShort, statsOf, strikeDamage, coverAt, damageFor, lureApplies } from './combat';
 export { momentumStart } from './state';
 export { abilityTargets } from './abilities';

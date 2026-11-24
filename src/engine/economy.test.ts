@@ -105,13 +105,17 @@ test('no tech, no gold, no deal', () => {
   expect(applyAction(s, { type: 'harvest', at: '1,0' }).ok).toBe(false);
 });
 test('roads and walls', () => {
-  const s = blankMatch({ factions: ['mongols', 'spartans'] }); const c = addCity(s, 0, 0, 0); give(s, 0, 'roads', 'shieldwork');
-  s.players[0]!.explored = Object.keys(s.tiles).sort();
-  let t = must(applyAction(s, { type: 'road', at: '3,0' }));                    // unclaimed tile is allowed
+  const r = blankMatch(); addCity(r, 0, 0, 0); give(r, 0, 'roads');         // Spartans: Mongols build no roads (rules 8)
+  r.players[0]!.explored = Object.keys(r.tiles).sort();
+  let t = must(applyAction(r, { type: 'road', at: '3,0' }));                    // unclaimed tile is allowed
   expect(t.tiles['3,0']!.road).toBe(true); expect(t.players[0]!.gold).toBe(19);
   expect(applyAction(t, { type: 'road', at: '3,0' }).ok).toBe(false);
-  setTile(s, 2, 0, { terrain: 'mountain' }); expect(applyAction(s, { type: 'road', at: '2,0' }).ok).toBe(false);
-  const e = addCity(s, 1, -3, 0); expect(applyAction(s, { type: 'road', at: '-3,1' }).ok).toBe(false);  // enemy territory
+  setTile(r, 2, 0, { terrain: 'mountain' }); expect(applyAction(r, { type: 'road', at: '2,0' }).ok).toBe(false);
+  addCity(r, 1, -3, 0); expect(applyAction(r, { type: 'road', at: '-3,1' }).ok).toBe(false);  // enemy territory
+  const s = blankMatch({ factions: ['mongols', 'spartans'] }); const c = addCity(s, 0, 0, 0); give(s, 0, 'roads', 'shieldwork');
+  s.players[0]!.explored = Object.keys(s.tiles).sort();
+  expect(applyAction(s, { type: 'road', at: '3,0' }).ok).toBe(false);          // rules 8
+  const e = addCity(s, 1, -3, 0);
   expect(e.id).not.toBe(c.id);
   t = must(applyAction(s, { type: 'buildWalls', city: c.id }));
   expect(cityById(t, c.id)!.walls).toBe(true); expect(t.players[0]!.gold).toBe(14);

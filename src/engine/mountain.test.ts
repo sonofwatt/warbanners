@@ -5,7 +5,7 @@ import { UNITS } from './data/units';
 import { attackOf, attackReach, attackTargets, coverAt, damageFor, guardOf, longShot, strikeDamage } from './combat';
 import { reachable } from './movement';
 import { unitById } from './state';
-import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import type { MatchState, UnitTypeId } from './types';
 
 const end = { type: 'endTurn' } as const;
@@ -13,8 +13,10 @@ const move = (unit: number, to: string) => ({ type: 'move', unit, to }) as const
 const attack = (unit: number, target: string) => ({ type: 'attack', unit, target }) as const;
 
 // A plain field map with player 0's city far away at 0,4 and player 1's at 0,-4, so nothing here stands in a city.
+// Both players may climb (CONFIG.mountain.tech).
 function field(): MatchState {
   const s = blankMatch(); addCity(s, 0, 0, 4); addCity(s, 1, 0, -4);
+  for (const p of s.players) if (CONFIG.mountain.tech !== null) p.techs.push(CONFIG.mountain.tech);
   return s;
 }
 
@@ -254,5 +256,47 @@ describe('rules 8: a kill advance onto or off a mountain ends the turn', () => {
     const r = must(applyAction(s, attack(k.id, '1,0')));
     expect(unitById(r, k.id)).toMatchObject({ pos: '1,0', attacks: 1, turnEnded: false });
     expect(attackTargets(r, k.id)).toEqual(['2,0']);
+  });
+});
+
+// rules 8: climbing must be researched. A unit steps onto a mountain only once its owner has CONFIG.mountain.tech.
+describe('rules 8: climbing needs CONFIG.mountain.tech', () => {
+  const tech = CONFIG.mountain.tech!;
+  const bare = () => { const s = field(); for (const p of s.players) p.techs = p.techs.filter((t) => t !== tech); return s; };
+  test('the tech is set, and it is the one that builds mines on mountains', () => {
+    expect(tech).not.toBeNull();
+    expect(CONFIG.buildings.mine.tech).toBe(tech);
+  });
+  test('without it a mountain is not enterable by a move; with it the climb is offered', () => {
+    const s = bare(); setTile(s, 1, 0, { terrain: 'mountain' });
+    const w = addUnit(s, 'warrior', 0, 0, 0);
+    expect(reachable(s, w.id)['1,0']).toBeUndefined();
+    expect(applyAction(s, move(w.id, '1,0')).ok).toBe(false);
+    expect(legalActions(s).some((a) => a.type === 'move' && a.to === '1,0')).toBe(false);
+    give(s, 0, tech);
+    expect(reachable(s, w.id)['1,0']).toBe(0);
+    expect(applyAction(s, move(w.id, '1,0')).ok).toBe(true);
+  });
+  test('stepping off a mountain needs no tech', () => {
+    const s = bare(); setTile(s, 0, 0, { terrain: 'mountain' });
+    const w = addUnit(s, 'warrior', 0, 0, 0);
+    expect(reachable(s, w.id)['1,0']).toBe(0);
+    expect(unitById(must(applyAction(s, move(w.id, '1,0'))), w.id)!.pos).toBe('1,0');
+  });
+  test('without it a kill advance does not climb: the attack happens, the killer stays put', () => {
+    const s = bare(); setTile(s, 1, 0, { terrain: 'mountain' });
+    const w = addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+    const r = applyAction(s, attack(w.id, '1,0'));
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.events.some((e) => e.type === 'died')).toBe(true);
+    expect(r.events.some((e) => e.type === 'advanced')).toBe(false);
+    expect(unitById(r.state, w.id)!.pos).toBe('0,0');
+    give(s, 0, tech);
+    const t = must(applyAction(s, attack(w.id, '1,0')));
+    expect(unitById(t, w.id)!.pos).toBe('1,0');
+  });
+  test('a mountain the owner cannot climb is still no bar to a kill advance onto a field', () => {
+    const s = bare(); const w = addUnit(s, 'warrior', 0, 0, 0); addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+    expect(unitById(must(applyAction(s, attack(w.id, '1,0'))), w.id)!.pos).toBe('1,0');
   });
 });

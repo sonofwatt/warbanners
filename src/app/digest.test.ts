@@ -43,10 +43,10 @@ test('an enemy melee killer stepping into my lost unit\'s tile is told, only whe
 
 test('an enemy claiming a treasure my side can see is told; one in the fog is not', () => {
   const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
-  s.tiles['1,-2']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 1, -2);
+  s.tiles['0,-2']!.treasure = true; const finder = addUnit(s, 'warrior', 0, 0, -2);   // beside the enemy city: in its sight
   const claim = applyAction(s, { type: 'claimTreasure', unit: finder.id }); if (!claim.ok) throw new Error(claim.reason);
-  expect(playerView(claim.state, 1).visible).toContain('1,-2');
-  expect(digestFor(1, [{ before: s, after: claim.state, events: claim.events }])).toEqual([{ kind: 'treasureTaken', at: '1,-2' }]);
+  expect(playerView(claim.state, 1).visible).toContain('0,-2');
+  expect(digestFor(1, [{ before: s, after: claim.state, events: claim.events }])).toEqual([{ kind: 'treasureTaken', at: '0,-2' }]);
   expect(digestFor(0, [{ before: s, after: claim.state, events: claim.events }])).toEqual([]);
   const f = blankMatch(); addCity(f, 0, 0, 3); addCity(f, 1, 0, -3);
   f.tiles['3,0']!.treasure = true; const far = addUnit(f, 'warrior', 0, 3, 0);

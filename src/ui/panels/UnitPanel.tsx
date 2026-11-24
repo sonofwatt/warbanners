@@ -19,7 +19,8 @@ export interface UnitPanelProps {
 export function UnitPanel({ unit, faction, stats, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
-  const riding = def.traits.includes('mounted') && FACTIONS[faction].territoryRiding;     // rules 13, a faction rule rather than a trait
+  // rules 8: relay riding, a faction rule rather than a trait (mounted units only, where the faction says so)
+  const riding = FACTIONS[faction].relayRiders && (def.traits.includes('mounted') || !FACTIONS[faction].relayMountedOnly);
   const rows = thresholds !== null && canEarnTraits(unit) && unit.heroTraits.length < CONFIG.heroes.maxTraits
     ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
   return (
@@ -41,7 +42,7 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>
           {def.traits.map((t) => <li key={t}><strong>{T.trait[t].name}</strong><span>{T.trait[t].blurb}</span></li>)}
-          {riding ? <li key="ridingByTerritory"><strong>{T.ui.ridingByTerritory}</strong><span>{T.ui.ridingByTerritoryBlurb}</span></li> : null}
+          {riding ? <li key="relayRiding"><strong>{T.ui.relayRiding}</strong><span>{T.ui.relayRidingBlurb}</span></li> : null}
         </ul>
       ) : null}
       {unit.heroTraits.length > 0 ? (

@@ -57,9 +57,17 @@ test('order: moves, attacks, abilities, capture, campTrain, then cities, tiles, 
   expect(first('move')).toBe(0);
   expect(first('campTrain')).toBeGreaterThan(first('move'));
   expect(first('train')).toBeGreaterThan(first('campTrain'));
+  expect(first('road')).toBe(-1);                                            // rules 8: Mongols build no roads
+  expect(first('research')).toBeGreaterThan(first('train'));
+  expect(camp.id).toBe(0);
+});
+test('order: a Spartan road comes after training and before research', () => {
+  const s = blankMatch(); addCity(s, 0, -4, 0); give(s, 0, 'roads');
+  s.players[0]!.explored = Object.keys(s.tiles).sort();
+  const types = legalActions(s).map(a => a.type);
+  const first = (t: string): number => types.indexOf(t as Action['type']);
   expect(first('road')).toBeGreaterThan(first('train'));
   expect(first('research')).toBeGreaterThan(first('road'));
-  expect(camp.id).toBe(0);
 });
 
 // Every action of each kind near each unit, city and tile, far more than legalActions lists.

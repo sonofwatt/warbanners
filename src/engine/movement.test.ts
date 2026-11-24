@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest';
 import { applyAction, legalActions } from './apply';
+import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
 import { claimTerritory, unitById } from './state';
-import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import { visibleTiles } from './vision';
 
 test('warrior on fields reaches its six neighbours', () => {
@@ -20,7 +21,7 @@ test('forest costs two tiles of movement, but one step is always allowed', () =>
   expect(reachable(s, w.id)['1,2']).toBe(0);
 });
 test('mountain needs a fresh unit and ends the move; water is closed', () => {
-  const s = blankMatch(); const k = addUnit(s, 'horseman', 0, 0, 0);
+  const s = blankMatch(); const k = addUnit(s, 'horseman', 0, 0, 0); give(s, 0, CONFIG.mountain.tech!);   // may climb (rules 8)
   setTile(s, 1, 0, { terrain: 'mountain' }); setTile(s, -1, 0, { terrain: 'water' });
   const r = reachable(s, k.id);
   expect(r['1,0']).toBe(0); expect(r['-1,0']).toBeUndefined(); expect(r['2,0']).toBeUndefined();
@@ -58,10 +59,10 @@ test('stepping onto or through a treasure leaves it in place (rules 12: it is cl
   expect(onto.tiles['1,0']!.treasure).toBe(true); expect(onto.rng).toBe(s.rng);
   expect(r.ok && r.events.map((e) => e.type)).toEqual(['moved']);
 });
-test('maxMp gives mounted Mongol units the half-point bonus and nobody else', () => {
+test('maxMp: since rules 8 a mounted Mongol unit has no half-point bonus either', () => {
   const s = blankMatch();                                           // player 0 Spartan, player 1 Mongol
   expect(maxMp(s, addUnit(s, 'horseman', 0, 0, 0))).toBe(4);
-  expect(maxMp(s, addUnit(s, 'horseman', 1, 1, 0))).toBe(5);
+  expect(maxMp(s, addUnit(s, 'horseman', 1, 1, 0))).toBe(4);
   expect(maxMp(s, addUnit(s, 'warrior', 1, 2, 0))).toBe(2);
 });
 test('unknown, spent and acted units reach nothing; a retreat unit may move after acting', () => {
@@ -87,7 +88,7 @@ test('road to a city tile costs 1 for anyone', () => {
   expect(r['2,0']).toBeUndefined();                                // off the road: field costs 2, 1 left
 });
 test('Mongol riders pay 1 inside their own territory over a forest, but a mountain still ends the move (rules 8)', () => {
-  const s = blankMatch(); claimTerritory(s, addCity(s, 1, 3, 0, { radius: 2 }));
+  const s = blankMatch(); claimTerritory(s, addCity(s, 1, 3, 0, { radius: 2 })); give(s, 1, CONFIG.mountain.tech!);
   setTile(s, 2, 0, { terrain: 'forest' }); setTile(s, 1, 0, { terrain: 'mountain' });
   setTile(s, -1, 0, { terrain: 'mountain' });
   const h = addUnit(s, 'horseman', 1, 0, 0, { moved: true, mp: 3 });

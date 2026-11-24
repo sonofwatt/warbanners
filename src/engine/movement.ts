@@ -66,6 +66,8 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
   if (u.fresh || u.turnEnded || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
+  const relays = faction.relayRiders && (mounted || !faction.relayMountedOnly);   // rules 8: mounted units only
+  const climbs = canClimb(s, u.owner);                     // rules 8: may step onto a mountain at all
   const explored = new Set(s.players[u.owner]!.explored);
   // rules 3 to 5 only: a move could end on one unexplored tile, and mounted Mongol riders kept moving after it
   const keepsMoveInFog = !CONFIG.closedFog && mounted && s.players[u.owner]!.faction === 'mongols';
@@ -88,6 +90,7 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
       const tile = tileAt(s, to);
       if (tile === undefined || tile.terrain === 'water' || isEnemyAt(s, u.owner, to)) continue;
       if (!entersFog && !explored.has(to)) continue;
+      if (!climbs && tile.terrain === 'mountain') continue;   // rules 8: climbing needs CONFIG.mountain.tech
       let cost: number;
       let forced = false;                                   // costs everything that is left
       if (offMountain || (CONFIG.mountain.endsTurn && tile.terrain === 'mountain')) {
@@ -95,7 +98,7 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
         // Before the road and relay costs, should a city or road ever stand on a mountain.
         if (!firstStep) continue;
         cost = left; forced = true;
-      } else if (faction.relayRiders && tile.cityId !== null && cityById(s, tile.cityId)?.owner === u.owner) {
+      } else if (relays && tile.cityId !== null && cityById(s, tile.cityId)?.owner === u.owner) {
         cost = CONFIG.relayCost;
       } else if (hasRoadOrCity(s, from) && hasRoadOrCity(s, to)) {
         cost = CONFIG.roadCost;
@@ -128,6 +131,13 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
     if (k !== u.pos && unitAt(s, k) === undefined) out[k] = v;
   }
   return out;
+}
+
+// rules 8: may units of `player` step onto a mountain? Only once the player has researched CONFIG.mountain.tech (none
+// needed when it is null). Takes anything with players, so a player's view works too.
+export function canClimb(s: Pick<MatchState, 'players'>, player: number): boolean {
+  const tech = CONFIG.mountain.tech;
+  return tech === null || s.players[player]?.techs.includes(tech) === true;
 }
 
 // rules 8: does a move from `from` to `to` step onto or off a mountain, and so end the unit's turn? Takes anything with

@@ -24,7 +24,7 @@ vi.mock('./data/config', async (orig) => {
       levelUpEndsChain: false,
       connectGrowth: 0,
       capitalMoves: false,
-      hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false },
+      hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1,
       buildings: {
         ...m.CONFIG.buildings,
         lumberCamp: { ...m.CONFIG.buildings.lumberCamp, cost: 3, growth: 1 },
@@ -38,7 +38,7 @@ vi.mock('./data/config', async (orig) => {
 
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
-  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2 } } };
+  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2, relayMountedOnly: false, canBuildRoads: true } } };
 });
 
 vi.mock('./data/units', async (orig) => {

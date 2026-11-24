@@ -152,6 +152,7 @@ export const buildHandler: Handler<Extract<Action, { type: 'build' }>> = (s, a, 
 export function roadRefusal(s: MatchState, at: unknown): string | null {
   if (typeof at !== 'string') return 'bad road';
   const player = s.players[s.current]!;
+  if (!FACTIONS[player.faction].canBuildRoads) return 'your faction cannot build roads';   // rules 8
   if (!player.explored.includes(at)) return 'cannot build a road there';
   const tile = tileAt(s, at);
   if (tile === undefined || cityAt(s, at) !== undefined) return 'cannot build a road there';

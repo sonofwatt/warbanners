@@ -107,6 +107,7 @@ const reason: Record<string, string> = {
   'cannot build a road there': 'A road cannot go there',
   'already walled': 'This city already has walls',
   'your faction cannot build walls': 'Your people do not build walls',
+  'your faction cannot build roads': 'Your people do not build roads',   // rules 8
   'no city has room': 'No city has room for another unit',
   'not your city': 'This is not your city',
   'no reward pending': 'No reward is waiting',
@@ -224,8 +225,8 @@ const ui = {
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
   whatsNew: `New: on a mountain, ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one.`,
-  ridingByTerritory: 'Rides by territory',
-  ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
+  relayRiding: 'Rides Mongol land',
+  relayRidingBlurb: 'Every step onto a tile of Mongol territory costs what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',
   momentum: 'Momentum',
   momentumLeft: (left: number, start: number) => `Momentum ${left} of ${start}`,

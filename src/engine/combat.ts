@@ -8,7 +8,7 @@ import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
 import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
-import { maxMp, mountainStep } from './movement';
+import { canClimb, maxMp, mountainStep } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
 
@@ -195,7 +195,9 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
       chainGranted += 1;
     }
     // rules 10: a melee killer steps into the emptied tile, at no movement cost
-    if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
+    // (rules 8: onto a mountain only once its owner may climb; the attack still happens, the killer just stays put)
+    const climbBarred = tileAt(s, tileKey)?.terrain === 'mountain' && !canClimb(s, attacker.owner);
+    if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && !climbBarred && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
       attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
       ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
       climbed = mountainStep(s, attackerFrom, tileKey);

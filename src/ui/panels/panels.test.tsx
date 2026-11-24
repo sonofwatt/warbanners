@@ -68,13 +68,13 @@ test('the unit panel movement includes the Mongol mounted bonus for every mounte
   expect(move('khansGuard', 'mongols')).toContain(`Movement</dt><dd>${UNITS.khansGuard.move + bonus}</dd>`);
   expect(move('horseman', 'spartans')).toContain(`Movement</dt><dd>${UNITS.horseman.move}</dd>`);
 });
-test("a Mongol rider's card names the riding by territory rule; a Spartan rider's and a Mongol foot unit's do not", () => {
+test("a Mongol rider's card names the relay riding rule; a Spartan rider's and a Mongol foot unit's do not (rules 8)", () => {
   const card = (type: 'horseman' | 'warrior', faction: 'mongols' | 'spartans') =>
     renderToStaticMarkup(<UnitPanel {...lone(type, faction)} commands={[]} onCommand={noop} />);
-  expect(card('horseman', 'mongols')).toContain(T.ui.ridingByTerritoryBlurb);
-  expect(card('horseman', 'mongols')).toContain(T.ui.ridingByTerritory);
-  expect(card('horseman', 'spartans')).not.toContain(T.ui.ridingByTerritory);
-  expect(card('warrior', 'mongols')).not.toContain(T.ui.ridingByTerritory);
+  expect(card('horseman', 'mongols')).toContain(T.ui.relayRidingBlurb);
+  expect(card('horseman', 'mongols')).toContain(T.ui.relayRiding);
+  expect(card('horseman', 'spartans')).not.toContain(T.ui.relayRiding);
+  expect(card('warrior', 'mongols')).not.toContain(T.ui.relayRiding);
   expect(T.trait.mounted.blurb).not.toContain('Mongol');
 });
 test("a Knight's card says momentum pays for the chain and a kill that earns a hero trait ends it", () => {

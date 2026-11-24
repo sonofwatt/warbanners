@@ -106,6 +106,7 @@ test('a city linked before the move stays linked and pays nothing again; an unli
   expect(cityById(r.state, unlinked.id)!.linked).toBe(false);
   const theirTurn = must(applyAction(r.state, { type: 'endTurn' }));
   give(theirTurn, 1, 'roads'); theirTurn.players[1]!.gold = 50;
+  theirTurn.players[1]!.faction = 'spartans';                        // rules 8: Mongols build no roads
   const a = applyAction(theirTurn, { type: 'road', at: '2,1' });
   if (!a.ok) throw new Error(a.reason);
   expect(a.events.some((e) => e.type === 'connected')).toBe(false);
@@ -113,7 +114,7 @@ test('a city linked before the move stays linked and pays nothing again; an unli
   if (!b.ok) throw new Error(b.reason);
   expect(b.events.filter((e) => e.type === 'connected')).toEqual([{ type: 'connected', city: unlinked.id, capital: next.id }]);
   expect(cityById(b.state, linked.id)!.growth).toBe(0);
-  expect(cityById(b.state, unlinked.id)).toMatchObject({ linked: true, growth: 1 });
+  expect(cityById(b.state, unlinked.id)).toMatchObject({ linked: true, level: 2, growth: 0 });   // a Spartan level 1 city fills on 1
 });
 
 test('a player whose last city is taken is eliminated and no capital moves', () => {
