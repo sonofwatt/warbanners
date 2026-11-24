@@ -68,6 +68,7 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
     u.momentum = momentumStart(u.type);   // rules 7
     u.moved = false;
     u.acted = false;
+    u.turnEnded = false;                  // rules 8
     u.fresh = false;
   }
 

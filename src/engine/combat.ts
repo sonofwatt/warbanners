@@ -83,9 +83,11 @@ export function momentumShort(s: MatchState, target: Unit, attacker: Unit): numb
 
 // The damage this attacker's hit does to this target at effective attack effAtk: the formula against its guard and
 // cover, less 1 per missing point of momentum (rules 7), never below 1. The attack itself and every estimate use it.
+// Last, the long shot cut (rules 8) for a shot from a mountain beyond the attacker's normal range.
 export function strikeDamage(s: MatchState, target: Unit, attacker: Unit, effAtk: number): number {
   const full = damageFor(effAtk, guardOf(s, target, attacker), coverAt(s, target));
-  return Math.max(1, full - momentumShort(s, target, attacker));
+  const dmg = Math.max(1, full - momentumShort(s, target, attacker));
+  return longShot(s, attacker, target) ? Math.max(1, Math.round(dmg * CONFIG.mountain.longShotScale)) : dmg;
 }
 
 // rules 10
@@ -99,8 +101,26 @@ function healthFactor(u: Unit): number {
   return (u.hp + maxHp) / (2 * maxHp);
 }
 
-function reachOf(u: Unit): number {
+// The reach a unit counter-attacks with: its type's range, or the blinded reach. No mountain bonus (rules 8).
+function counterReach(u: Unit): number {
   return u.blinded ? CONFIG.blindedReach : UNITS[u.type].range;
+}
+
+// rules 8: the extra reach a unit has for its own attacks where it stands: rangeBonus for a ranged unit (range 2 or
+// more) on a mountain, else 0. Blindness wins (attackReach).
+export function mountainReach(s: MatchState, u: Unit): number {
+  return UNITS[u.type].range >= 2 && tileAt(s, u.pos)?.terrain === 'mountain' ? CONFIG.mountain.rangeBonus : 0;
+}
+
+// rules 10 and 8: how far a unit's own attacks reach: the blinded reach, or its type's range plus the mountain bonus.
+export function attackReach(s: MatchState, u: Unit): number {
+  return u.blinded ? CONFIG.blindedReach : UNITS[u.type].range + mountainReach(s, u);
+}
+
+// rules 8: is this a long shot, one that uses the mountain's extra tile (the target is beyond the normal range)?
+export function longShot(s: MatchState, attacker: Unit, target: Unit): boolean {
+  return !attacker.blinded && mountainReach(s, attacker) > 0
+    && distance(parseKey(attacker.pos), parseKey(target.pos)) > UNITS[attacker.type].range;
 }
 
 // rules 13: a lure may be recorded when this attacker hits this target (the target must also survive)
@@ -116,7 +136,7 @@ export function attackTargets(s: MatchState, unitId: number): HexKey[] {
   const def = UNITS[u.type];
   if (def.range === 0 || def.atk === 0) return [];
   if (hasTrait(u, 'siege') && u.moved) return [];
-  const reach = reachOf(u);
+  const reach = attackReach(s, u);
   const from = parseKey(u.pos);
   const visible = visibleTiles(s, u.owner);
   const legal = s.units
@@ -149,7 +169,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   // The counter is worked out first so the one `attacked` event can carry it.
   let counter = 0;
   if (!targetDied && attackOf(s, target) > 0 && !hasTrait(target, 'siege')
-    && distance(parseKey(attacker.pos), parseKey(target.pos)) <= reachOf(target)) {
+    && distance(parseKey(attacker.pos), parseKey(target.pos)) <= counterReach(target)) {
     const f = hasTrait(target, 'steadfast') ? CONFIG.steadfastFactor : CONFIG.counterFactor;
     const cAtk = attackOf(s, target) * f * healthFactor(target);
     counter = damageFor(cAtk, defenceOf(s, attacker), 1);
@@ -237,11 +257,12 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
 export interface UnitStats { atk: number; def: number; maxHp: number; move: number; sight: number; range: number }
 
 // A unit's own numbers with its traits and its faction's mounted bonus, and no neighbour bonuses (no inspire,
-// phalanx or myth touch). `move` is in tiles; maxMp stays in half-points.
+// phalanx or myth touch). `move` is in tiles; maxMp stays in half-points. Sight and range count the mountain it stands
+// on (range: rules 8, for a ranged unit), not blindness.
 export function statsOf(s: MatchState, u: Unit): UnitStats {
   const def = UNITS[u.type];
   return {
     atk: baseAttackOf(u), def: def.def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0),
-    maxHp: maxHpOf(u), move: maxMp(s, u) / 2, sight: unitSight(s, u), range: def.range,
+    maxHp: maxHpOf(u), move: maxMp(s, u) / 2, sight: unitSight(s, u), range: def.range + mountainReach(s, u),
   };
 }

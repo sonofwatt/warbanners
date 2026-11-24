@@ -33,7 +33,7 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
       && canSeeUnit(s, u.owner, t, visible));
   } else if (ability === 'hasten') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
-      && hasTrait(t, 'mounted') && !t.fresh);
+      && hasTrait(t, 'mounted') && !t.fresh && !t.turnEnded);   // rules 8: no haste for a unit whose turn ended
   } else {
     return dustStormTiles(s, u);
   }

@@ -56,6 +56,7 @@ export interface Unit {
   item: ItemId | null;                   // a carried one-use item; public
   hunkered: boolean;                     // rules 7: dug in until it moves or acts of its own accord; public
   momentum: number;                      // rules 7: a chain unit's momentum left this turn (0 for any other unit); public
+  turnEnded: boolean;                    // rules 8: a step onto or off a mountain ended its turn; nothing, not even haste, lets it move again; public
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {

@@ -86,13 +86,15 @@ test('road to a city tile costs 1 for anyone', () => {
   expect(r['1,0']).toBe(1);
   expect(r['2,0']).toBeUndefined();                                // off the road: field costs 2, 1 left
 });
-test('Mongol riders pay 1 inside their own territory, even over a mountain or forest', () => {
+test('Mongol riders pay 1 inside their own territory over a forest, but a mountain still ends the move (rules 8)', () => {
   const s = blankMatch(); claimTerritory(s, addCity(s, 1, 3, 0, { radius: 2 }));
   setTile(s, 2, 0, { terrain: 'forest' }); setTile(s, 1, 0, { terrain: 'mountain' });
   setTile(s, -1, 0, { terrain: 'mountain' });
   const h = addUnit(s, 'horseman', 1, 0, 0, { moved: true, mp: 3 });
   expect(reachable(s, h.id)['-1,0']).toBeUndefined();               // outside the territory: a moved unit cannot climb
-  expect(reachable(s, h.id)['1,0']).toBe(2);                        // inside it the mountain costs 1
+  expect(reachable(s, h.id)['1,0']).toBeUndefined();                // nor inside it: relay riding never skips the climb
+  const fresh = addUnit(s, 'horseman', 1, 0, 1, { mp: 3 });
+  expect(reachable(s, fresh.id)['1,0']).toBe(0);                    // a first step climbs, for everything left
   const g = addUnit(s, 'horseman', 1, 4, 0, { moved: true, mp: 3 });
   expect(reachable(s, g.id)['3,0']).toBe(2);
   expect(reachable(s, g.id)['2,0']).toBe(1);                        // forest inside own territory still costs 1

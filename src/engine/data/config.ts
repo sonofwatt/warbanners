@@ -15,6 +15,11 @@ export const CONFIG = deepFreeze({
     water: { enterCost: null, cover: 0 },
   },
   roadCost: 1, relayCost: 1, wallsCover: 2, mountainSightBonus: 1,
+  // rules 8: a ranged unit (range 2 or more) on a mountain has +rangeBonus range for its own attacks (never its
+  // counter), and a shot at a target beyond its normal range does longShotScale of the damage, rounded, never below 1.
+  // With endsTurn, a step onto or off a mountain ends the unit's turn, and a unit leaves a mountain only as the first
+  // step of a move. rangeBonus 0 and endsTurn false replay rules 7; only the provenance tests turn them off.
+  mountain: { rangeBonus: 1, longShotScale: 0.8, endsTurn: true },
   // rules 6: no move passes through a tile its owner had not explored when the move began, and only a pathfinder
   // (the Spartan Scout) may end a move on one, which ends its turn. Off replays rules 3 to 5 (any unit could end a move
   // on one unexplored tile, and a mounted Mongol kept its movement after it); only the provenance test turns it off.
@@ -102,6 +107,7 @@ export const CONFIG = deepFreeze({
   mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
   roadCost: number; relayCost: number; wallsCover: number; mountainSightBonus: number;
+  mountain: { rangeBonus: number; longShotScale: number; endsTurn: boolean };
   closedFog: boolean; levelUpEndsChain: boolean; connectGrowth: number; capitalMoves: boolean;
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
   attacksPerTurn: { doubleStrike: number; base: number };
