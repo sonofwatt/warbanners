@@ -43,7 +43,8 @@ async function startMatch(page: Page): Promise<void> {
  */
 async function slide(page: Page, from: string, to: string): Promise<void> {
   await tapTile(page, from);
-  await page.locator(`[data-mark="move"]`).first().waitFor({ state: 'attached' });
+  // Every move off a mountain ends the turn (rules 8), so a unit on one has only moveEnds marks.
+  await page.locator(`[data-mark="move"], [data-mark="moveEnds"]`).first().waitFor({ state: 'attached' });
   await page.evaluate(() => {
     const w = window as unknown as { unitNode: Element | null; track: { x: number; y: number }[]; tracking: boolean };
     w.unitNode = document.querySelector('[data-unit="0"]');
