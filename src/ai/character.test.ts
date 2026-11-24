@@ -235,8 +235,10 @@ describe('matches between two AIs end', () => {
   // 12 gold (rules 7): Mongols first then ends in round 32 (inside 33) and Spartans first in 28, so that seating gets 32,
   // the last measure plus the same four rounds of margin. The rules 8 additions (city sight, Scout, Mongol riding and
   // roads, hunker heal, climbing tech): Mongols first ends in round 17 and Spartans first in 37 (42 without the AI's
-  // hunker heal forecast, so the rules moved it), so that seating gets 41, the same four rounds of margin.
-  test.each([['mongols', 'spartans', 33], ['spartans', 'mongols', 41]] as [FactionId, FactionId, number][])(
+  // hunker heal forecast, so the rules moved it), so that seating gets 41, the same four rounds of margin. Rules 8's tech
+  // tree: Mongols first ends in round 35 (the Mongols win) and Spartans first in 39 (the Mongols win), so Mongols first
+  // gets 39, the last measure plus the same four rounds of margin, and Spartans first keeps 41.
+  test.each([['mongols', 'spartans', 39], ['spartans', 'mongols', 41]] as [FactionId, FactionId, number][])(
     'at hard on a seeded map, %s first against %s, the match reaches a winner within %i rounds', (first, second, bound) => {
       expect(aiMatch(3, [first, second], LEVEL_DIAL.hard, bound).winner).not.toBeNull();
     }, 120_000);

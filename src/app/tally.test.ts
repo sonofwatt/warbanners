@@ -48,7 +48,7 @@ describe('random playouts', () => {
       expect([a.dealt, b.dealt]).toEqual(dealtByReplay(settings, actions));
       expect(t.winner).toBe(state.winner);
       expect(t.rounds).toBe(roundOf(state));
-    });
+    }, 30_000);
   }
 
   test('some playout has fighting, deaths and treasure, so the counts are not all zero', () => {
@@ -57,7 +57,7 @@ describe('random playouts', () => {
     expect(sum('dealt')).toBeGreaterThan(0);
     expect(sum('kills')).toBeGreaterThan(0);
     expect(sum('treasures')).toBeGreaterThan(0);
-  });
+  }, 30_000);   // rules 8's tree gives random play more to choose from: about 4.7 s alone, past the 5 s default in a full run
 });
 
 test('a resign gives the other seat the win', () => {

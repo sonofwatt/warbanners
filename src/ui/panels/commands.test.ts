@@ -37,16 +37,26 @@ test('the units to train come trainable first, then the rest, each part cheapest
   expect(ascending(costs(train.slice(ready.length)))).toBe(true);
 });
 test('tile commands: legal ones, blocked ones with a reason, and nothing irrelevant', () => {
-  expect(byId(tileCommands('-2,4', open, ixOf(open)))['build-mine']).toMatchObject({ enabled: true, cost: 5, action: { type: 'build', at: '-2,4', building: 'mine' } });
+  // rules 8: the Spartans start with Prospecting, so the Mine waits on Mining, and tapping it opens the tree there
+  expect(byId(tileCommands('-2,4', open, ixOf(open)))['build-mine']).toMatchObject({ enabled: false, cost: 5, action: null, why: `Needs ${T.tech.mining}`, tech: 'mining' });
+  const mined = structuredClone(open); mined.players[0]!.techs.push('mining');
+  expect(byId(tileCommands('-2,4', mined, ixOf(mined)))['build-mine']).toMatchObject({ enabled: true, cost: 5, action: { type: 'build', at: '-2,4', building: 'mine' } });
   const s42 = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
-  expect(tileCommands('-1,5', s42, ixOf(s42))).toEqual([expect.objectContaining({ id: 'harvest', enabled: false, why: `Needs ${T.tech.foraging}` })]);
-  expect(tileCommands('-1,4', s42, ixOf(s42))).toEqual([expect.objectContaining({ id: 'build-market', enabled: false, why: `Needs ${T.tech.markets}` })]);
+  expect(tileCommands('-1,5', s42, ixOf(s42))).toEqual([
+    expect.objectContaining({ id: 'harvest', label: T.harvestVerb.orchard, enabled: false, why: `Needs ${T.tech.foraging}` }),
+    expect.objectContaining({ id: 'build-orchard', enabled: false, why: `Needs ${T.tech.orchards}` }),
+  ]);
+  expect(tileCommands('-1,4', s42, ixOf(s42))).toEqual([expect.objectContaining({ id: 'build-market', enabled: false, why: `Needs ${T.tech.granary}` })]);
+  // rules 8: a harvested tile offers no harvest but still its building; an improvement offers its upgrade
+  const h = structuredClone(s42); h.tiles['-1,5']!.harvested = true; h.tiles['-1,4']!.building = 'farm';
+  expect(tileCommands('-1,5', h, ixOf(h)).map(c => c.id)).toEqual(['build-orchard']);
+  expect(tileCommands('-1,4', h, ixOf(h))).toEqual([expect.objectContaining({ id: 'build-granary', enabled: false, why: `Needs ${T.tech.granary}`, tech: 'granary' })]);
   expect(tileCommands('-2,3', s42, ixOf(s42))).toEqual([]);
 });
-test('walls: hidden for Spartans, disabled for Mongols without Shieldwork, a reward pair when one is pending', () => {
+test('walls: hidden for Spartans, disabled for Mongols without the Walls tech, a reward pair when one is pending', () => {
   expect(cityCommands(0, open, ixOf(open)).some(c => c.id === 'walls')).toBe(false);
   const m = createMatch({ seed: 7, factions: ['mongols', 'spartans'] });
-  expect(byId(cityCommands(0, m, ixOf(m)))['walls']).toMatchObject({ enabled: false, cost: 6, why: `Needs ${T.tech.shieldwork}` });
+  expect(byId(cityCommands(0, m, ixOf(m)))['walls']).toMatchObject({ enabled: false, cost: 6, why: `Needs ${T.tech.walls}`, tech: 'walls' });
   const r = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
   r.cities[0]!.pendingRewards = [2];
   const c = byId(cityCommands(0, r, ixOf(r)));
