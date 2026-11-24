@@ -2,8 +2,8 @@
 // three.js is never downloaded otherwise). It draws on a canvas under the board's svg, aimed with the board's own
 // camera, and renders only when asked: when the camera moves or the map changes, never in a loop.
 import {
-  BackSide, BufferGeometry, Color, ColorManagement, DataTexture, LinearSRGBColorSpace, Mesh, NearestFilter,
-  OrthographicCamera, RGBAFormat, Scene, ShaderMaterial, Vector3, WebGLRenderer,
+  BackSide, BufferGeometry, Color, ColorManagement, Float32BufferAttribute, LinearSRGBColorSpace, Mesh,
+  OrthographicCamera, Scene, ShaderMaterial, Vector3, WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
@@ -31,8 +31,6 @@ export interface Terrain3d {
 
 /** The highest device pixel ratio the terrain renders at: sharp on phones, without paying for 3x. */
 export const MAX_DPR = 2;
-const VEIL_SIZE = 64;
-const VEIL_OFFSET = 32;
 
 const code = (t: GlTile | undefined): string =>
   t === undefined ? 'x' : `${t.terrain[0]}${t.resource ?? '-'}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}`;
@@ -56,12 +54,6 @@ export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, o
   const lost = (e: Event): void => { e.preventDefault(); onLost(); };
   canvas.addEventListener('webglcontextlost', lost);
 
-  const veilData = new Uint8Array(VEIL_SIZE * VEIL_SIZE * 4);
-  const veilTex = new DataTexture(veilData, VEIL_SIZE, VEIL_SIZE, RGBAFormat);
-  veilTex.magFilter = NearestFilter;
-  veilTex.minFilter = NearestFilter;
-  veilTex.needsUpdate = true;
-
   const shared = {
     uLightDir: { value: new Vector3(-0.55, 0.8, 0.28).normalize() }, // from the upper left, as the SVG art
     uLightColor: { value: new Color(1.05, 1.02, 0.96) }, // warm key
@@ -69,7 +61,6 @@ export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, o
     uTint: { value: new Color(1, 1, 1) }, // a time of day grade, multiplied in last
     uVeilColor: { value: new Color('#1E2833') }, // theme.css .veil
     uTime: { value: 0 },
-    uVeil: { value: veilTex },
   };
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
@@ -115,17 +106,29 @@ export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, o
     outline.geometry = props.geometry;
     oldGround.dispose();
     oldProps.dispose();
+    paintVeil();
   }
 
-  function setVeil(veiled: readonly HexKey[]): void {
-    veilData.fill(0);
-    for (const k of veiled) {
-      const { q, r } = parse(k);
-      const x = q + VEIL_OFFSET, y = r + VEIL_OFFSET;
-      if (x < 0 || y < 0 || x >= VEIL_SIZE || y >= VEIL_SIZE) continue;
-      veilData[(y * VEIL_SIZE + x) * 4] = 255;
+  // The veil: aVeil on every vertex, 1 where its tile (aHex) is veiled. Rewritten in place, so no rebuild.
+  let veiledNow = new Set<number>();
+  const hexId = (q: number, r: number): number => (q + 512) * 1024 + (r + 512);
+  function paintVeil(): void {
+    for (const geo of [ground.geometry, props.geometry]) {
+      const hex = geo.attributes.aHex;
+      if (hex === undefined) continue;
+      let veil = geo.attributes.aVeil as Float32BufferAttribute | undefined;
+      if (veil === undefined || veil.count !== hex.count) {
+        veil = new Float32BufferAttribute(new Float32Array(hex.count), 1);
+        geo.setAttribute('aVeil', veil);
+      }
+      const arr = veil.array as Float32Array;
+      for (let i = 0; i < hex.count; i++) arr[i] = veiledNow.has(hexId(hex.getX(i), hex.getY(i))) ? 1 : 0;
+      veil.needsUpdate = true;
     }
-    veilTex.needsUpdate = true;
+  }
+  function setVeil(veiled: readonly HexKey[]): void {
+    veiledNow = new Set(veiled.map((k) => { const { q, r } = parse(k); return hexId(q, r); }));
+    paintVeil();
   }
 
   // The SVG board's camera (cx, cy, scale in board units and px per unit) and viewport, unchanged. The camera looks
@@ -157,7 +160,6 @@ export function createTerrain3d(canvas: HTMLCanvasElement, onLost: () => void, o
     ground.geometry.dispose();
     props.geometry.dispose();
     groundMat.dispose(); propMat.dispose(); outlineMat.dispose();
-    veilTex.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }

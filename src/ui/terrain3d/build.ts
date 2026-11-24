@@ -9,7 +9,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
 import type { GlMap } from './input';
 import {
-  centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, parse, R, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
+  centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
 } from './layout';
 import type { Bit, Peak, Prop, Setup } from './layout';
 
@@ -66,7 +66,8 @@ function walls(cx: number, cz: number, g: number, top: number, v: number): Buffe
 export function fogGeometry(k: HexKey): BufferGeometry {
   const { q, r } = parse(k);
   const c = centre(q, r);
-  const pos: number[] = [c.x, 0, c.z], info: number[] = [TERRAIN_ID.fog, 0, 0, 60], local: number[] = [0, 0];
+  // The edge distance runs from the inradius at the centre to 0 at the rim, exactly linear across each fan triangle.
+  const pos: number[] = [c.x, 0, c.z], info: number[] = [TERRAIN_ID.fog, 0, INR, 60], local: number[] = [0, 0];
   for (let i = 0; i < 6; i++) {
     const a = ((30 + 60 * i) * Math.PI) / 180;
     pos.push(c.x + R * Math.cos(a), 0, c.z + R * Math.sin(a));

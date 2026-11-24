@@ -530,10 +530,11 @@ export function Board(p: BoardProps): ReactElement {
       </g>
     </svg>
   );
-  if (!glWanted) return board;
+  // The svg keeps its place in the tree whether the canvas is there or not, so turning the option on or off never
+  // remounts it (its size observer and gestures stay attached).
   return (
     <>
-      <canvas ref={canvasRef} className="board-terrain" data-testid="board-terrain" aria-hidden="true" />
+      {glWanted ? <canvas ref={canvasRef} className="board-terrain" data-testid="board-terrain" aria-hidden="true" /> : null}
       {board}
     </>
   );

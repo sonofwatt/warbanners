@@ -25,19 +25,14 @@ vec3 lightUp(vec3 albedo, float band) { return albedo * mix(uShadowColor, uLight
 vec3 finish(vec3 col, float veil) { return mix(col * uTint, uVeilColor, veil); }
 `;
 
-// The veil lookup: one texel per hex (q, r offset by 32), red = veil amount.
-const VEIL = /* glsl */ `
-uniform sampler2D uVeil;
-float veilAt(vec2 hex) { return texture2D(uVeil, (hex + 32.5) / 64.0).r * 0.3; }
-`;
 
+// aVeil is 1 on a veiled tile's vertices (written in place when the veil changes), dimmed by the SVG veil's 0.3.
 export const groundVert = /* glsl */ `
-${VEIL}
-attribute vec4 aInfo; attribute vec4 aTile; attribute float aAO; attribute vec2 aLocal; attribute float aRoad; attribute vec2 aHex;
+attribute vec4 aInfo; attribute vec4 aTile; attribute float aAO; attribute vec2 aLocal; attribute float aRoad; attribute float aVeil;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
 void main() {
   vInfo = aInfo; vTile = aTile; vAO = aAO; vLocal = aLocal; vNormal = normal; vRoad = aRoad;
-  vVeil = veilAt(aHex);
+  vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position, 1.0);
   vWorld = w.xyz;
   gl_Position = projectionMatrix * viewMatrix * w;
@@ -183,13 +178,12 @@ void main() {
 }`;
 
 export const propVert = /* glsl */ `
-${VEIL}
-attribute float aGloss; attribute vec3 aOut; attribute vec2 aHex;
+attribute float aGloss; attribute vec3 aOut; attribute float aVeil;
 uniform float uOutline;
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
 void main() {
   vColor = color; vNormal = normal; vGloss = aGloss;
-  vVeil = veilAt(aHex);
+  vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position + aOut * uOutline, 1.0);
   vWorld = w.xyz;
   gl_Position = projectionMatrix * viewMatrix * w;
