@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
-  CONFIG, FACTIONS, UNITS, attackOf, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp, strikeDamage,
-  growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
+  CONFIG, FACTIONS, UNITS, attackOf, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp,
+  mountainReach, mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -36,6 +36,7 @@ const TAUNT_VALUE = 1.5;          // a taunt that turns an enemy's blow onto a H
 const BADLY_WOUNDED = 0.4;        // a unit at or below this share of its health is badly wounded
 const WOUNDED_CARE = 3;           // its danger weight is at least this times skill.focus
 const WOUNDED_PULL_CUT = 0.75;    // and its objective pull is cut by this share times skill.focus
+const MOUNTAIN_PERCH = 1;         // rules 8: a ranged unit on a mountain reaches a tile farther (its strike term counts the rest)
 const ITEM_WORTH = 1;             // a carried draught (Task 8: 2 kept hard from drinking for a kill)
 
 // Its gold cost; a unit that cannot be bought (champion, support) counts as 8.
@@ -82,8 +83,8 @@ function strikeOf(b: MatchState, u: Unit): number {
   const atk = baseAttackOf(u) * healthFactor(u);
   let best = 0;
   for (const e of b.units) {
-    if (e.owner === u.owner || distance(at, parseKey(e.pos)) > def.range) continue;
-    const dmg = strikeDamage(b, e, u, atk);   // the engine's damage, with the momentum cut (rules 7)
+    if (e.owner === u.owner || distance(at, parseKey(e.pos)) > attackReach(b, u)) continue;   // the engine's reach (rules 8)
+    const dmg = strikeDamage(b, e, u, atk);   // the engine's damage, with the momentum cut (rules 7) and the long shot cut (rules 8)
     best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
   return STRIKE_SHARE * best;
@@ -291,8 +292,11 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
     const threatened = (c: City): boolean => c.owner === me && goals.some((g) => g.kind === 'defend' && g.at === c.pos);
     if (b.cities.some((c) => threatened(c) && (c.id === tile?.cityId || distance(at, parseKey(c.pos)) <= 1))) v += persona.hold;
   }
-  if (isMounted(u) && u.acted && threat === 0) v += persona.raid;
+  // rules 8: a rider that climbed a mountain has acted only by climbing, so the climb alone is no raid
+  const climbed = u.turnEnded && tile?.terrain === 'mountain';
+  if (isMounted(u) && u.acted && !climbed && threat === 0) v += persona.raid;
   if (isMounted(u) && tile?.terrain === 'forest') v -= persona.forestPenalty;
+  if (mountainReach(b, u) > 0) v += MOUNTAIN_PERCH;
   if (has(u, 'steady')) v += steadyCredit(b, u);
   v += strikeOf(b, u);
 
@@ -344,7 +348,10 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
 export function moveScore(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, mpLeft: number): number {
   const u = b.units.find((x) => x.id === unitId);
   if (u === undefined) throw new Error(`no unit ${unitId}`);
-  const moved: Unit = { ...u, pos: to, mp: mpLeft, moved: true };
+  // rules 8: a step onto or off a mountain ends the unit's turn as the engine ends it, so it cannot attack after it
+  const moved: Unit = mountainStep(b, u.pos, to)
+    ? { ...u, pos: to, mp: 0, bonusMp: 0, attacks: 0, moved: true, acted: true, itemTurn: b.stamp, turnEnded: true }
+    : { ...u, pos: to, mp: mpLeft, moved: true };
   const there = parseKey(to);
   const after = b.units.map((x) => (x.id === unitId ? moved : x));
   let score = unitTerms(b, ctx, moved, lazyVisible({ ...b, units: after }, ctx.me)) - unitTerms(b, ctx, u, lazyVisible(b, ctx.me));

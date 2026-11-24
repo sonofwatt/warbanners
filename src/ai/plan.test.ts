@@ -12,13 +12,17 @@ import { LEVEL_DIAL } from './types';
 // gold the random playouts hold more units and take about 44 s to build (seed 7 to turn 160 alone 25 s), so the first test
 // to ask pays that and has a 120 s limit; the rest find them ready.
 let cached: MatchState[] | null = null;
-const fixtures = (): MatchState[] => (cached ??= [randomPlayout(7, 160), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })]);
+// Seed 7 at 130 turns since rules 8 (it now ends after 135, and a plan on an ended match cannot end its turn).
+const fixtures = (): MatchState[] => (cached ??= [randomPlayout(7, 130), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })]);
 test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is played, dial %f', (dial) => {
   for (const s of fixtures()) {
     const input = aiInputFor(s, s.current);
     const plan = planTurn(input, { dial, seed: 5, refused: [] });
     let b = believedState(input);
     plan.actions.forEach((a, i) => {
+      // After a win in the believed state the planner still ends its turn, for the real match to decide (since rules 8
+      // seed 3's position at 90 turns is one the planner wins); the believed engine refuses that endTurn.
+      if (b.winner !== null && a.type === 'endTurn' && i === plan.actions.length - 1) return;
       const r = applyAction(b, a); expect(r.ok).toBe(true); if (!r.ok) return;
       b = r.state; expect(viewKey(aiInputFor(b, s.current))).toBe(plan.expect[i]);
     });
@@ -50,12 +54,12 @@ test('never a hopeless charge, never a lure onto its own city', () => {
 });
 test('the deadline ends the turn early with legal actions', () => {
   let t = 0; const now = () => (t += 10);
-  const plan = planTurn(aiInputFor(fixtures()[0]!, 0), { dial: 1, seed: 1, refused: [], now, deadlineMs: 100 });   // seed 7, turn 160
+  const plan = planTurn(aiInputFor(fixtures()[0]!, 0), { dial: 1, seed: 1, refused: [], now, deadlineMs: 100 });   // seed 7, turn 130
   expect(plan.cutShort).toBe(true);
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 120_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(4, 104), 0);         // 25 units; re-picked for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
+  const input = aiInputFor(randomPlayout(9, 164), 0);         // 25 units; re-picked for rules 8's mountains ((4, 104) has 27 now), earlier (4, 104) for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);

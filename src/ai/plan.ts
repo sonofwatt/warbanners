@@ -1,6 +1,6 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
-  CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
+  CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
   canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, defenceOf, distance, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
   parseKey, reachable, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
 } from '../engine';
@@ -73,7 +73,9 @@ function actionKey(a: Action): string {
 // Could this unit kill a seen enemy this turn, judged by the damage formula alone (no probe)?
 function canKillThisTurn(b: MatchState, u: Unit): boolean {
   if (u.fresh || u.attacks <= 0 || UNITS[u.type].atk === 0 || UNITS[u.type].range === 0) return false;
-  const reach = (canMove(u) ? u.mp / 2 : 0) + UNITS[u.type].range;
+  // rules 8: a unit on a mountain ends its turn if it steps off, so it strikes only from where it stands
+  const perched = CONFIG.mountain.endsTurn && b.tiles[u.pos]?.terrain === 'mountain';
+  const reach = canMove(u) && !perched ? u.mp / 2 + UNITS[u.type].range : attackReach(b, u);
   const at = parseKey(u.pos);
   const atk = attackOf(b, u) * healthFactor(u);
   return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
