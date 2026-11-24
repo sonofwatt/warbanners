@@ -21,7 +21,7 @@ function makeTile(terrain: Terrain, resource: Resource | null): Tile {
 }
 
 // rules 8: jewels and fish appear only where the tree in play harvests them, so the rules 7 tree makes rules 7 maps.
-const placed = (r: Resource): boolean => TECH_TREE.harvest[r] !== undefined;
+const treeHarvests = (r: Resource): boolean => TECH_TREE.harvest[r] !== undefined;
 
 function attemptSeed(seed: number, n: number): number {
   return (seed + Math.imul(n, ATTEMPT_SEED_STEP)) >>> 0;
@@ -44,9 +44,9 @@ function resourceFor(terrain: Terrain, roll: number): Resource | null {
     if (roll < m.game) return 'game';
   } else if (terrain === 'mountain') {
     if (roll < m.ore) return 'ore';
-    if (roll < m.jewels && placed('jewels')) return 'jewels';
+    if (roll < m.jewels && treeHarvests('jewels')) return 'jewels';
   } else if (terrain === 'water') {
-    if (roll < m.fish && placed('fish')) return 'fish';
+    if (roll < m.fish && treeHarvests('fish')) return 'fish';
   }
   return null;
 }

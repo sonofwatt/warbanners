@@ -270,8 +270,9 @@ const ui = {
   mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
   bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
-  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, and it heals at the end of each of its turns, ${CONFIG.hunker.restBonus} more than a rest (a little even with an enemy beside it), and ${CONFIG.hunker.abilityHealBonus} more from a Heal. It ends when the unit moves or acts; drinking a draught does not end it.`,
-  hunkerHint: `Dig in for the turn: +${CONFIG.hunker.def} defence when attacked, and it heals at the end of this turn.`,
+  // rules 8: the heal comes at the end of the hunkered unit's turn and a drink keeps the hunker; each switch off reads as rules 7
+  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of each of its turns' : 'at the start of its next turn'}, ${CONFIG.hunker.restBonus} more than a rest (a little even with an enemy beside it), and ${CONFIG.hunker.abilityHealBonus} more from a Heal. It ends when the unit moves or acts${CONFIG.hunker.drinkKeepsHunker ? '; drinking a draught does not end it' : ' or drinks a draught'}.`,
+  hunkerHint: `Dig in for the turn: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of this turn' : 'at the start of your next turn'}.`,
 } as const;
 
 const ai = {
