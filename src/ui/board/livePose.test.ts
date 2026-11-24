@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { hexToBoard } from './layout';
-import { livePose, unitPoseOf } from './livePose';
+import { livePose, lungePhase, unitPoseOf } from './livePose';
 
 // The 3D figures follow the svg's animations through these. Node has no DOM, so the elements are small stand-ins.
 
@@ -60,4 +60,24 @@ test('livePose reads the units with a running animation, through the animation t
   expect(out.moving).toBe(true);
   expect([...out.at.keys()]).toEqual([7]);
   expect(out.at.get(7)).toEqual(hexToBoard('1,0'));
+});
+
+test('a lunge on a unit body carries how far into it the unit is, for the trebuchet arm', () => {
+  styles();
+  vi.stubGlobal('DOMMatrixReadOnly', undefined);
+  const timing = (localTime: number) => ({ getComputedTiming: () => ({ localTime, delay: 100, duration: 400 }) });
+  expect(lungePhase({ effect: timing(50) } as unknown as Animation), 'waiting out its delay').toBe(0);
+  expect(lungePhase({ effect: timing(300) } as unknown as Animation)).toBeCloseTo(0.5, 9);
+  expect(lungePhase({ effect: timing(900) } as unknown as Animation)).toBe(1);
+  expect(lungePhase({ effect: null } as unknown as Animation)).toBeNull();
+  const unit = { attrs: { 'data-unit': '4', 'data-at': '1,0' }, transform: 'none' };
+  const body = { ...el(unit), classList: { contains: (c: string) => c === 'unit-body' } } as unknown as Element;
+  const slide = el({ attrs: { 'data-unit': '5', 'data-at': '0,0' }, transform: 'none' });
+  const g = {
+    getAnimations: () => [{ playState: 'running', effect: { target: body, ...timing(200) } }, { playState: 'running', effect: { target: slide, ...timing(200) } }],
+    querySelectorAll: () => [],
+  } as unknown as Element;
+  const out = livePose(g, ['spartans', 'mongols']);
+  expect(out.at.get(4)?.lunge).toBeCloseTo(0.25, 9);
+  expect(out.at.get(5)?.lunge, 'a slide is no lunge').toBeUndefined();
 });
