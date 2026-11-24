@@ -79,5 +79,5 @@ describe.runIf(process.env.BROWSER === '1')('the 3D terrain option', () => {
     } finally {
       await close();
     }
-  });
+  }, 60_000); // software WebGL builds and draws the board on the CPU
 });
