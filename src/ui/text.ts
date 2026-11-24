@@ -35,7 +35,7 @@ const unit: Record<UnitTypeId, Entry> = {
   hoplite: { name: 'Hoplite', blurb: 'A Spartan spear fighter whose defence grows with each other Hoplite beside it, up to 2.' },
   kingsGuard: { name: "King's Guard", blurb: 'The Spartan champion, a mighty fighter whose attack does not weaken as it is hurt.' },
   piper: { name: 'Piper', blurb: 'A Spartan helper who heals friends, taunts enemies and keeps friends beside it from being lured.' },
-  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees only the next tile, can step into the fog and is seen by enemies only from the next tile.' },
+  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees two tiles away and is seen by enemies only from the next tile.' },
   horseArcher: { name: 'Horse Archer', blurb: 'A Mongol rider who shoots two tiles away and keeps moving after attacking.' },
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
   skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },

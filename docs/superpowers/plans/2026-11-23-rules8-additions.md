@@ -56,6 +56,24 @@ tables, never inline. No em or en dashes anywhere (project CLAUDE.md).
   should now count the heal as already in. Reuse `restHealAt`; keep the change small and say what you changed.
 - UI: the hunker button's help text and the unit card say the unit heals at the end of the turn.
 
+## 5. Climbing must be researched
+
+Added by David on 2026-11-23, during the build.
+
+- A unit may step onto a mountain only if its owner has researched `CONFIG.mountain.tech` (a TechId; set it to
+  'bronze', the tech that already builds mines on mountains; David may change it, so read it only from CONFIG, never
+  inline). Without it, a mountain is not enterable for that player's units: not by a move, and not by a kill advance
+  (the attack still happens, the attacker just does not advance). Stepping off a mountain needs no tech. Pushes, lures
+  and placements are unchanged as in the mountains brief.
+- Needs a switch (null = no tech needed) so the provenance tests can replay.
+- AI: it uses the engine's reach, so it should simply follow; check its plans stay legal and that it does not value
+  mountain tiles it cannot enter.
+- UI: the move highlights follow the engine; the mountain tile info and the Bronze tech's card say it lets units climb
+  mountains.
+- Docs: terrain table, tech table, Rules 8 changes list, whatsNew.
+- Tests: refused without the tech, allowed with it, kill advance does not climb without it, stepping off still
+  allowed.
+
 ## Docs and text
 
 - `docs/rules/stage1-rules.md`: city sight, the Scout's row and traits, the Mongol faction section (relay riders now

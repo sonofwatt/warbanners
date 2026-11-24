@@ -30,7 +30,7 @@ export const CONFIG = deepFreeze({
   // rules 7: a captured capital becomes an ordinary city for its captor, and the loser's best remaining city becomes
   // their capital at once. Off replays rules 6 (a captured capital stayed one); only the provenance tests turn it off.
   capitalMoves: true,
-  citySightExtra: 1,                          // a city sees this many tiles beyond its territory radius
+  citySightExtra: 0,                          // a city sees this many tiles beyond its territory radius (1 before rules 8)
   hiddenRevealRange: 1,                       // a unit or city reveals a hidden unit within this distance
   blindedReach: 1,                            // a blinded unit attacks no farther than this
   attacksPerTurn: { doubleStrike: 2, base: 1 },

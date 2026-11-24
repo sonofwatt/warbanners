@@ -188,24 +188,15 @@ test('the explored set is the one from before the move: a fog tile cannot be ent
   expect(reachable(s, h.id)).toEqual({});
   expect(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }).ok).toBe(false);
 });
-test('a pathfinder may end a move on one unexplored tile, never pass through one', () => {
-  expect(UNITS.scout.traits).toContain('pathfinder');
+test('rules 8: the Scout has sight 2 and no pathfinder, so it never steps onto an unexplored tile', () => {
+  expect(UNITS.scout.sight).toBe(2);
+  expect(UNITS.scout.traits).not.toContain('pathfinder');
+  expect(UNITS.scout.traits).toEqual(expect.arrayContaining(['hidden', 'noCityCapture']));
   const s = blankMatch(); const sc = addUnit(s, 'scout', 0, 0, 0, { mp: 4 });
   for (const q of [0, 1, 2, 3, 4]) setTile(s, q, 0, { road: true });
   s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];
   const r = reachable(s, sc.id);
-  expect(r['1,0']).toBe(3);                                                     // explored: as before
-  expect(r['2,0']).toBe(0);                                                     // the first unexplored tile: it stops there
-  expect(r['3,0']).toBeUndefined();                                             // only through an unexplored tile
-});
-test('a pathfinder that ends a move in the fog has spent its turn, even with movement left', () => {
-  const s = blankMatch(); const sc = addUnit(s, 'scout', 0, 0, 0, { mp: 4 });
-  s.players[0]!.explored = ['0,0', '1,0', '-1,0'];
-  addUnit(s, 'warrior', 1, 1, 1);                                               // beside the fog tile it will reach
-  const t = must(applyAction(s, { type: 'move', unit: sc.id, to: '0,1' }));
-  expect(unitById(t, sc.id)).toMatchObject({ pos: '0,1', mp: 0, attacks: 0, acted: true, itemTurn: t.stamp });
-  expect(reachable(t, sc.id)).toEqual({});
-  expect(legalActions(t).filter((a) => 'unit' in a && a.unit === sc.id)).toEqual([]);
-  const u = must(applyAction(s, { type: 'move', unit: sc.id, to: '-1,0' }));    // an explored tile: as before
-  expect(unitById(u, sc.id)).toMatchObject({ mp: 2, attacks: 1, acted: false });
+  expect(r['1,0']).toBe(3);
+  expect(Object.keys(r).every((k) => s.players[0]!.explored.includes(k))).toBe(true);
+  expect(applyAction(s, { type: 'move', unit: sc.id, to: '2,0' }).ok).toBe(false);
 });

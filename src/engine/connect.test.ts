@@ -109,18 +109,18 @@ test('no capital, no bonus', () => {
   expect(cityById(r.state, b.id)!.linked).toBe(false);
 });
 
-// rules 8 (rules 7): Scout sight 1. A unit sees every tile within its sight, so after any move the fog is at least
-// sight + 1 away; a Scout moves 2 field tiles, so only with sight 1 can it step onto a fog tile on open ground.
-test('a Scout with sight 1 on open field can step onto an unexplored tile; with sight 2 it cannot', () => {
-  expect(UNITS.scout.sight).toBe(1);
+// rules 8: the Scout has sight 2 and no pathfinder (rules 7 gave it sight 1 so it could step into the fog). With only
+// the next tile explored, every move it is offered stays on explored land.
+test('a Scout sees 2 tiles and is never offered a move onto an unexplored tile', () => {
+  expect(UNITS.scout.sight).toBe(2);
   const s = blankMatch({ unexplored: true });
   const sc = addUnit(s, 'scout', 0, 0, 0);
   s.players[0]!.explored = [...visibleTiles(s, 0)].sort();
-  expect(s.players[0]!.explored).toHaveLength(7);
+  expect(s.players[0]!.explored).toEqual(range({ q: 0, r: 0 }, 2).map(key).sort());
+  const one = structuredClone(s);
+  one.players[0]!.explored = range({ q: 0, r: 0 }, 1).map(key).sort();   // as if it had seen only the next tile
   const fogMoves = (t: MatchState) => legalActions(t)
     .filter((a) => a.type === 'move' && a.unit === sc.id && !t.players[0]!.explored.includes(a.to));
-  expect(fogMoves(s).length).toBeGreaterThan(0);
-  const two = structuredClone(s);
-  two.players[0]!.explored = range({ q: 0, r: 0 }, 2).map(key).sort();   // what sight 2 would have seen
-  expect(fogMoves(two)).toEqual([]);
+  expect(fogMoves(one)).toEqual([]);
+  expect(legalActions(one).some((a) => a.type === 'move' && a.unit === sc.id)).toBe(true);
 });
