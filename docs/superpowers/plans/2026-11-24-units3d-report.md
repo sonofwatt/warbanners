@@ -27,7 +27,10 @@ the board is a sandwich:
 2. the board svg: tiles, cities, villages, buildings, highlights, borders (taps and gestures stay here),
 3. the units canvas (`board-units3d`, a second WebGL context, `pointer-events: none`),
 4. an overlay svg (`board-overlay`, `pointer-events: none`) with each unit's group: status plate, pips, taunt,
-   blind, fresh and hunker marks, item badge, and the effects (numbers, bursts, falls).
+   blind, fresh and hunker marks, item badge, and the effects (numbers, bursts, falls). The effects stay in this
+   svg for as long as the option is on, also while the board falls back to svg figures, so a fallback or a
+   restored context never remounts them and never replays an action's effects. Only turning the option itself on
+   or off moves them.
 
 Units therefore sit on top of all terrain and every SVG tile mark (David's rule), and sort among themselves by depth.
 The unit groups in the overlay keep their `data-unit`, `data-at` and `.unit-body`, so the slide and the lunge play on
@@ -39,9 +42,12 @@ count before and after a round trip).
 
 - Slide (move, lure, advance), lunge: the 3D figure follows the svg frame by frame. While anything in the overlay
   animates, a loop reads each moving unit's live transform (`getComputedStyle`, plus the lunge on `.unit-body`) and
-  draws only the units canvas; it stops when nothing animates. So both always agree, reduced motion included.
+  draws only the units canvas; it stops when nothing animates (`src/ui/board/livePose.ts`). A transform that cannot
+  be read (`none`, empty, no `DOMMatrixReadOnly`) falls back to the unit's own tile (`data-at`), never the board
+  origin. So both always agree, reduced motion included.
 - Death: the svg fall stays in the overlay (hidden by CSS) and drives a 3D copy of the fallen figure that turns
-  clockwise on screen and fades with the svg animation's own angle and opacity (shot 07).
+  clockwise on screen and fades with the svg animation's own angle and opacity (shot 07). Each fall has its own
+  material set whose opacity changes in place; it is freed when the fall ends.
 - Capture, build, level and treasure bursts and the floating numbers are SVG on top, as before. There is no spawn
   animation in the SVG today, so none in 3D.
 - Units stand on the tile plane (height 0), not on the terrain's bumps (at most about 4 board units), so their
@@ -55,7 +61,7 @@ count before and after a round trip).
   (one fill, one hull, one shadow, plus one set per dim level).
 - Everything is disposed when the board unmounts or the option goes off; the units renderer is disposed with the
   terrain renderer.
-- Either context lost: the board falls back to SVG (overlay gone, svg figures back, shot 08) until every lost context
+- Either context lost: the board falls back to SVG (svg figures and their status back on the board svg, shot 08) until every lost context
   is restored (shot 09). Only the menu toggle writes the stored option. If the units canvas cannot get a context the
   terrain still draws and the svg figures stay.
 
@@ -70,8 +76,8 @@ figures with every wear test forced false). Nothing of it is in the main chunk.
 
 | Chunk | Before (main 9f1ca27) | After |
 | --- | --- | --- |
-| index (main) | 503.61 kB, 158.09 kB gzip | 507.24 kB, 159.17 kB gzip (+3.6 kB, +1.1 kB gzip) |
-| terrain3d (lazy) | 511.32 kB, 133.22 kB gzip | 583.81 kB, 157.12 kB gzip (+72.5 kB, +23.9 kB gzip) |
+| index (main) | 503.61 kB, 158.09 kB gzip | 507.63 kB, 159.31 kB gzip (+4.0 kB, +1.2 kB gzip) |
+| terrain3d (lazy) | 511.32 kB, 133.22 kB gzip | 584.07 kB, 157.25 kB gzip (+72.8 kB, +24.0 kB gzip) |
 
 The unit mapping lives in its own module (`unitsInput.ts`) so the lazy chunk imports only its types; with it in
 `input.ts` the bundler split the engine into a shared chunk.
@@ -88,6 +94,8 @@ are as in the sample notes (500 to 1600 each, plus hull). Needs measuring on the
 
 ## Checks
 
+- Review fixes (2026-11-24): the transform fallback above (`livePose.test.ts`), one material set per fall
+  (`units3d.test.ts`), and effects kept in the overlay so they do not replay.
 - Unit tests: `unitsInput.test.ts` (scene units only, positions, owner colours both sides, fog hides an enemy
   until it stands next to us, hero, dimming, signature), `units/units3d.test.ts` (all engine unit types have a
   figure, deterministic builds, shared looks, removal, poses and falls, disposal), `lifecycle.test.ts` (two

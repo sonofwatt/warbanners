@@ -32,7 +32,7 @@ export interface Units3d {
   pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void;
   draw(cam: UnitsCamera, vp: UnitsViewport, dpr: number): void;
   dispose(): void;
-  stats(): { triangles: number; calls: number; units: number; looks: number };
+  stats(): { triangles: number; calls: number; units: number; looks: number; falls: number; dims: number };
 }
 
 /** The figures' hull, a little thinner than the terrain's (0.55), as the figures are small. */
@@ -66,19 +66,29 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   // opacity draws it: a depth-only pass first, then the colour pass blends only the nearest surface, once.
   interface Dim { depthFill: ShaderMaterial; depthHull: ShaderMaterial; fill: ShaderMaterial; hull: ShaderMaterial; shadow: MeshBasicMaterial }
   const dims = new Map<number, Dim>();
+  function makeDim(a: number): Dim {
+    const mk = (outline: boolean, colour: boolean): ShaderMaterial => new ShaderMaterial({
+      uniforms: uniforms(outline, a), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
+      side: outline ? BackSide : undefined, defines: { UNIT_ALPHA: '' },
+      colorWrite: colour, transparent: colour, depthWrite: !colour,
+    });
+    return {
+      depthFill: mk(false, false), depthHull: mk(true, false), fill: mk(false, true), hull: mk(true, true),
+      shadow: new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA * a, depthWrite: false }),
+    };
+  }
+  /** A fading figure's own materials take a new opacity in place: nothing is rebuilt while it fades. */
+  function setDimAlpha(d: Dim, a: number): void {
+    for (const m of [d.fill, d.hull]) (m.uniforms.uAlpha as { value: number }).value = a;
+    d.shadow.opacity = SHADOW_ALPHA * a;
+  }
+  const disposeDim = (d: Dim): void => { for (const m of [d.depthFill, d.depthHull, d.fill, d.hull, d.shadow]) m.dispose(); };
+  /** The shared materials of a steady dim level (spent 0.55, hidden 0.7). */
   function dimOf(alpha: number): Dim {
     const a = Math.round(alpha * 20) / 20;
     let d = dims.get(a);
     if (d === undefined) {
-      const mk = (outline: boolean, colour: boolean): ShaderMaterial => new ShaderMaterial({
-        uniforms: uniforms(outline, a), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
-        side: outline ? BackSide : undefined, defines: { UNIT_ALPHA: '' },
-        colorWrite: colour, transparent: colour, depthWrite: !colour,
-      });
-      d = {
-        depthFill: mk(false, false), depthHull: mk(true, false), fill: mk(false, true), hull: mk(true, true),
-        shadow: new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA * a, depthWrite: false }),
-      };
+      d = makeDim(a);
       dims.set(a, d);
     }
     return d;
@@ -96,19 +106,20 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   /** One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower on screen, as the svg feet. */
-  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, alpha: number): Group {
+  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, alpha: number, own?: Dim): Group {
     const f = figureOf(type, look, hero);
     const g = new Group();
     const body = new Group();
     body.position.set(0, 0, 4 / SQUASH);
-    const sh = new Mesh(shadowGeo, alpha < 1 ? dimOf(alpha).shadow : shadowMat);
+    const dim = own ?? (alpha < 1 ? dimOf(alpha) : null);
+    const sh = new Mesh(shadowGeo, dim !== null ? dim.shadow : shadowMat);
     sh.rotation.x = -Math.PI / 2;
     sh.scale.set(f.shadow.rx, f.shadow.rz, 1);
     sh.position.set(f.shadow.x + 1.2, 0.15, -0.6);
     sh.renderOrder = -1;
     const meshes: Mesh[] = [sh];
-    if (alpha < 1) {
-      const d = dimOf(alpha);
+    if (dim !== null) {
+      const d = dim;
       meshes.push(new Mesh(f.hull, d.depthHull), new Mesh(f.fill, d.depthFill), new Mesh(f.hull, d.hull), new Mesh(f.fill, d.fill));
     } else {
       meshes.push(new Mesh(f.hull, hullMat), new Mesh(f.fill, fillMat));
@@ -150,7 +161,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
 
   // Falls: a figure of the fallen unit, turned about the line of sight through its tile centre and fading.
   const axis = new Vector3(0, -SQUASH, -COS_E); // the camera's view direction: a turn about it is a turn on screen
-  const fallen = new Map<string, { group: Group; alpha: number }>();
+  const fallen = new Map<string, { group: Group; dim: Dim }>();
   const q = new Quaternion();
   function pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void {
     for (const p of placed.values()) {
@@ -159,26 +170,24 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     }
     const live = new Set<string>();
     for (const f of falls) {
-      const alpha = Math.round(f.alpha * 20) / 20;
-      if (alpha <= 0) continue;
+      if (!(f.alpha > 0)) continue;
       const k = `${f.key}|${lookKey(f.type, f.look, false)}`;
       live.add(k);
       let g = fallen.get(k);
-      if (g !== undefined && g.alpha !== alpha) {
-        scene.remove(g.group);
-        g = undefined;
-      }
       if (g === undefined) {
-        g = { group: makeGroup(f.type, f.look, false, alpha), alpha };
+        const dim = makeDim(f.alpha);
+        g = { group: makeGroup(f.type, f.look, false, f.alpha, dim), dim };
         scene.add(g.group);
         fallen.set(k, g);
       }
+      setDimAlpha(g.dim, f.alpha);
       ground(f.x, f.y, g.group.position);
       g.group.quaternion.copy(q.setFromAxisAngle(axis, f.angle));
     }
     for (const [k, g] of fallen) {
       if (live.has(k)) continue;
       scene.remove(g.group);
+      disposeDim(g.dim);
       fallen.delete(k);
     }
   }
@@ -206,6 +215,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   function dispose(): void {
     scene.clear();
     placed.clear();
+    for (const g of fallen.values()) disposeDim(g.dim);
     fallen.clear();
     for (const f of looks.values()) { f.fill.dispose(); f.hull.dispose(); }
     looks.clear();
@@ -220,7 +230,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
 
   return {
     setUnits, pose, draw, dispose,
-    stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size }),
+    stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, dims: dims.size }),
   };
 }
 

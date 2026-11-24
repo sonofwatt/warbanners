@@ -23,7 +23,7 @@ import type { SvgLayers } from '../terrain3d/input';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
-import type { UnitFall, UnitPose } from '../terrain3d/units/units3d';
+import { livePose } from './livePose';
 
 export interface BoardProps {
   items: readonly SceneItem[];
@@ -263,50 +263,6 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
 export const BoardTile = TileViewOf;
 const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && sameData(a.factions, b.factions) && sameData(a.t, b.t));
 const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
-
-/** The translation of an element's live (animated) CSS transform, and its turn in radians. */
-function liveTransform(el: Element): { x: number; y: number; angle: number } {
-  const t = getComputedStyle(el).transform;
-  if (t === '' || t === 'none' || typeof DOMMatrixReadOnly !== 'function') return { x: 0, y: 0, angle: 0 };
-  const m = new DOMMatrixReadOnly(t);
-  return { x: m.e, y: m.f, angle: Math.atan2(m.b, m.a) };
-}
-
-/**
- * Where the units' svg has each moving unit this frame (its slide, plus a lunge on its body), the falls playing
- * (from the svg fall's own transform and opacity), and whether anything there is still animating.
- */
-function livePose(g: SVGGElement, factions: readonly FactionId[]): { at: Map<number, UnitPose>; falls: UnitFall[]; moving: boolean } {
-  const at = new Map<number, UnitPose>();
-  const falls: UnitFall[] = [];
-  if (typeof g.getAnimations !== 'function') return { at, falls, moving: false };
-  const running = g.getAnimations({ subtree: true }).filter((a) => a.playState === 'running');
-  for (const a of running) {
-    const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
-    const unit = target?.closest('[data-unit]');
-    if (unit == null) continue;
-    const id = Number(unit.getAttribute('data-unit'));
-    if (at.has(id)) continue;
-    const place = liveTransform(unit);
-    const body = unit.querySelector('.unit-body');
-    const nudge = body === null ? { x: 0, y: 0 } : liveTransform(body);
-    at.set(id, { x: place.x + nudge.x, y: place.y + nudge.y });
-  }
-  g.querySelectorAll('[data-fall]').forEach((el, i) => {
-    const owner = Number(el.getAttribute('data-fall-owner'));
-    const faction = factions[owner];
-    const k = el.getAttribute('data-fall-at');
-    if (faction === undefined || k === null) return;
-    const alpha = Number(getComputedStyle(el).opacity);
-    if (!(alpha > 0)) return;
-    const p = hexToBoard(k);
-    falls.push({
-      key: `${i}@${k}`, type: el.getAttribute('data-fall') as UnitFall['type'], look: { ...playerColour(faction), accent: ACCENT[faction] },
-      x: p.x, y: p.y, angle: liveTransform(el).angle, alpha,
-    });
-  });
-  return { at, falls, moving: running.length > 0 };
-}
 
 /**
  * After the slot has changed size with something selected: the least pan that keeps the selected tile in the
@@ -639,7 +595,7 @@ export function Board(p: BoardProps): ReactElement {
       {/* The camera ref holds the live transform; a render writes the same value back. */}
       <g ref={camRef} data-camera="true" transform={cameraTransform(cam.current, vp.current)}>
         {drawn}
-        {units3d ? null : p.children}
+        {glWanted ? null : p.children}
       </g>
     </svg>
   );
@@ -650,9 +606,11 @@ export function Board(p: BoardProps): ReactElement {
       {glWanted ? <canvas ref={canvasRef} className="board-terrain" data-testid="board-terrain" aria-hidden="true" /> : null}
       {board}
       {glWanted ? <canvas ref={unitsCanvasRef} className="board-terrain board-units3d" data-testid="board-units3d" aria-hidden="true" /> : null}
-      {units3d ? (
-        // The units' status, badges and effects, above the 3D figures. Taps go through to the board's svg below.
-        <svg className="board-overlay" width="100%" height="100%" data-testid="board-overlay">
+      {glWanted ? (
+        // The units' status and badges (with the 3D figures on) and the effects, above the 3D figures. Taps go
+        // through to the board's svg below. It stays while the option is on, so a fallback to svg figures or a
+        // restored context never moves the effects and so never plays an action's effects twice.
+        <svg className="board-overlay" width="100%" height="100%" data-testid="board-overlay" data-units3d={units3d ? 'on' : undefined}>
           <g ref={overlayCamRef} data-camera="units" transform={cameraTransform(cam.current, vp.current)}>
             {overlay}
             {p.children}

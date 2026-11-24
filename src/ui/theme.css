@@ -605,7 +605,7 @@ input:focus { border-color: var(--blue); }
    effects go to a second svg above it. Taps go through both to the board's svg. A fall is drawn by the 3D figure,
    which follows the svg fall's own animation, so the svg figure is kept but not shown. */
 .board-overlay { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; user-select: none; -webkit-user-select: none; }
-.board-overlay .fx-fall > * { visibility: hidden; }
+.board-overlay[data-units3d] .fx-fall > * { visibility: hidden; }
 /* A unit's slide from tile to tile is played by Board.tsx on the unit's node, and skipped when less motion is asked for. */
 
 /* The veil (art/tiles.tsx): a veiled tile's art drawn again as one dark silhouette. Every shape in it takes

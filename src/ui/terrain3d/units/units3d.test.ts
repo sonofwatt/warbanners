@@ -71,6 +71,22 @@ describe('the 3D unit figures', () => {
     expect(groups(u)).toBe(1);
   });
 
+  test('a fall keeps one figure and one set of materials while it fades, and frees them when it ends', () => {
+    const u = make();
+    const fall = (alpha: number) => [{ key: '0@1,1', type: 'archer' as const, look: BLUE, x: 0, y: 0, angle: alpha, alpha }];
+    u.pose(new Map(), fall(1));
+    u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
+    const first = drawn.at(-1)!.scene.children[0];
+    for (let a = 0.95; a > 0.01; a -= 0.013) u.pose(new Map(), fall(a));
+    u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
+    expect(drawn.at(-1)!.scene.children[0], 'the same group all through the fade').toBe(first);
+    expect(u.stats().falls).toBe(1);
+    expect(u.stats().dims, 'no cached dim materials pile up').toBe(0);
+    u.pose(new Map(), []);
+    expect(u.stats().falls).toBe(0);
+    expect(groups(u)).toBe(0);
+  });
+
   test('dispose frees the shared geometry', () => {
     const u = make();
     u.setUnits([unit(1)]);
