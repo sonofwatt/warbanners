@@ -3,6 +3,8 @@ import { applyAction } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { addCity, addUnit, blankMatch, setTile } from '../engine/testkit';
 import { dangerMap, moveScore, objectives, valueOf } from './assess';
+import { aiInputFor, believedState } from './input';
+import { planTurn } from './plan';
 import type { Ctx } from './assess';
 import { PERSONAS } from './persona';
 import { skillFor } from './skill';
@@ -54,4 +56,20 @@ test('rules 8: a rider that only climbed earns no raid credit; one that acted ot
   };
   expect(PERSONAS.mongols.raid).toBeGreaterThan(0);
   expect(at(false) - at(true)).toBeCloseTo(PERSONAS.mongols.raid, 6);
+});
+
+test('rules 8: after a kill advance off a mountain the planner plans no second attack for the Knight, and every action is legal', () => {
+  for (const dial of [0.5, 0.85, 1]) for (const seed of [1, 2, 3]) {
+    const s = field();
+    setTile(s, 0, 0, { terrain: 'mountain' });
+    const k = addUnit(s, 'knight', 0, 0, 0);
+    addUnit(s, 'scout', 1, 1, 0, { hp: 1 });
+    addUnit(s, 'warrior', 1, 2, 0, { hp: 1 });
+    const input = aiInputFor(s, 0);
+    const plan = planTurn(input, { dial, seed, refused: [] });
+    let b = believedState(input);
+    for (const a of plan.actions) { const r = applyAction(b, a); expect(r.ok).toBe(true); if (!r.ok) break; b = r.state; }
+    const knightAttacks = plan.actions.filter((a) => a.type === 'attack' && a.unit === k.id);
+    expect(knightAttacks.length).toBeLessThanOrEqual(1);
+  }
 });

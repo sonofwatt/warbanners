@@ -236,7 +236,9 @@ the attacker still cannot move after attacking unless it has `retreat`, a Knight
 `chain` attack is made from the new tile, and the step counts as entering the tile
 this turn (so it cannot capture or claim a treasure there until a later turn).
 Attackers with range 2 or more never move in, and neither does anyone for a unit
-killed by splash.
+killed by splash. Since rules 8 an advance onto or off a mountain ends the attacker's
+turn as a climb does (no chain attack and no retreat move after it); the kill still
+counts.
 
 Ranged units on a mountain (since rules 8): a unit whose type has range 2 or more
 (Archer, Horse Archer, Catapult) has +1 range for its own attacks while it stands on
@@ -277,7 +279,7 @@ Worked examples (all at full health on a field unless said):
 | steadfast | Counter-attack factor 1.25 in place of 0.75 |
 | doubleStrike | Two attacks per turn |
 | retreat | Keeps its remaining movement after attacking |
-| chain | Each kill gives one more attack this turn. Since rules 7 the unit has momentum (Knight 7, Khan's Guard 8 at the start of each of its owner's turns): each kill costs the dead unit's price, and only a kill it can pay for gives the extra attack; an attack it cannot pay for does 1 less damage per missing point (at least 1) and ends the chain. See stage2-rules.md, section 9 (rules 5 to 6: each kill cost 2 health instead) |
+| chain | Each kill gives one more attack this turn, except a kill whose advance steps onto or off a mountain, which ends the turn (rules 8). Since rules 7 the unit has momentum (Knight 7, Khan's Guard 8 at the start of each of its owner's turns): each kill costs the dead unit's price, and only a kill it can pay for gives the extra attack; an attack it cannot pay for does 1 less damage per missing point (at least 1) and ends the chain. See stage2-rules.md, section 9 (rules 5 to 6: each kill cost 2 health instead) |
 | splash | Enemy units next to the target take half the damage dealt to the target, rounded, at least 1. No counter from them |
 | siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
 | mounted | A tag other rules refer to |
@@ -451,3 +453,5 @@ This list and the one above are the file's changelog.
   the first step of a unit that has not moved this turn and ends its turn too, so no
   move passes over a mountain (sections 2 and 9). Relay riders no longer pay 1 for a
   mountain in their own territory.
+- A melee kill advance onto or off a mountain ends the attacker's turn too, chain
+  and retreat included (section 10).

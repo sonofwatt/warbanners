@@ -203,6 +203,8 @@ less damage and ends the chain. Scouts cost nothing, so a chain through a line o
   attack earns are counted after it), it does not get the extra attack from that kill. The momentum already paid stays
   paid, and a Fierce trait still heals its new health at once. The engine emits `{ type: 'chainEnded', unit }` after the
   `heroTrait` event. `CONFIG.levelUpEndsChain` switches the rule (on).
+- A kill advance onto or off a mountain ends the chain and the turn (rules 8, stage1-rules.md section 10): the kill and
+  the momentum it paid still count, but the extra attack is taken back and the engine emits `chainEnded` (once).
 - The prices are a draft. Before rules 7 (rules 5 and 6) each chain kill cost the unit `chainKillCost` health, 2, never
   below 1, and gave the extra attack every time; the rules 7 brace first stopped the chain outright. Momentum replaces
   both. The rules 5 number was picked by `docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md`.

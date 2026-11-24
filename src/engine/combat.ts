@@ -8,7 +8,7 @@ import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
 import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
-import { maxMp } from './movement';
+import { maxMp, mountainStep } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
 import type { Action, Handler, MatchState, Unit } from './types';
 
@@ -178,6 +178,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage, counter });
   let kills = 0;                                  // units this attack killed, for the attacker's fight deed
   let chainGranted = 0;                           // extra attacks the chain trait granted for those kills
+  let climbed = false;                            // rules 8: the advance stepped onto or off a mountain
   const splashed: Unit[] = [];
 
   if (targetDied) {
@@ -197,6 +198,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
       attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
       ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
+      climbed = mountainStep(s, attackerFrom, tileKey);
     }
     if (paid && price > 0) ev.push({ type: 'momentum', unit: attacker.id, spent: price, left: attacker.momentum });
     if (chain && !paid) ev.push({ type: 'chainEnded', unit: attacker.id });
@@ -237,14 +239,23 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   if (attackerDied) return null;
 
   // rules 6: a hero trait earned from this attack ends the chain: the kill's extra attack is taken back
+  let chainTakenBack = false;
   if (CONFIG.levelUpEndsChain && chainGranted > 0 && attacker.heroTraits.length > traitsBefore) {
     attacker.attacks -= chainGranted;
+    chainTakenBack = true;
     ev.push({ type: 'chainEnded', unit: attacker.id });
   }
 
   attacker.attacks -= 1;
   attacker.acted = true;
   if (!hasTrait(attacker, 'retreat')) attacker.mp = 0;
+
+  // rules 8: a kill advance onto or off a mountain ends the turn as a climb does: no chain attack, no retreat move.
+  // The kill still counts (deeds above, momentum paid).
+  if (climbed) {
+    if (chainGranted > 0 && !chainTakenBack) ev.push({ type: 'chainEnded', unit: attacker.id });
+    attacker.mp = 0; attacker.bonusMp = 0; attacker.attacks = 0; attacker.itemTurn = s.stamp; attacker.turnEnded = true;
+  }
 
   // rules 13: a lure is recorded only when both survive and lureApplies; otherwise the request is ignored
   const survivor = unitById(s, target.id);

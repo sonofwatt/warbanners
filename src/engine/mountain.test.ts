@@ -208,3 +208,51 @@ describe('rules 8: climbing ends the turn', () => {
     expect(unitById(t, w.id)).toMatchObject({ mp: 2, attacks: 1, acted: false, turnEnded: false });
   });
 });
+
+describe('rules 8: a kill advance onto or off a mountain ends the turn', () => {
+  test('a Knight on a mountain kills, advances off, and its turn ends: no chain attack', () => {
+    const s = field();
+    setTile(s, 0, 0, { terrain: 'mountain' });
+    const k = addUnit(s, 'knight', 0, 0, 0);
+    addUnit(s, 'scout', 1, 1, 0, { hp: 1 });
+    addUnit(s, 'warrior', 1, 2, 0);                       // a second target next to where it lands
+    const r = applyAction(s, attack(k.id, '1,0'));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.events.map((e) => e.type)).toEqual(expect.arrayContaining(['died', 'advanced', 'chainEnded']));
+    expect(unitById(r.state, k.id)).toMatchObject({ pos: '1,0', attacks: 0, mp: 0, acted: true, turnEnded: true });
+    expect(attackTargets(r.state, k.id)).toEqual([]);
+    expect(reachable(r.state, k.id)).toEqual({});
+  });
+  test('a Knight kills a unit on a mountain and advances onto it: its turn ends, and the paid momentum stays paid', () => {
+    const s = field();
+    setTile(s, 1, 0, { terrain: 'mountain' });
+    const k = addUnit(s, 'knight', 0, 0, 0);
+    addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+    addUnit(s, 'warrior', 1, 2, 0);
+    const r = must(applyAction(s, attack(k.id, '1,0')));
+    expect(unitById(r, k.id)).toMatchObject({
+      pos: '1,0', attacks: 0, mp: 0, acted: true, turnEnded: true,
+      momentum: CONFIG.momentum.start.knight! - CONFIG.momentum.price.warrior,
+    });
+    expect(attackTargets(r, k.id)).toEqual([]);
+  });
+  test('a Horseman that kills onto a mountain cannot retreat after', () => {
+    const s = field();
+    setTile(s, 1, 0, { terrain: 'mountain' });
+    const h = addUnit(s, 'horseman', 0, 0, 0);
+    addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+    const r = must(applyAction(s, attack(h.id, '1,0')));
+    expect(unitById(r, h.id)).toMatchObject({ pos: '1,0', mp: 0, turnEnded: true });
+    expect(reachable(r, h.id)).toEqual({});
+  });
+  test('a field to field advance is unchanged: the Knight chains on', () => {
+    const s = field();
+    const k = addUnit(s, 'knight', 0, 0, 0);
+    addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
+    addUnit(s, 'warrior', 1, 2, 0);
+    const r = must(applyAction(s, attack(k.id, '1,0')));
+    expect(unitById(r, k.id)).toMatchObject({ pos: '1,0', attacks: 1, turnEnded: false });
+    expect(attackTargets(r, k.id)).toEqual(['2,0']);
+  });
+});

@@ -7,6 +7,8 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
+  // re-pinned for rules 8's kill advance rule (an advance onto or off a mountain ends the turn: seed 7's playout plays
+  // differently after one, so its row moved, 402 legal actions to 322; seeds 1 and 3 are unchanged); before that
   // re-pinned for rules version 8 (mountains: +1 range for a ranged unit on one, and a step onto or off one ends the
   // turn; a turnEnded flag on every unit and rulesVersion 8 move every digest; seed 7 now ends after 135 turns and seed 1
   // after 81, so their rows are the positions after 130 and 75 turns, still unfinished; seed 3 keeps 90 turns); before that
@@ -24,7 +26,7 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 130, 402, '387280bc89ac89b5', 'c21fcff7374b884a', '113d26fd6be34ba2'],
+  [7, 130, 322, '9a2b3bdc1afce367', '110b0cc4a81f399f', 'c5d321e3469792de'],
   [1, 75, 22, '8c475bf3d9e0944c', '5f82daea9b3c5fb1', '614f582094b92491'],
   [3, 90, 138, 'ad5bb1eba80fbdfe', '05a8fc31d87699b4', '7678c6970a13085e'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
