@@ -3,7 +3,9 @@ import { maxHpOf, playerIncome } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { unitValue } from './assess';
 
-export const ADAPT = { smooth: 0.7, gain: 0.5, maxStep: 0.04, deadband: 0.05, min: 0.1, max: 0.95, start: 0.5, winShift: 0.05 } as const;
+// gain: how much of the trend comes off the dial; drift: how fast the level follows a lasting edge; winShift: the
+// step between matches by who won, the surest sign of who is stronger (0.05 before the adaptive fix).
+export const ADAPT = { smooth: 0.7, gain: 0.3, drift: 0.02, maxStep: 0.04, deadband: 0.05, min: 0.1, max: 0.95, start: 0.5, winShift: 0.1 } as const;
 
 export interface AdaptState { dial: number; trend: number }
 
@@ -25,11 +27,20 @@ export function gapOf(state: MatchState, ai: PlayerId): number {
   return (mine - theirs) / Math.max(1, mine + theirs);
 }
 
+// The part of the trend outside the deadband: a close game counts as even.
+const edge = (t: number): number => Math.sign(t) * Math.max(0, Math.abs(t) - ADAPT.deadband);
+
 // Once at the start of each AI turn, never during one.
+// The gap is a standing, so it already sums how the play has gone; the dial sets how fast it changes, not where it
+// is. Stepping the dial by the gap (as before) summed it a second time, and a double sum swings: the dial ran from
+// one end to the other and back within a match, and where a match ended on that swing decided what it carried.
+// So the dial sits at a level less a share of the trend (gain), and only the level drifts with a lasting edge
+// (drift). The level is not stored: it is the old dial plus what the old trend took off it.
 export function adaptStep(a: AdaptState, gap: number): AdaptState {
   const trend = ADAPT.smooth * a.trend + (1 - ADAPT.smooth) * gap;
-  if (Math.abs(trend) < ADAPT.deadband) return { dial: a.dial, trend };
-  const move = clamp(-ADAPT.gain * trend, -ADAPT.maxStep, ADAPT.maxStep);
+  const level = a.dial + ADAPT.gain * edge(a.trend) - ADAPT.drift * edge(trend);
+  const target = clamp(level - ADAPT.gain * edge(trend), ADAPT.min, ADAPT.max);
+  const move = clamp(target - a.dial, -ADAPT.maxStep, ADAPT.maxStep);
   return { dial: clamp(a.dial + move, ADAPT.min, ADAPT.max), trend };
 }
 

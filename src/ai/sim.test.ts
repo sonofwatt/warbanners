@@ -54,6 +54,11 @@ test.runIf(process.env.SLOW === '1')('ten normal matches: legal, finished, only 
 // fails, as it did after the rules 8 additions (mean 0.067). Seeds 8 and 14 read 0.617 and -0.081. Re-picking the
 // seeds nearest the mean (gaps of 0.000) would hide that, so they stay and the check stays red until the adaptive
 // dial is looked at (2026-11-24-rules8-tuning-report.md).
+// The adaptive fix (2026-11-24-adaptive-fix-report.md): the dial no longer steps by the gap, which summed a standing
+// a second time and swung end to end within a match. Over start seeds 1 to 16 the gaps are 0.672, 0.657, 0.151,
+// 0.221, 0.311, 0.236, 0.642, 0.403, 0.121, 0.539, 0.209, 0.475, 0.436, 0.634, 0.779, -0.343 (mean 0.384, 15 of 16
+// above 0); seeds 8 and 14 read 0.403 and 0.634, so the seeds stay. On start seeds 17 to 48, not used to pick the
+// settings: mean 0.206, 21 of 32 above 0.
 const ADAPT_SEEDS = [8, 14];
 test.runIf(process.env.SLOW === '1')('adaptive climbs against a strong opponent and drops against a weak one', () => {
   const gaps = ADAPT_SEEDS.map((seed) => {
