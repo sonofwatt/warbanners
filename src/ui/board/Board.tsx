@@ -11,13 +11,13 @@ import { StatusOverlay } from '../art/units';
 import { centreOn, keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
 import { prefersReducedMotion } from './Effects';
-import { boardBounds, hexToBoard, tileBox } from './layout';
+import { boardBounds, hexToBoard, THICK, tileBox } from './layout';
 import type { Box, Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
-import { glMapOf, svgLayers } from '../terrain3d/input';
+import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
 import type { SvgLayers } from '../terrain3d/input';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { webgl2Available } from '../terrain3d/option';
@@ -280,7 +280,11 @@ function keepSelection(c: Camera, vp: Viewport, bounds: Box, items: readonly Sce
 export function Board(p: BoardProps): ReactElement {
   const svgRef = useRef<SVGSVGElement>(null);
   const camRef = useRef<SVGGElement>(null);
-  const bounds = useMemo(() => boardBounds(p.radius), [p.radius]);
+  // The 3D terrain's state lives up here: its taller walls widen the board's bounds once it draws.
+  const glWanted = p.terrain3d === true;
+  const [glReady, setGlReady] = useState(false);
+  const gl = glWanted && glReady;
+  const bounds = useMemo(() => boardBounds(p.radius, gl ? THICK_3D : THICK), [p.radius, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
   const cam = useRef<Camera | null>(null);
@@ -409,8 +413,6 @@ export function Board(p: BoardProps): ReactElement {
   // svg keeps drawing the ground until the terrain has drawn its first frame. No WebGL 2 or a chunk that cannot
   // load leaves this board all SVG; a lost context shows SVG until the context is restored. Neither touches the
   // stored option.
-  const glWanted = p.terrain3d === true;
-  const [glReady, setGlReady] = useState(false);
   const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius) : null), [glWanted, p.items, p.radius]);
   const glLatest = useRef(glData);
   useLayoutEffect(() => {
@@ -461,7 +463,6 @@ export function Board(p: BoardProps): ReactElement {
     shownGl.current = { key: d.key, veilKey: d.veilKey };
     write();
   }, [glReady, glKey, glVeilKey, write]);
-  const gl = glWanted && glReady;
 
   // Units slide. A unit that has just moved is drawn last, on top of everything, while it slides: a
   // unit moving toward the back row would otherwise pass under the tiles in front of it. Once it has

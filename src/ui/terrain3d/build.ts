@@ -171,7 +171,7 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
 const PAL = {
   trunk: '#7A5230', leafLow: '#3F8F4A', leaf: '#57AE5E', leafTip: '#6CC46E',
   orchardLeaf: '#5FAE55', fruit: '#E2402F', fruitDeep: '#C42E2A',
-  rockLight: '#9C958C', rockDark: '#857F78', scree: '#AEA597', snow: '#F6F8FB', snowShade: '#E4EBF3',
+  rockLight: '#9C958C', rockDark: '#857F78', oreRockLight: '#8E7A6C', oreRockDark: '#6F5F55', scree: '#AEA597', snow: '#F6F8FB', snowShade: '#E4EBF3',
   grass: ['#5E9A3C', '#73AD45', '#4F8A35'], straw: ['#DDB552', '#E9C764', '#C99B3F'], ear: '#F2CF62',
   deer: '#A8693A', deerBelly: '#E1BC8A', deerLeg: '#6E4222', antler: '#EFE3CC', nose: '#3A2516',
   oreDark: '#4E4B58', oreMid: '#6B6778', crystal: '#BFE3FA', crystalDeep: '#7FB8E6',
@@ -354,7 +354,8 @@ function matterhorn(cx: number, cz: number, y0: number, P: Peak, seed: number): 
   const d = new Vector3();
   // Tones go by face of the pyramid (the slot between two ridge lines), not by triangle, so each face reads as
   // one painted plane. The snow line steps per face and band: a broken line, lower on the faces that look up.
-  const slotTone = Array.from({ length: 2 * K }, () => (rnd() < 0.5 ? PAL.rockLight : PAL.rockDark));
+  // An ore mountain's rock is darker and rust-tinted, so the tile reads as ore at a glance.
+  const slotTone = Array.from({ length: 2 * K }, () => (rnd() < 0.5 ? (P.ore ? PAL.oreRockLight : PAL.rockLight) : (P.ore ? PAL.oreRockDark : PAL.rockDark)));
   const snowRing = Array.from({ length: 2 * K }, () => (P.snow === 2 ? 3 + Math.floor(rnd() * 1.6) : P.snow === 1 ? 6 : 99));
   for (const [A, Bv, C, j, ring] of tris) {
     const ux = Bv[0] - A[0], uy = Bv[1] - A[1], uz = Bv[2] - A[2];
@@ -504,7 +505,11 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
   for (const p of setup.props as Prop[]) {
     if (p.kind === 'orchard') put(fruitTree(c.x + p.x, c.z + p.z, p.s, p.seed), p.x, p.z);
     if (p.kind === 'deer') put(deer(c.x + p.x, c.z + p.z, p.s, p.flip), p.x, p.z);
-    if (p.kind === 'ore') put(oreCluster(c.x + p.x, c.z + p.z, p.s, p.seed, p.flip), p.x, p.z);
+    if (p.kind === 'ore') {
+      const parts = oreCluster(c.x + p.x, c.z + p.z, p.s, p.seed, p.flip);
+      if (p.y === undefined) put(parts, p.x, p.z);
+      else { for (const g of parts) g.translate(0, p.y - 1.2 * p.s, 0); out.push(...parts); } // set into the slope
+    }
   }
   setup.peaks.forEach((p, i) => out.push(...matterhorn(c.x + p.x, c.z + p.z, 0, p, seed + i * 3.7)));
   for (const [x, z, size, sd] of setup.tufts) out.push(...tuft(c.x + x, height(x, z), c.z + z, size, sd));

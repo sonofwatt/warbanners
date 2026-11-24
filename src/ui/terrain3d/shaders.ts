@@ -1,6 +1,6 @@
 // The terrain's shaders: toon light in three soft bands, painted ground, packed earth roads, and today's flat fog.
 // Veiled tiles are dimmed toward the board's veil colour by the same 0.3 the SVG veil uses.
-import { INR, ROAD_HALF } from './layout';
+import { INR, ROAD_HALF, WALL, WATER_Y } from './layout';
 
 export const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -43,6 +43,41 @@ ${NOISE}
 ${LIGHT}
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
 const float INR = ${INR.toFixed(4)};
+const float WALL = ${WALL.toFixed(4)};
+
+// The side of a tile, painted by what it is made of. d is the depth below the tile's top, along the length of the
+// edge. Ground shows a thin top lip, then brown soil with soft strata and a few pebbles; a mountain shows grey rock
+// in flat faceted patches with strata lines; water is a water column, deeper blue toward the bottom.
+vec3 side(int terrain, float d, float along) {
+  float t = clamp(d / WALL, 0.0, 1.0);
+  if (terrain == 3) {
+    vec3 c = mix(vec3(0.43, 0.74, 0.90), vec3(0.11, 0.29, 0.52), smoothstep(0.0, 1.0, t));
+    float streak = smoothstep(0.72, 0.8, noise(vec2(along * 0.22, d * 0.015)));
+    c += vec3(0.06, 0.08, 0.09) * streak * (1.0 - t);
+    c = mix(c, vec3(0.86, 0.95, 1.0), 1.0 - smoothstep(0.4, 1.1, d));
+    return c;
+  }
+  if (terrain == 2) {
+    float lip = 1.2 + 0.8 * noise(vec2(along * 0.3, 1.0));
+    float facet = floor(noise(vec2(along * 0.07, d * 0.07) + 3.0) * 4.0) / 3.0;
+    vec3 c = mix(vec3(0.50, 0.49, 0.47), vec3(0.67, 0.65, 0.61), facet);
+    float strata = fract(d * 0.11 + 0.35 * noise(vec2(along * 0.05, d * 0.02)));
+    c *= 1.0 - 0.16 * (1.0 - smoothstep(0.0, 0.07, strata));
+    c *= 1.0 - 0.22 * t;
+    return mix(vec3(0.78, 0.75, 0.67), c, smoothstep(lip - 0.2, lip + 0.2, d));
+  }
+  vec3 top = terrain == 4 ? vec3(0.91, 0.84, 0.63) : terrain == 1 ? vec3(0.43, 0.66, 0.33) : vec3(0.60, 0.79, 0.40);
+  float lip = 1.8 + 0.9 * noise(vec2(along * 0.35, 2.0));
+  float band = noise(vec2(along * 0.035, d * 0.22));
+  vec3 soil = mix(vec3(0.50, 0.34, 0.21), vec3(0.62, 0.45, 0.28), smoothstep(0.42, 0.58, band));
+  soil = mix(soil, vec3(0.42, 0.29, 0.18), 0.6 * smoothstep(0.62, 0.7, noise(vec2(along * 0.02, d * 0.09) + 7.0)));
+  // A few pebbles: sparse, each a pale stone with a dark rim.
+  float peb = noise(vec2(along, d) * 0.4 + 11.0) * step(0.55, noise(vec2(along, d) * 0.07 + 5.0));
+  soil = mix(soil, vec3(0.66, 0.60, 0.52), smoothstep(0.90, 0.92, peb));
+  soil = mix(soil, vec3(0.38, 0.27, 0.18), smoothstep(0.86, 0.89, peb) * (1.0 - smoothstep(0.90, 0.92, peb)));
+  soil *= 1.0 - 0.25 * t;
+  return mix(top, soil, smoothstep(lip - 0.25, lip + 0.25, d));
+}
 
 // Roads: distance from the track's centre line (x) and the signed offset across it (y), for the edges in the
 // tile's bit mask (bit e = the edge whose normal is at 60e degrees; 64 = a road with no links, a bare patch).
@@ -109,6 +144,7 @@ void main() {
     vec3 ground = patches(vec3(0.78, 0.75, 0.67), vec3(0.83, 0.80, 0.72), vec3(0.71, 0.68, 0.61), p, 7.0);
     vec3 rock = mix(rockBase, vec3(0.67, 0.64, 0.59), smoothstep(9.0, 10.0, h + 3.0 * noise(p * 0.12)));
     col = mix(ground, rock, smoothstep(1.4, 2.6, h));
+    if (res == 4) col = mix(col, vec3(0.62, 0.49, 0.40), 0.4); // ore: rust-tinted scree
   } else if (terrain == 3) { // water
     float depth = smoothstep(2.0, 16.0, shore);
     col = mix(vec3(0.53, 0.80, 0.93), vec3(0.41, 0.72, 0.89), depth);
@@ -163,10 +199,9 @@ void main() {
     col *= clamp(1.0 + 1.25 * (dot(n, uLightDir) - dot(vec3(0.0, 1.0, 0.0), uLightDir)), 0.82, 1.15);
   }
   if (wall) {
-    // Walls: the terrain colour, darker toward the foot, toon lit by their facing (left light, right dark).
-    vec3 wc = terrain == 3 ? vec3(0.36, 0.63, 0.80) : terrain == 4 ? vec3(0.80, 0.70, 0.47) : terrain == 2 ? vec3(0.66, 0.63, 0.57) : vec3(0.50, 0.70, 0.33);
-    col = wc * (1.0 - 0.18 * edge);
-    col *= 0.96 + 0.06 * noise(vec2(p.x + p.y, vWorld.y * 3.0) * 0.4);
+    // Walls: what the tile is made of, toon lit by their facing (left light, right dark).
+    float top = terrain == 3 ? ${WATER_Y.toFixed(2)} : 0.0;
+    col = side(terrain, top - vWorld.y, vWorld.x + vWorld.z * 0.7);
   }
   vec3 lit = lightUp(col, band) * (wall ? 1.0 : vAO);
   if (!wall) {

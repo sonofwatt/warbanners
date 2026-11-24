@@ -25,6 +25,15 @@ tap). The renderer is the approved art sample ported to TypeScript, with David's
 - Everything else as approved: flat toon light, wild wheat tufts, earth roads joined to neighbours and cities,
   faint hills by mountains, apple trees with seven apples, painted water with foam at the shore.
 
+Later the same day (David's art direction, after the first review):
+
+- Tile walls in 3D are five times taller (`THICK_3D` = 45 board units instead of 9): soil under ground tiles, grey
+  rock under mountains, a water column under water, flat fog colours under fog. The board's bounds grow by the
+  extra wall only while the 3D terrain draws, so the camera fit and panning show the whole slab; tile tops, units,
+  borders and marks do not move. With the option off nothing changes.
+- Ore mountains: rust-tinted rock and scree and five to seven crystal deposits on the slopes and the foot of the
+  peaks, off the middle of the tile.
+
 ## Files
 
 - `src/ui/terrain3d/option.ts`: the setting (read and write, memory fallback) and a WebGL 2 check on a throwaway

@@ -56,3 +56,14 @@ test('each terrain has four distinct layouts', () => {
     expect(looks.size).toBe(4);
   }
 });
+
+test('the 3D walls are five times the svg walls, and the board bounds grow only below the tiles', async () => {
+  const { boardBounds, hexToBoard, THICK } = await import('../board/layout');
+  const { THICK_3D } = await import('./input');
+  expect(THICK_3D).toBe(5 * THICK);
+  const svg = boardBounds(6);
+  const gl = boardBounds(6, THICK_3D);
+  expect(gl.maxY - svg.maxY).toBe(THICK_3D - THICK);
+  expect([gl.minX, gl.minY, gl.maxX]).toEqual([svg.minX, svg.minY, svg.maxX]);
+  expect(hexToBoard('2,3')).toEqual(hexToBoard('2,3')); // tile tops do not move
+});

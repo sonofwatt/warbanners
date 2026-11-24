@@ -19,6 +19,12 @@ export interface GlMap {
   fog: HexKey[]; // never explored: drawn as today's blank fog tile, nothing about the ground beneath
 }
 
+/**
+ * How tall a tile's side wall shows on screen with the 3D terrain, in board units: the board reads as a thick slab
+ * of land (the SVG board's wall is THICK, 9). Only the walls below the tile tops grow; the tops stay where they are.
+ */
+export const THICK_3D = 45;
+
 /** Terrains and resources that have WebGL art. Anything else is left to the SVG board, so nothing goes missing. */
 export const GL_TERRAIN: ReadonlySet<Terrain> = new Set<Terrain>(['field', 'forest', 'mountain', 'water']);
 export const GL_RESOURCE: ReadonlySet<Resource> = new Set<Resource>(['orchard', 'cropland', 'game', 'ore']);

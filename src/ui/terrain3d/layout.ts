@@ -6,14 +6,14 @@
 // layout (one of six turns) so the same layout reads differently. The light never turns with it: only the
 // layout does. Tall things (peaks, the grove behind what shares a forest) keep to the back of the tile.
 import type { HexKey } from '../../engine';
+import { THICK_3D } from './input';
 import type { GlMap, GlTile } from './input';
 
 export const R = 30; // board/layout.ts
 export const SQUASH = 0.62; // board/layout.ts
-export const THICK = 9; // board/layout.ts: wall height in board units on screen
 export const SQ3 = Math.sqrt(3);
 export const COS_E = Math.sqrt(1 - SQUASH * SQUASH);
-export const WALL = THICK / COS_E; // wall depth in world units, so it shows THICK board units tall
+export const WALL = THICK_3D / COS_E; // wall depth in world units, so it shows THICK_3D board units tall
 export const WATER_Y = -2.2; // water sits a little below the land, so the shore shows a bank
 export const INR = (R * SQ3) / 2; // inradius
 export const ROAD_HALF = 2.7; // half width of a road in world units (the SVG stroke is 4.6 wide)
@@ -88,7 +88,7 @@ export function spin(x: number, z: number, turn: number): [number, number] {
  * A peak: x, z, height (world units), base radius, ridge turn, the side ridge that carries a shoulder (-1: none)
  * and how much snow (0 none, 1 a cap on the top band, 2 the full broken snow line).
  */
-export interface Peak { x: number; z: number; h: number; b: number; rot: number; shoulder: number; snow: 0 | 1 | 2 }
+export interface Peak { x: number; z: number; h: number; b: number; rot: number; shoulder: number; snow: 0 | 1 | 2; ore?: boolean }
 
 // Mountains: one large main peak with a straight summit, about 35 to 38 board units on screen, and two or three
 // smaller peaks around it at 40 to 62 percent of its height. Peaks on the left stand behind the main peak, so its
@@ -126,7 +126,8 @@ const ORCHARDS: [number, number, number][][] = [
 export type BitKind = 'bush' | 'stone' | 'flower' | 'grass' | 'lily' | 'reed' | 'islet';
 export interface Bit { kind: BitKind; x: number; z: number; s: number; seed: number }
 export type PropKind = 'orchard' | 'deer' | 'ore';
-export interface Prop { kind: PropKind; x: number; z: number; s: number; flip: boolean; seed: number }
+// `y`, when set, is the height the prop stands at (an ore deposit on a peak's slope); otherwise the ground's.
+export interface Prop { kind: PropKind; x: number; z: number; s: number; flip: boolean; seed: number; y?: number }
 
 export interface Setup {
   t: GlTile;
@@ -280,8 +281,12 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
     }
   }
   if (res === 'ore') {
-    if (shared) place('ore', 11, 13, 0.62, 7, turn % 2 === 1);
-    else {
+    if (shared) {
+      place('ore', 11, 13, 0.62, 7, turn % 2 === 1);
+      // An ore mountain reads at a glance: rust-tinted rock and deposits scattered over its foot and slopes.
+      for (const pk of out.peaks) pk.ore = true;
+      for (const d of oreDeposits(out.peaks, q, r)) out.props.push({ kind: 'ore', ...d, flip: d.seed > 0.5 });
+    } else {
       const [x, z] = ([[0, 9], [-5, 8], [5, 7], [0, 5]] as const)[v]!;
       place('ore', x, z, v === 3 ? 0.9 : 1, 7, turn % 2 === 1);
     }
@@ -294,6 +299,45 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   // Rolling hills on open land next to a mountain: purely cosmetic, a board unit or two high.
   if (t.terrain !== 'mountain' && t.terrain !== 'water') {
     EDGE_NB.forEach(([dq, dr], e) => { if (map.tiles[`${q + dq},${r + dr}`]?.terrain === 'mountain') out.hillEdges.push(e); });
+  }
+  return out;
+}
+
+/**
+ * Five to seven ore deposits for an ore mountain, besides the one in the front corner: on the front slopes of the
+ * peaks (with their height) and on the scree at the main peak's foot. All kept off the middle of the tile, where a
+ * unit stands, and on the tile.
+ */
+export function oreDeposits(peaks: readonly Peak[], q: number, r: number): { x: number; z: number; s: number; seed: number; y?: number }[] {
+  const out: { x: number; z: number; s: number; seed: number; y?: number }[] = [];
+  const free = (x: number, z: number, rad: number): boolean =>
+    Math.hypot(x, z) > 11 && edgeDist(x, z) > rad && out.every((o) => Math.hypot(o.x - x, o.z - z) > rad * 1.6) && Math.hypot(x - 11, z - 13) > 8;
+  let i = 0;
+  // Slopes: the faces toward the viewer (+z), a fifth to a third of the way up.
+  for (const p of peaks) {
+    for (const side of [-1, 1]) {
+      const a = Math.PI / 2 + side * (0.55 + 0.4 * hash2(q + i, r - i));
+      const t = 0.12 + 0.2 * hash2(r + i * 1.7, q * 0.3);
+      const rr = p.b * Math.pow(1 - t, 1.08) * 0.8;
+      const x = p.x + rr * Math.cos(a), z = p.z + rr * Math.sin(a);
+      const s = 0.38 + 0.18 * hash2(i, q + r);
+      i++;
+      if (free(x, z, 5 * s)) out.push({ x, z, s, seed: hash2(q * 1.3 + i, r * 2.1 - i), y: t * p.h * 0.9 });
+      if (out.length >= 4) break;
+    }
+    if (out.length >= 4) break;
+  }
+  // The foot of the main peak, on the scree either side and in front.
+  const m = peaks[0];
+  if (m !== undefined) {
+    for (const a of [0.35, 2.75, 1.25, 1.95, -0.2, 3.35]) {
+      const d = m.b * (1.0 + 0.15 * hash2(q - i, r + i));
+      const x = m.x + d * Math.cos(a), z = m.z + d * Math.sin(a);
+      const s = 0.45 + 0.25 * hash2(i * 2.3, q - r);
+      i++;
+      if (free(x, z, 5 * s)) out.push({ x, z, s, seed: hash2(q + i * 0.7, r - i * 1.1) });
+      if (out.length >= 7) break;
+    }
   }
   return out;
 }
