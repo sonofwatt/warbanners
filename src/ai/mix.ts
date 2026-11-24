@@ -1,5 +1,5 @@
 // What to train, what to research for it, and which level reward to take: scored from what the player can see.
-import { CONFIG, TECHS, UNITS, distance, growthNeeded, maxHpOf, parseKey, playerIncome, unitCapacity, unitCost, unitsOf } from '../engine';
+import { CONFIG, TECHS, UNITS, distance, growthNeeded, maxHpOf, parseKey, playerIncome, unitCapacity, unitCost, unitTech, unitsOf } from '../engine';
 import type { City, FactionId, MatchState, PlayerId, TechId, UnitTypeId } from '../engine';
 import type { Persona } from './types';
 
@@ -44,7 +44,7 @@ export function factionTypes(f: FactionId): UnitTypeId[] {
 // The types the player can train now (the tech held), in data order.
 export function availableTypes(b: MatchState, me: PlayerId): UnitTypeId[] {
   const techs = b.players[me]!.techs;
-  return factionTypes(b.players[me]!.faction).filter((t) => UNITS[t].tech === null || techs.includes(UNITS[t].tech));
+  return factionTypes(b.players[me]!.faction).filter((t) => { const tech = unitTech(t); return tech === null || techs.includes(tech); });
 }
 
 // The score of each type in `types`: how far the army is short of the persona mix in it (shares taken over `types`),
@@ -99,12 +99,12 @@ export function chooseTech(b: MatchState, me: PlayerId, persona: Persona, allowe
   const all = factionTypes(faction);
   const techs = b.players[me]!.techs;
   const scores = unitScores(b, me, persona, all);
-  const desire = (tech: TechId): number => all.filter((t) => UNITS[t].tech === tech && !techs.includes(tech))
+  const desire = (tech: TechId): number => all.filter((t) => unitTech(t) === tech && !techs.includes(tech))
     .reduce((a, t) => a + Math.max(0, scores.get(t)!), 0);
   const order = persona.techOrder;
   const score = (tech: TechId): number => {
     const idx = order.indexOf(tech);
-    const next = (Object.keys(TECHS) as TechId[]).filter((x) => TECHS[x].requires === tech);
+    const next = (Object.keys(TECHS) as TechId[]).filter((x) => TECHS[x]!.requires === tech);
     return TECH_ORDER_WEIGHT * (order.length - (idx < 0 ? order.length : idx))
       + UNLOCK_WEIGHT * desire(tech) + PATH_WEIGHT * next.reduce((a, x) => a + desire(x), 0);
   };

@@ -80,8 +80,8 @@ const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in
 /**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
  * - a building replaces what it was built on (a farm its cropland, a mine its ore and
- *   mountain); a lumber camp (only ever built in a forest) stands in front of a grove along
- *   the back of its forest.
+ *   mountain); a lumber camp or mill (only ever built in a forest) stands in front of a grove
+ *   along the back of its forest. rules 8: a harvested resource is drawn faded.
  * - a village replaces the terrain feature; it only stands on field or forest.
  * - game or a treasure in a forest stands in front of a grove along the back of the tile;
  *   ore or a treasure on a mountain shares the tile: the mountain smaller at the back,
@@ -96,10 +96,10 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
   let art: ReactNode;
   if (tile.building !== null) {
     art =
-      tile.building === 'lumberCamp' ? (
+      tile.building === 'lumberCamp' || tile.building === 'lumberMill' ? (
         <>
           <Grove variant={v} />
-          <g transform={BEFORE_GROVE}><BuildingMark building="lumberCamp" /></g>
+          <g transform={BEFORE_GROVE}><BuildingMark building={tile.building} /></g>
         </>
       ) : (
         <BuildingMark building={tile.building} />
@@ -110,7 +110,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
     const beside = tile.treasure && p.occupied === true;
     const item = tile.treasure
       ? <g data-treasure={beside ? 'beside' : 'centre'}><Treasure /></g>
-      : tile.resource !== null ? <ResourceMark resource={tile.resource} /> : null;
+      : tile.resource !== null ? <ResourceMark resource={tile.resource} harvested={tile.harvested} /> : null;
     if (beside) {
       art = (
         <>

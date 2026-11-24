@@ -1,6 +1,6 @@
 // The AI's road planner: the cheapest chain of roads that would join each of its unlinked cities to its capital.
 // It reads the believed state only, and its idea of what carries a chain is the engine's (src/engine/connect.ts).
-import { CONFIG, FACTIONS, key, neighbors, parseKey } from '../engine';
+import { FACTIONS, key, neighbors, parseKey, roadTech } from '../engine';
 import type { City, HexKey, MatchState, PlayerId } from '../engine';
 
 export interface Chain {
@@ -33,7 +33,7 @@ function buildable(b: MatchState, me: PlayerId, k: HexKey, explored: Set<HexKey>
 // a faction that builds no roads (the Mongols since rules 8), there are none. Since rules 7 a player holds one capital: a taken capital is an ordinary city, and the capital moves.
 export function connectingChains(b: MatchState, me: PlayerId): Chain[] {
   const self = b.players[me];
-  if (self === undefined || !self.techs.includes(CONFIG.road.tech) || !FACTIONS[self.faction].canBuildRoads) return [];
+  if (self === undefined || !self.techs.includes(roadTech()) || !FACTIONS[self.faction].canBuildRoads) return [];
   const capital = b.cities.find((c) => c.owner === me && c.capital);
   if (capital === undefined) return [];
   const cityAt = new Map(b.cities.map((c) => [c.pos, c]));

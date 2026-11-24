@@ -1,10 +1,11 @@
 // What a player can do with a selected unit, city or tile. Everything offered comes from the engine's legal
 // actions; a refusal from the engine becomes a disabled command with its reason, or is hidden when it would be noise.
 import {
-  CONFIG, TECHS, UNITS, buildRefusal, harvestRefusal, roadRefusal, techPrice, trainRefusal, unitCost, wallsRefusal,
+  CONFIG, TECHS, UNITS, buildRefusal, buildingTech, harvestRefusal, harvestTech, roadRefusal, roadTech, techPrice, trainRefusal,
+  unitCost, unitTech, wallsRefusal, wallsTech,
 } from '../../engine';
 import type {
-  AbilityId, Action, BuildingId, HexKey, MatchState, RewardId, TechId, UnitTypeId,
+  AbilityId, Action, BranchId, BuildingId, HexKey, MatchState, RewardId, TechId, UnitTypeId,
 } from '../../engine';
 import type { ActionIndex, Armed, Selection } from '../interaction';
 import { T, reasonText, unlocks } from '../text';
@@ -91,7 +92,8 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     if ((ix.train[cityId] ?? []).includes(type)) {
       out.push({ id: `train-${type}`, label, cost, enabled: true, why: null, action, arm: null, unit: type });
     } else {
-      const missing = def.tech !== null && !player.techs.includes(def.tech) ? def.tech : null;
+      const tech = unitTech(type);
+      const missing = tech !== null && !player.techs.includes(tech) ? tech : null;
       const why = missing !== null ? needs(missing) : reasonText(trainRefusal(state, cityId, type) ?? 'cannot train that');
       out.push({ id: `train-${type}`, label, cost, enabled: false, why, action: null, arm: null, unit: type, ...(missing !== null ? { tech: missing } : {}) });
     }
@@ -104,7 +106,7 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     out.push({ ...walls, enabled: true, why: null, action: { type: 'buildWalls', city: cityId } });
   } else {
     const refusal = wallsRefusal(state, cityId);
-    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(CONFIG.walls.tech), action: null, tech: CONFIG.walls.tech });
+    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(wallsTech()), action: null, tech: wallsTech() });
     else if (refusal === 'not enough gold') out.push({ ...walls, enabled: false, why: reasonText(refusal), action: null });
   }
   if (ix.rewards.includes(cityId) && city.pendingRewards[0] !== undefined) {
@@ -127,29 +129,33 @@ export function tileCommands(at: HexKey, state: MatchState, ix: ActionIndex): Co
     else if (refusal === 'not enough gold') out.push({ ...base, enabled: false, why: reasonText(refusal), action: null });
     else if (refusal === 'missing tech' && showTech) out.push({ ...base, enabled: false, why: needs(tech), action: null, tech });
   };
-  if (tile.resource === 'orchard' || tile.resource === 'game') {
+  const harvest = tile.resource === null ? null : harvestTech(tile.resource);
+  if (tile.resource !== null && tile.resource !== 'ore' && harvest !== null) {
     const rule = CONFIG.harvest[tile.resource];
-    offer('harvest', T.ui.harvest, rule.cost, rule.tech, ix.harvest.includes(at), { type: 'harvest', at }, harvestRefusal(state, at), true);
+    offer('harvest', T.harvestVerb[tile.resource], rule.cost, harvest, ix.harvest.includes(at), { type: 'harvest', at }, harvestRefusal(state, at), true);
   }
   for (const b of Object.keys(CONFIG.buildings) as BuildingId[]) {
+    const tech = buildingTech(b);
+    if (tech === null) continue;
     const rule = CONFIG.buildings[b];
-    offer(`build-${b}`, `${T.ui.build} ${T.building[b]}`, rule.cost, rule.tech, (ix.build[at] ?? []).includes(b), { type: 'build', at, building: b }, buildRefusal(state, at, b), true);
+    offer(`build-${b}`, `${T.ui.build} ${T.building[b]}`, rule.cost, tech, (ix.build[at] ?? []).includes(b), { type: 'build', at, building: b }, buildRefusal(state, at, b), true);
   }
-  offer('road', T.ui.road, CONFIG.road.cost, CONFIG.road.tech, ix.road.includes(at), { type: 'road', at }, roadRefusal(state, at), false);
+  offer('road', T.ui.road, CONFIG.road.cost, roadTech(), ix.road.includes(at), { type: 'road', at }, roadRefusal(state, at), false);
   return out;
 }
 
+// rules 8: branch and row place the tech on the screen (a column 1 tech heads its branch; row top or bottom after it).
 export interface TechRow {
-  tech: TechId; branch: number; tier: 1 | 2 | 3; status: 'owned' | 'ready' | 'costly' | 'locked'; price: number; unlocks: string[];
+  tech: TechId; branch: BranchId; row: 'top' | 'bottom' | null; tier: 1 | 2 | 3; status: 'owned' | 'ready' | 'costly' | 'locked'; price: number; unlocks: string[];
 }
 
 export function techRows(state: MatchState, ix: ActionIndex): TechRow[] {
   const me = state.current, player = state.players[me]!;
-  return (Object.keys(TECHS) as TechId[]).map((tech, i) => {
-    const def = TECHS[tech];
+  return (Object.keys(TECHS) as TechId[]).map((tech) => {
+    const def = TECHS[tech]!;
     const status: TechRow['status'] = player.techs.includes(tech) ? 'owned'
       : ix.research.includes(tech) ? 'ready'
         : def.requires !== null && !player.techs.includes(def.requires) ? 'locked' : 'costly';
-    return { tech, branch: Math.floor(i / 3), tier: def.tier, status, price: techPrice(state, me, tech), unlocks: unlocks(tech, player.faction) };
+    return { tech, branch: def.branch, row: def.row, tier: def.tier, status, price: techPrice(state, me, tech), unlocks: unlocks(tech, player.faction) };
   });
 }

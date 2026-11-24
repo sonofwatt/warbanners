@@ -24,7 +24,7 @@ const PX = 2; // pixels per board unit
 const VARIANT_KEYS: readonly HexKey[] = ['0,0', '1,0', '2,0'];
 
 function tile(terrain: Terrain, o: Partial<Tile> = {}): Tile {
-  return { terrain, resource: null, building: null, road: false, village: false, treasure: false, cityId: null, ...o };
+  return { terrain, resource: null, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null, ...o };
 }
 const VIEW = { x: -40, y: -44, w: 80, h: 76 };
 

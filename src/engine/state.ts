@@ -1,5 +1,6 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
+import { TECH_TREE } from './data/techs';
 import { UNITS } from './data/units';
 import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
@@ -115,7 +116,7 @@ export function createMatch(settings: MatchSettings): MatchState {
     rulesVersion: RULES_VERSION, seed, rng: map.rng, radius: CONFIG.mapRadius,
     tiles: map.tiles, cities: [], units: [],
     players: settings.factions.map((faction, i) => ({
-      id: i, faction, gold: CONFIG.startGold[i]!, techs: [FACTIONS[faction].startTech],
+      id: i, faction, gold: CONFIG.startGold[i]!, techs: [TECH_TREE.start[faction]],
       explored: [], alive: true, turnsTaken: 0,
     })),
     current: 0, stamp: 0, nextUnitId: 0, nextCityId: 0, winner: null,

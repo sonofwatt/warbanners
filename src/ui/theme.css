@@ -451,16 +451,27 @@ input:focus { border-color: var(--blue); }
 .digest-peek p { margin: 0; font-weight: 650; }
 .digest p { margin: var(--s2) 0 0; color: var(--ink-soft); font-weight: 600; }
 
-/* The tech sheet: four branches, each a ladder of three rungs. */
+/* The tech sheet (rules 8): five branches. Each is a card: its name, its column 1 tech, then a fork into two rows
+   (Army on top, Land below), each a short ladder of columns 2 and 3 hung from a rail out of the column 1 badge. */
 .branches { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s3); }
 .tech-sheet .branch {
-  position: relative; list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 6px;
+  position: relative; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 6px;
   background: var(--paper-2); border-radius: var(--r);
 }
-/* The ladder's rail, through the middle of the rung badges. */
-.tech-sheet .branch::before {
-  content: ''; position: absolute; left: 27px; top: 28px; bottom: 28px; width: 4px; border-radius: 2px; background: var(--paper-edge);
+.tech-sheet .branch-name {
+  margin: 2px 4px 0; font-size: var(--t-xs); font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
 }
+.tech-sheet .rungs { position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tech-sheet .fork { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-left: 18px; position: relative; }
+/* The fork's rail, down from the column 1 badge, and a short spur into each row. */
+.tech-sheet .fork::before {
+  content: ''; position: absolute; left: 21px; top: -6px; bottom: 26px; width: 4px; border-radius: 2px; background: var(--paper-edge);
+}
+.tech-sheet .row { padding-left: 10px; }
+.tech-sheet .row::before {
+  content: ''; position: absolute; left: 3px; top: 24px; width: 14px; height: 4px; border-radius: 2px; background: var(--paper-edge);
+}
+.branch-later { margin: 0 4px 2px 22px; font-size: var(--t-xs); font-weight: 650; color: var(--ink-soft); }
 .tech-sheet li {
   position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: var(--s2) 10px; align-items: center;
   min-height: 52px; padding: 6px 6px 6px var(--s2); border-radius: var(--r-s); background: var(--paper);
@@ -556,6 +567,10 @@ input:focus { border-color: var(--blue); }
 /* A wide portrait panel: two branches side by side. */
 @media (min-width: 600px) and (orientation: portrait) {
   .branches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* A wide sheet: each branch's two rows side by side, the column 2 and 3 rungs one under the other. */
+@container (min-width: 900px) {
+  .tech-sheet .branches { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-height: 500px) {
   .screen:not(.match) { gap: var(--s2); padding: var(--s3) var(--s4); }

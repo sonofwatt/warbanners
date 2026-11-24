@@ -1,11 +1,15 @@
 import { deepFreeze } from './freeze';
 import type { HexKey } from '../hex';
 import type { BuildingId, DeedId, HeroTraitId, Resource, RewardId, TechId, Terrain, TreasureOutcome, UnitTypeId } from '../types';
+import type { TechTreeId } from './techs';
 
 // Every number the rules file leaves to tuning. `as const` keeps the literal values;
 // `satisfies` checks the shape. Water has no cover in the rules (it cannot be entered), so 0.
 export const CONFIG = deepFreeze({
   mapRadius: 6,
+  // rules 8: the tech tree in play (data/techs.ts). 'rules7' replays the four ladders of rules 7, their harvests that
+  // cleared the resource, and maps without jewels or fish; only the provenance tests switch it.
+  techTree: 'rules8' as TechTreeId,
   capitals: ['-2,5', '2,-5'],
   startGold: [10, 12],
   terrain: {
@@ -21,7 +25,7 @@ export const CONFIG = deepFreeze({
   // step of a move. rangeBonus 0 and endsTurn false replay rules 7; only the provenance tests turn them off.
   // tech: a unit steps onto a mountain (by a move or a kill advance) only once its owner has researched it; stepping
   // off needs none. null replays rules 7 (no tech needed).
-  mountain: { rangeBonus: 1, longShotScale: 0.8, endsTurn: true, tech: 'bronze' as TechId | null },
+  mountain: { rangeBonus: 1, longShotScale: 0.8, endsTurn: true, tech: 'prospecting' as TechId | null },
   // rules 6: no move passes through a tile its owner had not explored when the move began, and only a pathfinder
   // (the Spartan Scout) may end a move on one, which ends its turn. Off replays rules 3 to 5 (any unit could end a move
   // on one unexplored tile, and a mounted Mongol kept its movement after it); only the provenance test turns it off.
@@ -43,6 +47,9 @@ export const CONFIG = deepFreeze({
   mapgen: {
     field: 50, forest: 72, mountain: 86,
     orchard: 20, cropland: 40, game: 30, ore: 40,
+    // rules 8, cumulative after ore on the same roll: a mountain is ore below 40, jewels from 40 to below 55; water is
+    // fish below 25. Placed only where the tree in play harvests them.
+    jewels: 55, fish: 25,
     villagesPerHalf: 3, treasuresPerHalf: 2, maxAttempts: 50,
     rollRange: 100, villageMinDistance: 3, treasureMinCapitalDistance: 3, treasureMinFeatureDistance: 2,
   },
@@ -88,17 +95,29 @@ export const CONFIG = deepFreeze({
     5: ['champion', 'support'],
   },
   rewardGold: 6, rewardScoutRadius: 3, rewardBorderRadius: 2, rewardCapacity: 2, rewardIncome: 1, rewardGrowth: 2,
+  // The techs that open harvests, buildings, walls and roads are in the tree (data/techs.ts). rules 8: wild grain
+  // (cropland), jewels and fish are harvested too.
   harvest: {
-    orchard: { tech: 'foraging', cost: 2, growth: 1 },
-    game: { tech: 'hunting', cost: 2, growth: 1 },
+    orchard: { cost: 2, growth: 1 },
+    game: { cost: 2, growth: 1 },
+    cropland: { cost: 2, growth: 1 },
+    jewels: { cost: 2, growth: 1 },
+    fish: { cost: 2, growth: 1 },
   },
+  // `on` is the terrain; the tree says which resources a building stands on. rules 8: an upgrade replaces the
+  // improvement it upgrades on the same tile, for more gold and more growth (first numbers, to be tuned by sims).
   buildings: {
-    farm: { tech: 'farming', cost: 5, growth: 2, on: 'field', resource: 'cropland', income: 0 },
-    lumberCamp: { tech: 'forestry', cost: 4, growth: 2, on: 'forest', resource: null, income: 0 },   // rules 7: cost 4 (was 3), growth 2 (was 1)
-    mine: { tech: 'bronze', cost: 5, growth: 2, on: 'mountain', resource: 'ore', income: 0 },
-    market: { tech: 'markets', cost: 6, growth: 2, on: 'field', resource: null, income: 2 },         // rules 7: growth 2 (was 1)
+    farm: { cost: 5, growth: 2, on: 'field', upgrades: null, income: 0 },
+    lumberCamp: { cost: 4, growth: 2, on: 'forest', upgrades: null, income: 0 },   // rules 7: cost 4 (was 3), growth 2 (was 1)
+    mine: { cost: 5, growth: 2, on: 'mountain', upgrades: null, income: 0 },
+    market: { cost: 6, growth: 2, on: 'field', upgrades: null, income: 2 },         // rules 7: growth 2 (was 1)
+    orchard: { cost: 5, growth: 2, on: 'field', upgrades: null, income: 0 },
+    plantation: { cost: 7, growth: 3, on: 'field', upgrades: 'orchard', income: 0 },
+    lumberMill: { cost: 6, growth: 3, on: 'forest', upgrades: 'lumberCamp', income: 0 },
+    foundry: { cost: 7, growth: 3, on: 'mountain', upgrades: 'mine', income: 0 },
+    granary: { cost: 7, growth: 3, on: 'field', upgrades: 'farm', income: 0 },
   },
-  walls: { tech: 'shieldwork', cost: 6 }, road: { tech: 'roads', cost: 1 },
+  walls: { cost: 6 }, road: { cost: 1 },
   // Stage 2 (docs/rules/stage2-rules.md). Thresholds tuned by simulated matches in plan 5 Task 8
   // (docs/superpowers/plans/2026-11-20-plan-5-tuning-log.md); the trait sizes are the first draft, kept.
   heroes: {
@@ -110,7 +129,7 @@ export const CONFIG = deepFreeze({
     fierceAtk: 1, fierceHp: 2, tirelessMove: 1, hardyDef: 1, watchfulSight: 1, agilityCut: 1, mythAtk: 1, mythDef: 1,
   },
 } as const satisfies {
-  mapRadius: number; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
+  mapRadius: number; techTree: TechTreeId; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
   roadCost: number; relayCost: number; wallsCover: number; mountainSightBonus: number;
   mountain: { rangeBonus: number; longShotScale: number; endsTurn: boolean; tech: TechId | null };
@@ -133,9 +152,9 @@ export const CONFIG = deepFreeze({
   rewards: Record<2 | 3 | 4 | 5, readonly [RewardId, RewardId]>;
   rewardGold: number; rewardScoutRadius: number; rewardBorderRadius: number; rewardCapacity: number;
   rewardIncome: number; rewardGrowth: number;
-  harvest: Record<'orchard' | 'game', { tech: TechId; cost: number; growth: number }>;
-  buildings: Record<BuildingId, { tech: TechId; cost: number; growth: number; on: Terrain; resource: Resource | null; income: number }>;
-  walls: { tech: 'shieldwork'; cost: number }; road: { tech: 'roads'; cost: number };
+  harvest: Record<Exclude<Resource, 'ore'>, { cost: number; growth: number }>;
+  buildings: Record<BuildingId, { cost: number; growth: number; on: Terrain; upgrades: BuildingId | null; income: number }>;
+  walls: { cost: number }; road: { cost: number };
   heroes: {
     traitFor: Record<DeedId, HeroTraitId>; fightPerAttack: number; fightPerKill: number;
     thresholds: Record<DeedId, number>; agogeThresholds: Record<DeedId, number>; maxTraits: number; heroAt: number;

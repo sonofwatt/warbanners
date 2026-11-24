@@ -3,10 +3,16 @@ export const RULES_VERSION = 8;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
-export type Resource = 'orchard' | 'cropland' | 'game' | 'ore';
-export type BuildingId = 'farm' | 'lumberCamp' | 'mine' | 'market';
+// rules 8 adds jewels (on mountains) and fish (on water)
+export type Resource = 'orchard' | 'cropland' | 'game' | 'ore' | 'jewels' | 'fish';
+// rules 8 adds the Orchard and the four upgrades (Plantation, Lumber mill, Foundry, Granary)
+export type BuildingId = 'farm' | 'lumberCamp' | 'mine' | 'market' | 'orchard' | 'plantation' | 'lumberMill' | 'foundry' | 'granary';
+// Both trees' techs: the rules 7 ladders (kept for the provenance replays) and the rules 8 tree; data/techs.ts says
+// which tree each belongs to, and CONFIG.techTree which one is in play.
 export type TechId = 'foraging' | 'farming' | 'markets' | 'riding' | 'roads' | 'chivalry'
-  | 'hunting' | 'forestry' | 'engineering' | 'bronze' | 'shieldwork' | 'smithing';
+  | 'hunting' | 'forestry' | 'engineering' | 'bronze' | 'shieldwork' | 'smithing'
+  | 'defence' | 'walls' | 'orchards' | 'plantations' | 'trapping' | 'archery' | 'siege' | 'logging' | 'milling'
+  | 'prospecting' | 'spears' | 'mining' | 'foundry' | 'gathering' | 'granary' | 'fishing';
 export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman'
   | 'knight' | 'catapult' | 'hoplite' | 'kingsGuard' | 'piper' | 'scout'
   | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp' | 'sellsword';
@@ -29,6 +35,7 @@ export type RewardId = 'gold' | 'scout' | 'borders' | 'barracks' | 'income' | 'g
 
 export interface Tile {
   terrain: Terrain; resource: Resource | null; building: BuildingId | null;
+  harvested: boolean;                    // rules 8: its resource was harvested (the resource stays, for building on)
   road: boolean; village: boolean; treasure: boolean;
   cityId: number | null;                 // the city whose territory this tile is in
 }

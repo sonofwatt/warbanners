@@ -1,7 +1,7 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, FACTIONS, UNITS } from '../engine';
+import { CONFIG, FACTIONS, UNITS, buildingTech, harvestTech, roadTech, unitTech, wallsTech } from '../engine';
 import type {
-  AbilityId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
+  AbilityId, BranchId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
 } from '../engine';
 import type { DigestLine } from '../app/digest';
@@ -83,12 +83,25 @@ const reward: Record<RewardId, Entry> = {
   support: { name: 'Support', blurb: "Your faction's support unit appears in this city." },
 };
 
+// Both trees' techs (the rules 7 names stay for the provenance replays).
 const tech: Record<TechId, string> = {
   foraging: 'Foraging', farming: 'Farming', markets: 'Markets', riding: 'Riding', roads: 'Roads', chivalry: 'Chivalry',
   hunting: 'Hunting', forestry: 'Forestry', engineering: 'Engineering', bronze: 'Bronze', shieldwork: 'Shieldwork', smithing: 'Smithing',
+  defence: 'Defence', walls: 'Walls', orchards: 'Orchards', plantations: 'Plantations',
+  trapping: 'Trapping', archery: 'Archery', siege: 'Siege', logging: 'Logging', milling: 'Milling',
+  prospecting: 'Prospecting', spears: 'Spears', mining: 'Mining', foundry: 'Foundry',
+  gathering: 'Gathering', granary: 'Granary', fishing: 'Fishing',
 };
-const building: Record<BuildingId, string> = { farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market' };
-const resource: Record<Resource, string> = { orchard: 'Orchard', cropland: 'Cropland', game: 'Game', ore: 'Ore' };
+const branch: Record<BranchId, string> = { orchards: 'Orchards', hunting: 'Hunting', mountains: 'Mountains', plains: 'Plains', waters: 'Waters' };
+const building: Record<BuildingId, string> = {
+  farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market',
+  orchard: 'Orchard', plantation: 'Plantation', lumberMill: 'Lumber mill', foundry: 'Foundry', granary: 'Granary',
+};
+const resource: Record<Resource, string> = { orchard: 'Fruit', cropland: 'Wild grain', game: 'Game', ore: 'Ore', jewels: 'Jewels', fish: 'Fish' };
+// The harvest command for each resource (ore has none: it is mined).
+const harvestVerb: Record<Resource, string> = {
+  orchard: 'Harvest fruit', cropland: 'Harvest wild grain', game: 'Trap game', ore: 'Harvest ore', jewels: 'Gather jewels', fish: 'Catch fish',
+};
 const terrain: Record<Terrain, string> = { field: 'Field', forest: 'Forest', mountain: 'Mountain', water: 'Water' };
 const faction: Record<FactionId, string> = { spartans: 'Spartans', mongols: 'Mongols' };
 
@@ -239,6 +252,9 @@ const ui = {
   momentumBlurb: 'Spent on kills: a kill gives one more attack while there is momentum to pay for it. It comes back each turn.',
   rangeOnMountain: (n: number) => `${n} (mountain)`,
   climbMountains: 'Climbing mountains',
+  harvestedTag: 'harvested',   // rules 8
+  rowTop: 'Army', rowBottom: 'Land', branchLater: 'Boats and more come later.',
+  harvestedBlurb: 'Already harvested, so it gives no more growth by itself, but it can still be built on.',
   mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
   bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
@@ -272,11 +288,11 @@ const stats = {
   tallyCities: 'Cities taken', tallyHeroes: 'Heroes', tallyTreasures: 'Treasures',
 };
 
-export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai, stats } as {
+export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, branch, building, resource, harvestVerb, terrain, faction, reason, ui, ai, stats } as {
   unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; heroTrait: Record<HeroTraitId, Entry>;
   deed: Record<DeedId, string>; item: Record<ItemId, Entry>; treasure: Record<TreasureOutcome, string>; ability: Record<AbilityId, Entry>;
-  reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
-  resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
+  reward: Record<RewardId, Entry>; tech: Record<TechId, string>; branch: Record<BranchId, string>; building: Record<BuildingId, string>;
+  resource: Record<Resource, string>; harvestVerb: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
   reason: Record<string, string>; ui: typeof ui; ai: typeof ai; stats: typeof stats;
 };
 
@@ -288,19 +304,18 @@ export function reasonText(why: string): string {
   return T.reason[why] ?? (why.charAt(0).toUpperCase() + why.slice(1));
 }
 
-// Names of what a tech opens, read from the unit table and the config. Given a faction, only what that faction gets:
+// Names of what a tech opens, read from the tech tree in play. Given a faction, only what that faction gets:
 // its own and the shared units, walls and roads only where it builds them (rules 8: Mongols build no roads).
 export function unlocks(id: TechId, faction?: FactionId): string[] {
   const out: string[] = [];
-  for (const [type, def] of Object.entries(UNITS)) {
-    if (def.tech === id && (faction === undefined || def.faction === null || def.faction === faction)) out.push(T.unit[type as UnitTypeId].name);
+  for (const type of Object.keys(UNITS) as UnitTypeId[]) {
+    const def = UNITS[type];
+    if (unitTech(type) === id && (faction === undefined || def.faction === null || def.faction === faction)) out.push(T.unit[type].name);
   }
-  for (const [b, rule] of Object.entries(CONFIG.buildings)) if (rule.tech === id) out.push(T.building[b as BuildingId]);
-  for (const [res, rule] of Object.entries(CONFIG.harvest)) {
-    if (rule.tech === id) out.push(`${T.ui.harvest} ${T.resource[res as Resource].toLowerCase()}`);
-  }
-  if (CONFIG.walls.tech === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) out.push(T.ui.walls);
-  if (CONFIG.road.tech === id && (faction === undefined || FACTIONS[faction].canBuildRoads)) out.push(T.ui.road);
+  for (const b of Object.keys(CONFIG.buildings) as BuildingId[]) if (buildingTech(b) === id) out.push(T.building[b]);
+  for (const res of Object.keys(T.resource) as Resource[]) if (harvestTech(res) === id) out.push(T.harvestVerb[res]);
+  if (wallsTech() === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) out.push(T.ui.walls);
+  if (roadTech() === id && (faction === undefined || FACTIONS[faction].canBuildRoads)) out.push(T.ui.road);
   if (CONFIG.mountain.tech === id) out.push(T.ui.climbMountains);   // rules 8
   return out;
 }
