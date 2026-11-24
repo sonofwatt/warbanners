@@ -1,6 +1,6 @@
 // Small hand-built positions the AI tests share. Test support, not game code.
 import type { MatchState } from '../engine';
-import { visibleTiles } from '../engine';
+import { key, parseKey, range, visibleTiles } from '../engine';
 import { addCity, addUnit, blankMatch, setTile } from '../engine/testkit';
 
 function base(current: number): MatchState {
@@ -11,8 +11,14 @@ function base(current: number): MatchState {
   return s;
 }
 
+// Each player has explored what it sees, plus one tile beyond each of its cities' territory: what a city saw before
+// rules 8 made city sight the territory alone, so these positions keep the explored land they were tuned on.
 function finish(s: MatchState): MatchState {
-  for (const p of s.players) p.explored = [...visibleTiles(s, p.id)].sort();
+  for (const p of s.players) {
+    const seen = visibleTiles(s, p.id);
+    for (const c of s.cities) if (c.owner === p.id) for (const h of range(parseKey(c.pos), c.radius + 1)) if (s.tiles[key(h)] !== undefined) seen.add(key(h));
+    p.explored = [...seen].sort();
+  }
   return s;
 }
 

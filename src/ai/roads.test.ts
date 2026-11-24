@@ -57,6 +57,8 @@ test('chains lead to the moved capital, and a taken capital is a city that needs
   const after = r.state; after.current = 0;
   expect(connectingChains(believed(after), 0).map((c) => [c.city, c.capital])).toEqual([[1, 3]]);   // 3,0 to -3,0, round 0,0
   give(after, 1, 'roads');
+  expect(connectingChains(believed({ ...after, current: 1 }), 1)).toEqual([]);   // rules 8: the Mongols build no roads
+  after.players[1]!.faction = 'spartans';                                       // as if a road builder had taken it
   const theirs = connectingChains(believed({ ...after, current: 1 }), 1);
   expect(theirs).toEqual([expect.objectContaining({ city: 0, capital: 2 })]);
 });

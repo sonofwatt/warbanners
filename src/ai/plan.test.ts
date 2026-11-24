@@ -64,7 +64,7 @@ test('the deadline ends the turn early with legal actions', () => {
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 120_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(9, 164), 0);         // 25 units; re-picked for rules 8's mountains ((4, 104) has 27 now), earlier (4, 104) for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
+  const input = aiInputFor(randomPlayout(1, 92), 0);          // 25 units; re-picked for the rules 8 additions ((9, 164) has 41 now), earlier (9, 164) for rules 8's mountains ((4, 104) has 27 now), earlier (4, 104) for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);
@@ -197,6 +197,7 @@ test('rules 7: a garrison with no attack to make hunkers when a seen enemy could
   const s = hunkerField();
   const guard = addUnit(s, 'warrior', 1, 3, 0);
   addUnit(s, 'horseman', 0, 1, 0);                                    // seen, two tiles off, across water
+  s.cities.find((c) => c.owner === 1)!.radius = 2;                    // rules 8: a city sees only its radius, so 2 to see it
   for (const [q, r] of [[2, 0], [2, -1], [1, 1], [2, 1]] as const) setTile(s, q, r, { terrain: 'water' });
   const quiet = hunkerField();
   const idle = addUnit(quiet, 'warrior', 1, 3, 0);

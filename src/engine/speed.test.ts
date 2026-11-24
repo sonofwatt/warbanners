@@ -7,7 +7,10 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
-  // re-pinned for rules 8's kill advance rule (an advance onto or off a mountain ends the turn: seed 7's playout plays
+  // re-pinned for the rules 8 additions (city sight is the territory alone, the Scout sees 2 and has no pathfinder,
+  // mounted-only Mongol relay riding with no riding bonus and no Mongol roads, the hunker heal at the end of the turn,
+  // and climbing needs bronze: every digest and legal count moved; seed 3 now ends after 125 turns, seed 7 after 243,
+  // and seed 1 is unfinished at 300, so the three rows keep their turns); before that re-pinned for rules 8's kill advance rule (an advance onto or off a mountain ends the turn: seed 7's playout plays
   // differently after one, so its row moved, 402 legal actions to 322; seeds 1 and 3 are unchanged); before that
   // re-pinned for rules version 8 (mountains: +1 range for a ranged unit on one, and a step onto or off one ends the
   // turn; a turnEnded flag on every unit and rulesVersion 8 move every digest; seed 7 now ends after 135 turns and seed 1
@@ -26,9 +29,9 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 130, 322, '9a2b3bdc1afce367', '110b0cc4a81f399f', 'c5d321e3469792de'],
-  [1, 75, 22, '8c475bf3d9e0944c', '5f82daea9b3c5fb1', '614f582094b92491'],
-  [3, 90, 138, 'ad5bb1eba80fbdfe', '05a8fc31d87699b4', '7678c6970a13085e'],
+  [7, 130, 400, 'e51563313769c07a', 'af04715f91a36d8a', '6cc2c91200e87df7'],
+  [1, 75, 53, '1b5429a3ca6fee80', 'd072663df2b6e946', 'a176b93fa4dd9716'],
+  [3, 90, 266, '2f6a3c0fa0934b5c', '407f4797eba0b8ec', 'f7e8021b42348620'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -38,7 +41,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 120_000);   // since rules 7's levers seed 7 to turn 160 (130 since rules 8) takes about 25 s to build here, and more on a CI runner
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(9, 164);              // re-picked for rules 8's mountains: (4, 104) has 27 units now; this one has 229 legal actions and takes about 4.5 ms (the even 25-unit turns of seeds 8, 3 and 5 have 439 to 620 and take 8 to 12 ms); earlier (4, 104) re-picked for rules 7's Spartan growth discount and 12 start gold: (9, 256) has 26 units now, and seed 5's 25-unit turns have 684 legal actions (14 ms); this one has 203 legal actions; earlier (9, 256) for rules 7's Hunker: (9, 274) has 26 units now; this one has 208 legal actions and takes about 3.6 ms; earlier (9, 274) re-picked for rules 7's Lumber camp cost 4: (8, 292) has 29 units now, and the even 25-unit turns of seed 4 take 8 ms, not about 5; this one has 255 legal actions and takes 4.3 ms; earlier (8, 292) re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
+  const s = randomPlayout(1, 92);               // re-picked for the rules 8 additions: (9, 164) has 41 units now; this one has 185 legal actions and takes about 4.4 ms (the even 25-unit turns of seeds 7, 3, 9, 4 and 8 have 225 to 414 and take 4.8 to 7.8 ms); earlier (9, 164) re-picked for rules 8's mountains: (4, 104) has 27 units now; this one has 229 legal actions and takes about 4.5 ms (the even 25-unit turns of seeds 8, 3 and 5 have 439 to 620 and take 8 to 12 ms); earlier (4, 104) re-picked for rules 7's Spartan growth discount and 12 start gold: (9, 256) has 26 units now, and seed 5's 25-unit turns have 684 legal actions (14 ms); this one has 203 legal actions; earlier (9, 256) for rules 7's Hunker: (9, 274) has 26 units now; this one has 208 legal actions and takes about 3.6 ms; earlier (9, 274) re-picked for rules 7's Lumber camp cost 4: (8, 292) has 29 units now, and the even 25-unit turns of seed 4 take 8 ms, not about 5; this one has 255 legal actions and takes 4.3 ms; earlier (8, 292) re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {

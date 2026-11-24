@@ -119,7 +119,7 @@ describe('each faction plays to its character', () => {
     const twoCities = (): MatchState => {
       const s = blankMatch();
       addCity(s, 0, 0, 3);
-      addCity(s, 0, 3, 0);
+      addCity(s, 0, 3, 0, { radius: 2 });         // rules 8: a city sees its radius alone, so 2 to see the rider
       addCity(s, 1, 0, -3);
       addUnit(s, 'warrior', 0, 0, 3);
       addUnit(s, 'warrior', 0, 3, 0);

@@ -190,3 +190,14 @@ test('items index lists useItem units and does not count them as active', () => 
   expect(ix.activeUnits).not.toContain(drinker.id);
   expect(indexActions([]).items).toEqual([]);
 });
+// No unit has pathfinder since rules 8, so the engine offers no such move; the index here is built by hand.
+test("a pathfinder's step into the fog is marked as a move that ends the turn", () => {
+  const s = blankMatch({ unexplored: true });
+  addCity(s, 0, 0, 4); addCity(s, 1, 0, -4);
+  const scout = addUnit(s, 'scout', 0, 0, 0);
+  s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'].sort();
+  const ix = indexActions([{ type: 'move', unit: scout.id, to: '1,0' }, { type: 'move', unit: scout.id, to: '2,0' }]);
+  const m = marksFor(unitSel(scout.id), playerView(s, 0), ix);
+  expect(m['2,0']).toBe('moveEnds');
+  expect(m['1,0']).toBe('move');
+});
