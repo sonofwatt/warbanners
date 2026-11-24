@@ -18,6 +18,8 @@ Every unit keeps four running totals, its deeds. They only grow and are never re
   that takes a counter and lives. +1 when a heal ability raises its health. Resting never counts as surviving.
 - Rest: +1 at the start of its owner's turn when the unit rested (did nothing on the previous turn) and
   resting actually raised its health. A garrison at full health earns nothing.
+  Since rules 8 a hunkered unit's rest heal comes at the end of its owner's turn (stage1-rules.md, section 11),
+  and so does its rest deed, on the same terms.
 
 Survive and rest do not count for a fresh unit (one spawned or found last turn and not yet through its
 owner's next turn start), so a new unit does not start its story by standing still.
@@ -81,7 +83,7 @@ with the phalanx. Mongol heroes have nothing like it.
 
 The unit's displayed numbers (`statsOf`) include traits and the faction's mounted bonus but no neighbour
 bonuses (inspire, phalanx, myth touch). A Fierce Tireless Mongol Horseman is attack 5, defence 2, health 12,
-move 4 tiles, sight 2, range 1.
+move 3 tiles (since rules 8, with no Mongol riding bonus; 3.5 in rules 6 and 7, 4 before), sight 2, range 1.
 
 Worked examples (a Warrior is attack 4, defence 3, health 10; all on open field, health at its maximum):
 

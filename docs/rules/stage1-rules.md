@@ -23,7 +23,7 @@ If this file and the engine's data files disagree, the data files are wrong.
 |---|---|---|---|
 | Field | 2 | 1 | |
 | Forest | 4 | 1.25 | |
-| Mountain | all remaining, only as the first step of a unit that has not moved this turn; ends the unit's turn (rules 8) | 1.5 | A unit standing here sees 1 tile farther. A ranged unit here shoots 1 tile farther (section 10). Stepping off is also a first step only and ends the turn (section 9) |
+| Mountain | all remaining, only as the first step of a unit that has not moved this turn; ends the unit's turn (rules 8). Since rules 8 only a player who has researched `bronze` (`CONFIG.mountain.tech`) may step onto one | 1.5 | A unit standing here sees 1 tile farther. A ranged unit here shoots 1 tile farther (section 10). Stepping off is also a first step only and ends the turn (section 9), and needs no tech |
 | Water | cannot enter | | Ships arrive in stage 4 |
 | Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
 | City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
@@ -125,7 +125,7 @@ Things you can do on a tile in your territory (one building per tile):
 | Build Mine on ore | tech `bronze` | 5 | +2 |
 | Build Market on a field with no resource, one per city | tech `markets` | 6 | +2 (+1 before rules 7), and +2 income |
 | Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
-| Road, on any field or forest tile that is yours or unclaimed | tech `roads` | 1 | none |
+| Road, on any field or forest tile that is yours or unclaimed (not Mongols, since rules 8) | tech `roads` | 1 | none |
 
 A tile with a city standing on it takes no harvest, no building and no road.
 A road can only be laid on a tile you have explored.
@@ -138,9 +138,9 @@ A tech needs the one before it in its branch.
 | Branch | Tier 1 | Tier 2 | Tier 3 |
 |---|---|---|---|
 | Fields | `foraging`: harvest orchards | `farming`: Farm | `markets`: Market |
-| Riding | `riding`: Horseman, Horse Archer | `roads`: roads, the Camp | `chivalry`: Knight |
+| Riding | `riding`: Horseman, Horse Archer | `roads`: roads (Spartans), the Camp (Mongols) | `chivalry`: Knight |
 | Forest | `hunting`: harvest game, Archer | `forestry`: Lumber camp | `engineering`: Catapult |
-| Mountain | `bronze`: Mine, Spearman, Hoplite | `shieldwork`: Defender, Walls | `smithing`: Swordsman |
+| Mountain | `bronze`: Mine, Spearman, Hoplite, climbing mountains (rules 8) | `shieldwork`: Defender, Walls | `smithing`: Swordsman |
 
 ## 8. Units
 
@@ -160,7 +160,7 @@ only comes from a city reward.
 | Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
-| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 1 | 2 | | hidden, noCityCapture, pathfinder |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 2 | 2 | | hidden, noCityCapture |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
@@ -168,9 +168,9 @@ only comes from a city reward.
 
 Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
 
-The Krypteia Scout's sight is 1 since rules 7 (3 before). A unit sees every tile
-within its sight, so after a move the fog is at least sight + 1 tiles away; with
-sight 1 and 2 tiles of movement a Scout can step into the fog on open ground.
+The Krypteia Scout's sight is 2 and it has no `pathfinder` since rules 8 (rules 7:
+sight 1 and `pathfinder`, so it could step into the fog; 3 and no fog rule before).
+It never ends a move on an unexplored tile, like every other unit.
 
 The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section 6).
 
@@ -182,14 +182,17 @@ The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section
 - The fog (since rules 6): a move never passes through a tile its owner had not
   explored when the move began, and an ordinary unit never ends a move on one
   either. Moving still reveals what the unit now sees, so exploring means walking to
-  the edge of the white fog and looking. Only a unit with `pathfinder` (the Krypteia
-  Scout) may end a move on one unexplored tile, as the last tile of the move. Its
+  the edge of the white fog and looking. Only a unit with `pathfinder` (no unit
+  since rules 8; the Krypteia Scout in rules 6 and 7) may end a move on one unexplored tile, as the last tile of the move. Its
   owner explores what it now sees, and its turn ends there: it keeps no movement and
   may not attack, use an ability or drink a draught this turn, even with movement
   left. Costs, engagement, forest, mountain, roads and relay riders apply as usual.
   (Rules 3 to 5 let any unit end a move on one unexplored tile, and let a mounted
   Mongol keep moving after it.)
-- Mountains (since rules 8): a step onto a mountain uses all the movement left and
+- Mountains (since rules 8): a unit may step onto a mountain only if its owner has
+  researched `bronze` (`CONFIG.mountain.tech`; without it a mountain is closed to
+  that player's units, for moves and kill advances alike). Stepping off needs no
+  tech. A step onto a mountain uses all the movement left and
   is allowed only as the first step of a unit that has not moved this turn (as
   before), and a step off a mountain is allowed only the same way: as the first step
   of a unit that has not moved this turn, for all its movement. Either step ends the
@@ -290,7 +293,7 @@ Worked examples (all at full health on a field unless said):
 | steady | Friendly units next to it cannot be lured |
 | inspire | Friendly mounted units next to it have +1 attack |
 | camp | Cannot attack. May train units (see 13) |
-| pathfinder | May end a move on one unexplored tile, which ends its turn (see 9) |
+| pathfinder | May end a move on one unexplored tile, which ends its turn (see 9). No unit has it since rules 8 |
 
 Abilities are actions that use up the unit's attack for the turn (and its movement,
 as an attack would):
@@ -318,6 +321,13 @@ end it. While hunkered:
   takes is worked out without the bonus.
 - Its resting heal is 1 more (see Resting), and it still heals with a seen enemy
   next to it.
+- Since rules 8 it heals at the end of its owner's turn, not at the start of the
+  next: a unit that is hunkered when its owner ends the turn heals then, by the
+  resting heal as it stands at that moment (its land, the extra 1, and the share
+  with a seen enemy next to it), up to its maximum. It then gets no resting heal
+  when its owner's next turn starts, so it never heals twice for one turn. A heal
+  that adds health counts as a rest for deeds. Units that rest without hunkering
+  heal as before, at the start of the next turn. (`CONFIG.hunker.healAtTurnEnd`.)
 - A Heal on it gives 1 more: +5 health, up to its maximum.
 
 Both players see that a unit is hunkered (a shield beside its health on the board).
@@ -377,7 +387,8 @@ Mongols
 
 - Start with `riding`.
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
-- Riding by territory (since rules 6). Mounted Mongol units have 1 extra half-point of
+- Riding by territory (rules 6 and 7; gone since rules 8, when the extra half-point is
+  0). Mounted Mongol units had 1 extra half-point of
   movement (before rules 6, a whole tile): a Horseman has 5 half-points, so 2 field
   tiles with one half-point left, which buys one more tile only where a tile costs 1
   (a road, or relay riders in Mongol territory): 5 road tiles. Territory is the city
@@ -393,8 +404,14 @@ Mongols
   apply to the move a `retreat` unit makes after attacking.
 - Entering a forest costs mounted Mongol units the normal forest cost and then uses
   up the rest of their move.
-- Relay riders: for Mongol units, entering any tile inside Mongol territory costs
-  1 half-point.
+- Relay riders: for mounted Mongol units (since rules 8; every Mongol unit before),
+  entering any tile inside Mongol territory costs 1 half-point, the cost of a road,
+  whether the move started inside it or is riding in. Mongol foot units pay the
+  normal terrain costs there (or a road's, where a road is). The mountain rule
+  (section 9) still comes first.
+- Mongols build no roads (since rules 8). They still research `roads`, which opens
+  the Camp and leads to `chivalry`. Roads already on the map, built by anyone, work
+  for every unit.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
 - Mongol cities need `L+2` growth points to leave level `L`.
 - Feigned retreat (lure): when a Mongol unit with `retreat` attacks, the player may
@@ -414,7 +431,8 @@ Mongols
 ## 14. Vision
 
 - A player sees every tile within `sight` of each of their units (one more from a
-  mountain) and every tile within their cities' territory radius + 1.
+  mountain) and every tile within their cities' territory radius (radius + 1 before
+  rules 8).
 - Seen tiles stay explored for the rest of the match.
 - An explored tile is shown as it is now, not as it was when last seen: its
   terrain, resource, building, road, and any city on it with that city's owner,
@@ -455,3 +473,13 @@ This list and the one above are the file's changelog.
   mountain in their own territory.
 - A melee kill advance onto or off a mountain ends the attacker's turn too, chain
   and retreat included (section 10).
+- A city sees its territory radius and nothing beyond (section 14).
+- The Krypteia Scout has sight 2 and no `pathfinder`: it no longer steps into the
+  fog (section 8).
+- Mongol relay riders: only mounted Mongol units pay a road's cost onto their own
+  territory; foot units pay normal costs. The extra half-point of riding by
+  territory is gone, and Mongols build no roads (section 13).
+- A hunkered unit heals at the end of its owner's turn, not at the start of the
+  next (section 11).
+- Climbing must be researched: a unit steps onto a mountain only if its owner knows
+  `bronze`; stepping off needs nothing (sections 2, 7 and 9).
