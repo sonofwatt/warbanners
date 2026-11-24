@@ -127,6 +127,13 @@ test('the menu offers sound, resign and home', () => {
   const html = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
   expect(html).toContain('Sound on'); expect(html).toContain('data-testid="resign"'); expect(html).not.toContain('Resign this match?');
 });
+test('the menu offers the 3D terrain, plainly labelled and showing whether it is on', () => {
+  const line = (html: string) => /<button[^>]*data-testid="toggle-terrain3d"[^>]*>.*?<\/button>/.exec(html)?.[0] ?? '';
+  const off = line(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} terrain3d={false} onToggleTerrain3d={noop} onResign={noop} onHome={noop} onClose={noop} />));
+  const on = line(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} terrain3d onToggleTerrain3d={noop} onResign={noop} onHome={noop} onClose={noop} />));
+  expect(off).toContain('aria-pressed="false"'); expect(off).toContain('3D terrain off');
+  expect(on).toContain('aria-pressed="true"'); expect(on).toContain('3D terrain on');
+});
 test('the menu greys Resign while the AI plays', () => {
   const button = (html: string) => /<button[^>]*data-testid="resign"[^>]*>/.exec(html)?.[0] ?? '';
   expect(button(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />))).not.toContain('disabled');

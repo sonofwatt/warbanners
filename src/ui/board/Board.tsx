@@ -253,6 +253,8 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
 // A tile or a unit is drawn again only when what it shows has changed. The scene is rebuilt from a fresh view after
 // every action, so its objects are always new: they are compared by value. Each draw of a whole board is thousands
 // of svg nodes, and on a phone redrawing them all after every action held the screen still for over 100 ms.
+/** One tile as the board draws it, for tests. */
+export const BoardTile = TileViewOf;
 const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && sameData(a.factions, b.factions) && sameData(a.t, b.t));
 const UnitView = memo(UnitViewOf, (a, b) => sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
