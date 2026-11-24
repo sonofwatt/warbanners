@@ -160,3 +160,40 @@ unit is ever trained on a mountain. The engine still puts the mountain check fir
   flat credits all cost a hard stall; a better shape is a planned two-turn climb, which is more than a small change.
 - The adaptive gap spread is wider on rules 8 (five of 16 seeds at or below 0.033, four of them below 0).
 - The mountain tile blurb and whatsNew name the three ranged types by hand ("Archers, Horse Archers and Catapults").
+
+## Fix round 1
+
+From the review. Commits cd4cd64 onward.
+
+1. **Kill advance onto or off a mountain** (`combat.ts`). A melee kill's advance gave a free step onto or off a
+   mountain. Now, when `mountainStep(attackerFrom, tile)` holds, the attack ends the turn the way a climb does:
+   `mp = 0, bonusMp = 0, attacks = 0, itemTurn = stamp, turnEnded = true` (`acted` is already set). That means no
+   chain attack, and no retreat move for a Horseman. The kill still counts: deeds as before, momentum paid stays paid.
+   A chain kill whose extra attack is taken back this way emits `chainEnded`, once (not twice when a level-up already
+   took it back). New engine tests: a Knight on a mountain kills, advances off, and its turn ends with no chain; a Knight
+   kills a unit on a mountain and advances onto it, its turn ends, and its momentum is 7 less the price; a Horseman
+   that kills onto a mountain cannot retreat; a field-to-field advance still chains. The AI plans through engine
+   probes, so it sees no attack left after such an advance. A new AI test (dials 0.5, 0.85, 1, three seeds each) checks
+   that every planned action is legal and that the Knight never gets a second attack. Rules docs: one sentence each in
+   stage1-rules.md section 10, the chain row, the Rules 8 changes list, and the stage2-rules.md momentum section.
+   - Re-pins: seed 7's speed row (its playout makes such an advance): 402 to 322 legal actions, all three digests
+     moved. The fingerprint (`5bf1725e9812dbbf`) and seeds 1 and 3 did not move. (3, 156) and (9, 164) still have 25
+     units. The stage 1 provenance tests replay unchanged (the rule sits behind `endsTurn`).
+   - SLOW normal stalls: `KNOWN_NORMAL` is now ['4 mongols', '7 spartans']. Measured to 150 rounds: '8 mongols' ends in
+     51, '4 mongols' in 62 and '7 spartans' in 76, the Mongols winning all three. Only the engine changed in this step,
+     so the rule moved which matches stall. That is two of 16, as on rules 7. At hard all 16 end, and the adaptive
+     check passes on seeds 8 and 14.
+2. **The plan legality exception** (`plan.test.ts`). Every fixture must now start unwon. The final `endTurn` after a
+   believed win is let through only for the seed 3 fixture, and only when the win came from the action just before
+   that `endTurn`. A plan that wins early and queues more actions still fails.
+3. **A blinded ranged unit's card.** `statsOf.range` is now `attackReach`, so a blinded Horse Archer on a mountain
+   shows range 1 and no "(mountain)". Added to the panel test.
+4. **Text from data.** `mountainBlurb` and `whatsNew` name the ranged types from `UNITS` (range 2 or more, in data
+   order: "Archer, Catapult and Horse Archer"). The tile counts come from `CONFIG`, and so does the long shot, given as
+   a percentage ("80% of the damage at the farthest tile"). A text test checks every ranged name and the percentage in
+   both.
+5. **The fog step mark.** A pathfinder's step onto an unexplored tile is marked `moveEnds` too; it was a two-line
+   change. Test added in `interaction.test.ts`.
+
+Checks, each run alone on the final code: unit 1093 passed, 123 skipped; browser 6 AI tests, then 49 passed and 2
+skipped; SLOW AI 125 passed (after the KNOWN_NORMAL update; the run before it failed only on the two new stalls).
