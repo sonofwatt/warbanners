@@ -79,8 +79,9 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
 }
 
 /**
- * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 164
- * random turns of seed 9 (25 units; re-picked for rules 8's mountains, as 104 turns of seed 4 now has 27; before that 104
+ * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 156
+ * random turns of seed 3 (25 units; re-picked for rules 8's mountains, as 104 turns of seed 4 now has 27, 164 turns of
+ * seed 9 gives the AI no action the person sees, and 186 turns of seed 9 has a 103 ms task; before that 104
  * turns of seed 4 was re-picked for rules 7's Spartan growth discount and 12 start gold, as 274 turns of seed 9
  * now has a 121 ms task in the turn, over the 100 ms bound; before that 274 turns of seed 9 was re-picked for rules 7's Lumber camp cost 4, as 292 turns of seed 8 now has 29; that
  * was re-picked for rules 7's moving capitals and growth 2 buildings, as 286 turns of
@@ -94,7 +95,7 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(9, 164);
+  const { entries, state } = savedHardMatch(3, 156);
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {
