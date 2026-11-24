@@ -54,3 +54,13 @@ test('hero digest lines read as sentences', () => {
   expect(digestText({ at: '0,0', kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' })).toBe('Your Warrior earned Hardy.');
   expect(digestText({ at: '0,0', kind: 'heroMade', unitType: 'warrior' })).toBe('Your Warrior is now a hero.');
 });
+
+test('rules 8: the mountain text names every ranged type from the unit data and takes its numbers from CONFIG', () => {
+  const ranged = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2);
+  expect(ranged.length).toBeGreaterThan(0);
+  for (const text of [T.ui.whatsNew, T.ui.mountainBlurb]) {
+    for (const t of ranged) expect(text).toContain(T.unit[t].name);
+    expect(text).toContain(`${Math.round(CONFIG.mountain.longShotScale * 100)}% of the damage`);
+  }
+  for (const t of (Object.keys(UNITS) as UnitTypeId[]).filter((x) => UNITS[x].range < 2)) expect(T.ui.mountainBlurb).not.toContain(`${T.unit[t].name},`);
+});

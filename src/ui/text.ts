@@ -119,6 +119,15 @@ const reason: Record<string, string> = {
   'unit already acted this turn': 'This unit has already acted this turn',
 };
 
+// rules 8: the ranged unit types (range 2 or more), named from the unit data, as "A, B and C"; a tile count in words;
+// the long shot's share of the damage as a percentage. Built from UNITS and CONFIG so the text cannot drift.
+function rangedNames(): string {
+  const n = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2).map((t) => unit[t].name);
+  return n.length <= 1 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n.at(-1)!}`;
+}
+const tilesWord = (n: number): string => (n === 1 ? '1 tile' : `${n} tiles`);
+const longShotPercent = (): number => Math.round(CONFIG.mountain.longShotScale * 100);
+
 const ui = {
   appName: 'Warbanners', rulesWord: 'rules', versionWord: 'Version', builtWord: 'built',
   walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture', claimTreasure: 'Claim treasure',
@@ -214,7 +223,7 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: `New: Archers, Horse Archers and Catapults on a mountain shoot ${CONFIG.mountain.rangeBonus} tile farther, a little softer at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one.`,
+  whatsNew: `New: on a mountain, ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one.`,
   ridingByTerritory: 'Rides by territory',
   ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
   chainEnded: 'Chain ends',
@@ -223,7 +232,7 @@ const ui = {
   momentumSpent: (spent: number) => `-${spent} momentum`,
   momentumBlurb: 'Spent on kills: a kill gives one more attack while there is momentum to pay for it. It comes back each turn.',
   rangeOnMountain: (n: number) => `${n} (mountain)`,
-  mountainBlurb: `Stepping onto or off a mountain takes a unit's whole turn. From up here Archers, Horse Archers and Catapults shoot ${CONFIG.mountain.rangeBonus} tile farther, a little softer at the farthest tile, every unit sees ${CONFIG.mountainSightBonus} tile farther, and attacks on it do less damage.`,
+  mountainBlurb: `Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
   bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
   hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, heals ${CONFIG.hunker.restBonus} more when it rests and ${CONFIG.hunker.abilityHealBonus} more from a Heal, and still heals a little with an enemy beside it. It ends when the unit moves or acts.`,
