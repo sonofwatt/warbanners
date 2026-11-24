@@ -59,12 +59,12 @@ test('never a hopeless charge, never a lure onto its own city', () => {
 });
 test('the deadline ends the turn early with legal actions', () => {
   let t = 0; const now = () => (t += 10);
-  const plan = planTurn(aiInputFor(fixtures()[0]!, 0), { dial: 1, seed: 1, refused: [], now, deadlineMs: 100 });   // seed 7, turn 130
+  const plan = planTurn(aiInputFor(fixtures()[2]!, 0), { dial: 1, seed: 1, refused: [], now, deadlineMs: 100 });   // seed 3, turn 90 (since rules 8 tuning: seed 7 at turn 130 is now planned within the ten clock reads the deadline allows)
   expect(plan.cutShort).toBe(true);
   expect(plan.actions.at(-1)).toEqual({ type: 'endTurn' });
 }, 120_000);
 test('a hard plan on the 25-unit position stays inside its budget in Node', () => {
-  const input = aiInputFor(randomPlayout(1, 84), 0);          // 25 units; re-picked for rules 8's tech tree ((1, 92) has 30 now), earlier (1, 92) for the rules 8 additions ((9, 164) has 41 now), earlier (9, 164) for rules 8's mountains ((4, 104) has 27 now), earlier (4, 104) for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
+  const input = aiInputFor(randomPlayout(3, 82), 0);          // 25 units; re-picked for rules 8's tuning pass ((1, 84) differs now), earlier (1, 84) for rules 8's tech tree ((1, 92) has 30 now), earlier (1, 92) for the rules 8 additions ((9, 164) has 41 now), earlier (9, 164) for rules 8's mountains ((4, 104) has 27 now), earlier (4, 104) for rules 7's levers ((9, 256) has 38 now and took about 500 ms), earlier (9, 256) for rules 7's Hunker ((9, 274) has 26 now), earlier (9, 274) for rules 7's Lumber camp cost 4 ((8, 292) has 29 now), earlier (8, 292) for rules 7's moving capitals ((7, 286) has 45 now), earlier (7, 286) for rules 7 ((7, 164) has 12 now), earlier for rules 6 ((7, 236) had 29) and Task 8
   const t0 = performance.now();
   const plan = planTurn(input, { dial: 1, seed: 1, refused: [] });
   expect(performance.now() - t0).toBeLessThan(800);

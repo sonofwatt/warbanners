@@ -7,6 +7,8 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
+  // re-pinned for rules 8's tuning pass (the blockade, Mongol growth at the common pace and tribute 4: every digest and
+  // legal count moved; none of the three ends within 300 turns, so the rows keep their turns); before that
   // re-pinned for rules 8's tech tree (a harvested flag on every tile, jewels and fish on the map, new starting techs,
   // harvests that keep the tile, upgrades: every digest and legal count moved; none of the three ends within 300
   // turns now, so the rows keep their turns); before that re-pinned for the rules 8 additions (city sight is the territory alone, the Scout sees 2 and has no pathfinder,
@@ -31,9 +33,9 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 130, 316, '8fcbee127069eafd', '314905489f2bf1b3', '2fce45358b846b1e'],
-  [1, 75, 84, '9a19ffdd51e3dc1c', 'c4b00556a9aaae97', '3712b43919b98382'],
-  [3, 90, 465, '14add15f5fc76f68', 'b6283457d59af824', '0f13abbec2f22bdd'],
+  [7, 130, 100, '2adfae7d5d2fad4a', '93843cae23ca8b39', '573f2ddf19c31b8a'],
+  [1, 75, 240, 'ef7560c460aa06ab', '5f84060d83597c50', '9e7b0f7fe33eeb2e'],
+  [3, 90, 218, '21341582b4fa0b2b', '46e0810101ee79fe', '1c39ed2eacbac6a5'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
@@ -43,7 +45,7 @@ test.each([
   expect(digest([playerView(s, 0), playerView(s, 1)])).toBe(views);
 }, 120_000);   // since rules 7's levers seed 7 to turn 160 (130 since rules 8) takes about 25 s to build here, and more on a CI runner
 test('legalActions on a 25-unit position is fast', () => {
-  const s = randomPlayout(1, 84);               // re-picked for rules 8's tech tree: (1, 92) has 30 units now; this one has 170 legal actions and takes about 3.5 ms (the other even 25-unit turns of seeds 1, 3, 4, 5, 7, 8 and 9 within 300 turns: (4, 94) 175 and 3.1 ms, (8, 80) 244 and 5.3 ms); earlier (1, 92) re-picked for the rules 8 additions: (9, 164) has 41 units now; this one has 185 legal actions and takes about 4.4 ms (the even 25-unit turns of seeds 7, 3, 9, 4 and 8 have 225 to 414 and take 4.8 to 7.8 ms); earlier (9, 164) re-picked for rules 8's mountains: (4, 104) has 27 units now; this one has 229 legal actions and takes about 4.5 ms (the even 25-unit turns of seeds 8, 3 and 5 have 439 to 620 and take 8 to 12 ms); earlier (4, 104) re-picked for rules 7's Spartan growth discount and 12 start gold: (9, 256) has 26 units now, and seed 5's 25-unit turns have 684 legal actions (14 ms); this one has 203 legal actions; earlier (9, 256) for rules 7's Hunker: (9, 274) has 26 units now; this one has 208 legal actions and takes about 3.6 ms; earlier (9, 274) re-picked for rules 7's Lumber camp cost 4: (8, 292) has 29 units now, and the even 25-unit turns of seed 4 take 8 ms, not about 5; this one has 255 legal actions and takes 4.3 ms; earlier (8, 292) re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
+  const s = randomPlayout(3, 82);               // re-picked for rules 8's tuning pass: (1, 84) has other units now; this one has 184 legal actions and takes about 2.5 ms (the other even 25-unit turns of seeds 1, 3, 4, 5, 7, 8 and 9 within 300 turns: (4, 114) 269 and 5.5 ms, (5, 102) 196 and 3.5 ms, and three with under 75); earlier (1, 84) re-picked for rules 8's tech tree: (1, 92) has 30 units now; this one has 170 legal actions and takes about 3.5 ms (the other even 25-unit turns of seeds 1, 3, 4, 5, 7, 8 and 9 within 300 turns: (4, 94) 175 and 3.1 ms, (8, 80) 244 and 5.3 ms); earlier (1, 92) re-picked for the rules 8 additions: (9, 164) has 41 units now; this one has 185 legal actions and takes about 4.4 ms (the even 25-unit turns of seeds 7, 3, 9, 4 and 8 have 225 to 414 and take 4.8 to 7.8 ms); earlier (9, 164) re-picked for rules 8's mountains: (4, 104) has 27 units now; this one has 229 legal actions and takes about 4.5 ms (the even 25-unit turns of seeds 8, 3 and 5 have 439 to 620 and take 8 to 12 ms); earlier (4, 104) re-picked for rules 7's Spartan growth discount and 12 start gold: (9, 256) has 26 units now, and seed 5's 25-unit turns have 684 legal actions (14 ms); this one has 203 legal actions; earlier (9, 256) for rules 7's Hunker: (9, 274) has 26 units now; this one has 208 legal actions and takes about 3.6 ms; earlier (9, 274) re-picked for rules 7's Lumber camp cost 4: (8, 292) has 29 units now, and the even 25-unit turns of seed 4 take 8 ms, not about 5; this one has 255 legal actions and takes 4.3 ms; earlier (8, 292) re-picked for rules 7's moving capitals and growth 2 buildings: (7, 286) has 45 units now, and seed 7's only even 25-unit turn (146) gives the AI nothing the person sees; this one has 290 legal actions; earlier (7, 286) for rules 7: (7, 164) has 12 units now; earlier (7, 164) for rules 6, (4, 268) for rules 5, (7, 236) for Task 8
   expect(s.units).toHaveLength(25);
   let fastest = Infinity; // the fastest of five batches, so a busy machine does not fail the test
   for (let b = 0; b < 5; b++) {
