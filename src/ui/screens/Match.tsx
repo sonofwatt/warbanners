@@ -12,7 +12,7 @@ import { formatClock } from '../../online/clock';
 import { T, digestText, fill } from '../text';
 import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
-import { hearingFor, isMuted, play, setMuted, soundFor } from '../sound';
+import { hearingFor, isMuted, play, setMuted, soundFor, warmSound } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
 import type { Command } from '../panels/commands';
 import { CityPanel } from '../panels/CityPanel';
@@ -126,6 +126,9 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   useEffect(() => { setPeek(null); }, [digest]);
 
   // The phone's status bar takes the top bar's paper while a match is open (the sky colour comes back on leaving).
+  // The audio context and the samples are made ready once the match is up, not by the first sound of a move.
+  useEffect(() => (soundOn ? warmSound() : undefined), [soundOn]);
+
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (meta === null) return undefined;
