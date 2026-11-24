@@ -18,10 +18,12 @@ import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
+import { glUnitsOf, unitAlpha } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
+import type { UnitFall, UnitPose } from '../terrain3d/units/units3d';
 
 export interface BoardProps {
   items: readonly SceneItem[];
@@ -212,13 +214,16 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
   );
 }
 
-function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactElement | null {
+// `figure` false: the 3D figures draw the unit (and a hero's pennant) on their canvas, and this draws only what
+// stands around it: the status plate, its marks and the item badge, in the same places.
+function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
   const hidden = UNITS[unit.type].traits.includes('hidden');
   const maxHp = maxHpOf(unit);
-  const opacity = p.u.mine && p.u.spent ? 0.55 : p.u.mine && hidden ? 0.7 : undefined;
+  const dim = unitAlpha({ mine: p.u.mine, spent: p.u.spent, hidden });
+  const opacity = dim < 1 ? dim : undefined;
   return (
     <g
       data-unit={unit.id}
@@ -228,10 +233,12 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
     >
       {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and dims with it. */}
       <g className="unit-body">
-        <g opacity={opacity}>
-          {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
-          {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
-        </g>
+        {p.figure === false ? null : (
+          <g opacity={opacity}>
+            {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
+            {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+          </g>
+        )}
         <StatusOverlay
           hp={unit.hp}
           maxHp={maxHp}
@@ -255,7 +262,51 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
 /** One tile as the board draws it, for tests. */
 export const BoardTile = TileViewOf;
 const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && sameData(a.factions, b.factions) && sameData(a.t, b.t));
-const UnitView = memo(UnitViewOf, (a, b) => sameData(a.factions, b.factions) && sameData(a.u, b.u));
+const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
+
+/** The translation of an element's live (animated) CSS transform, and its turn in radians. */
+function liveTransform(el: Element): { x: number; y: number; angle: number } {
+  const t = getComputedStyle(el).transform;
+  if (t === '' || t === 'none' || typeof DOMMatrixReadOnly !== 'function') return { x: 0, y: 0, angle: 0 };
+  const m = new DOMMatrixReadOnly(t);
+  return { x: m.e, y: m.f, angle: Math.atan2(m.b, m.a) };
+}
+
+/**
+ * Where the units' svg has each moving unit this frame (its slide, plus a lunge on its body), the falls playing
+ * (from the svg fall's own transform and opacity), and whether anything there is still animating.
+ */
+function livePose(g: SVGGElement, factions: readonly FactionId[]): { at: Map<number, UnitPose>; falls: UnitFall[]; moving: boolean } {
+  const at = new Map<number, UnitPose>();
+  const falls: UnitFall[] = [];
+  if (typeof g.getAnimations !== 'function') return { at, falls, moving: false };
+  const running = g.getAnimations({ subtree: true }).filter((a) => a.playState === 'running');
+  for (const a of running) {
+    const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+    const unit = target?.closest('[data-unit]');
+    if (unit == null) continue;
+    const id = Number(unit.getAttribute('data-unit'));
+    if (at.has(id)) continue;
+    const place = liveTransform(unit);
+    const body = unit.querySelector('.unit-body');
+    const nudge = body === null ? { x: 0, y: 0 } : liveTransform(body);
+    at.set(id, { x: place.x + nudge.x, y: place.y + nudge.y });
+  }
+  g.querySelectorAll('[data-fall]').forEach((el, i) => {
+    const owner = Number(el.getAttribute('data-fall-owner'));
+    const faction = factions[owner];
+    const k = el.getAttribute('data-fall-at');
+    if (faction === undefined || k === null) return;
+    const alpha = Number(getComputedStyle(el).opacity);
+    if (!(alpha > 0)) return;
+    const p = hexToBoard(k);
+    falls.push({
+      key: `${i}@${k}`, type: el.getAttribute('data-fall') as UnitFall['type'], look: { ...playerColour(faction), accent: ACCENT[faction] },
+      x: p.x, y: p.y, angle: liveTransform(el).angle, alpha,
+    });
+  });
+  return { at, falls, moving: running.length > 0 };
+}
 
 /**
  * After the slot has changed size with something selected: the least pan that keeps the selected tile in the
@@ -284,6 +335,10 @@ export function Board(p: BoardProps): ReactElement {
   const glWanted = p.terrain3d === true;
   const [glReady, setGlReady] = useState(false);
   const gl = glWanted && glReady;
+  // The 3D unit figures, drawn when the terrain draws and its units canvas has a context too. Then the units' svg
+  // (status, badges, effects) moves to a second svg above that canvas, and the svg figures are left out.
+  const [glUnitsReady, setGlUnitsReady] = useState(false);
+  const units3d = gl && glUnitsReady;
   const bounds = useMemo(() => boardBounds(p.radius, gl ? THICK_3D : THICK), [p.radius, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
@@ -300,11 +355,15 @@ export function Board(p: BoardProps): ReactElement {
 
   // The 3D terrain, when on and loaded: it is aimed and drawn in the same frame the svg camera moves.
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const unitsCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCamRef = useRef<SVGGElement>(null);
   const terrain = useRef<Terrain3d | null>(null);
   const frame = useRef(0);
   const write = useCallback((): void => {
     if (cam.current === null) return;
-    camRef.current?.setAttribute('transform', cameraTransform(cam.current, vp.current));
+    const t = cameraTransform(cam.current, vp.current);
+    camRef.current?.setAttribute('transform', t);
+    overlayCamRef.current?.setAttribute('transform', t);
     terrain.current?.draw(cam.current, vp.current);
   }, []);
   const schedule = useCallback((): void => {
@@ -423,6 +482,7 @@ export function Board(p: BoardProps): ReactElement {
     if (!glWanted || canvas === null) return undefined;
     const stop = startTerrain3d({
       canvas,
+      unitsCanvas: unitsCanvasRef.current,
       load: () => import('../terrain3d/terrain3d'),
       hasWebgl2: webgl2Available,
       ready: (t) => {
@@ -431,20 +491,26 @@ export function Board(p: BoardProps): ReactElement {
           t.setMap(d.map);
           t.setVeil(d.veiled);
         }
+        const u = unitsLatest.current;
+        if (u !== null) t.units?.setUnits(u.units);
         terrain.current = t;
         shownGl.current = d === null ? null : { key: d.key, veilKey: d.veilKey };
+        shownUnits.current = u?.key ?? null;
         write();
         setGlReady(true);
+        setGlUnitsReady(t.units !== null);
       },
       fallback: () => {
         terrain.current = null;
         setGlReady(false);
+        setGlUnitsReady(false);
       },
     });
     return () => {
       terrain.current = null;
       stop();
       setGlReady(false);
+      setGlUnitsReady(false);
     };
   }, [glWanted, write]);
   // A new map (a road, a harvest, a building, fog lifting) rebuilds the tiles that changed; a new veil only repaints.
@@ -464,6 +530,54 @@ export function Board(p: BoardProps): ReactElement {
     write();
   }, [glReady, glKey, glVeilKey, write]);
 
+  // The 3D unit figures: exactly the scene's units (the viewer's own view, so fog hides them as it hides the svg
+  // ones), rebuilt only when what they show or where they stand changes, before the browser paints.
+  const unitsData = useMemo(() => (glWanted ? glUnitsOf(p.items, p.factions) : null), [glWanted, p.items, p.factions]);
+  const unitsLatest = useRef(unitsData);
+  useLayoutEffect(() => {
+    unitsLatest.current = unitsData;
+  });
+  const shownUnits = useRef<string | null>(null);
+  const unitsKey = unitsData?.key ?? '';
+  useLayoutEffect(() => {
+    const t = terrain.current;
+    const u = unitsLatest.current;
+    if (!units3d || t === null || t.units === null || u === null || cam.current === null) return;
+    if (shownUnits.current === u.key) return;
+    t.units.setUnits(u.units);
+    shownUnits.current = u.key;
+    t.drawUnits(cam.current, vp.current);
+  }, [units3d, unitsKey]);
+
+  // While the svg plays a slide, a lunge or a fall, the 3D figures follow it frame by frame: each frame reads where
+  // the svg has the unit now (its animated transform), so the two cannot drift apart. Only the units canvas is
+  // drawn; the loop stops when nothing on the units' svg is animating.
+  const unitsFrame = useRef(0);
+  const factionsRef = useRef(p.factions);
+  factionsRef.current = p.factions;
+  const followUnits = useCallback((): void => {
+    if (unitsFrame.current !== 0) return;
+    const step = (): void => {
+      unitsFrame.current = 0;
+      const t = terrain.current;
+      const g = overlayCamRef.current;
+      if (t === null || t.units === null || g === null || cam.current === null) return;
+      const live = livePose(g, factionsRef.current);
+      t.units.pose(live.at, live.falls);
+      t.drawUnits(cam.current, vp.current);
+      if (live.moving) unitsFrame.current = requestAnimationFrame(step);
+    };
+    unitsFrame.current = requestAnimationFrame(step);
+  }, []);
+  useEffect(() => () => {
+    if (unitsFrame.current !== 0) cancelAnimationFrame(unitsFrame.current);
+    unitsFrame.current = 0;
+  }, []);
+  // Effects (a lunge, a fall) start in their own layout effects, which run before this one.
+  useLayoutEffect(() => {
+    if (units3d) followUnits();
+  }, [units3d, p.children, followUnits]);
+
   // Units slide. A unit that has just moved is drawn last, on top of everything, while it slides: a
   // unit moving toward the back row would otherwise pass under the tiles in front of it. Once it has
   // arrived it goes back to its place in the draw order, behind whatever stands on the tile in front.
@@ -482,7 +596,7 @@ export function Board(p: BoardProps): ReactElement {
 
   const shownAt = useRef(new Map<number, Pt>());
   useLayoutEffect(() => {
-    const g = camRef.current;
+    const g = units3d ? overlayCamRef.current : camRef.current;
     const still = prefersReducedMotion();
     const next = new Map<number, Pt>();
     for (const it of items) {
@@ -496,22 +610,26 @@ export function Board(p: BoardProps): ReactElement {
       }
     }
     shownAt.current = next;
-  }, [items]);
+    if (units3d) followUnits();
+  }, [items, units3d, followUnits]);
 
-  const drawn = useMemo(() => {
+  const [drawn, overlay] = useMemo(() => {
     const view = (it: SceneItem): ReactElement =>
       it.kind === 'tile' ? (
         <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} />
       ) : (
-        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} />
+        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} />
       );
     const sliding = (it: SceneItem): boolean => {
       if (it.kind !== 'unit') return false;
       const was = settled.get(it.unit.id);
       return was !== undefined && was !== it.unit.pos;
     };
-    return [...items.filter((it) => !sliding(it)).map(view), ...items.filter(sliding).map(view)];
-  }, [items, factions, viewer, settled, gl]);
+    const all = [...items.filter((it) => !sliding(it)), ...items.filter(sliding)];
+    // With the 3D figures, the tile svg keeps the tiles and the svg above the figures takes the units.
+    if (!units3d) return [all.map(view), null];
+    return [all.filter((it) => it.kind === 'tile').map(view), all.filter((it) => it.kind === 'unit').map(view)];
+  }, [items, factions, viewer, settled, gl, units3d]);
 
   const board = (
     <svg
@@ -521,7 +639,7 @@ export function Board(p: BoardProps): ReactElement {
       {/* The camera ref holds the live transform; a render writes the same value back. */}
       <g ref={camRef} data-camera="true" transform={cameraTransform(cam.current, vp.current)}>
         {drawn}
-        {p.children}
+        {units3d ? null : p.children}
       </g>
     </svg>
   );
@@ -531,6 +649,16 @@ export function Board(p: BoardProps): ReactElement {
     <>
       {glWanted ? <canvas ref={canvasRef} className="board-terrain" data-testid="board-terrain" aria-hidden="true" /> : null}
       {board}
+      {glWanted ? <canvas ref={unitsCanvasRef} className="board-terrain board-units3d" data-testid="board-units3d" aria-hidden="true" /> : null}
+      {units3d ? (
+        // The units' status, badges and effects, above the 3D figures. Taps go through to the board's svg below.
+        <svg className="board board-overlay" width="100%" height="100%" data-testid="board-overlay">
+          <g ref={overlayCamRef} data-camera="units" transform={cameraTransform(cam.current, vp.current)}>
+            {overlay}
+            {p.children}
+          </g>
+        </svg>
+      ) : null}
     </>
   );
 }

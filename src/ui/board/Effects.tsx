@@ -94,7 +94,7 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
           const faction = p.factions[f.owner];
           if (faction === undefined) return null;
           body = (
-            <g className="fx-fall" style={style} onAnimationEnd={end(i)}>
+            <g className="fx-fall" style={style} onAnimationEnd={end(i)} data-fall={f.unitType} data-fall-owner={f.owner} data-fall-at={f.at}>
               {FIGURES[f.unitType]({ colour: playerColour(faction), accent: ACCENT[faction] })}
             </g>
           );

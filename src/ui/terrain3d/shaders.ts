@@ -228,9 +228,16 @@ export const propFrag = /* glsl */ `
 ${NOISE}
 ${LIGHT}
 uniform bool uIsOutline;
+// A dimmed or fading unit figure (units/units3d.ts) defines UNIT_ALPHA and sets uAlpha; everything else is opaque.
+#ifdef UNIT_ALPHA
+uniform float uAlpha;
+#define ALPHA uAlpha
+#else
+#define ALPHA 1.0
+#endif
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
 void main() {
-  if (uIsOutline) { gl_FragColor = vec4(finish(vColor * vec3(0.30, 0.32, 0.36), vVeil), 1.0); return; }
+  if (uIsOutline) { gl_FragColor = vec4(finish(vColor * vec3(0.30, 0.32, 0.36), vVeil), ALPHA); return; }
   vec3 n = normalize(vNormal);
   float band = toon(n);
   if (vGloss < 0.0) {
@@ -245,5 +252,5 @@ void main() {
   vec3 view = normalize(vec3(0.0, 0.62, 0.785));
   float spec = pow(max(dot(reflect(-uLightDir, n), view), 0.0), 10.0);
   lit = mix(lit, vec3(1.0), max(vGloss, 0.0) * smoothstep(0.55, 0.6, spec) * 0.85);
-  gl_FragColor = vec4(finish(lit, vVeil), 1.0);
+  gl_FragColor = vec4(finish(lit, vVeil), ALPHA);
 }`;

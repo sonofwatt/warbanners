@@ -7,7 +7,9 @@ export type FallbackReason = 'unavailable' | 'lost';
 
 export interface TerrainLifecycle {
   canvas: EventTarget;
-  load: () => Promise<{ createTerrain3d: (canvas: HTMLCanvasElement) => Terrain3d | null }>;
+  /** The unit figures' canvas, above the tile svg; its context is watched as the terrain's is. */
+  unitsCanvas?: EventTarget | null;
+  load: () => Promise<{ createTerrain3d: (canvas: HTMLCanvasElement, opts?: { units?: HTMLCanvasElement | null }) => Terrain3d | null }>;
   hasWebgl2: () => boolean;
   /** The terrain can draw: on first load, and again when a lost context comes back. */
   ready: (t: Terrain3d) => void;
@@ -19,22 +21,29 @@ export interface TerrainLifecycle {
 export function startTerrain3d(o: TerrainLifecycle): () => void {
   let stopped = false;
   let terrain: Terrain3d | null = null;
+  // Either canvas losing its context shows the SVG board; it comes back once every lost context is restored.
+  const canvases = o.unitsCanvas ? [o.canvas, o.unitsCanvas] : [o.canvas];
+  const down = new Set<EventTarget>();
   const lost = (e: Event): void => {
     e.preventDefault(); // so the browser may restore the context
+    if (e.currentTarget !== null) down.add(e.currentTarget);
     if (!stopped && terrain !== null) o.fallback('lost');
   };
-  const restored = (): void => {
-    if (!stopped && terrain !== null) o.ready(terrain);
+  const restored = (e: Event): void => {
+    if (e.currentTarget !== null) down.delete(e.currentTarget);
+    if (!stopped && terrain !== null && down.size === 0) o.ready(terrain);
   };
   if (!o.hasWebgl2()) {
     o.fallback('unavailable');
     return () => { stopped = true; };
   }
-  o.canvas.addEventListener('webglcontextlost', lost);
-  o.canvas.addEventListener('webglcontextrestored', restored);
+  for (const c of canvases) {
+    c.addEventListener('webglcontextlost', lost);
+    c.addEventListener('webglcontextrestored', restored);
+  }
   o.load().then((m) => {
     if (stopped) return;
-    terrain = m.createTerrain3d(o.canvas as HTMLCanvasElement);
+    terrain = m.createTerrain3d(o.canvas as HTMLCanvasElement, { units: (o.unitsCanvas ?? null) as HTMLCanvasElement | null });
     if (terrain === null) o.fallback('unavailable');
     else o.ready(terrain);
   }, () => {
@@ -42,8 +51,10 @@ export function startTerrain3d(o: TerrainLifecycle): () => void {
   });
   return () => {
     stopped = true;
-    o.canvas.removeEventListener('webglcontextlost', lost);
-    o.canvas.removeEventListener('webglcontextrestored', restored);
+    for (const c of canvases) {
+      c.removeEventListener('webglcontextlost', lost);
+      c.removeEventListener('webglcontextrestored', restored);
+    }
     terrain?.dispose();
     terrain = null;
   };

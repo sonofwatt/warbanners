@@ -20,23 +20,26 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 function fakeTerrain(): Terrain3d & { disposed: number } {
-  const t = { disposed: 0, setMap: () => {}, setVeil: () => {}, draw: () => {}, stats: () => ({ triangles: 0, calls: 0, tiles: 0 }), dispose: () => { t.disposed++; } };
+  const t = { disposed: 0, setMap: () => {}, setVeil: () => {}, draw: () => {}, drawUnits: () => {}, units: null, stats: () => ({ triangles: 0, calls: 0, tiles: 0 }), dispose: () => { t.disposed++; } };
   return t;
 }
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
-function run(opts: { webgl2?: boolean; load?: 'ok' | 'fails' | 'null' } = {}) {
+function run(opts: { webgl2?: boolean; load?: 'ok' | 'fails' | 'null'; units?: boolean } = {}) {
   const canvas = new EventTarget();
+  const unitsCanvas = opts.units === true ? new EventTarget() : null;
+  const made: unknown[] = [];
   const terrain = fakeTerrain();
   const log: (FallbackReason | 'ready')[] = [];
   const stop = startTerrain3d({
     canvas,
+    unitsCanvas,
     hasWebgl2: () => opts.webgl2 ?? true,
-    load: () => (opts.load === 'fails' ? Promise.reject(new Error('offline')) : Promise.resolve({ createTerrain3d: () => (opts.load === 'null' ? null : terrain) })),
+    load: () => (opts.load === 'fails' ? Promise.reject(new Error('offline')) : Promise.resolve({ createTerrain3d: (_c: HTMLCanvasElement, o?: { units?: HTMLCanvasElement | null }) => { made.push(o?.units ?? null); return opts.load === 'null' ? null : terrain; } })),
     ready: () => { log.push('ready'); },
     fallback: (why) => { log.push(why); },
   });
-  return { canvas, terrain, log, stop };
+  return { canvas, unitsCanvas, made, terrain, log, stop };
 }
 
 test('a lost context shows SVG until it is restored, and leaves the stored option on', async () => {
@@ -56,6 +59,22 @@ test('a lost context shows SVG until it is restored, and leaves the stored optio
   expect(terrain.disposed).toBe(1);
   canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
   expect(log, 'nothing is heard after the board stops it').toHaveLength(3);
+});
+
+test('the unit figures canvas is handed to the renderer, and either context lost shows SVG until both are back', async () => {
+  const { canvas, unitsCanvas, made, log, stop } = run({ units: true });
+  await settle();
+  expect(made).toEqual([unitsCanvas]);
+  unitsCanvas!.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+  canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+  expect(log).toEqual(['ready', 'lost', 'lost']);
+  canvas.dispatchEvent(new Event('webglcontextrestored'));
+  expect(log, 'still waiting for the units context').toEqual(['ready', 'lost', 'lost']);
+  unitsCanvas!.dispatchEvent(new Event('webglcontextrestored'));
+  expect(log).toEqual(['ready', 'lost', 'lost', 'ready']);
+  stop();
+  unitsCanvas!.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+  expect(log).toHaveLength(4);
 });
 
 test('no WebGL 2, or a chunk that cannot load, shows SVG and keeps the stored option', async () => {

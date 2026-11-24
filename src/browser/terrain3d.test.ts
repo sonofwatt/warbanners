@@ -56,6 +56,9 @@ describe.runIf(process.env.BROWSER === '1')('the 3D terrain option', () => {
       expect(await page.getByTestId('board-terrain').count(), 'no canvas by default').toBe(0);
       expect(fetched, 'three.js is not fetched while the option is off').toEqual([]);
       const svgTiles = await page.locator('[data-hex] polygon').count();
+      const units = await page.locator('svg.board [data-unit]').count();
+      expect(units).toBeGreaterThan(0);
+      const figureNodes = await page.locator('svg.board [data-unit] .unit-body *').count();
 
       await page.getByTestId('open-menu').tap();
       expect(await page.getByTestId('toggle-terrain3d').getAttribute('aria-pressed')).toBe('false');
@@ -69,6 +72,11 @@ describe.runIf(process.env.BROWSER === '1')('the 3D terrain option', () => {
       const px = await canvasPixels(page);
       expect(px.land, 'the canvas draws the board').toBeGreaterThan(0.3);
       expect(px.grass, 'the canvas draws explored ground').toBeGreaterThan(0.01);
+      // The unit figures move to their own canvas; the units' status stays svg, on a second svg above them.
+      expect(await page.getByTestId('board-units3d').count()).toBe(1);
+      expect(await page.locator('[data-testid=board-overlay] [data-unit]').count(), 'every unit keeps its svg status').toBe(units);
+      expect(await page.locator('svg.board:not(.board-overlay) [data-unit]').count(), 'no unit is left on the tile svg').toBe(0);
+      expect(await page.locator('[data-testid=board-overlay] [data-unit] .unit-body *').count(), 'the svg figure art is left out').toBeLessThan(figureNodes);
 
       await toggle(page);
       await page.getByTestId('board-terrain').waitFor({ state: 'detached' });
@@ -76,6 +84,8 @@ describe.runIf(process.env.BROWSER === '1')('the 3D terrain option', () => {
       expect(await page.evaluate(() => localStorage.getItem('warbanners.terrain3d'))).toBe('0');
       expect(await page.locator('svg.board').getAttribute('data-terrain3d')).toBeNull();
       expect(await page.locator('[data-hex] polygon').count(), 'the svg board is whole again').toBe(svgTiles);
+      expect(await page.getByTestId('board-overlay').count()).toBe(0);
+      expect(await page.locator('svg.board [data-unit] .unit-body *').count(), 'the svg figures are back as they were').toBe(figureNodes);
     } finally {
       await close();
     }

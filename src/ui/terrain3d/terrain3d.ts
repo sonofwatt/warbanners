@@ -12,6 +12,8 @@ import type { TilePieces } from './build';
 import type { GlMap, GlTile } from './input';
 import { COS_E, EDGE_NB, parse, SQUASH } from './layout';
 import { groundFrag, groundVert, propFrag, propVert } from './shaders';
+import { createUnits3d } from './units/units3d';
+import type { Units3d } from './units/units3d';
 
 export interface TerrainCamera { cx: number; cy: number; scale: number }
 export interface TerrainViewport { w: number; h: number }
@@ -21,8 +23,12 @@ export interface Terrain3d {
   setMap(map: GlMap): void;
   /** Dim the tiles no unit can see now, as the SVG veil does. Cheap: no geometry is rebuilt. */
   setVeil(veiled: readonly HexKey[]): void;
-  /** Aim at the board camera and render one frame. */
+  /** Aim at the board camera and render one frame, of the terrain and of the unit figures. */
   draw(cam: TerrainCamera, vp: TerrainViewport): void;
+  /** Render the unit figures alone (they move; the terrain does not), on their own canvas. */
+  drawUnits(cam: TerrainCamera, vp: TerrainViewport): void;
+  /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
+  readonly units: Units3d | null;
   /** Free every GPU resource and the context. */
   dispose(): void;
   /** Triangles and draw calls of the last frame, for tests and tuning. */
@@ -39,7 +45,7 @@ const code = (t: GlTile | undefined): string =>
  * Make the renderer, or null when this device has no WebGL 2 (the board then stays all SVG). The options are for
  * the art sample and tests: an opaque background, and a drawing buffer kept for reading back.
  */
-export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: string; keepFrame?: boolean } = {}): Terrain3d | null {
+export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: string; keepFrame?: boolean; units?: HTMLCanvasElement | null } = {}): Terrain3d | null {
   let renderer: WebGLRenderer;
   try {
     renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: opts.keepFrame === true });
@@ -62,6 +68,9 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uVeilColor: { value: new Color('#1E2833') }, // theme.css .veil
     uTime: { value: 0 },
   };
+  // The unit figures draw on a second canvas, above the tile svg (cities, villages and marks) and below the svg
+  // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders.
+  const units = opts.units ? createUnits3d(opts.units, shared) : null;
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
   const propMat = new ShaderMaterial({ uniforms: propUniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true });
@@ -135,8 +144,12 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   // down at the elevation whose sine is SQUASH, so a ground point lands on exactly the SVG board point.
   const target = new Vector3();
   const dir = new Vector3(0, -SQUASH, -COS_E);
+  const dprNow = (): number => Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, MAX_DPR);
+  function drawUnits(cam: TerrainCamera, vp: TerrainViewport): void {
+    units?.draw(cam, vp, dprNow());
+  }
   function draw(cam: TerrainCamera, vp: TerrainViewport): void {
-    const dpr = Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, MAX_DPR);
+    const dpr = dprNow();
     if (size.w !== vp.w || size.h !== vp.h || size.dpr !== dpr) {
       renderer.setPixelRatio(dpr);
       renderer.setSize(vp.w, vp.h, false);
@@ -151,9 +164,11 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     camera.lookAt(target);
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
+    units?.draw(cam, vp, dpr);
   }
 
   function dispose(): void {
+    units?.dispose();
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
     cache.clear();
     ground.geometry.dispose();
@@ -164,7 +179,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   }
 
   return {
-    setMap, setVeil, draw, dispose,
+    setMap, setVeil, draw, drawUnits, dispose, units,
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, tiles: tileCount }),
   };
 }
