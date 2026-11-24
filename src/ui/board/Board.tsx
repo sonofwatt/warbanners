@@ -40,6 +40,8 @@ export interface BoardProps {
   // The 3D terrain: a WebGL canvas under the svg draws the ground, roads, terrain features and resources, loaded
   // only when this is on. When the device cannot draw it, or loses the context, the board shows SVG instead.
   terrain3d?: boolean;
+  // A sheet, menu or dialog covers the board: the 3D board's idle animation pauses until it is gone.
+  covered?: boolean;
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -317,16 +319,27 @@ export function Board(p: BoardProps): ReactElement {
   const overlayCamRef = useRef<SVGGElement>(null);
   const terrain = useRef<Terrain3d | null>(null);
   const frame = useRef(0);
-  // The ambient loop (idle life, waterfalls): it redraws the units canvas alone, only while something animates in
-  // view, at most 30 times a second, never in a hidden tab or with reduced motion. Every change kicks it.
+  // The ambient loop (idle life, waterfalls, terrain3d/ambient.ts): it redraws the units canvas alone, only while
+  // something animates in view, at most 20 times a second; never in a hidden tab, under a sheet or with reduced
+  // motion, and it rests after a quiet spell. Input and game events wake it. A camera frame (write) draws the
+  // figures itself, posed for the moment, and tells the loop so, which then skips its own draw for a frame gap.
   const ambient = useRef<AmbientLoop | null>(null);
+  const coveredRef = useRef(p.covered === true);
+  coveredRef.current = p.covered === true;
+  useEffect(() => {
+    ambient.current?.cover(p.covered === true);
+  }, [p.covered]);
   const write = useCallback((): void => {
     if (cam.current === null) return;
     const t = cameraTransform(cam.current, vp.current);
     camRef.current?.setAttribute('transform', t);
     overlayCamRef.current?.setAttribute('transform', t);
-    terrain.current?.draw(cam.current, vp.current);
-    ambient.current?.kick();
+    const tt = terrain.current;
+    if (tt !== null) {
+      tt.tick(performance.now(), ambient.current?.level() ?? 0);
+      tt.draw(cam.current, vp.current);
+      ambient.current?.drew();
+    }
   }, []);
   const schedule = useCallback((): void => {
     if (frame.current !== 0) return;
@@ -418,6 +431,7 @@ export function Board(p: BoardProps): ReactElement {
 
   useGestures(svgRef, (out) => {
     const c = cam.current;
+    ambient.current?.kick(); // any touch wakes the 3D board's idle life
     if (c === null || !measured.current) return;
     const { bounds: b, items, radius, onTap } = latest.current;
     if (out.kind === 'pan') cam.current = panBy(c, out.dx, out.dy, b, vp.current);
@@ -449,21 +463,24 @@ export function Board(p: BoardProps): ReactElement {
       hasWebgl2: webgl2Available,
       ready: (t) => {
         if (ambient.current === null) {
-          ambient.current = createAmbientLoop(domAmbientEnv(), (now) => {
+          ambient.current = createAmbientLoop(domAmbientEnv(), (now, level) => {
             const tt = terrain.current;
             if (tt === null || cam.current === null) return false;
-            if (unitsFrame.current !== 0) return true; // the loop that follows a slide or a lunge draws this frame
-            tt.tick(now, true);
+            // A camera frame is waiting (it draws the terrain and the figures at the new camera together, so the
+            // units canvas never runs ahead of the terrain), or a slide or lunge is being followed (that loop draws).
+            if (frame.current !== 0 || unitsFrame.current !== 0) return true;
+            tt.tick(now, level);
             tt.drawUnits(cam.current, vp.current);
             return tt.animating(cam.current, vp.current);
           }, () => {
             const tt = terrain.current;
             if (tt === null || cam.current === null) return;
-            tt.tick(performance.now(), false);
+            tt.tick(performance.now(), 0);
             tt.drawUnits(cam.current, vp.current);
           });
+          ambient.current.cover(coveredRef.current);
         }
-        t.tick(performance.now(), ambient.current.motion());
+        t.tick(performance.now(), ambient.current.level());
         const d = glLatest.current;
         if (d !== null) {
           t.setMap(d.map);
@@ -526,9 +543,9 @@ export function Board(p: BoardProps): ReactElement {
     if (shownUnits.current === u.key) return;
     t.units.setUnits(u.units);
     shownUnits.current = u.key;
-    t.tick(performance.now(), ambient.current?.motion() ?? false);
+    t.tick(performance.now(), ambient.current?.level() ?? 0);
     t.drawUnits(cam.current, vp.current);
-    ambient.current?.kick();
+    ambient.current?.drew();
   }, [units3d, unitsKey]);
 
   // While the svg plays a slide, a lunge or a fall, the 3D figures follow it frame by frame: each frame reads where
@@ -546,10 +563,11 @@ export function Board(p: BoardProps): ReactElement {
       if (t === null || t.units === null || g === null || cam.current === null) return;
       const live = livePose(g, factionsRef.current);
       t.units.pose(live.at, live.falls);
-      t.tick(now, ambient.current?.motion() ?? false);
+      t.tick(now, ambient.current?.level() ?? 0);
       t.drawUnits(cam.current, vp.current);
+      // A slide or lunge is a game event: it wakes the loop; the frame just drawn counts as the loop's own.
+      ambient.current?.drew();
       if (live.moving) unitsFrame.current = requestAnimationFrame(step);
-      else ambient.current?.kick();
     };
     unitsFrame.current = requestAnimationFrame(step);
   }, []);

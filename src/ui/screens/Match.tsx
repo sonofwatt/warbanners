@@ -316,6 +316,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       <div className="board-slot" data-testid="board-slot">
         <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
           terrain3d={terrain3d}
+          covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
           onTap={peeked !== undefined ? noTap : tap}
           reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
           centre={centred > 0 && peeked !== undefined ? { n: centred, at: peeked.at } : null}

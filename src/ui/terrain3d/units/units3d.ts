@@ -32,8 +32,11 @@ export interface Units3d {
   setUnits(units: readonly GlUnit[]): void;
   /** Where units stand this frame while they move (others stay on their tiles), and the falls playing. */
   pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void;
-  /** Pose every figure for time `nowMs`: idle life when `motion` (none for units that move or just moved), the trebuchet's swing in a lunge. */
-  tick(nowMs: number, motion: boolean): void;
+  /**
+   * Pose every figure for time `nowMs`: idle life scaled by `level` (0 still, 1 full; none for units that move, eased
+   * out as they start and back in after), and the trebuchet's swing in a lunge.
+   */
+  tick(nowMs: number, level: number): void;
   /** Whether a figure with idle life stands in the camera's view. */
   onScreen(cam: UnitsCamera, vp: UnitsViewport): boolean;
   /** Drawn with the figures, on their canvas: the terrain puts its waterfalls here. */
@@ -55,7 +58,11 @@ interface Placed extends Built {
   sig: string; unit: GlUnit; alpha: number; kind: IdleKind;
   /** Moving in this frame (a slide or a lunge), and when it last was (ms), so its idle life eases back in. */
   moving: boolean; restSince: number; lunge: number | null;
+  /** The idle weight shown last frame, so a unit that starts to move eases out of its idle pose. */
+  weight: number;
 }
+/** How long a figure takes to ease out of its idle pose when it starts to move or lunge. */
+const EASE_OUT_MS = 150;
 /** The figure's body stands this far toward the viewer from the tile centre: its feet are 4 board units lower on screen. */
 const FEET_Z = 4 / SQUASH;
 
@@ -179,7 +186,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         p = undefined;
       }
       if (p === undefined) {
-        p = { sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.alpha), alpha: u.alpha, kind: idleKind(u.type), moving: false, restSince: -Infinity, lunge: null };
+        p = { sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.alpha), alpha: u.alpha, kind: idleKind(u.type), moving: false, restSince: -Infinity, lunge: null, weight: 0 };
         scene.add(p.group);
         placed.set(u.id, p);
       }
@@ -234,12 +241,15 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   let clock = 0;
   const qa = new Quaternion(), qb = new Quaternion();
   const Z = new Vector3(0, 0, 1), Y = new Vector3(0, 1, 0);
-  function tick(nowMs: number, motion: boolean): void {
+  function tick(nowMs: number, level: number): void {
+    const dt = Math.min(100, Math.max(0, nowMs - clock));
     clock = nowMs;
     for (const p of placed.values()) {
       if (p.moving) p.restSince = nowMs;
-      const w = motion && !p.moving ? settleWeight(nowMs - p.restSince) : 0;
-      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, w);
+      const target = p.moving ? 0 : settleWeight(nowMs - p.restSince);
+      // Into motion: ease out over EASE_OUT_MS rather than snap; back to rest: the settle curve brings it in.
+      p.weight = target < p.weight ? Math.max(target, p.weight - dt / EASE_OUT_MS) : target;
+      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, p.weight * Math.min(1, Math.max(0, level)));
       p.body.position.set(ip.shift, ip.bob, FEET_Z);
       p.body.quaternion.copy(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, ip.yaw));
       p.body.scale.set(1, 1 + ip.breathe, 1);

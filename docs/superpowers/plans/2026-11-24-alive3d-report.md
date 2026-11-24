@@ -62,14 +62,45 @@ test that checks this is unchanged and green).
     map changes.
   - It runs only while something that animates is in view (a figure other than a camp, or a waterfall's box), and
     stops when nothing is; any camera move, unit change or end of a slide kicks it again.
-  - At most 30 frames a second (rAF with a frame gap).
+  - At most 20 frames a second (rAF with a frame gap; was 30 before the review).
+  - It rests: after 20 s with no wake (a tap, pan or zoom, a camera move, a unit change, a slide or lunge, a map
+    change), the idle motion and the water ease to stillness over 1.5 s, one still frame is drawn and the loop stops.
+    The waterfalls rest with the figures. The next wake eases the motion back in over 0.6 s; the water's own clock
+    runs at the motion level, so it slows to a stop and starts again where it left off.
+  - It pauses while a sheet, the menu or a dialog covers the board (Match passes `covered`: a sheet, the turn report
+    card, a city reward, a desync), and wakes when it goes.
+  - A camera frame (`write()`) poses and draws the figures itself and tells the loop, which then skips its own draw
+    for a frame gap; while a camera frame is pending the loop draws nothing, so the units canvas never runs ahead of
+    the terrain at a newer camera. The slide and lunge loop counts its frames the same way (no extra draw at its end).
+  - A unit that starts to move or lunge eases out of its idle pose over 0.15 s instead of snapping.
+  - The water's clock wraps every 1000 s, and every pattern (periodic noise) and every mist puff (whole lives per
+    period) repeats exactly over that period, so the wrap is seamless.
   - Never in a hidden tab (cancelled on visibilitychange, resumed when shown), never with prefers-reduced-motion
     (no sway, the water holds still, the mist holds one static shape; it reacts to the setting changing live), and
     stopped and released with the option or the board.
   - The slide and lunge loop draws those frames itself, with idle life for the units that are not moving.
 - Disposal: the falls' geometry and materials and the pieces' geometry are freed with the renderer.
 
-### Frame cost and idle CPU (headless Chromium, SwiftShader, 412 x 915 at 2x)
+### After the review (20 fps cap, quiet spell, no double draws)
+
+Same setup, rebuilt branch:
+
+| | main | alive3d after the review |
+| --- | --- | --- |
+| frames drawn while idle, awake | 0 | 19.7 a second |
+| idle, awake, whole Chromium tree | 50 percent of a core | 516 percent (main thread 2.9) |
+| idle after the 20 s quiet spell, whole tree | | 4.3 percent (main thread 0.3), 0 frames in 2 s |
+| the 3 s after a tap wakes it, whole tree | | 400 percent, 38 frames in 2 s |
+| hidden tab, whole tree | 3.2 percent | 3.2 percent, 0 frames |
+| full frame while zooming | median 428 ms | median 423 ms |
+| units canvas frame | | median 40 ms, 59 calls |
+
+On SwiftShader each units frame is about 40 ms of rendering spread over several threads, so even 20 a second fills
+cores; the point of the quiet spell is that a board left alone costs nothing after about 21 s. The main build's 50
+percent with no frames drawn is measured a few seconds after load (the browser settling); the rested window is 22 s
+after load.
+
+### Frame cost and idle CPU before the review (headless Chromium, SwiftShader, 412 x 915 at 2x)
 
 Each animation frame timed with every context forced to finish; idle CPU over 6 s on a page without the timing
 wrapper. SwiftShader rasterises on the CPU, so these are a ceiling, not a phone.
@@ -95,8 +126,8 @@ constant; 20 would still read as smooth for this slow sway) and the draw rect.
 
 | Chunk | Before (main 7c77316) | After |
 | --- | --- | --- |
-| index (main) | 507.59 kB, 159.30 kB gzip | 509.58 kB, 159.90 kB gzip (+2.0 kB, +0.6 kB gzip) |
-| terrain3d (lazy) | 584.07 kB, 157.25 kB gzip | 594.18 kB, 161.10 kB gzip (+10.1 kB, +3.9 kB gzip) |
+| index (main) | 507.59 kB, 159.30 kB gzip | 510.19 kB, 160.13 kB gzip (+2.6 kB, +0.8 kB gzip) |
+| terrain3d (lazy) | 584.07 kB, 157.25 kB gzip | 594.90 kB, 161.37 kB gzip (+10.8 kB, +4.1 kB gzip) |
 
 The main chunk grows only by the loop (`ambient.ts`), the lunge phase in `livePose.ts` and the wiring in `Board.tsx`.
 
@@ -104,14 +135,15 @@ The main chunk grows only by the loop (`ambient.ts`), the lunge phase in `livePo
 
 - Unit tests: `ambient.test.ts` (about 30 frames a second while something animates, stops when nothing does, a
   hidden tab pauses it and showing resumes it, a hidden start never starts, reduced motion draws nothing and poses
-  still once, stop ends it and its listeners), `fallsLayout.test.ts` (rim edges, no falls inland, on land, on the
+  still once, stop ends it and its listeners; after the review: 20 fps, the quiet spell eases to rest and stops, any
+  wake eases it back, a frame the board drew is not drawn again, a covering sheet pauses it), `fallsLayout.test.ts` (rim edges, no falls inland, on land, on the
   back rim, on a city, behind a fogged neighbour; spots and their screen boxes), `units/idle.test.ts` (phases and
   paces spread, kinds, small bounded motion, zero at weight 0, the aim's moves and holds and continuity, the arm
   pose by lunge phase, the stone, easing back in), `units/units3d.test.ts` (the arm and stone are pieces on one
   axle, idle turns the body but never moves a figure off its tile, reduced motion holds it at rest, moving units
   hold still then ease back, the arm swings and resets with the lunge, on-screen test), `livePose.test.ts` (lunge
   phase).
-- Full unit suite: 1118 passed, 124 skipped (the browser suites without BROWSER=1).
+- Full unit suite: 1124 passed, 124 skipped (the browser suites without BROWSER=1), after the review fixes.
 - `npm run test:browser` with `GITHUB_PAGES_BASE=/warbanners/`: green (AI suite 6 passed; the rest 50 passed, 2 skipped: the online suite, which needs the emulator).
 
 ## Screenshots and clips (`2026-11-24-alive3d-shots/`)
@@ -123,7 +155,7 @@ this branch. Seed 7 has one water tile on the front rim (-5,6), next to the capi
 - 03, 04 two frames of idle sway, 1.6 s apart.
 - 05 trebuchet cocked; 06 (1 to 3) mid-swing in a real attack, animations slowed 20 times; 07 reset.
 - 08 the arm by lunge phase at full opacity; 09 the idle aim at four moments.
-- `waterfall.gif` and `idle.gif`: real pace (captured with the page clock slowed 3 times and played back 3 times
+- `waterfall.gif` and `idle.gif` (taken before the review, at the old 30 fps cap): real pace (captured with the page clock slowed 3 times and played back 3 times
   faster).
 
 ## Known gaps

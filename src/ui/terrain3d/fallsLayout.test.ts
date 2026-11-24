@@ -51,3 +51,15 @@ test('fall spots: one per edge, in a stable order, with a screen box below the l
   expect(anyInView([s[0]!.box], { x0: s[0]!.box.x0 - 10, x1: s[0]!.box.x0 - 1, y0: s[0]!.box.y0, y1: s[0]!.box.y1 })).toBe(false);
   expect(anyInView([s[0]!.box], { x0: s[0]!.box.x0 - 10, x1: s[0]!.box.x0 + 1, y0: s[0]!.box.y0, y1: s[0]!.box.y1 })).toBe(true);
 });
+
+test('the water clock wraps seamlessly: every pattern and every mist puff repeats a whole number of times per period', async () => {
+  const { FLOW_CELLS, FLOW_PERIOD, mistRate } = await import('./falls');
+  for (const cells of Object.values(FLOW_CELLS)) {
+    const n = cells * FLOW_PERIOD;
+    expect(Math.abs(n - Math.round(n)), `${cells} cells a second`).toBeLessThan(1e-6);
+  }
+  for (let w = 0; w <= 1; w += 1 / 29) {
+    const n = mistRate(w) * FLOW_PERIOD;
+    expect(Math.abs(n - Math.round(n))).toBeLessThan(1e-9);
+  }
+});

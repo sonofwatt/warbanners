@@ -31,8 +31,8 @@ export interface Terrain3d {
   draw(cam: TerrainCamera, vp: TerrainViewport): void;
   /** Render the unit figures alone (they move; the terrain does not), on their own canvas. */
   drawUnits(cam: TerrainCamera, vp: TerrainViewport): void;
-  /** Pose the figures and the falling water for `nowMs`; with `motion` false everything holds still (reduced motion). */
-  tick(nowMs: number, motion: boolean): void;
+  /** Pose the figures and the falling water for `nowMs`, the motion scaled by `level` (0 holds everything still). */
+  tick(nowMs: number, level: number): void;
   /** Whether anything that animates (a figure, a waterfall) is in view; false when nothing animates at all. */
   animating(cam: TerrainCamera, vp: TerrainViewport): boolean;
   /** The waterfalls on the map, for tests. */
@@ -183,9 +183,14 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     units?.draw(cam, vp, dpr);
   }
 
-  function tick(nowMs: number, motion: boolean): void {
-    units?.tick(nowMs, motion);
-    falls.setTime(motion ? (nowMs / 1000) % 3600 : 0);
+  // The water's own clock: it runs at the motion level, so it slows to a stop with the figures and starts where it left.
+  let flowAt = -1, flow = 0;
+  function tick(nowMs: number, level: number): void {
+    units?.tick(nowMs, level);
+    const dt = flowAt < 0 ? 0 : Math.min(0.1, Math.max(0, (nowMs - flowAt) / 1000));
+    flowAt = nowMs;
+    flow += dt * Math.min(1, Math.max(0, level));
+    falls.setTime(flow);
   }
   function animating(cam: TerrainCamera, vp: TerrainViewport): boolean {
     if (units === null) return false;

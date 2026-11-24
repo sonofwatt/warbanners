@@ -117,7 +117,7 @@ describe('the 3D unit figures', () => {
     const before = figs.map((g) => g.position.clone());
     let most = 0;
     for (let t = 0; t < 8000; t += 97) {
-      u.tick(t, true);
+      u.tick(t, 1);
       figs.forEach((g, i) => {
         expect(g.position.equals(before[i]!), 'the figure stays on its tile').toBe(true);
         const body = g.children[0] as Group;
@@ -127,7 +127,7 @@ describe('the 3D unit figures', () => {
     expect(most).toBeGreaterThan(0.005);
     expect(most, 'small: well under a world unit or a few hundredths of a radian').toBeLessThan(0.5);
     // Held still (reduced motion): every body at rest.
-    u.tick(5000, false);
+    u.tick(5000, 0);
     for (const g of figs) {
       const body = g.children[0] as Group;
       expect(body.quaternion.w).toBeCloseTo(1, 9);
@@ -141,13 +141,31 @@ describe('the 3D unit figures', () => {
     u.setUnits([unit(1)]);
     const body = figures(u)[0]!.children[0] as Group;
     u.pose(new Map([[1, { x: 3, y: 0 }]]), []);
-    for (let t = 1000; t < 2000; t += 50) { u.tick(t, true); expect(body.quaternion.w).toBeCloseTo(1, 9); }
+    for (let t = 1000; t < 2000; t += 50) { u.tick(t, 1); expect(body.quaternion.w).toBeCloseTo(1, 9); }
     u.pose(new Map(), []);
-    u.tick(2010, true);
+    u.tick(2010, 1);
     expect(1 - Math.abs(body.quaternion.w), 'only a little right after').toBeLessThan(1e-5);
     let moved = false;
-    for (let t = 2500; t < 6000; t += 100) { u.tick(t, true); if (Math.abs(body.quaternion.w) < 1 - 1e-6) moved = true; }
+    for (let t = 2500; t < 6000; t += 100) { u.tick(t, 1); if (Math.abs(body.quaternion.w) < 1 - 1e-6) moved = true; }
     expect(moved).toBe(true);
+  });
+
+  test('a unit that starts to move eases out of its idle pose in about 0.15 s instead of snapping', () => {
+    const u = make();
+    u.setUnits([unit(1, { type: 'knight' })]);
+    const body = figures(u)[0]!.children[0] as Group;
+    for (let t = 0; t <= 10_000; t += 50) u.tick(t, 1);
+    const off = (): number => Math.abs(body.position.x) + Math.abs(body.position.y);
+    // Find a moment well into the sway, then start a move there.
+    let t = 10_000;
+    while (off() < 0.1) { t += 50; u.tick(t, 1); }
+    const before = off();
+    u.pose(new Map([[1, { x: 0, y: 0 }]]), []);
+    u.tick(t + 50, 1);
+    expect(off(), 'part way out after 50 ms').toBeGreaterThan(before * 0.2);
+    expect(off()).toBeLessThan(before * 0.9 + 0.05);
+    u.tick(t + 200, 1);
+    expect(off(), 'still by 0.2 s').toBeCloseTo(0, 9);
   });
 
   test('the trebuchet swings its arm through in a lunge, throws the stone, and is cocked again after', () => {
@@ -158,14 +176,14 @@ describe('the 3D unit figures', () => {
     const arm = body.children.at(-2) as Group, stone = body.children.at(-1) as Group;
     const angle = (): number => 2 * Math.acos(Math.min(1, Math.abs(arm.quaternion.w)));
     u.pose(new Map([[1, { x: 0, y: 0, lunge: 0 }]]), []);
-    u.tick(100, true);
+    u.tick(100, 1);
     expect(angle()).toBeCloseTo(0, 6);
     u.pose(new Map([[1, { x: 0, y: 0, lunge: 0.28 }]]), []);
-    u.tick(200, true);
+    u.tick(200, 1);
     expect(angle()).toBeGreaterThan(2.5);
     expect(stone.visible, 'the stone has gone at the top of the throw').toBe(false);
     u.pose(new Map(), []);
-    u.tick(300, true);
+    u.tick(300, 1);
     expect(angle(), 'cocked, give or take its small idle aim').toBeLessThan(0.06);
     expect(stone.visible).toBe(true);
   });

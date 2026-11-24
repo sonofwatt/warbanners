@@ -25,6 +25,17 @@ export interface Falls {
   dispose(): void;
 }
 
+/**
+ * The water's clock wraps every FLOW_PERIOD seconds, and everything it moves repeats exactly over that period: each
+ * pattern's lattice is wrapped (pnoise) at a whole number of cells per period, and each mist puff's rate is a whole
+ * number of lives per period. So the wrap is seamless.
+ */
+export const FLOW_PERIOD = 1000;
+/** Lattice cells each flow pattern scrolls through per second: streaks, the second streak octave, foam, the fade's edge. */
+export const FLOW_CELLS = { streak: 16 * 0.045, streak2: 16 * 0.045 * 1.7, foam: 22 * 0.12, tail: 1 } as const;
+/** Mist lives per second for a puff of seed w: a whole number per period. */
+export const mistRate = (w: number): number => Math.floor(90 * (0.8 + 0.4 * w)) / FLOW_PERIOD;
+
 const COLS = 6; // across the edge
 const ROWS = 9; // down the fall
 const PUFFS = 7; // mist sprites per fall
@@ -43,8 +54,20 @@ void main() {
 // aFall: x along the edge (world units), y the distance fallen below the lip (world units), z the side fade (0 at
 // the corners, 1 in the middle). The water is banded as the toon water column is: pale at the lip, deep below, with
 // pale streaks that run down at uFlow and a white curl of foam over the lip. It fades out below the wall's foot.
+// Value noise whose lattice wraps every `per` cells along y, so a pattern scrolled by whole periods repeats exactly.
+const PNOISE = /* glsl */ `
+float pnoise(vec2 p, float per) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float y0 = mod(i.y, per), y1 = mod(i.y + 1.0, per);
+  return mix(mix(hash(vec2(i.x, y0)), hash(vec2(i.x + 1.0, y0)), u.x), mix(hash(vec2(i.x, y1)), hash(vec2(i.x + 1.0, y1)), u.x), u.y);
+}
+`;
+const per = (cells: number): string => (cells * FLOW_PERIOD).toFixed(1);
+
 const sheetFrag = /* glsl */ `
 ${NOISE}
+${PNOISE}
 ${LIGHT}
 uniform float uFlow;
 varying vec3 vFall; varying vec3 vNormal; varying float vVeil;
@@ -56,16 +79,16 @@ void main() {
   vec3 c = mix(vec3(0.50, 0.80, 0.94), vec3(0.16, 0.38, 0.64), smoothstep(0.0, 1.0, t));
   // Streaks: long in the fall direction, scrolling down; two hard toon steps.
   vec2 p = vec2(vFall.x * 0.32, (d - uFlow * 16.0) * 0.045);
-  float s = noise(p) * 0.65 + noise(p * vec2(2.3, 1.7) + 9.0) * 0.35;
+  float s = pnoise(p, ${per(FLOW_CELLS.streak)}) * 0.65 + pnoise(p * vec2(2.3, 1.7) + 9.0, ${per(FLOW_CELLS.streak2)}) * 0.35;
   c = mix(c, vec3(0.70, 0.90, 0.99), step(0.62, s) * 0.75);
   c = mix(c, vec3(0.93, 0.98, 1.0), step(0.76, s) * 0.85);
   // The lip's curl of foam, and foam where the sheet breaks up toward the foot.
   c = mix(c, vec3(0.95, 0.99, 1.0), 1.0 - smoothstep(1.2, 1.8, d));
-  float broken = step(0.55, noise(vec2(vFall.x * 0.5, (d - uFlow * 22.0) * 0.12) + 3.0));
+  float broken = step(0.55, pnoise(vec2(vFall.x * 0.5, (d - uFlow * 22.0) * 0.12) + 3.0, ${per(FLOW_CELLS.foam)}));
   c = mix(c, vec3(0.90, 0.96, 1.0), broken * smoothstep(FOOT * 0.75, FOOT, d) * 0.8);
   float band = toon(vNormal);
   vec3 lit = mix(c * mix(uShadowColor, uLightColor, 0.5), c * uLightColor, band);
-  float a = 1.0 - smoothstep(FOOT + 2.0, FOOT + TAIL, d + (noise(vec2(vFall.x * 0.4, d * 0.1 - uFlow)) - 0.5) * 8.0);
+  float a = 1.0 - smoothstep(FOOT + 2.0, FOOT + TAIL, d + (pnoise(vec2(vFall.x * 0.4, d * 0.1 - uFlow), ${per(FLOW_CELLS.tail)}) - 0.5) * 8.0);
   a *= smoothstep(0.0, 0.18, vFall.z);
   if (a < 0.02) discard;
   gl_FragColor = vec4(finish(lit, vVeil), a);
@@ -78,7 +101,7 @@ attribute vec3 aCentre; attribute vec2 aCorner; attribute vec4 aPuff; attribute 
 uniform float uFlow;
 varying vec2 vCorner; varying float vAlpha; varying float vVeil;
 void main() {
-  float life = fract(uFlow * 0.09 * (0.8 + 0.4 * aPuff.w) + aPuff.w);
+  float life = fract(uFlow * floor(90.0 * (0.8 + 0.4 * aPuff.w)) / ${FLOW_PERIOD.toFixed(1)} + aPuff.w);
   vec3 c = aCentre + vec3(aPuff.x, 0.0, aPuff.y) * life * 6.0 + vec3(0.0, life * 12.0, 0.0);
   float size = aPuff.z * (0.65 + 0.6 * life);
   vec4 mv = viewMatrix * modelMatrix * vec4(c, 1.0);
@@ -232,7 +255,7 @@ export function createFalls(shared: Record<string, { value: unknown }>): Falls {
       veiledNow = new Set(veiled.map((k) => { const { q, r } = parse(k); return hexId(q, r); }));
       paintVeil();
     },
-    setTime(t) { flow.value = t; },
+    setTime(t) { flow.value = ((t % FLOW_PERIOD) + FLOW_PERIOD) % FLOW_PERIOD; },
     boxes: () => spots.map((s) => s.box),
     count: () => spots.length,
     dispose() {
