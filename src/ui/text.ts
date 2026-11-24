@@ -131,7 +131,7 @@ const ui = {
   terrain: 'Terrain', resourceWord: 'Resource', buildingWord: 'Building', roadWord: 'Road', none: 'None',
   statusOwned: 'Known', statusReady: 'Ready', statusCostly: 'Too costly now', statusLocked: 'Locked',
   research: 'Research', unlocks: 'Opens', close: 'Close', later: 'Later', chooseReward: 'Choose a reward',
-  soundOn: 'Sound on', soundOff: 'Sound off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
+  soundOn: 'Sound on', soundOff: 'Sound off', terrain3dOn: '3D terrain on', terrain3dOff: '3D terrain off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
   home: 'Back to home', andMore: 'and {n} more',
   digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
   digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',

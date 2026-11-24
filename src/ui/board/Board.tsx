@@ -17,6 +17,10 @@ import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
+import { glMapOf, svgLayers } from '../terrain3d/input';
+import type { SvgLayers } from '../terrain3d/input';
+import { webgl2Available } from '../terrain3d/option';
+import type { Terrain3d } from '../terrain3d/terrain3d';
 
 export interface BoardProps {
   items: readonly SceneItem[];
@@ -28,6 +32,11 @@ export interface BoardProps {
   viewer?: PlayerId; // whose board this is: only their own cities show a reward waiting
   reveal?: { n: number; at: HexKey } | null; // each new n pans, the least it must, to bring the tile at `at` into view
   centre?: { n: number; at: HexKey } | null; // each new n puts the tile at `at` in the middle of the slot (the turn report)
+  // The 3D terrain: a WebGL canvas under the svg draws the ground, roads, terrain features and resources, loaded
+  // only when this is on. When the device cannot draw it, or loses the context, onTerrain3dFail is called and the
+  // board stays all SVG.
+  terrain3d?: boolean;
+  onTerrain3dFail?: () => void;
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -88,17 +97,23 @@ const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in
  *   the ore or chest smaller in front.
  * - a road is drawn under everything.
  * - a treasure under a unit is drawn small beside the figure, so a unit waiting to claim it never hides it.
+ * With the 3D terrain on (`layers`), the terrain features, groves and resources are left out, and what stays (a
+ * building, a village, a treasure) keeps the place it has today, so it sits where the 3D art leaves room for it.
  */
-export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): ReactElement {
+export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?: SvgLayers }): ReactElement {
   const { tile } = p;
   const v = variantOf(p.k);
-  const feature = tile.terrain === 'water' || tile.terrain === 'field' ? null : <TerrainFeature terrain={tile.terrain} variant={v} />;
+  const drawFeature = p.layers?.feature ?? true;
+  const drawResource = p.layers?.resource ?? true;
+  const hasFeature = tile.terrain !== 'water' && tile.terrain !== 'field';
+  const feature = hasFeature && drawFeature ? <TerrainFeature terrain={tile.terrain} variant={v} /> : null;
+  const grove = drawFeature ? <Grove variant={v} /> : null;
   let art: ReactNode;
   if (tile.building !== null) {
     art =
       tile.building === 'lumberCamp' ? (
         <>
-          <Grove variant={v} />
+          {grove}
           <g transform={BEFORE_GROVE}><BuildingMark building="lumberCamp" /></g>
         </>
       ) : (
@@ -110,7 +125,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
     const beside = tile.treasure && p.occupied === true;
     const item = tile.treasure
       ? <g data-treasure={beside ? 'beside' : 'centre'}><Treasure /></g>
-      : tile.resource !== null ? <ResourceMark resource={tile.resource} /> : null;
+      : tile.resource !== null && drawResource ? <ResourceMark resource={tile.resource} /> : null;
     if (beside) {
       art = (
         <>
@@ -121,11 +136,11 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
     } else if (tile.terrain === 'forest' && item !== null) {
       art = (
         <>
-          <Grove variant={v} />
+          {grove}
           <g transform={BEFORE_GROVE}>{item}</g>
         </>
       );
-    } else if (feature !== null && item !== null) {
+    } else if (hasFeature && item !== null) {
       art = (
         <>
           <g transform={BACK}>{feature}</g>
@@ -138,7 +153,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean }): React
   }
   return (
     <>
-      {tile.terrain === 'water' ? <TerrainFeature terrain="water" variant={v} /> : null}
+      {tile.terrain === 'water' && drawFeature ? <TerrainFeature terrain="water" variant={v} /> : null}
       {art}
     </>
   );
@@ -159,8 +174,9 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
   );
 }
 
-function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement {
+function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined; gl: boolean }): ReactElement {
   const { t } = p;
+  const layers = svgLayers(t, p.gl);
   const mark = t.mark === null ? null : <g data-mark={t.mark}><Highlight mark={t.mark} /></g>;
   const glow = t.ready ? <g data-ready="true"><ReadyGlow /></g> : null;
   const centre = <circle r={1} fill="none" pointerEvents="none" data-centre={t.key} />;
@@ -168,7 +184,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
   if (t.fog || t.tile === null) {
     return (
       <g data-hex={t.key} data-fog="true" transform={at}>
-        <TileBase ground="fog" />
+        {layers.base ? <TileBase ground="fog" /> : null}
         {glow}
         {mark}
         {centre}
@@ -178,9 +194,9 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
   const ownerFaction = t.owner === null ? undefined : p.factions[t.owner];
   const body = (
     <>
-      <TileBase ground={groundFor(t.tile, t.city !== null)} />
-      {t.tile.road && t.city === null ? <Road links={t.roadLinks} /> : null}
-      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} />}
+      {layers.base ? <TileBase ground={groundFor(t.tile, t.city !== null)} /> : null}
+      {layers.road && t.tile.road && t.city === null ? <Road links={t.roadLinks} /> : null}
+      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} layers={layers} />}
     </>
   );
   return (
@@ -237,7 +253,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[] }): ReactE
 // A tile or a unit is drawn again only when what it shows has changed. The scene is rebuilt from a fresh view after
 // every action, so its objects are always new: they are compared by value. Each draw of a whole board is thousands
 // of svg nodes, and on a phone redrawing them all after every action held the screen still for over 100 ms.
-const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && sameData(a.factions, b.factions) && sameData(a.t, b.t));
+const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && sameData(a.factions, b.factions) && sameData(a.t, b.t));
 const UnitView = memo(UnitViewOf, (a, b) => sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
@@ -277,9 +293,14 @@ export function Board(p: BoardProps): ReactElement {
     latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null };
   });
 
+  // The 3D terrain, when on and loaded: it is aimed and drawn in the same frame the svg camera moves.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const terrain = useRef<Terrain3d | null>(null);
   const frame = useRef(0);
   const write = useCallback((): void => {
-    if (cam.current !== null) camRef.current?.setAttribute('transform', cameraTransform(cam.current, vp.current));
+    if (cam.current === null) return;
+    camRef.current?.setAttribute('transform', cameraTransform(cam.current, vp.current));
+    terrain.current?.draw(cam.current, vp.current);
   }, []);
   const schedule = useCallback((): void => {
     if (frame.current !== 0) return;
@@ -383,6 +404,71 @@ export function Board(p: BoardProps): ReactElement {
     schedule();
   });
 
+  // The 3D terrain. three.js is only downloaded once the option is on (a dynamic import, its own chunk), and the
+  // svg keeps drawing the ground until the terrain has drawn its first frame. A failure (no WebGL 2, the chunk
+  // cannot load, the context is lost) falls back to the all-SVG board and tells the owner, who turns the option off.
+  const glWanted = p.terrain3d === true;
+  const [glReady, setGlReady] = useState(false);
+  const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius) : null), [glWanted, p.items, p.radius]);
+  const glLatest = useRef(glData);
+  const failRef = useRef(p.onTerrain3dFail);
+  useLayoutEffect(() => {
+    glLatest.current = glData;
+    failRef.current = p.onTerrain3dFail;
+  });
+  useEffect(() => {
+    if (!glWanted) return undefined;
+    let gone = false;
+    const fail = (): void => {
+      if (gone) return;
+      terrain.current?.dispose();
+      terrain.current = null;
+      setGlReady(false);
+      failRef.current?.();
+    };
+    if (!webgl2Available()) {
+      fail();
+      return undefined;
+    }
+    import('../terrain3d/terrain3d').then((m) => {
+      const canvas = canvasRef.current;
+      if (gone || canvas === null) return;
+      const t = m.createTerrain3d(canvas, fail);
+      if (t === null) { fail(); return; }
+      const d = glLatest.current;
+      if (d !== null) {
+        t.setMap(d.map);
+        t.setVeil(d.veiled);
+      }
+      terrain.current = t;
+      shownGl.current = d === null ? null : { key: d.key, veilKey: d.veilKey };
+      write();
+      setGlReady(true);
+    }, fail);
+    return () => {
+      gone = true;
+      terrain.current?.dispose();
+      terrain.current = null;
+      setGlReady(false);
+    };
+  }, [glWanted, write]);
+  // A new map (a road, a harvest, a building, fog lifting) rebuilds the tiles that changed; a new veil only repaints.
+  const shownGl = useRef<{ key: string; veilKey: string } | null>(null);
+  const glKey = glData?.key ?? '';
+  const glVeilKey = glData?.veilKey ?? '';
+  useEffect(() => {
+    const t = terrain.current;
+    const d = glLatest.current;
+    if (!glReady || t === null || d === null) return;
+    const was = shownGl.current;
+    if (was?.key !== d.key) t.setMap(d.map);
+    if (was?.veilKey !== d.veilKey) t.setVeil(d.veiled);
+    if (was?.key === d.key && was.veilKey === d.veilKey) return;
+    shownGl.current = { key: d.key, veilKey: d.veilKey };
+    schedule();
+  }, [glReady, glKey, glVeilKey, schedule]);
+  const gl = glWanted && glReady;
+
   // Units slide. A unit that has just moved is drawn last, on top of everything, while it slides: a
   // unit moving toward the back row would otherwise pass under the tiles in front of it. Once it has
   // arrived it goes back to its place in the draw order, behind whatever stands on the tile in front.
@@ -420,7 +506,7 @@ export function Board(p: BoardProps): ReactElement {
   const drawn = useMemo(() => {
     const view = (it: SceneItem): ReactElement =>
       it.kind === 'tile' ? (
-        <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} />
+        <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} />
       ) : (
         <UnitView key={`u${it.unit.id}`} u={it} factions={factions} />
       );
@@ -430,15 +516,25 @@ export function Board(p: BoardProps): ReactElement {
       return was !== undefined && was !== it.unit.pos;
     };
     return [...items.filter((it) => !sliding(it)).map(view), ...items.filter(sliding).map(view)];
-  }, [items, factions, viewer, settled]);
+  }, [items, factions, viewer, settled, gl]);
 
-  return (
-    <svg ref={svgRef} className="board" width="100%" height="100%" style={{ touchAction: 'none' }} data-testid="board">
+  const board = (
+    <svg
+      ref={svgRef} className="board" width="100%" height="100%" data-testid="board" data-terrain3d={gl ? 'on' : undefined}
+      style={glWanted ? { touchAction: 'none', position: 'relative' } : { touchAction: 'none' }}
+    >
       {/* The camera ref holds the live transform; a render writes the same value back. */}
       <g ref={camRef} data-camera="true" transform={cameraTransform(cam.current, vp.current)}>
         {drawn}
         {p.children}
       </g>
     </svg>
+  );
+  if (!glWanted) return board;
+  return (
+    <>
+      <canvas ref={canvasRef} className="board-terrain" data-testid="board-terrain" aria-hidden="true" />
+      {board}
+    </>
   );
 }

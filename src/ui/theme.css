@@ -599,6 +599,8 @@ input:focus { border-color: var(--blue); }
 
 /* The board: one svg filling its container; gestures are ours, never the page's. */
 .board { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+/* The 3D terrain (optional, terrain3d/): a canvas under the board's svg, the same size; taps go through the svg. */
+.board-terrain { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
 /* A unit's slide from tile to tile is played by Board.tsx on the unit's node, and skipped when less motion is asked for. */
 
 /* The veil (art/tiles.tsx): a veiled tile's art drawn again as one dark silhouette. Every shape in it takes

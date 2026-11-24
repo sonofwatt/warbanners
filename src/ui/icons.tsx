@@ -81,6 +81,16 @@ export function SpeakerIcon({ on }: { on: boolean }): ReactElement {
   );
 }
 
+/** A peak in front of a lower one: the 3D terrain option. */
+export function TerrainIcon(): ReactElement {
+  return (
+    <Svg>
+      <path d="M2.6 19.6l6.2-9.4 3.4 4.6 3.6-6.6 5.6 11.4z" fill="currentColor" />
+      <path d="M15.8 8.2l1.7 3.5-1.7-1-1.6 1z" fill={`var(--icon-cut, ${PAPER})`} />
+    </Svg>
+  );
+}
+
 export function HomeIcon(): ReactElement {
   return (
     <Svg>
