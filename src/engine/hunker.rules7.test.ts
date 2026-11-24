@@ -4,11 +4,12 @@ import { CONFIG } from './data/config';
 import { unitById } from './state';
 import { addCity, addUnit, blankMatch, must } from './testkit';
 
-// CONFIG.hunker.healAtTurnEnd off replays rules 7: a hunkered unit heals at the start of its owner's next turn, by
-// where it stands then. This file is alone because vi.mock binds a whole file.
+// CONFIG.hunker.healAtTurnEnd and drinkKeepsHunker off replay rules 7: a hunkered unit heals at the start of its
+// owner's next turn, by where it stands then, and a drink counts as acting. This file is alone because vi.mock binds a
+// whole file.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
-  return { CONFIG: { ...m.CONFIG, hunker: { ...m.CONFIG.hunker, healAtTurnEnd: false } } };
+  return { CONFIG: { ...m.CONFIG, hunker: { ...m.CONFIG.hunker, healAtTurnEnd: false, drinkKeepsHunker: false } } };
 });
 
 const end = { type: 'endTurn' } as const;
@@ -23,4 +24,14 @@ test('with healAtTurnEnd off, the hunker heal waits for the start of the next tu
   expect(r.events.some((e) => e.type === 'restHealed')).toBe(false);
   const next = must(applyAction(r.state, end));
   expect(unitById(next, u.id)!.hp).toBe(3 + CONFIG.restHeal.neutral + CONFIG.hunker.restBonus);
+});
+
+test('with drinkKeepsHunker off, a drink blocks a hunker this turn and ends one', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 0); addCity(s, 1, 3, 0);
+  const u = addUnit(s, 'warrior', 0, -1, 0, { item: 'draught' });
+  const drunk = must(applyAction(s, { type: 'useItem', unit: u.id }));
+  const r = applyAction(drunk, { type: 'hunker', unit: u.id });
+  expect(r.ok).toBe(false); if (!r.ok) expect(r.reason).toBe('unit already acted this turn');
+  const dug = addUnit(s, 'warrior', 0, -2, 0, { item: 'draught', hunkered: true });
+  expect(unitById(must(applyAction(s, { type: 'useItem', unit: dug.id })), dug.id)!.hunkered).toBe(false);
 });

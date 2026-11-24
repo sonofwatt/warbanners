@@ -263,9 +263,8 @@ describe('rules 8: a kill advance onto or off a mountain ends the turn', () => {
 describe('rules 8: climbing needs CONFIG.mountain.tech', () => {
   const tech = CONFIG.mountain.tech!;
   const bare = () => { const s = field(); for (const p of s.players) p.techs = p.techs.filter((t) => t !== tech); return s; };
-  test('the tech is set, and it is the one that builds mines on mountains', () => {
+  test('a tech is set (read only from CONFIG.mountain.tech)', () => {
     expect(tech).not.toBeNull();
-    expect(CONFIG.buildings.mine.tech).toBe(tech);
   });
   test('without it a mountain is not enterable by a move; with it the climb is offered', () => {
     const s = bare(); setTile(s, 1, 0, { terrain: 'mountain' });

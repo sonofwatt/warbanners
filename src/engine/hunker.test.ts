@@ -31,7 +31,7 @@ describe('hunker: who may', () => {
     expect(unitById(r.state, u.id)).toMatchObject({ hunkered: true, mp: 0, attacks: 0, moved: false, acted: false });
     expect(legalActions(r.state).filter((a) => 'unit' in a && a.unit === u.id)).toEqual([]);
   });
-  test('refused after moving, attacking, using an ability, drinking, when fresh, already hunkered, or for a siege unit', () => {
+  test('refused after moving, attacking or using an ability, when fresh, already hunkered, or for a siege unit; a drink is fine (rules 8)', () => {
     const s = field();
     const moved = addUnit(s, 'warrior', 0, -1, 0, { moved: true });
     const acted = addUnit(s, 'warrior', 0, -1, 1, { acted: true });
@@ -43,14 +43,14 @@ describe('hunker: who may', () => {
     const why = (id: number): string => { const r = applyAction(s, hunker(id)); return r.ok ? 'ok' : r.reason; };
     expect(why(moved.id)).toBe('unit already acted this turn');
     expect(why(acted.id)).toBe('unit already acted this turn');
-    expect(why(drank.id)).toBe('unit already acted this turn');
+    expect(why(drank.id)).toBe('ok');                                   // rules 8: CONFIG.hunker.drinkKeepsHunker
     expect(why(fresh.id)).toBe('unit is too new');
     expect(why(dug.id)).toBe('already hunkered');
     expect(why(cat.id)).toBe('siege engines cannot hunker');
     expect(why(theirs.id)).toBe('not your unit');
     expect(why(999)).toBe('no such unit');
     const listed = legalActions(s).filter((a) => a.type === 'hunker');
-    expect(listed).toEqual([]);
+    expect(listed).toEqual([hunker(drank.id)]);
   });
   test('the flag is in the state hash and in both players\' views', () => {
     const s = field();
@@ -273,5 +273,28 @@ describe('hunker: healing at the end of the turn (rules 8)', () => {
     const t = must(applyAction(s, end));
     expect(unitById(t, u.id)!.hp).toBe(3);
     expect(unitById(must(applyAction(t, end)), u.id)!.hp).toBe(3 + CONFIG.restHeal.neutral);
+  });
+});
+
+// rules 8: drinking a draught neither blocks a hunker nor ends one (CONFIG.hunker.drinkKeepsHunker).
+describe('hunker: a draught (rules 8)', () => {
+  test('a unit that drank this turn may still hunker', () => {
+    expect(CONFIG.hunker.drinkKeepsHunker).toBe(true);
+    const s = field();
+    const u = addUnit(s, 'warrior', 0, -1, 0, { item: 'draught' });
+    const drunk = must(applyAction(s, { type: 'useItem', unit: u.id }));
+    expect(legalActions(drunk)).toContainEqual(hunker(u.id));
+    expect(unitById(must(applyAction(drunk, hunker(u.id))), u.id)!.hunkered).toBe(true);
+  });
+  test('drinking while hunkered keeps the hunker; attacking after still ends it', () => {
+    const s = field();
+    const u = addUnit(s, 'warrior', 0, 2, 0, { item: 'draught', hunkered: true });
+    addUnit(s, 'warrior', 1, 3, -1);
+    const r = applyAction(s, { type: 'useItem', unit: u.id });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.events.some((e) => e.type === 'hunkerEnded')).toBe(false);
+    expect(unitById(r.state, u.id)).toMatchObject({ hunkered: true, item: null });
+    const a = applyAction(r.state, { type: 'attack', unit: u.id, target: '3,-1' });
+    expect(a.ok && a.events[0]).toEqual({ type: 'hunkerEnded', unit: u.id });
   });
 });

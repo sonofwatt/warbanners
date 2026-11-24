@@ -49,7 +49,9 @@ tables, never inline. No em or en dashes anywhere (project CLAUDE.md).
   out before applying any" pattern `passTurn` uses. It counts as a rest for deeds as today (a heal that adds health,
   never a fresh unit's). Use the existing heal event, or the smallest new one the UI needs to show the number.
 - Hunker stays allowed only for a unit that has done nothing yet this turn (today's `hunkerRefusal`: not moved, not
-  acted, not drunk). Keep it exactly so.
+  acted, not drunk). Keep it exactly so. Superseded by David during the build: drinking a draught no longer blocks
+  hunker (a unit may hunker if it has not moved and not attacked or used an ability this turn; drinking first is
+  fine), and drinking while hunkered no longer ends the hunker. The rest of the hunker rules stay as written.
 - Hunker needs a `CONFIG.hunker` switch for the timing (for example `healAtTurnEnd: true`) so the rules 7 provenance
   playouts still replay with it off.
 - The AI: wherever it forecasts a hunkered unit's health for the enemy's coming turn (danger, garrison choice), it

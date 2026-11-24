@@ -67,8 +67,10 @@ export function applyAction(state: MatchState, action: Action): Result {
     const actor = draft.current;
     // rules 7: any action of a hunkered unit's own (move, attack, ability, capture, claim, drink, camp training) ends
     // its hunker before the action is worked out, so it has no hunker defence against a counter. A refusal drops the draft.
+    // Since rules 8 a drink does not (CONFIG.hunker.drinkKeepsHunker).
     const own = (copy as { unit?: unknown }).unit;
-    if (type !== 'hunker' && typeof own === 'number') {
+    const keeps = type === 'hunker' || (type === 'useItem' && CONFIG.hunker.drinkKeepsHunker);
+    if (!keeps && typeof own === 'number') {
       const u = draft.units.find((x) => x.id === own);
       if (u !== undefined && u.owner === actor) endHunker(u, events);
     }

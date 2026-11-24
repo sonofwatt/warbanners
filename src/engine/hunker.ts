@@ -4,8 +4,9 @@ import { hasTrait, unitById } from './state';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 7, Hunker: why the current player's unit cannot hunker now, or null when it can. The reasons are the handler's.
-// A unit hunkers only when it has done nothing yet this turn (no move, attack, ability, capture, claim or drink), was
-// not trained this turn, is not hunkered already, and is no siege engine.
+// A unit hunkers only when it has done nothing yet this turn (no move, attack, ability, capture or claim; since rules 8
+// a drink is fine, CONFIG.hunker.drinkKeepsHunker), was not trained this turn, is not hunkered already, and is no
+// siege engine.
 export function hunkerRefusal(s: MatchState, unitId: unknown): string | null {
   if (!CONFIG.hunker.on) return 'unknown action';
   if (typeof unitId !== 'number') return 'bad hunker';
@@ -15,7 +16,7 @@ export function hunkerRefusal(s: MatchState, unitId: unknown): string | null {
   if (u.fresh) return 'unit is too new';
   if (u.hunkered) return 'already hunkered';
   if (hasTrait(u, 'siege')) return 'siege engines cannot hunker';
-  if (u.moved || u.acted || drankThisTurn(s, u)) return 'unit already acted this turn';
+  if (u.moved || u.acted || (!CONFIG.hunker.drinkKeepsHunker && drankThisTurn(s, u))) return 'unit already acted this turn';
   return null;
 }
 

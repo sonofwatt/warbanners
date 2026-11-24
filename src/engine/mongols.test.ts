@@ -245,7 +245,7 @@ describe('rules 8 Mongol riding', () => {
     expect(reachable(s, f.id)['-2,0']).toBe(f.mp - CONFIG.roadCost);           // an old road still works
   });
   test('the mountain rule still wins over the relay cost', () => {
-    const s = home(); give(s, 0, CONFIG.mountain.tech ?? 'bronze'); setTile(s, 1, 0, { terrain: 'mountain' });
+    const s = home(); give(s, 0, CONFIG.mountain.tech!); setTile(s, 1, 0, { terrain: 'mountain' });
     const moved = addUnit(s, 'horseman', 0, -1, 0, { moved: true, mp: 3 });
     expect(reachable(s, moved.id)['1,0']).toBeUndefined();
     const h = addUnit(s, 'horseman', 0, 0, 1);

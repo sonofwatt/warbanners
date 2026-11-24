@@ -56,7 +56,9 @@ export const CONFIG = deepFreeze({
   // action; only the provenance tests turn it off.
   // rules 8, healAtTurnEnd: a unit hunkered when its owner ends the turn heals then (restHealAt, as it stands at that
   // moment) and not at the start of that owner's next turn. Off replays rules 7 (the heal waits for the next turn).
-  hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5, healAtTurnEnd: true },
+  // rules 8, drinkKeepsHunker: drinking a draught neither stops a unit from hunkering this turn nor ends its hunker.
+  // Off replays rules 7 (a drink counted as acting for both).
+  hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5, healAtTurnEnd: true, drinkKeepsHunker: true },
   // rules 7, phalanx brace: a phalanx unit with at least `mates` friendly phalanx units beside it is braced. Against a
   // chain attacker it has +def defence (before cover), and it costs the momentum bracedPrice in place of its own price.
   brace: { mates: 2, def: 2 },
@@ -121,7 +123,7 @@ export const CONFIG = deepFreeze({
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
-  hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number; healAtTurnEnd: boolean };
+  hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number; healAtTurnEnd: boolean; drinkKeepsHunker: boolean };
   brace: { mates: number; def: number };
   momentum: { start: Partial<Record<UnitTypeId, number>>; price: Record<UnitTypeId, number>; bracedPrice: number };
   treasure: {

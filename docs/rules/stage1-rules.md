@@ -307,13 +307,13 @@ as an attack would):
 
 Hunker (since rules 7): an action, like an ability but for any unit except one with
 the `siege` trait (the Catapult never hunkers). A unit may hunker only if it has not
-moved, attacked, used an ability, captured, claimed a treasure or drunk a draught
-this turn, was not trained this turn, and is not hunkered already. Hunkering uses up
+moved, attacked, used an ability, captured or claimed a treasure this turn (since
+rules 8 drinking a draught first is fine; rules 7 counted a drink too), was not trained this turn, and is not hunkered already. Hunkering uses up
 its movement and attacks for the turn, but it is not doing something for resting:
 a unit that only hunkered still rests. A hunkered unit stays hunkered over later
 turns until it takes an action of its own (moves, attacks, uses an ability,
-captures, claims a treasure, drinks a draught, or a Camp trains), or a lure pulls it
-off its tile. Being attacked, striking back, being healed, taunted or blinded do not
+captures, claims a treasure, or a Camp trains; a drink ended it in rules 7, not
+since rules 8), or a lure pulls it off its tile. Being attacked, striking back, being healed, taunted or blinded do not
 end it. While hunkered:
 
 - When it is attacked it has +1 defence, added before cover (`(def + 1) * cover`).
@@ -480,6 +480,7 @@ This list and the one above are the file's changelog.
   territory; foot units pay normal costs. The extra half-point of riding by
   territory is gone, and Mongols build no roads (section 13).
 - A hunkered unit heals at the end of its owner's turn, not at the start of the
-  next (section 11).
+  next (section 11). Drinking a draught neither stops a unit from hunkering nor
+  ends its hunker (`CONFIG.hunker.drinkKeepsHunker`).
 - Climbing must be researched: a unit steps onto a mountain only if its owner knows
   `bronze`; stepping off needs nothing (sections 2, 7 and 9).
