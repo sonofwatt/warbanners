@@ -319,8 +319,8 @@ test('a map-revealed treasure becomes an objective', () => {
 test('rules 8: a blockade counts as the gold it cuts, gained on an enemy city and lost on an own one', () => {
   const s = blankMatch(); const own = addCity(s, 0, 0, 3); const theirs = addCity(s, 1, 0, -3);
   for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
-  addUnit(s, 'warrior', 0, 1, -3); addUnit(s, 'warrior', 0, -1, -2);   // beside the enemy city
-  addUnit(s, 'warrior', 1, 1, 3); addUnit(s, 'warrior', 1, -1, 3);     // beside the own city
+  addUnit(s, 'warrior', 0, 1, -3); addUnit(s, 'warrior', 0, -1, -2); addUnit(s, 'warrior', 0, 1, -4);   // beside the enemy city
+  addUnit(s, 'warrior', 1, 1, 3); addUnit(s, 'warrior', 1, -1, 3); addUnit(s, 'warrior', 1, 1, 2);       // beside the own city
   const ctx = makeCtx(s, 0, 1);
   const before = valueOf(s, ctx);
   theirs.incomeBonus = 4;                           // 5 gold: the blockade cuts 2, one more than at 1 gold (cut 0)

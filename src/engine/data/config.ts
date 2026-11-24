@@ -118,11 +118,14 @@ export const CONFIG = deepFreeze({
     granary: { cost: 7, growth: 3, on: 'field', upgrades: 'farm', income: 0 },
   },
   walls: { cost: 6 }, road: { cost: 1 },
-  // rules 8, blockade: a city with at least minEnemies enemy units on the tiles next to it (seen or not, never its own
-  // tile) when its owner's turn starts loses cut of that turn's income, rounded down, and keeps at least floor gold.
+  // rules 8, blockade: a city with enemy units on at least minTiles of the tiles next to it (seen or not, never its own
+  // tile; minTiles 3 is David's, not a tuning lever) when its owner's turn starts loses cut of that turn's income,
+  // rounded down.
   // A walled city loses cutWalls instead, and a city of a faction with blockadeStores whose owner holds the tree's
-  // walls tech loses cutSpartanTech (the lowest rate that applies). Off replays rules 7; only the provenance tests turn it off.
-  blockade: { on: true, minEnemies: 2, cut: 0.5, cutWalls: 0.25, cutSpartanTech: 0.15, floor: 1 },
+  // walls tech loses cutSpartanTech (the lowest rate that applies). Whatever the rate, a blockade costs at least minCut
+  // gold (David's, fixed like minTiles), but never takes the city below floor. Off replays rules 7; only the
+  // provenance tests turn it off.
+  blockade: { on: true, minTiles: 3, cut: 0.5, cutWalls: 0.25, cutSpartanTech: 0.15, minCut: 1, floor: 1 },
   // Stage 2 (docs/rules/stage2-rules.md). Thresholds tuned by simulated matches in plan 5 Task 8
   // (docs/superpowers/plans/2026-11-20-plan-5-tuning-log.md); the trait sizes are the first draft, kept.
   heroes: {
@@ -160,7 +163,7 @@ export const CONFIG = deepFreeze({
   harvest: Record<Exclude<Resource, 'ore'>, { cost: number; growth: number }>;
   buildings: Record<BuildingId, { cost: number; growth: number; on: Terrain; upgrades: BuildingId | null; income: number }>;
   walls: { cost: number }; road: { cost: number };
-  blockade: { on: boolean; minEnemies: number; cut: number; cutWalls: number; cutSpartanTech: number; floor: number };
+  blockade: { on: boolean; minTiles: number; cut: number; cutWalls: number; cutSpartanTech: number; minCut: number; floor: number };
   heroes: {
     traitFor: Record<DeedId, HeroTraitId>; fightPerAttack: number; fightPerKill: number;
     thresholds: Record<DeedId, number>; agogeThresholds: Record<DeedId, number>; maxTraits: number; heroAt: number;

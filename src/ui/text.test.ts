@@ -97,7 +97,7 @@ test('rules 8 additions: whatsNew names the climbing tech, the Scout, Mongol rid
 });
 test('rules 8: whatsNew is three sentences and names the new tree and the blockade from the data', () => {
   expect(T.ui.whatsNew.match(/[.!?](\s|$)/g)).toHaveLength(3);
-  expect(T.ui.whatsNew).toContain(`${CONFIG.blockade.minEnemies} or more enemy units`);
+  expect(T.ui.whatsNew).toContain(`enemy units on ${CONFIG.blockade.minTiles} or more of the tiles around it`);
   expect(T.ui.whatsNew).toContain(`${Math.round(100 * CONFIG.blockade.cut)}% of its income for that turn`);
   expect(T.ui.whatsNew).toContain(techName('walls', 'spartans'));
   expect(T.ui.whatsNew).toContain(`${BRANCHES.length} branches`);

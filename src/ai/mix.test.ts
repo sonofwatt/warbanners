@@ -145,7 +145,7 @@ test('blockaded cities make the walls tech the one to buy', () => {
   give(s, 0, 'prospecting', 'foraging', 'defence');
   const open = ['walls', 'orchards', 'trapping', 'gathering'] as const;
   const calm = chooseTech(s, 0, PERSONAS.spartans, [...open]);
-  addUnit(s, 'warrior', 1, 1, 2); addUnit(s, 'warrior', 1, 0, 3);
+  addUnit(s, 'warrior', 1, 1, 2); addUnit(s, 'warrior', 1, 0, 3); addUnit(s, 'warrior', 1, -1, 2);
   expect(calm).not.toBe('walls');
   expect(chooseTech(s, 0, PERSONAS.spartans, [...open])).toBe('walls');
 });

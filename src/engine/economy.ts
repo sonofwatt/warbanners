@@ -16,7 +16,7 @@ export function cityIncome(_s: MatchState, c: City): number {
 }
 
 // rules 8: the blockade of a city as things stand: the enemy units on the tiles next to it (seen or not; never its own
-// tile), whether that is a blockade, and the gold it would cut from the city's income (0 when not blockaded).
+// tile; one unit to a tile, so this is the enemy-held tiles), whether that is a blockade, and the gold it would cut from the city's income (0 when not blockaded).
 export interface Blockade { enemies: number; blockaded: boolean; cut: number }
 
 export function blockadeOf(s: MatchState, c: City): Blockade {
@@ -28,13 +28,13 @@ export function blockadeOf(s: MatchState, c: City): Blockade {
     const u = unitAt(s, key(add(at, d)));
     if (u !== undefined && u.owner !== c.owner) enemies += 1;
   }
-  if (enemies < B.minEnemies) return { enemies, blockaded: false, cut: 0 };
+  if (enemies < B.minTiles) return { enemies, blockaded: false, cut: 0 };
   const owner = s.players[c.owner]!;
   let rate: number = B.cut;
   if (c.walls) rate = Math.min(rate, B.cutWalls);
   if (FACTIONS[owner.faction].blockadeStores && owner.techs.includes(TECH_TREE.walls)) rate = Math.min(rate, B.cutSpartanTech);
   const income = cityIncome(s, c);
-  return { enemies, blockaded: true, cut: Math.max(0, Math.min(Math.floor(income * rate), income - B.floor)) };
+  return { enemies, blockaded: true, cut: Math.max(0, Math.min(Math.max(B.minCut, Math.floor(income * rate)), income - B.floor)) };
 }
 
 // The gold every blockade of p's cities would cut from p's next income, as things stand.

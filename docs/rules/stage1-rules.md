@@ -81,11 +81,12 @@ option, and statuses on your units (taunted, blinded) wear off.
 
 - Income per city each turn: its level, +1 if it is a capital, +1 per "income"
   reward taken, +2 if it has a Market.
-- Blockade (since rules 8): a city with 2 or more enemy units on the tiles next to it
-  (seen or not; a unit on the city tile does not count) when its owner's turn starts
-  is blockaded. It loses half of that turn's income, rounded down, and always keeps at
-  least 1 gold. A walled city loses a quarter instead, and a Spartan city whose owner
-  knows `walls` (Deep stores for the Spartans) loses 15%, both rounded down. Growth,
+- Blockade (since rules 8): a city with enemy units on 3 or more of the 6 tiles next
+  to it (seen or not; a unit on the city tile does not count) when its owner's turn
+  starts is blockaded. It loses half of that turn's income, rounded down. A walled city loses a quarter
+  instead, and a Spartan city whose owner knows `walls` (Deep stores for the Spartans)
+  loses 15%, both rounded down. Whatever the share, a blockade costs at least 1 gold,
+  and the city always keeps at least 1 gold (so only a city earning 1 loses nothing). Growth,
   research, training and healing are not changed. (`CONFIG.blockade`.)
 - A city's territory is every tile within its radius (1, or 2 after the "borders"
   reward) that no other city already claims.
@@ -538,7 +539,7 @@ This list and the one above are the file's changelog.
   Lumber mill, Foundry, Granary) that replaces it for more gold and more growth. A
   Lumber camp may stand on a game forest. The Market moves to `granary`, the Walls to
   `walls`, roads and the Camp to `riding` (section 6).
-- Blockade: a city with 2 or more enemy units beside it as its owner's turn starts
-  loses half that turn's income, rounded down, keeping at least 1 gold; a quarter with
+- Blockade: a city with enemy units on 3 or more of the tiles beside it as its owner's turn starts
+  loses half that turn's income, rounded down, at least 1 gold and keeping at least 1; a quarter with
   Walls, 15% for Spartans who know Deep stores (the `walls` tech, under its Spartan
   name) (sections 6, 7 and 13).
