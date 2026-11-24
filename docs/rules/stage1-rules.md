@@ -457,7 +457,8 @@ Mongols
 - Mongols build no roads (since rules 8). They still research `riding`, which opens
   the Camp and leads to `chivalry`. Roads already on the map, built by anyone, work
   for every unit.
-- Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
+- Tribute: capturing a village pays 4 gold, capturing a city pays 4 + its level (3 and
+  3 + level before rules 8).
 - Mongol cities need `L+1` growth points to leave level `L`, as anyone's (`L+2`
   before rules 8, when Mongols could build roads to connect their cities).
 - Feigned retreat (lure): when a Mongol unit with `retreat` attacks, the player may
@@ -547,3 +548,5 @@ This list and the one above are the file's changelog.
   name) (sections 6, 7 and 13).
 - Mongol cities level at the common pace: `L+1` growth points to leave level `L`
   (was `L+2`), in place of the growth roads used to give them (sections 6 and 13).
+- Mongol tribute is 4 gold for a village and 4 + level for a city (was 3 and 3 + level)
+  (section 13).

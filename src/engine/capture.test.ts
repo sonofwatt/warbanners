@@ -66,13 +66,13 @@ describe('capture, elimination and resigning', () => {
     expect(r.ok && r.events).toEqual([{ type: 'eliminated', player: 0 }, { type: 'matchOver', winner: 1 }]);
   });
 
-  test('Mongol tribute: village 3, level 3 city 6', () => {
+  test('Mongol tribute: village 4, level 3 city 7 (rules 8; 3 and 6 before)', () => {
     const s = blankMatch({ factions: ['mongols', 'spartans'] }); setTile(s, 0, 0, { village: true });
     const u = addUnit(s, 'horseman', 0, 0, 0);
-    expect(must(applyAction(s, { type: 'capture', unit: u.id })).players[0]!.gold).toBe(23);
+    expect(must(applyAction(s, { type: 'capture', unit: u.id })).players[0]!.gold).toBe(24);
     const s2 = blankMatch({ factions: ['mongols', 'spartans'] }); addCity(s2, 1, 0, 0, { level: 3 }); addCity(s2, 1, 3, 0);
     const v = addUnit(s2, 'horseman', 0, 0, 0);
-    expect(must(applyAction(s2, { type: 'capture', unit: v.id })).players[0]!.gold).toBe(26);
+    expect(must(applyAction(s2, { type: 'capture', unit: v.id })).players[0]!.gold).toBe(27);
   });
 
   test('a village capture leaves the other player alone', () => {

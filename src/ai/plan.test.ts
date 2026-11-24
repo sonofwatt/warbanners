@@ -182,7 +182,7 @@ test('withGrowth levels cities through the engine, several levels at once, and l
   const g = withGrowth(s, [sp.id, mo.id], 6);
   const at = (id: number) => g.cities.find((c) => c.id === id)!;
   expect([at(sp.id).level, at(sp.id).growth, at(sp.id).pendingRewards]).toEqual([4, 1, [2, 3, 4]]);   // Spartans: 7 growth pays 1 + 2 + 3 and leaves 1 toward level 4
-  expect([at(mo.id).level, at(mo.id).growth, at(mo.id).pendingRewards]).toEqual([2, 3, [2]]);
+  expect([at(mo.id).level, at(mo.id).growth, at(mo.id).pendingRewards]).toEqual([3, 1, [2, 3]]);   // Mongols (rules 8, the common pace): 6 pays 2 + 3 and leaves 1
   expect(at(other.id)).toBe(s.cities.find((c) => c.id === other.id));
   expect(s).toEqual(before);
 });
