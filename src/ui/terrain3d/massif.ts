@@ -107,6 +107,8 @@ export function massif(style: MountainStyle, cx: number, cz: number, q: number, 
   const c = new Color();
   const u = new Vector3(), v = new Vector3(), nrm = new Vector3(), d = new Vector3();
   const snowLine = style === 'A' ? 27 : style === 'B' ? 27 : 21;
+  // C's strata dip one way across the whole crag: the direction is a fraction of a turn, picked per tile.
+  const dip = Math.min(0.99, hash2(q * 1.9 + 0.3, r * 0.7 - 0.2));
   for (const t of tris) {
     // Face up: wind each triangle so its normal points up (the camera never sees under the mountain).
     let [p0, p1, p2] = t;
@@ -119,15 +121,17 @@ export function massif(style: MountainStyle, cx: number, cz: number, q: number, 
     const mx = (p0.x + p1.x + p2.x) / 3, mz = (p0.z + p1.z + p2.z) / 3;
     const wob = 2.2 * (vnoise(mx * 0.2 + q, mz * 0.2 + r) - 0.5);
     let tone: string;
+    let rock = false;
     if (hm > snowLine + wob && nrm.y > 0.32) tone = nrm.x > 0.15 ? pal.snowShade : pal.snow;
     else if (hm < 3.2 + wob * 0.5) tone = pal.scree;
-    else if (nrm.y < 0.42) tone = pal.cliff;
-    else { const k = hash2(Math.round(mx * 0.3) + q, Math.round(mz * 0.3) + r); tone = k < 0.33 ? pal.light : k < 0.66 ? pal.mid : pal.dark; }
+    else if (nrm.y < 0.42) { tone = pal.cliff; rock = true; }
+    else { rock = true; const k = hash2(Math.round(mx * 0.3) + q, Math.round(mz * 0.3) + r); tone = k < 0.33 ? pal.light : k < 0.66 ? pal.mid : pal.dark; }
     c.set(tone);
     for (const p of [p0, p1, p2]) {
       pos.push(cx + p.x, p.y - 0.4, cz + p.z);
       col.push(c.r, c.g, c.b);
-      gl.push(-1);
+      // -1: rock with harder light bands. Below -2 (C's rock): strata too, the fraction giving the dip direction.
+      gl.push(style === 'C' && rock ? -2 - dip : -1);
       d.set(p.x, (p.y / Math.max(top, 1) - 0.5) * 8, p.z + 4).normalize().multiplyScalar(p.y > 2 ? 0.7 : 0.15);
       od.push(d.x, d.y, d.z);
     }

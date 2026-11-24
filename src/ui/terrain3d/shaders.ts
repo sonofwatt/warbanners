@@ -240,6 +240,17 @@ void main() {
     band = 0.5 * smoothstep(0.12, 0.16, d) + 0.5 * smoothstep(0.5, 0.54, d);
   }
   vec3 col = vColor * (0.95 + 0.1 * noise(vWorld.xz * 0.6 + vWorld.y * 0.3));
+  if (vGloss < -1.5) {
+    // Rock strata: near-level bands in a few tones of the rock, all dipping the same way across one crag, a thin
+    // darker seam at the foot of each band, a little wobble so the lines are not ruled.
+    float a = (-vGloss - 2.0) * 6.2832;
+    float s = (vWorld.y + 0.14 * dot(vWorld.xz, vec2(cos(a), sin(a))) + 0.5 * (noise(vWorld.xz * 0.12) - 0.5)) / 2.8;
+    float b = floor(s);
+    float k = fract(sin(b * 12.9898 + 4.1) * 43758.5453);
+    col *= mix(0.93, 1.06, k);
+    col = mix(col, col * vec3(1.05, 1.0, 0.93), step(0.66, fract(k * 7.3)) * 0.6);
+    col *= 1.0 - 0.1 * (1.0 - smoothstep(0.0, 0.1, fract(s)));
+  }
   vec3 lit = lightUp(col, band);
   // A hard glint on glossy parts (ore crystals, fruit): toon specular.
   vec3 view = normalize(vec3(0.0, 0.62, 0.785));
