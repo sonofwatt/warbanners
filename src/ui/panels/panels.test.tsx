@@ -234,6 +234,13 @@ test('rules 8: a ranged unit on a mountain shows its range with the bonus; off i
   expect(on('horseArcher', 'mountain')).toContain('3 (mountain)');
   expect(on('horseArcher', 'field')).not.toContain('(mountain)');
   expect(on('warrior', 'mountain')).not.toContain('(mountain)');
+  // a blinded Horse Archer on a mountain shows the blinded reach, as the engine uses it
+  const s = blankMatch({ factions: ['mongols', 'spartans'] });
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  setTile(s, 0, 0, { terrain: 'mountain' });
+  const blind = renderToStaticMarkup(<UnitPanel {...panelOf(s, addUnit(s, 'horseArcher', 0, 0, 0, { blinded: true }), true)} commands={[]} onCommand={noop} />);
+  expect(blind).not.toContain('(mountain)');
+  expect(statsOf(s, s.units.at(-1)!).range).toBe(CONFIG.blindedReach);
 });
 test('rules 8: the mountain tile says what it does; a field says nothing of it', () => {
   const peak = renderToStaticMarkup(<TilePanel terrain="mountain" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);

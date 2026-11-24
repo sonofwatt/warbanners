@@ -268,12 +268,12 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
 export interface UnitStats { atk: number; def: number; maxHp: number; move: number; sight: number; range: number }
 
 // A unit's own numbers with its traits and its faction's mounted bonus, and no neighbour bonuses (no inspire,
-// phalanx or myth touch). `move` is in tiles; maxMp stays in half-points. Sight and range count the mountain it stands
-// on (range: rules 8, for a ranged unit), not blindness.
+// phalanx or myth touch). `move` is in tiles; maxMp stays in half-points. Sight counts the mountain it stands on; range
+// is the engine's attack reach (rules 8): the mountain bonus for a ranged unit, or the blinded reach.
 export function statsOf(s: MatchState, u: Unit): UnitStats {
   const def = UNITS[u.type];
   return {
     atk: baseAttackOf(u), def: def.def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0),
-    maxHp: maxHpOf(u), move: maxMp(s, u) / 2, sight: unitSight(s, u), range: def.range + mountainReach(s, u),
+    maxHp: maxHpOf(u), move: maxMp(s, u) / 2, sight: unitSight(s, u), range: attackReach(s, u),
   };
 }
