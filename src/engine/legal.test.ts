@@ -20,8 +20,9 @@ test('every listed action is accepted and nothing else obvious is missing', () =
   expect(acts.some(a => a.type === 'move')).toBe(true);
   expect(acts.some(a => a.type === 'train')).toBe(false);                    // the starting unit stands on the capital
   const moved = must(applyAction(s, acts.find(a => a.type === 'move')!));
-  expect(legalActions(moved).some(a => a.type === 'train' && a.unitType === 'hoplite')).toBe(true);
-  expect(acts.some(a => a.type === 'research' && a.tech === 'shieldwork')).toBe(true);
+  expect(legalActions(moved).some(a => a.type === 'train' && a.unitType === 'warrior')).toBe(true);
+  expect(legalActions(moved).some(a => a.type === 'train' && a.unitType === 'hoplite')).toBe(false);   // rules 8: needs Spears
+  expect(acts.some(a => a.type === 'research' && a.tech === 'spears')).toBe(true);
   expect(acts.some(a => a.type === 'research' && a.tech === 'smithing')).toBe(false);
 });
 test('nothing is legal once the match is over', () => {
@@ -49,7 +50,7 @@ test('lure variants are listed only where a lure would be recorded', () => {
 });
 test('order: moves, attacks, abilities, capture, campTrain, then cities, tiles, research, endTurn, resign', () => {
   const s = blankMatch({ factions: ['mongols', 'spartans'] }); addCity(s, 0, -4, 0);
-  give(s, 0, 'roads', 'riding');
+  give(s, 0, 'riding');
   const camp = addUnit(s, 'camp', 0, 0, 0);
   s.players[0]!.explored = Object.keys(s.tiles).sort();
   const types = legalActions(s).map(a => a.type);
@@ -62,7 +63,7 @@ test('order: moves, attacks, abilities, capture, campTrain, then cities, tiles, 
   expect(camp.id).toBe(0);
 });
 test('order: a Spartan road comes after training and before research', () => {
-  const s = blankMatch(); addCity(s, 0, -4, 0); give(s, 0, 'roads');
+  const s = blankMatch(); addCity(s, 0, -4, 0); give(s, 0, 'riding');
   s.players[0]!.explored = Object.keys(s.tiles).sort();
   const types = legalActions(s).map(a => a.type);
   const first = (t: string): number => types.indexOf(t as Action['type']);

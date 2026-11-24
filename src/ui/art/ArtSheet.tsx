@@ -245,6 +245,9 @@ export function ArtSheet(): ReactElement {
         <Cell label="cropland" ground="grass"><ResourceMark resource="cropland" /></Cell>
         <Cell label="game" ground="grass"><ResourceMark resource="game" /></Cell>
         <Cell label="ore" ground="rock"><ResourceMark resource="ore" /></Cell>
+        <Cell label="jewels" ground="rock"><ResourceMark resource="jewels" /></Cell>
+        <Cell label="fish" ground="water"><ResourceMark resource="fish" /></Cell>
+        <Cell label="fruit, harvested" ground="grass"><ResourceMark resource="orchard" harvested /></Cell>
         {/* Shared tiles are drawn by the board's own TileArt, so the sheet shows what a match shows. */}
         {[0, 1, 2].map((v) => (
           <Cell key={`g${v}`} label={`game in forest ${v}`} ground="grass"><TileArt k={VARIANT_KEYS[v]!} tile={tile('forest', { resource: 'game' })} /></Cell>
@@ -259,6 +262,13 @@ export function ArtSheet(): ReactElement {
         ))}
         <Cell label="mine" ground="rock"><BuildingMark building="mine" /></Cell>
         <Cell label="market" ground="grass"><BuildingMark building="market" /></Cell>
+        <Cell label="orchard" ground="grass"><BuildingMark building="orchard" /></Cell>
+        <Cell label="plantation" ground="grass"><BuildingMark building="plantation" /></Cell>
+        <Cell label="lumber mill in forest" ground="grass"><TileArt k="0,0" tile={tile('forest', { building: 'lumberMill' })} /></Cell>
+        <Cell label="foundry" ground="rock"><BuildingMark building="foundry" /></Cell>
+        <Cell label="granary" ground="grass"><BuildingMark building="granary" /></Cell>
+        <Cell label="fish on water" ground="water"><TileArt k="0,0" tile={tile('water', { resource: 'fish' })} /></Cell>
+        <Cell label="jewels on mountain" ground="rock"><TileArt k="0,0" tile={tile('mountain', { resource: 'jewels' })} /></Cell>
       </Section>
       <Section title="Roads">
         <Cell label="no links" ground="grass"><Road links={[]} /></Cell>

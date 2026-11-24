@@ -17,7 +17,7 @@ test('a tile has a top and two walls in its three colours', () => {
 });
 
 test('ground follows terrain, and a city tile is sand', () => {
-  const t = (terrain: Terrain): Tile => ({ terrain, resource: null, building: null, road: false, village: false, treasure: false, cityId: null });
+  const t = (terrain: Terrain): Tile => ({ terrain, resource: null, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null });
   expect(groundFor(t('field'), false)).toBe('grass');
   expect(groundFor(t('forest'), false)).toBe('grass');
   expect(groundFor(t('mountain'), false)).toBe('rock');

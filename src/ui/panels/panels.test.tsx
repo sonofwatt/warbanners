@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
-import { CONFIG, FACTIONS, UNITS, createMatch, isBraced, legalActions, statsOf, thresholdOf } from '../../engine';
-import type { DeedId, MatchState, Unit } from '../../engine';
+import { BRANCHES, CONFIG, FACTIONS, TECHS, UNITS, buildingTech, createMatch, isBraced, legalActions, statsOf, thresholdOf } from '../../engine';
+import type { DeedId, MatchState, TechId, Unit } from '../../engine';
 import { addCity, addUnit, blankMatch, setTile } from '../../engine/testkit';
 import type { DigestLine } from '../../app/digest';
 import { roundOf } from '../../app/record';
@@ -94,9 +94,21 @@ test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
   expect(html).toContain('Mountain'); expect(html).toContain('Ore');
 });
-test('the tech sheet lists all twelve techs and a research button on ready ones', () => {
+test('rules 8: the tile panel says a resource was harvested and can still be built on', () => {
+  const html = renderToStaticMarkup(<TilePanel terrain="field" resource="orchard" building={null} road={false} harvested commands={[]} onCommand={noop} />);
+  expect(html).toContain(`${T.resource.orchard} (${T.ui.harvestedTag})`); expect(html).toContain(T.ui.harvestedBlurb);
+  expect(html).toContain('data-harvested="true"');
+  const fresh = renderToStaticMarkup(<TilePanel terrain="mountain" resource="jewels" building={null} road={false} commands={[]} onCommand={noop} />);
+  expect(fresh).toContain(T.resource.jewels); expect(fresh).not.toContain(T.ui.harvestedTag); expect(fresh).not.toContain('data-harvested');
+});
+test('the tech sheet lists every tech of the tree in five branches and a research button on ready ones', () => {
   const html = renderToStaticMarkup(<TechSheet rows={techRows(open, ix)} onResearch={noop} onClose={noop} />);
-  for (const name of Object.values(T.tech)) expect(html).toContain(name);
+  for (const id of Object.keys(TECHS) as TechId[]) expect(html).toContain(`data-testid="tech-${id}"`);
+  for (const b of BRANCHES) expect(html).toContain(`data-testid="branch-${b}"`);
+  expect(html).not.toContain('data-testid="tech-bronze"');   // the rules 7 tree is not in play
+  // a branch: its column 1 tech, then a top row and a bottom row; Waters has only column 1 for now
+  expect(html).toMatch(/data-testid="branch-orchards".*tech-foraging.*class="rungs row top".*tech-defence.*tech-walls.*class="rungs row bottom".*tech-orchards.*tech-plantations/);
+  expect(html).toMatch(/data-testid="branch-waters".*tech-fishing.*branch-later/);
   expect(html).toContain('data-testid="research-foraging"'); expect(html).not.toContain('data-testid="research-farming"');
 });
 test('a command that waits only on a tech names it and stays tappable; one short of gold does not', () => {
@@ -107,7 +119,7 @@ test('a command that waits only on a tech names it and stays tappable; one short
   expect(field).toBeDefined();
   const cmds = tileCommands(field!, open, ix);
   const farm = cmds.find((c) => c.id === 'build-farm')!;
-  expect(farm.enabled).toBe(false); expect(farm.tech).toBe(CONFIG.buildings.farm.tech);
+  expect(farm.enabled).toBe(false); expect(farm.tech).toBe(buildingTech('farm'));
   const html = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={cmds} onCommand={noop} />);
   const button = html.match(/<button[^>]*data-testid="cmd-build-farm"[^>]*>/)![0];
   expect(button).not.toContain('disabled'); expect(button).toContain('needs-tech');

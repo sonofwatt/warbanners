@@ -1,5 +1,5 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, FACTIONS, UNITS, buildingTech, harvestTech, roadTech, unitTech, wallsTech } from '../engine';
+import { BRANCHES, CONFIG, FACTIONS, UNITS, buildingTech, harvestTech, roadTech, unitTech, wallsTech } from '../engine';
 import type {
   AbilityId, BranchId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
@@ -242,7 +242,8 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: `New: on a mountain, ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile. Climbing onto or off a mountain now uses up the whole turn, so no move crosses one${CONFIG.mountain.tech === null ? '' : `, and only a side that knows ${tech[CONFIG.mountain.tech]} may climb`}. Also: cities see only their own land, the ${unit.scout.name} sees ${tilesWord(UNITS.scout.sight)} but no longer steps into the fog, Mongol riders ride their own land like a road but lose the extra half tile and build no roads, and a hunkered unit heals at the end of its turn.`,
+  // rules 8 (0.6.0) in two sentences, its numbers and names from CONFIG and the tables
+  whatsNew: `New in rules 8: climbing onto or off a mountain takes a whole turn${CONFIG.mountain.tech === null ? '' : ` and needs ${tech[CONFIG.mountain.tech]}`}, and ranged units up there shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther; cities see only their own land, the ${unit.scout.name} sees ${tilesWord(UNITS.scout.sight)}, Mongol riders ride their own land like a road but build no roads, and a hunkered unit heals at the end of its turn. The tech tree has ${BRANCHES.length} branches now, each opening with a resource to gather (${resource.jewels.toLowerCase()} and ${resource.fish.toLowerCase()} are new) and splitting into a row of units and a row of land improvements you can upgrade.`,
   relayRiding: 'Rides Mongol land',
   relayRidingBlurb: 'Every step onto a tile of Mongol territory costs what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',

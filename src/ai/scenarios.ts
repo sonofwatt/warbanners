@@ -92,7 +92,7 @@ export function draughtFinish(): MatchState {
 // it; a Scout sees the riders. One step back takes the Hoplite out of reach.
 export function woundedHoplite(): MatchState {
   const s = base(0);
-  s.players[0]!.techs.push('bronze');
+  s.players[0]!.techs.push('spears');
   addUnit(s, 'hoplite', 0, 0, 1, { hp: 4 });
   addUnit(s, 'scout', 0, 0, -1);                       // beside both riders (was 1,0 when a Scout saw 1 tile in rules 7)
   addUnit(s, 'horseman', 1, 0, -2);
@@ -116,7 +116,7 @@ export function killOrChip(): MatchState {
 // A taunt turns its blow onto the Hoplite.
 export function pipersTaunt(): MatchState {
   const s = base(0);
-  s.players[0]!.techs.push('bronze', 'hunting');
+  s.players[0]!.techs.push('spears', 'archery');
   addUnit(s, 'piper', 0, 0, 1);
   addUnit(s, 'hoplite', 0, -1, 1);
   addUnit(s, 'archer', 0, 1, 1);

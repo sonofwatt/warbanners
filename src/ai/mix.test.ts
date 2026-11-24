@@ -15,8 +15,8 @@ function facing(enemy: UnitTypeId): MatchState {
   const s = blankMatch();
   addCity(s, 0, 0, 3);
   addCity(s, 1, 0, -3);
-  give(s, 0, 'bronze', 'shieldwork', 'smithing', 'hunting', 'forestry', 'engineering', 'riding', 'roads', 'chivalry');
-  give(s, 1, 'riding', 'hunting', 'bronze');
+  give(s, 0, 'prospecting', 'spears', 'smithing', 'foraging', 'defence', 'trapping', 'archery', 'siege', 'gathering', 'riding', 'chivalry');
+  give(s, 1, 'gathering', 'riding', 'trapping', 'archery', 'prospecting', 'spears');
   for (const [q, r] of [[-1, 1], [0, 1], [-1, 2]] as const) addUnit(s, 'hoplite', 0, q, r);   // two steps from the city
   addUnit(s, 'scout', 0, 1, -2);                        // beside three of them: since rules 7 a Scout sees 1 tile (was 2,0)
   for (const [q, r] of [[0, -1], [1, -1], [2, -2], [3, -2]] as const) addUnit(s, enemy, 1, q, r);
@@ -56,10 +56,10 @@ test('research follows the units wanted: Mongols facing archers go for chivalry,
   const s = blankMatch({ factions: ['spartans', 'mongols'] });
   addCity(s, 0, 0, 3);
   addCity(s, 1, 0, -3);
-  give(s, 1, 'riding', 'roads');
+  give(s, 1, 'gathering', 'riding');
   for (const [q, r] of [[-1, 0], [0, 0], [1, 0]] as const) addUnit(s, 'archer', 0, q, r);
   addUnit(s, 'horseArcher', 1, 0, -2);
-  const open = ['foraging', 'hunting', 'bronze', 'chivalry'] as const;
+  const open = ['foraging', 'trapping', 'prospecting', 'chivalry'] as const;
   expect(chooseTech(s, 1, PERSONAS.mongols, open)).toBe('chivalry');
 });
 

@@ -23,7 +23,7 @@ function moved(events: GameEvent[]): GameEvent[] {
 test('a Lumber camp and a Market each add 2 growth', () => {
   expect(CONFIG.buildings.lumberCamp.growth).toBe(2);
   expect(CONFIG.buildings.market.growth).toBe(2);
-  const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 5 }); give(s, 0, 'forestry', 'markets');
+  const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 5 }); give(s, 0, 'logging', 'granary');
   setTile(s, 1, 0, { terrain: 'forest' });
   const a = must(applyAction(s, { type: 'build', at: '1,0', building: 'lumberCamp' }));
   expect(cityById(a, c.id)).toMatchObject({ level: 5, growth: 2 });
@@ -44,7 +44,7 @@ test('a captured capital is an ordinary city for its captor: no capital income, 
   expect(moved(r.events)).toEqual([{ type: 'capitalMoved', player: 1, city: other.id }]);
   expect(r.state.cities.filter((c) => c.owner === 0 && c.capital).map((c) => c.id)).toEqual([mine.id]);
 
-  const t = r.state; give(t, 0, 'roads'); t.players[0]!.gold = 50;
+  const t = r.state; give(t, 0, 'riding'); t.players[0]!.gold = 50;
   const one = must(applyAction(t, { type: 'road', at: '-1,1' }));
   const two = applyAction(one, { type: 'road', at: '-2,2' });
   if (!two.ok) throw new Error(two.reason);
@@ -105,7 +105,7 @@ test('a city linked before the move stays linked and pays nothing again; an unli
   expect(cityById(r.state, linked.id)).toMatchObject({ linked: true, growth: 0 });
   expect(cityById(r.state, unlinked.id)!.linked).toBe(false);
   const theirTurn = must(applyAction(r.state, { type: 'endTurn' }));
-  give(theirTurn, 1, 'roads'); theirTurn.players[1]!.gold = 50;
+  give(theirTurn, 1, 'riding'); theirTurn.players[1]!.gold = 50;
   theirTurn.players[1]!.faction = 'spartans';                        // rules 8: Mongols build no roads
   const a = applyAction(theirTurn, { type: 'road', at: '2,1' });
   if (!a.ok) throw new Error(a.reason);

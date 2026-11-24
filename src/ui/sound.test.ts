@@ -33,7 +33,7 @@ test('one sound per action, the most important one', () => {
   expect(soundFor([{ type: 'moved', unit: 1, from: '0,0', to: '1,0' }], ALL)).toBe('move');
   expect(soundFor([{ type: 'attacked', unit: 1, target: 2, damage: 3, counter: 0 }, { type: 'died', unit: 2 }], ALL)).toBe('fall');
   expect(soundFor([{ type: 'died', unit: 2 }, { type: 'matchOver', winner: 0 }], ALL)).toBe('win');
-  expect(soundFor([{ type: 'researched', tech: 'bronze' }], hear([], TILES, 0))).toBe('research');
+  expect(soundFor([{ type: 'researched', tech: 'prospecting' }], hear([], TILES, 0))).toBe('research');
   expect(soundFor([{ type: 'captured', city: 0, by: 1 }, { type: 'died', unit: 2 }], ALL)).toBe('capture');
   expect(soundFor([{ type: 'splashed', target: 2, damage: 1 }, { type: 'moved', unit: 1, from: '0,0', to: '1,0' }], ALL)).toBe('hit');
   expect(soundFor([{ type: 'turnStarted', player: 1 }], ALL)).toBeNull();
@@ -87,7 +87,7 @@ test('a melee advance sounds like a move, but only for a unit the viewer can see
 
 test('new events have their own sounds', () => {
   expect(soundFor([{ type: 'trained', unit: 1, at: '0,0' }], ALL)).toBe('train');
-  expect(soundFor([{ type: 'researched', tech: 'bronze' }], hear([], TILES, 0))).toBe('research');
+  expect(soundFor([{ type: 'researched', tech: 'prospecting' }], hear([], TILES, 0))).toBe('research');
   expect(soundFor([{ type: 'treasure', at: '0,0', outcome: 'gold' } as never], ALL)).toBe('treasure');
   expect(soundFor([{ type: 'heroTrait', unit: 1, trait: 'fierce', hero: false }], ALL)).toBe('levelUp');
   expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], ALL)).toBe('chainCost');
@@ -105,7 +105,7 @@ test('the most rewarding event wins', () => {
     train: { type: 'trained', unit: 1, at: '0,0' },
     treasure: { type: 'treasure', at: '0,0', outcome: 'gold' },
     build: { type: 'built', at: '0,0', what: 'road' },
-    research: { type: 'researched', tech: 'bronze' },
+    research: { type: 'researched', tech: 'prospecting' },
     move: { type: 'moved', unit: 1, from: '0,0', to: '1,0' },
   } as const;
   const order = Object.keys(ev) as (keyof typeof ev)[];
@@ -253,7 +253,7 @@ describe('the sound tells only what the board would show', () => {
     expect(soundFor([cases[0]![1]], hear([], ['0,0']))).toBe('treasure');
   });
   test('an opponent research is never heard, the viewer own is', () => {
-    const r: GameEvent = { type: 'researched', tech: 'bronze' };
+    const r: GameEvent = { type: 'researched', tech: 'prospecting' };
     expect(soundFor([r], seeAll)).toBeNull();
     expect(soundFor([r], hear([], TILES, 0))).toBe('research');
   });

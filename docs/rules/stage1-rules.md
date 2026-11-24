@@ -23,7 +23,7 @@ If this file and the engine's data files disagree, the data files are wrong.
 |---|---|---|---|
 | Field | 2 | 1 | |
 | Forest | 4 | 1.25 | |
-| Mountain | all remaining, only as the first step of a unit that has not moved this turn; ends the unit's turn (rules 8). Since rules 8 only a player who has researched `bronze` (`CONFIG.mountain.tech`) may step onto one | 1.5 | A unit standing here sees 1 tile farther. A ranged unit here shoots 1 tile farther (section 10). Stepping off is also a first step only and ends the turn (section 9), and needs no tech |
+| Mountain | all remaining, only as the first step of a unit that has not moved this turn; ends the unit's turn (rules 8). Since rules 8 only a player who has researched `prospecting` (`CONFIG.mountain.tech`) may step onto one | 1.5 | A unit standing here sees 1 tile farther. A ranged unit here shoots 1 tile farther (section 10). Stepping off is also a first step only and ends the turn (section 9), and needs no tech |
 | Water | cannot enter | | Ships arrive in stage 4 |
 | Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
 | City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
@@ -41,8 +41,9 @@ centre `(0,0)` is always a plain field.
 1. Terrain for each tile of `H`, in `range` order, from `rngInt(100)`:
    under 50 field, under 72 forest, under 86 mountain, otherwise water.
 2. The capital tile is a field. Water next to a capital becomes field.
-3. Resource for each tile of `H` from `rngInt(100)`: field under 20 orchard, under 40
-   cropland; forest under 30 game; mountain under 40 ore; otherwise none.
+3. Resource for each tile of `H` from `rngInt(100)`: field under 20 orchard (fruit), under 40
+   cropland (wild grain); forest under 30 game; mountain under 40 ore, under 55 jewels (since
+   rules 8); water under 25 fish (since rules 8); otherwise none. The capital's tile has none.
 4. Villages: 3 in `H` (6 on the map). Candidates are field or forest tiles of `H` at
    least 3 from both capitals. Shuffle them, then take each one that is at least 3
    from every village already chosen and from every mirrored village. A village
@@ -57,7 +58,8 @@ centre `(0,0)` is always a plain field.
 ## 4. Start of a match
 
 - Each player: their capital (level 1, territory radius 1), one starting unit on
-  the capital tile, their faction's starting tech.
+  the capital tile, their faction's starting tech (since rules 8 a column 1 tech, which
+  trains no unit: see 7 and 13).
 - The first player starts with 10 gold and the second with 12 (both 10 before rules 7).
 - Each player has explored whatever their capital and starting unit can see.
 
@@ -114,57 +116,88 @@ A reward unit appears on the city tile, or if that is occupied on the first free
 enterable neighbour in direction order. If there is nowhere, the reward becomes
 +6 gold.
 
-Things you can do on a tile in your territory (one building per tile):
+Things you can do on a tile in your territory (one building per tile). Since rules 8 a
+harvest takes the one-off growth and marks the resource harvested, but the tile keeps its
+resource for building on; a building on an unharvested resource ends its harvest. Jewels
+and fish are harvested from the city like any other resource: no unit need stand there.
 
 | Action | Needs | Cost | Growth |
 |---|---|---|---|
-| Harvest orchard | tech `foraging` | 2 | +1, the orchard is used up |
-| Harvest game | tech `hunting` | 2 | +1, the game is used up |
-| Build Farm on cropland | tech `farming` | 5 | +2 |
-| Build Lumber camp on a forest tile with no resource | tech `forestry` | 4 (3 before rules 7) | +2 (+1 before rules 7) |
-| Build Mine on ore | tech `bronze` | 5 | +2 |
-| Build Market on a field with no resource, one per city | tech `markets` | 6 | +2 (+1 before rules 7), and +2 income |
-| Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
-| Road, on any field or forest tile that is yours or unclaimed (not Mongols, since rules 8) | tech `roads` | 1 | none |
+| Harvest fruit (orchard) | tech `foraging` | 2 | +1 |
+| Trap game | tech `trapping` | 2 | +1 |
+| Gather jewels (on a mountain) | tech `prospecting` | 2 | +1 |
+| Harvest wild grain (cropland) | tech `gathering` | 2 | +1 |
+| Catch fish (on water) | tech `fishing` | 2 | +1 |
+| Build Orchard on fruit, harvested or not | tech `orchards` | 5 | +2 |
+| Build Plantation on an Orchard, replacing it | tech `plantations` | 7 | +3 |
+| Build Lumber camp on a forest tile with no resource or with game | tech `logging` | 4 (3 before rules 7) | +2 (+1 before rules 7) |
+| Build Lumber mill on a Lumber camp, replacing it | tech `milling` | 6 | +3 |
+| Build Mine on ore | tech `mining` | 5 | +2 |
+| Build Foundry on a Mine, replacing it | tech `foundry` | 7 | +3 |
+| Build Farm on cropland, harvested or not | tech `farming` | 5 | +2 |
+| Build Granary on a Farm, replacing it | tech `granary` | 7 | +3 |
+| Build Market on a field with no resource, one per city | tech `granary` | 6 | +2 (+1 before rules 7), and +2 income |
+| Build Walls (the city itself, not Spartans) | tech `walls` | 6 | none |
+| Road, on any field or forest tile that is yours or unclaimed (not Mongols, since rules 8) | tech `riding` | 1 | none |
+
+Before rules 8 a harvest used the resource up, only fruit and game could be harvested,
+and the techs were the rules 7 ones (see 7).
 
 A tile with a city standing on it takes no harvest, no building and no road.
 A road can only be laid on a tile you have explored.
 
 ## 7. Tech
 
-Price: base + (number of cities you hold - 1) * tier. Base is 4, 6, 8 for tiers 1, 2, 3.
-A tech needs the one before it in its branch.
+Since rules 8 there are five branches. Each opens with one column 1 tech (a simple
+resource), which leads to two column 2 techs: the top one opens a unit, the bottom one
+a tile improvement. Each column 2 tech leads to one column 3 tech (top: a stronger unit,
+or the Walls; bottom: the upgrade of the column 2 improvement), which needs only its own
+column 2 tech.
+
+Price: base + (number of cities you hold - 1) * column. Base is 4, 6, 8 for columns 1,
+2, 3, so every tech in a column costs the same.
+
+| Branch | Column 1 | Column 2 top | Column 3 top | Column 2 bottom | Column 3 bottom |
+|---|---|---|---|---|---|
+| Orchards | `foraging`: harvest fruit | `defence`: Defender | `walls`: Walls (Mongols) | `orchards`: Orchard | `plantations`: Plantation |
+| Hunting | `trapping`: trap game | `archery`: Archer | `siege`: Catapult | `logging`: Lumber camp | `milling`: Lumber mill |
+| Mountains | `prospecting`: gather jewels, climbing mountains | `spears`: Spearman, Hoplite (Spartans) | `smithing`: Swordsman | `mining`: Mine | `foundry`: Foundry |
+| Plains | `gathering`: harvest wild grain | `riding`: Horseman, Horse Archer and the Camp (Mongols), roads (Spartans) | `chivalry`: Knight | `farming`: Farm | `granary`: Granary, Market |
+| Waters | `fishing`: catch fish | (later) | (later) | (later) | (later) |
+
+Rules 7 had four branches of three tiers, each tech needing the one before it (kept for
+replaying older matches, `CONFIG.techTree: 'rules7'`):
 
 | Branch | Tier 1 | Tier 2 | Tier 3 |
 |---|---|---|---|
 | Fields | `foraging`: harvest orchards | `farming`: Farm | `markets`: Market |
-| Riding | `riding`: Horseman, Horse Archer | `roads`: roads (Spartans), the Camp (Mongols) | `chivalry`: Knight |
+| Riding | `riding`: Horseman, Horse Archer | `roads`: roads, the Camp (Mongols) | `chivalry`: Knight |
 | Forest | `hunting`: harvest game, Archer | `forestry`: Lumber camp | `engineering`: Catapult |
-| Mountain | `bronze`: Mine, Spearman, Hoplite, climbing mountains (rules 8) | `shieldwork`: Defender, Walls | `smithing`: Swordsman |
+| Mountain | `bronze`: Mine, Spearman, Hoplite | `shieldwork`: Defender, Walls | `smithing`: Swordsman |
 
 ## 8. Units
 
 `Mv` is movement in tiles. Cost in gold. A dash in the cost column means the unit
 only comes from a city reward.
 
-| Unit | Faction | Atk | Def | Range | Mv | HP | Sight | Cost | Needs | Traits |
+| Unit | Faction | Atk | Def | Range | Mv | HP | Sight | Cost | Needs (rules 8 tech) | Traits |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Warrior | any | 4 | 3 | 1 | 1 | 10 | 1 | 2 | | |
-| Spearman | any | 4 | 4 | 1 | 1 | 10 | 1 | 3 | bronze | steadfast |
+| Spearman | any | 4 | 4 | 1 | 1 | 10 | 1 | 3 | spears | steadfast |
 | Swordsman | any | 5 | 4 | 1 | 1 | 15 | 1 | 5 | smithing | doubleStrike |
-| Defender | any | 2 | 9 | 1 | 1 | 20 | 1 | 3 | shieldwork | |
-| Archer | any | 4 | 2 | 2 | 1 | 10 | 2 | 3 | hunting | |
+| Defender | any | 2 | 9 | 1 | 1 | 20 | 1 | 3 | defence | |
+| Archer | any | 4 | 2 | 2 | 1 | 10 | 2 | 3 | archery | |
 | Horseman | any | 4 | 2 | 1 | 2 | 10 | 2 | 3 | riding | retreat, mounted |
 | Knight | any | 6 | 3 | 1 | 3 | 15 | 2 | 6 | chivalry | chain, mounted |
-| Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | engineering | splash, siege |
-| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
+| Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | siege | splash, siege |
+| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | spears | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
 | Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 2 | 2 | | hidden, noCityCapture |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
-| Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
+| Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | riding | camp |
 
 Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
 
@@ -190,7 +223,7 @@ The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section
   (Rules 3 to 5 let any unit end a move on one unexplored tile, and let a mounted
   Mongol keep moving after it.)
 - Mountains (since rules 8): a unit may step onto a mountain only if its owner has
-  researched `bronze` (`CONFIG.mountain.tech`; without it a mountain is closed to
+  researched `prospecting` (`CONFIG.mountain.tech`; without it a mountain is closed to
   that player's units, for moves and kill advances alike). Stepping off needs no
   tech. A step onto a mountain uses all the movement left and
   is allowed only as the first step of a unit that has not moved this turn (as
@@ -377,7 +410,8 @@ rounded up and without the extra 1: 2, 1 and 1.
 
 Spartans
 
-- Start with `bronze`.
+- Start with `prospecting` (`bronze` before rules 8). The starting Krypteia Scout is
+  placed as before, but Spearmen and Hoplites wait for `spears`.
 - A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
   from level `L` to `L+1`.
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
@@ -385,7 +419,8 @@ Spartans
 
 Mongols
 
-- Start with `riding`.
+- Start with `gathering` (`riding` before rules 8). The starting Horseman is placed as
+  before, but more riders wait for `riding`.
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
 - Riding by territory (rules 6 and 7; gone since rules 8, when the extra half-point is
   0). Mounted Mongol units had 1 extra half-point of
@@ -409,7 +444,7 @@ Mongols
   whether the move started inside it or is riding in. Mongol foot units pay the
   normal terrain costs there (or a road's, where a road is). The mountain rule
   (section 9) still comes first.
-- Mongols build no roads (since rules 8). They still research `roads`, which opens
+- Mongols build no roads (since rules 8). They still research `riding`, which opens
   the Camp and leads to `chivalry`. Roads already on the map, built by anyone, work
   for every unit.
 - Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
@@ -483,4 +518,15 @@ This list and the one above are the file's changelog.
   next (section 11). Drinking a draught neither stops a unit from hunkering nor
   ends its hunker (`CONFIG.hunker.drinkKeepsHunker`).
 - Climbing must be researched: a unit steps onto a mountain only if its owner knows
-  `bronze`; stepping off needs nothing (sections 2, 7 and 9).
+  `prospecting`; stepping off needs nothing (sections 2, 7 and 9).
+- The tech tree is new: five branches, each a column 1 resource tech that forks into a
+  unit row and an improvement row, one more tech each; every tech in a column costs the
+  same (section 7). Spartans start with `prospecting`, Mongols with `gathering`, so
+  neither trains a new unit kind before a column 2 tech (section 13).
+- A harvest keeps the resource on its tile, marked harvested, for building on; wild
+  grain can be harvested, and jewels (on mountains) and fish (on water) are new
+  resources (sections 3 and 6).
+- New improvements: the Orchard, and an upgrade for each improvement (Plantation,
+  Lumber mill, Foundry, Granary) that replaces it for more gold and more growth. A
+  Lumber camp may stand on a game forest. The Market moves to `granary`, the Walls to
+  `walls`, roads and the Camp to `riding` (section 6).

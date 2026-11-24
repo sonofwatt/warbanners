@@ -5,13 +5,13 @@ import { cityById } from './state';
 import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 
 // The replay switches for rules 6: capitalMoves off keeps a captured capital a capital, the old growth of 1 for a
-// Lumber camp and a Market, and the Lumber camp's old cost of 3. This file is alone because vi.mock binds a whole file.
+// Lumber camp and a Market, the Lumber camp's old cost of 3, and the rules 7 tech tree. This file is alone because vi.mock binds a whole file.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
-      ...m.CONFIG, capitalMoves: false, connectGrowth: 0,
+      ...m.CONFIG, capitalMoves: false, connectGrowth: 0, techTree: 'rules7',
       buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };
@@ -33,7 +33,7 @@ test('with capitalMoves off a captured capital keeps its flag and pays capital i
 });
 
 test('with the rules 6 numbers a Lumber camp and a Market each add 1 growth', () => {
-  const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 5 }); give(s, 0, 'forestry', 'markets');
+  const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 5 }); give(s, 0, 'forestry', 'markets');   // the rules 7 tree (techTree)
   setTile(s, 1, 0, { terrain: 'forest' });
   const a = must(applyAction(s, { type: 'build', at: '1,0', building: 'lumberCamp' }));
   const b = must(applyAction(a, { type: 'build', at: '0,1', building: 'market' }));

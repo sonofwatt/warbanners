@@ -11,6 +11,7 @@ import { reachable } from './movement';
 import { cityById, unitAt, unitById } from './state';
 import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import { campCity } from './training';
+import { roadTech, unitTech } from './tech';
 import { visibleTiles } from './vision';
 import { claimTerritory } from './state';
 import type { Action } from './types';
@@ -134,7 +135,7 @@ test('dust storm is refused on a tile with no visible enemy on or beside it', ()
   expect(abilityTargets(s, c.id, 'dustStorm')).not.toContain('2,-1');
 });
 test('the Camp trains beside itself on behalf of a city', () => {
-  const s = mongols(); give(s, 0, 'riding', 'roads'); const city = addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
+  const s = mongols(); give(s, 0, 'riding'); const city = addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
   expect(campCity(s, 0)!.id).toBe(city.id);
   const t = must(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '3,0' }));
   expect(unitAt(t, '3,0')).toMatchObject({ type: 'horseman', home: city.id, mp: 0, attacks: 0 });
@@ -155,7 +156,7 @@ test('campCity prefers the most free capacity, lowest id on a tie', () => {
   expect(campCity(s, 1)).toBeNull();
 });
 test('campTrain refuses hostile input and leaves the state untouched', () => {
-  const s = mongols(); give(s, 0, 'riding', 'roads'); addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
+  const s = mongols(); give(s, 0, 'riding'); addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
   const before = hashState(s);
   const bad: unknown[] = [
     { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: 'constructor' },
@@ -188,7 +189,7 @@ test('an attack asking for a lure that cannot apply is accepted with the lure ig
   expect(unitById(must(r), a.id)).toMatchObject({ attacks: 0, lure: null });
 });
 test('hasten, dustStorm and campTrain refuse hostile and off-map targets with the state untouched', () => {
-  const s = mongols(); give(s, 0, 'riding', 'roads'); addCity(s, 0, -3, 0);
+  const s = mongols(); give(s, 0, 'riding'); addCity(s, 0, -3, 0);
   const c = addUnit(s, 'skyCaller', 0, 0, 0); addUnit(s, 'horseman', 0, 1, 0); addUnit(s, 'warrior', 1, 2, 0);
   const camp = addUnit(s, 'camp', 0, -2, 2);
   const before = hashState(s);
@@ -204,7 +205,7 @@ test('hasten, dustStorm and campTrain refuse hostile and off-map targets with th
   expect(hashState(s)).toBe(before);
 });
 test('the Camp refuses to train onto water or onto an occupied neighbour', () => {
-  const s = mongols(); give(s, 0, 'riding', 'roads'); addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
+  const s = mongols(); give(s, 0, 'riding'); addCity(s, 0, -3, 0); const camp = addUnit(s, 'camp', 0, 2, 0);
   setTile(s, 3, 0, { terrain: 'water' }); addUnit(s, 'warrior', 0, 2, 1);
   const before = hashState(s);
   expect(applyAction(s, { type: 'campTrain', unit: camp.id, unitType: 'horseman', to: '3,0' }).ok).toBe(false);
@@ -256,18 +257,18 @@ describe('rules 8 Mongol riding', () => {
 // rules 8: Mongols build no roads; roads already on the map work for every unit.
 describe('rules 8 Mongol roads', () => {
   test('a Mongol road is refused and never listed; a Spartan still builds one', () => {
-    const s = mongols(); give(s, 0, 'roads'); s.players[0]!.gold = 50; addCity(s, 0, 0, 0); claimTerritory(s, s.cities[0]!);
+    const s = mongols(); give(s, 0, 'riding'); s.players[0]!.gold = 50; addCity(s, 0, 0, 0); claimTerritory(s, s.cities[0]!);
     const before = hashState(s);
     const r = applyAction(s, { type: 'road', at: '1,0' });
     expect(r.ok).toBe(false); if (!r.ok) expect(r.reason).toBe('your faction cannot build roads');
     expect(hashState(s)).toBe(before);
     expect(legalActions(s).some((a) => a.type === 'road')).toBe(false);
-    const sp = blankMatch(); give(sp, 0, 'roads'); sp.players[0]!.gold = 50; addCity(sp, 0, 0, 0); claimTerritory(sp, sp.cities[0]!);
+    const sp = blankMatch(); give(sp, 0, 'riding'); sp.players[0]!.gold = 50; addCity(sp, 0, 0, 0); claimTerritory(sp, sp.cities[0]!);
     expect(legalActions(sp).some((a) => a.type === 'road')).toBe(true);
     expect(applyAction(sp, { type: 'road', at: '1,0' }).ok).toBe(true);
   });
-  test('the roads tech is still in the Mongol tree and still unlocks chivalry', () => {
-    expect(TECHS.chivalry.requires).toBe('roads');
-    expect(UNITS.camp.tech).toBe('roads');
+  test('rules 8: the Camp and roads come with Riding, which leads to Chivalry', () => {
+    expect(TECHS.chivalry!.requires).toBe('riding');
+    expect(unitTech('camp')).toBe('riding'); expect(roadTech()).toBe('riding');
   });
 });

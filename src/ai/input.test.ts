@@ -12,7 +12,7 @@ test('the input does not change when only hidden things change', () => {
   addUnit(base, 'warrior', 0, 0, 2); addUnit(base, 'horseman', 1, 0, -2);
   for (const p of base.players) p.explored = [...visibleTiles(base, p.id)].sort();
   const other = structuredClone(base);
-  other.players[1]!.gold = 99; other.players[1]!.techs = ['riding', 'roads']; other.rng = 12345; other.seed = 777;
+  other.players[1]!.gold = 99; other.players[1]!.techs = ['gathering', 'riding']; other.rng = 12345; other.seed = 777;
   addUnit(other, 'archer', 1, 3, -3);          // out of player 0's sight
   expect(aiInputFor(other, 0)).toEqual(aiInputFor(base, 0));
   expect(viewKey(aiInputFor(other, 0))).toBe(viewKey(aiInputFor(base, 0)));

@@ -98,7 +98,7 @@ test('rules 8: without the climbing tech the planner never moves a unit onto a m
 
 test('rules 8: a Mongol planner with the roads tech and gold plans no road', () => {
   for (const dial of [0.5, 1]) for (const seed of [1, 2]) {
-    const s = field(['mongols', 'spartans']); s.players[0]!.techs.push('roads'); s.players[0]!.gold = 60;
+    const s = field(['mongols', 'spartans']); s.players[0]!.techs.push('riding'); s.players[0]!.gold = 60;
     addCity(s, 0, 3, 1, { capital: false }); s.cities[0]!.capital = true;
     s.current = 0;
     expect(roadRefusal(s, '1,3')).toBe('your faction cannot build roads');

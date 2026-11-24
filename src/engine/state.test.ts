@@ -8,7 +8,7 @@ test('createMatch sets up rules 4', () => {
   const s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
   expect(s.rulesVersion).toBe(RULES_VERSION);
   expect(s.players.map(p => p.gold)).toEqual([10, 12]);   // the second seat starts with 2 more gold (rules 7)
-  expect(s.players.map(p => p.techs)).toEqual([['bronze'], ['riding']]);
+  expect(s.players.map(p => p.techs)).toEqual([['prospecting'], ['gathering']]);   // rules 8
   expect(s.cities.map(c => [c.pos, c.owner, c.capital, c.level])).toEqual([['-2,5', 0, true, 1], ['2,-5', 1, true, 1]]);
   expect(s.units.map(u => [u.type, u.owner, u.pos, u.home])).toEqual([['scout', 0, '-2,5', 0], ['horseman', 1, '2,-5', 1]]);
   expect(s.tiles['-2,5']!.cityId).toBe(0);

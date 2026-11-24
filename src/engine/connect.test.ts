@@ -12,7 +12,7 @@ import { visibleTiles } from './vision';
 // Player 0 is Spartan and a Spartan city leaves level L on L growth, so the 1 growth paid to a level 1 city fills its bar:
 // the pay shows as level 2 with growth 0 and a queued reward, and "once" as the level staying 2.
 function roads(s: MatchState): MatchState {
-  give(s, 0, 'roads'); s.players[0]!.gold = 50;
+  give(s, 0, 'riding'); s.players[0]!.gold = 50;
   return s;
 }
 function road(s: MatchState, at: string): { state: MatchState; events: GameEvent[] } {
@@ -94,7 +94,7 @@ test('a captured city that was linked pays its new owner once when joined to the
   expect(r.events).toContainEqual({ type: 'connected', city: c.id, capital: cap.id });
   expect(cityById(r.state, c.id)).toMatchObject({ owner: 0, linked: true, level: 2, growth: 0 });
   expect(cityById(r.state, cap.id)).toMatchObject({ level: 2, growth: 0 });
-  r.state.players[0]!.gold = 50; give(r.state, 0, 'roads');
+  r.state.players[0]!.gold = 50; give(r.state, 0, 'riding');
   const again = road(r.state, '1,-1');
   expect(again.events.some((e) => e.type === 'connected')).toBe(false);
   expect(cityById(again.state, c.id)).toMatchObject({ level: 2, growth: 0 });

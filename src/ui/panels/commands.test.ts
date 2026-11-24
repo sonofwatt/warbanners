@@ -55,11 +55,14 @@ test('walls: hidden for Spartans, disabled for Mongols without Shieldwork, a rew
 });
 test('tech rows', () => {
   const rows = techRows(open, ixOf(open));
-  expect(rows).toHaveLength(12);
+  expect(rows).toHaveLength(21);
   const st = Object.fromEntries(rows.map(r => [r.tech, r.status]));
-  expect(st).toMatchObject({ bronze: 'owned', foraging: 'ready', riding: 'ready', hunting: 'ready', shieldwork: 'ready', farming: 'locked', smithing: 'locked' });
+  // rules 8: Spartans start with Prospecting; its two column 2 techs and the other column 1 techs are ready at 10 gold
+  expect(st).toMatchObject({ prospecting: 'owned', spears: 'ready', mining: 'ready', foraging: 'ready', trapping: 'ready', gathering: 'ready',
+    fishing: 'ready', smithing: 'locked', foundry: 'locked', farming: 'locked', defence: 'locked' });
   expect(rows.find(r => r.tech === 'foraging')!.price).toBe(techPrice(open, 0, 'foraging'));
-  expect(rows.map(r => r.branch)).toEqual([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3]);
+  expect(rows.map(r => r.branch)).toEqual([...Array(5).fill('orchards'), ...Array(5).fill('hunting'), ...Array(5).fill('mountains'), ...Array(5).fill('plains'), 'waters']);
+  expect(rows.filter(r => r.branch === 'orchards').map(r => r.row)).toEqual([null, 'top', 'top', 'bottom', 'bottom']);
 });
 test('unit commands: abilities arm, a camp lists what it can train, a lure asks, a capture is offered', () => {
   const ps = seeAll(blankMatch());
@@ -77,7 +80,7 @@ test('unit commands: abilities arm, a camp lists what it can train, a lure asks,
   expect(armed['ability-taunt']!.label).toBe(T.ability.taunt.name);
 
   const cs = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
-  addCity(cs, 0, 0, 3); addCity(cs, 1, 0, -3); give(cs, 0, 'riding', 'roads');
+  addCity(cs, 0, 0, 3); addCity(cs, 1, 0, -3); give(cs, 0, 'riding');
   const camp = addUnit(cs, 'camp', 0, 0, 0);
   cs.tiles['2,0']!.village = true; const taker = addUnit(cs, 'warrior', 0, 2, 0);
   const cix = ixOf(cs);

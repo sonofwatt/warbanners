@@ -10,7 +10,7 @@ import { LEVEL_DIAL } from './types';
 // Player 0 holds the capital at 0,0 and a city three tiles east, so 1,0 and 2,0 are the two field tiles between.
 function twoApart(): MatchState {
   const s = blankMatch({ radius: 5 });
-  give(s, 0, 'riding', 'roads');
+  give(s, 0, 'riding');
   s.players[0]!.gold = 20;
   addCity(s, 0, 0, 0, { capital: true });
   addCity(s, 0, 3, 0);
@@ -56,7 +56,7 @@ test('chains lead to the moved capital, and a taken capital is a city that needs
   expect(r.events).toContainEqual({ type: 'capitalMoved', player: 0, city: 3 });
   const after = r.state; after.current = 0;
   expect(connectingChains(believed(after), 0).map((c) => [c.city, c.capital])).toEqual([[1, 3]]);   // 3,0 to -3,0, round 0,0
-  give(after, 1, 'roads');
+  give(after, 1, 'riding');
   expect(connectingChains(believed({ ...after, current: 1 }), 1)).toEqual([]);   // rules 8: the Mongols build no roads
   after.players[1]!.faction = 'spartans';                                       // as if a road builder had taken it
   const theirs = connectingChains(believed({ ...after, current: 1 }), 1);

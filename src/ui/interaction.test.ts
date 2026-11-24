@@ -128,7 +128,7 @@ test('an armed ability fires on a target and disarms on anything else', () => {
 });
 test('a camp trains onto the tapped tile, and a waiting capture glows', () => {
   const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
-  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); give(s, 0, 'riding', 'roads');
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); give(s, 0, 'riding');
   const camp = addUnit(s, 'camp', 0, 0, 0);
   s.tiles['2,0']!.village = true; const taker = addUnit(s, 'warrior', 0, 2, 0);
   const v = playerView(s, 0), ix = indexActions(legalActions(s));

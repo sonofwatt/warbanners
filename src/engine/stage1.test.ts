@@ -11,14 +11,14 @@ import type { Action, MatchState } from './types';
 // file switches the rules 6 movement off through CONFIG and the faction data, as stage1.dormant.test.ts does; stage 2,
 // momentum (rules 7) and the chain level-up stay on. Rules 7's connection growth, moving capitals, the Lumber camp cost of 4, the Lumber camp
 // and Market growth of 2 and Scout sight 1, equal start gold and no Spartan growth discount are switched off the same way (startGold [10, 10], Spartan growthExtra 0, connectGrowth 0, capitalMoves false, cost 3, growth 1, sight 3).
-// Rules 8's mountain range bonus and turn end are switched off too (rangeBonus 0, endsTurn false).
+// Rules 8's mountain range bonus and turn end are switched off too (rangeBonus 0, endsTurn false), and the rules 7 tech tree is back (techTree 'rules7').
 // The record test below is meant for the rules 3 engine, never this one.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
   const b = m.CONFIG.buildings;
   return {
     CONFIG: {
-      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1,
+      ...m.CONFIG, startGold: [10, 10], closedFog: false, connectGrowth: 0, capitalMoves: false, hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1, techTree: 'rules7',
       buildings: { ...b, lumberCamp: { ...b.lumberCamp, cost: 3, growth: 1 }, market: { ...b.market, growth: 1 } },
     },
   };
@@ -32,11 +32,12 @@ vi.mock('./data/factions', async (orig) => {
   return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, territoryRiding: false, mountedMoveBonus: 2, relayMountedOnly: false, canBuildRoads: true } } };
 });
 
-// Strip what plan 5, rules 6, rules 7 (with hunker and momentum) and rules 8 (turnEnded) added, so a stage 1 state hashes as it did on rules 3.
+// Strip what plan 5, rules 6, rules 7 (with hunker and momentum) and rules 8 (turnEnded, the harvested tile flag) added, so a stage 1 state hashes as it did on rules 3.
 function stage1Shape(s: MatchState): unknown {
   return {
     ...s, rulesVersion: 3, units: s.units.map(({ deeds: _d, heroTraits: _h, item: _i, itemTurn: _t, bonusMp: _b, hunkered: _k, momentum: _m, turnEnded: _e, ...rest }) => rest),
     cities: s.cities.map(({ linked: _l, ...rest }) => rest),
+    tiles: Object.fromEntries(Object.entries(s.tiles).map(([k, { harvested: _v, ...t }]) => [k, t])),
   };
 }
 
