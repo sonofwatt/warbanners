@@ -23,7 +23,7 @@ If this file and the engine's data files disagree, the data files are wrong.
 |---|---|---|---|
 | Field | 2 | 1 | |
 | Forest | 4 | 1.25 | |
-| Mountain | all remaining, only as the first step of a unit that has not moved this turn | 1.5 | A unit standing here sees 1 tile farther |
+| Mountain | all remaining, only as the first step of a unit that has not moved this turn; ends the unit's turn (rules 8) | 1.5 | A unit standing here sees 1 tile farther. A ranged unit here shoots 1 tile farther (section 10). Stepping off is also a first step only and ends the turn (section 9) |
 | Water | cannot enter | | Ships arrive in stage 4 |
 | Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
 | City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
@@ -189,6 +189,20 @@ The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section
   left. Costs, engagement, forest, mountain, roads and relay riders apply as usual.
   (Rules 3 to 5 let any unit end a move on one unexplored tile, and let a mounted
   Mongol keep moving after it.)
+- Mountains (since rules 8): a step onto a mountain uses all the movement left and
+  is allowed only as the first step of a unit that has not moved this turn (as
+  before), and a step off a mountain is allowed only the same way: as the first step
+  of a unit that has not moved this turn, for all its movement. Either step ends the
+  unit's turn: it has no movement and no attacks left, and may not use an ability,
+  hunker, capture, claim a treasure or drink a draught this turn. So no move passes
+  over a mountain, and a unit cannot step down and attack in one turn. Nothing lets
+  it skip this: not roads, relay riders, riding by territory, the forest rule for
+  mounted units, a bonus or haste (a unit whose turn ended this way cannot be
+  hastened). A unit on a mountain may still attack or act from it without moving;
+  one with `retreat` may then step off, which ends its turn. Units placed, pushed or
+  lured onto or off a mountain are not moving: nothing changes for them. Mapgen never
+  puts a capital, village, city or treasure on a mountain, and roads cannot be built
+  on one.
 - After attacking, a unit cannot move, unless it has `retreat`, which keeps
   whatever movement it had left.
 - A unit trained or spawned this turn is fresh until its owner's next turn starts:
@@ -223,6 +237,22 @@ the attacker still cannot move after attacking unless it has `retreat`, a Knight
 this turn (so it cannot capture or claim a treasure there until a later turn).
 Attackers with range 2 or more never move in, and neither does anyone for a unit
 killed by splash.
+
+Ranged units on a mountain (since rules 8): a unit whose type has range 2 or more
+(Archer, Horse Archer, Catapult) has +1 range for its own attacks while it stands on
+a mountain (Archer 3, Horse Archer 3, Catapult 4). A shot at a target farther than
+its normal range (a long shot) does less damage: after every other step, including
+the momentum cut,
+
+```
+damage  = max(1, round(damage * 0.8))            (long shot only)
+```
+
+Shots within the normal range from a mountain do full damage. A blinded unit keeps
+its blinded reach. The counter-attack keeps the normal range and full damage, so a
+unit on a mountain never strikes back at the extra tile. A Catapult still cannot
+attack after moving, so one that climbs shoots on a later turn. Splash from a long
+shot is half the cut damage.
 
 Worked examples (all at full health on a field unless said):
 
@@ -409,3 +439,15 @@ Mongols
   pay for is cut by the shortfall and ends the chain (stage2-rules.md, section 9).
 - A Spartan city needs 1 less growth to level up (sections 6 and 13).
 - The second player starts with 12 gold instead of 10 (section 4).
+
+## Rules 8 changes
+
+This list and the one above are the file's changelog.
+
+- Ranged units (range 2 or more) on a mountain have +1 range for their own attacks;
+  a shot that uses the extra tile does 0.8 of the damage, rounded, at least 1. The
+  counter-attack is unchanged (section 10).
+- A step onto a mountain ends the unit's turn, and a step off one is allowed only as
+  the first step of a unit that has not moved this turn and ends its turn too, so no
+  move passes over a mountain (sections 2 and 9). Relay riders no longer pay 1 for a
+  mountain in their own territory.
