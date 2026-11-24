@@ -29,6 +29,13 @@ export const MOUNT_YAW = -0.42;
 /** Riders turn back toward the viewer from the mount. */
 export const RIDER_YAW = 0.3;
 
+/** The trebuchet's moving pieces: its throwing arm and the stone in its cup. */
+export const ARM = 'arm';
+export const STONE_PIECE = 'stone';
+/** The arm's cocked angle (radians from pointing right, counterclockwise on screen) and the length of its long end. */
+export const ARM_COCKED = -0.66;
+export const ARM_LONG = 16;
+
 const NARROW = { rx: 9.5, rz: 6, x: 0.5 };
 const WIDE = { rx: 17, rz: 8.5, x: 0 };
 
@@ -375,19 +382,31 @@ function catapult(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
       k.rod([7.2, H(-7), z], [1.8, H(-20.6), z * 0.25], 1.0, WOOD_DARK);
     }
     k.ball([1.7, H(-18.8), 1.6], 1.4, c.accent, { detail: 0, gloss: 0.4 });
-    // The throwing arm, raised back, with a stone in its cup: cracked when battered, snapped when broken.
-    const a0: V3 = [9, H(-9), 0], a1: V3 = [-11, H(-25), 0];
+    // The throwing arm: snapped when broken (fixed, it cannot throw). Otherwise its own piece, turning on the axle
+    // at the top of the A-frame (units/idle.ts swings it): cocked at rest, the long end with its cup and stone down
+    // toward the back, the counterweight raised; cracked when battered.
     if (worn(w, 4)) {
+      const a0: V3 = [9, H(-9), 0], a1: V3 = [-11, H(-25), 0];
       spear(k, a0, a1, 0, { snap: 0.55 }, 1.35, WOOD);
       k.ball([-13, 1.8, 6], 2.6, STONE, { detail: 0 });
     } else {
-      k.rod(a0, a1, 1.35, WOOD);
-      k.dome([-12, H(-26.8), 0], 3.2, WOOD_DARK, { to: 1.6, seg: 8, s: [1, -0.7, 1] });
-      k.ball([-12, H(-27.6), 0], 2.9, STONE, { detail: 0 });
-      if (worn(w, 3)) {
-        const s = (x: number, y: number): { p: V3; n: V3 } => ({ p: [x, y, 1.4], n: [0, 0.3, 1] });
-        crack(k, s, [-1, H(-17) - 1, -3, H(-18.6) - 0.6, -4.6, H(-19.6)]);
-      }
+      const axle: V3 = [1.7, H(-18.6), 0];
+      k.pivot(ARM, axle, () => {
+        k.frame(axle, [0, 0, ARM_COCKED], () => {
+          k.rod([-6.6, 0, 0], [ARM_LONG, 0, 0], 1.35, WOOD, { r1: 1.1 });
+          k.box([-6.8, -1.6, 0], [4.6, 5.2, 4.2], WOOD_DARK, { rot: [0, 0, 0] });
+          k.box([-6.8, -1.6, 0], [4.9, 1.1, 4.5], c.dark);
+          k.dome([ARM_LONG + 0.4, 1.1, 0], 3.2, WOOD_DARK, { to: 1.6, seg: 8, s: [1, -0.7, 1] });
+          if (worn(w, 3)) {
+            const s = (x: number, y: number): { p: V3; n: V3 } => ({ p: [x, y, 1.4], n: [0, 0.3, 1] });
+            crack(k, s, [5, 0.3, 7.4, -0.3, 9.4, 0.25]);
+          }
+        });
+      });
+      // The stone is its own piece on the same axle, so it can leave the cup at the top of the throw.
+      k.pivot(STONE_PIECE, axle, () => {
+        k.frame(axle, [0, 0, ARM_COCKED], () => k.ball([ARM_LONG + 0.4, 2.2, 0], 2.9, STONE, { detail: 0 }));
+      });
     }
     k.box([-1.5, H(-4.3), 4.2], [27, 3.4, 2.6], WOOD);
     const beam = (x: number, y: number): { p: V3; n: V3 } => ({ p: [x, y, 5.6], n: [0, 0, 1] });

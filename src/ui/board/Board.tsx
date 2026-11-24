@@ -20,6 +20,8 @@ import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
 import { glUnitsOf, unitAlpha } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
+import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
+import type { AmbientLoop } from '../terrain3d/ambient';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
@@ -315,12 +317,16 @@ export function Board(p: BoardProps): ReactElement {
   const overlayCamRef = useRef<SVGGElement>(null);
   const terrain = useRef<Terrain3d | null>(null);
   const frame = useRef(0);
+  // The ambient loop (idle life, waterfalls): it redraws the units canvas alone, only while something animates in
+  // view, at most 30 times a second, never in a hidden tab or with reduced motion. Every change kicks it.
+  const ambient = useRef<AmbientLoop | null>(null);
   const write = useCallback((): void => {
     if (cam.current === null) return;
     const t = cameraTransform(cam.current, vp.current);
     camRef.current?.setAttribute('transform', t);
     overlayCamRef.current?.setAttribute('transform', t);
     terrain.current?.draw(cam.current, vp.current);
+    ambient.current?.kick();
   }, []);
   const schedule = useCallback((): void => {
     if (frame.current !== 0) return;
@@ -442,6 +448,22 @@ export function Board(p: BoardProps): ReactElement {
       load: () => import('../terrain3d/terrain3d'),
       hasWebgl2: webgl2Available,
       ready: (t) => {
+        if (ambient.current === null) {
+          ambient.current = createAmbientLoop(domAmbientEnv(), (now) => {
+            const tt = terrain.current;
+            if (tt === null || cam.current === null) return false;
+            if (unitsFrame.current !== 0) return true; // the loop that follows a slide or a lunge draws this frame
+            tt.tick(now, true);
+            tt.drawUnits(cam.current, vp.current);
+            return tt.animating(cam.current, vp.current);
+          }, () => {
+            const tt = terrain.current;
+            if (tt === null || cam.current === null) return;
+            tt.tick(performance.now(), false);
+            tt.drawUnits(cam.current, vp.current);
+          });
+        }
+        t.tick(performance.now(), ambient.current.motion());
         const d = glLatest.current;
         if (d !== null) {
           t.setMap(d.map);
@@ -464,6 +486,8 @@ export function Board(p: BoardProps): ReactElement {
     });
     return () => {
       terrain.current = null;
+      ambient.current?.stop();
+      ambient.current = null;
       stop();
       setGlReady(false);
       setGlUnitsReady(false);
@@ -502,7 +526,9 @@ export function Board(p: BoardProps): ReactElement {
     if (shownUnits.current === u.key) return;
     t.units.setUnits(u.units);
     shownUnits.current = u.key;
+    t.tick(performance.now(), ambient.current?.motion() ?? false);
     t.drawUnits(cam.current, vp.current);
+    ambient.current?.kick();
   }, [units3d, unitsKey]);
 
   // While the svg plays a slide, a lunge or a fall, the 3D figures follow it frame by frame: each frame reads where
@@ -513,15 +539,17 @@ export function Board(p: BoardProps): ReactElement {
   factionsRef.current = p.factions;
   const followUnits = useCallback((): void => {
     if (unitsFrame.current !== 0) return;
-    const step = (): void => {
+    const step = (now: number): void => {
       unitsFrame.current = 0;
       const t = terrain.current;
       const g = overlayCamRef.current;
       if (t === null || t.units === null || g === null || cam.current === null) return;
       const live = livePose(g, factionsRef.current);
       t.units.pose(live.at, live.falls);
+      t.tick(now, ambient.current?.motion() ?? false);
       t.drawUnits(cam.current, vp.current);
       if (live.moving) unitsFrame.current = requestAnimationFrame(step);
+      else ambient.current?.kick();
     };
     unitsFrame.current = requestAnimationFrame(step);
   }, []);

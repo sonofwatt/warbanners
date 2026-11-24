@@ -38,6 +38,16 @@ export function unitPoseOf(unit: Element): UnitPose | null {
   return { x: base.x + (nudge?.x ?? 0), y: base.y + (nudge?.y ?? 0) };
 }
 
+/** How far through its active time an animation is, 0 to 1 (0 while it waits out its delay); null when unknown. */
+export function lungePhase(a: Animation): number | null {
+  const effect = a.effect as { getComputedTiming?: () => ComputedEffectTiming } | null;
+  if (effect == null || typeof effect.getComputedTiming !== 'function') return null;
+  const t = effect.getComputedTiming();
+  const local = t.localTime, delay = t.delay ?? 0, dur = t.duration;
+  if (typeof local !== 'number' || typeof dur !== 'number' || !(dur > 0)) return null;
+  return Math.min(1, Math.max(0, (local - delay) / dur));
+}
+
 /**
  * The poses of the units with a running animation, the falls playing (from the svg fall's own turn and opacity,
  * keyed by `data-fall-key`, stable for the fall's life), and whether anything in `g` still animates.
@@ -47,14 +57,24 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
   const falls: UnitFall[] = [];
   if (typeof g.getAnimations !== 'function') return { at, falls, moving: false };
   const running = g.getAnimations({ subtree: true }).filter((a) => a.playState === 'running');
+  const lunges = new Map<number, number>();
   for (const a of running) {
     const effect = a.effect as { target?: Element | null } | null;
     const unit = effect?.target?.closest('[data-unit]');
     if (unit == null) continue;
     const id = Number(unit.getAttribute('data-unit'));
+    // A lunge plays on the unit's body: how far into it the unit is drives the trebuchet's swing.
+    if (effect?.target?.classList?.contains('unit-body') === true) {
+      const p = lungePhase(a);
+      if (p !== null) lunges.set(id, p);
+    }
     if (at.has(id)) continue;
     const pose = unitPoseOf(unit);
     if (pose !== null) at.set(id, pose);
+  }
+  for (const [id, p] of lunges) {
+    const pose = at.get(id);
+    if (pose !== undefined) at.set(id, { ...pose, lunge: p });
   }
   g.querySelectorAll('[data-fall]').forEach((el) => {
     const faction = factions[Number(el.getAttribute('data-fall-owner'))];

@@ -28,14 +28,27 @@ interface Part {
   hull: number;
   /** Decals bring their own normals (the surface they lie on); solids are faceted. */
   ownNormals: boolean;
+  /** The moving piece the part belongs to (a trebuchet's arm), or null for the figure's fixed body. */
+  piece: string | null;
 }
 
 export interface PartOpts { gloss?: number; hull?: number }
+
+/** A part of a figure that moves on its own, about a pivot: its geometry is in figure space, as built. */
+export interface BuiltPiece {
+  fill: BufferGeometry;
+  hull: BufferGeometry;
+  /** The pivot point and the axis it turns about (unit length), in figure space. */
+  pivot: V3;
+  axis: V3;
+}
 
 export interface BuiltFigure {
   fill: BufferGeometry;
   hull: BufferGeometry;
   triangles: number;
+  /** The moving pieces by name; their triangles are counted in `triangles`. */
+  pieces: Record<string, BuiltPiece>;
 }
 
 const tmpQ = new Quaternion();
@@ -46,6 +59,22 @@ export class Kit {
   private mat = new Matrix4();
   private readonly stack: Matrix4[] = [];
   private decals = 0;
+  private piece: string | null = null;
+  private readonly pivots = new Map<string, { pivot: V3; axis: V3 }>();
+
+  /**
+   * Run `f` with every part it adds going to the moving piece `name`, which turns about `at` (in this frame) and
+   * this frame's z axis (toward the viewer before any turn, so the piece swings in the figure's own plane).
+   */
+  pivot(name: string, at: V3, f: () => void): void {
+    const p = new Vector3(...at).applyMatrix4(this.mat);
+    const ax = new Vector3(0, 0, 1).transformDirection(this.mat);
+    this.pivots.set(name, { pivot: [p.x, p.y, p.z], axis: [ax.x, ax.y, ax.z] });
+    const was = this.piece;
+    this.piece = name;
+    f();
+    this.piece = was;
+  }
 
   /** Run `f` with a local frame: translate by t, then rotate (Euler XYZ radians, applied as Y then X then Z), then scale. */
   frame(t: V3, rot: V3, f: () => void, s: V3 = [1, 1, 1]): void {
@@ -62,7 +91,7 @@ export class Kit {
     const g = geo.index ? geo.toNonIndexed() : geo;
     if (g !== geo) geo.dispose();
     g.applyMatrix4(this.mat);
-    this.parts.push({ geo: g, colour: new Color(colour), gloss: o.gloss ?? 0, hull: o.hull ?? 1, ownNormals });
+    this.parts.push({ geo: g, colour: new Color(colour), gloss: o.gloss ?? 0, hull: o.hull ?? 1, ownNormals, piece: this.piece });
   }
 
   // ---- solids ----
@@ -172,9 +201,12 @@ export class Kit {
   }
 
   build(outlineScale = 1): BuiltFigure {
-    const fills: BufferGeometry[] = [], hulls: BufferGeometry[] = [];
     let triangles = 0;
+    const groups = new Map<string | null, { fills: BufferGeometry[]; hulls: BufferGeometry[] }>([[null, { fills: [], hulls: [] }]]);
     for (const p of this.parts) {
+      let grp = groups.get(p.piece);
+      if (grp === undefined) { grp = { fills: [], hulls: [] }; groups.set(p.piece, grp); }
+      const { fills, hulls } = grp;
       const g = p.geo;
       // Solids are faceted (the geometry is non-indexed); decal normals were given and turned by applyMatrix4.
       if (!p.ownNormals) g.computeVertexNormals();
@@ -213,10 +245,20 @@ export class Kit {
       fills.push(g);
       if (p.hull > 0) hulls.push(g);
     }
-    const fill = merge(fills);
-    const hull = merge(hulls);
-    for (const g of fills) g.dispose();
-    return { fill, hull, triangles };
+    const mergeOf = (k: string | null): { fill: BufferGeometry; hull: BufferGeometry } => {
+      const { fills, hulls } = groups.get(k)!;
+      const fill = merge(fills);
+      const hull = merge(hulls);
+      for (const g of fills) g.dispose();
+      return { fill, hull };
+    };
+    const pieces: Record<string, BuiltPiece> = {};
+    for (const k of groups.keys()) {
+      if (k === null) continue;
+      const at = this.pivots.get(k)!;
+      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis };
+    }
+    return { ...mergeOf(null), triangles, pieces };
   }
 }
 

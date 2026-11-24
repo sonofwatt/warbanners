@@ -13,15 +13,17 @@ import type { Material } from 'three';
 import type { GlUnit } from '../unitsInput';
 import { COS_E, SQUASH } from '../layout';
 import { propFrag, propVert } from '../shaders';
-import { buildFigure } from './figures';
+import { ARM, buildFigure, STONE_PIECE } from './figures';
 import type { Figure } from './figures';
 import { CLEAN } from './parts';
+import { armSwing, idleKind, idlePose, settleWeight, stoneLoaded } from './idle';
+import type { IdleKind } from './idle';
 
 export interface UnitsCamera { cx: number; cy: number; scale: number }
 export interface UnitsViewport { w: number; h: number }
 
-/** A unit's place for this frame, in board units, while the svg slides or lunges it. */
-export interface UnitPose { x: number; y: number }
+/** A unit's place for this frame, in board units, while the svg slides or lunges it, and how far into a lunge it is (0 to 1). */
+export interface UnitPose { x: number; y: number; lunge?: number }
 /** A fallen unit while the svg plays its fall: its figure tipping over (radians, clockwise on screen) and fading. */
 export interface UnitFall { key: string; type: GlUnit['type']; look: GlUnit['look']; x: number; y: number; angle: number; alpha: number }
 
@@ -30,6 +32,12 @@ export interface Units3d {
   setUnits(units: readonly GlUnit[]): void;
   /** Where units stand this frame while they move (others stay on their tiles), and the falls playing. */
   pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void;
+  /** Pose every figure for time `nowMs`: idle life when `motion` (none for units that move or just moved), the trebuchet's swing in a lunge. */
+  tick(nowMs: number, motion: boolean): void;
+  /** Whether a figure with idle life stands in the camera's view. */
+  onScreen(cam: UnitsCamera, vp: UnitsViewport): boolean;
+  /** Drawn with the figures, on their canvas: the terrain puts its waterfalls here. */
+  readonly extras: Group;
   draw(cam: UnitsCamera, vp: UnitsViewport, dpr: number): void;
   dispose(): void;
   stats(): { triangles: number; calls: number; units: number; looks: number; falls: number; dims: number };
@@ -42,7 +50,14 @@ const SHADOW_ALPHA = 0.18;
 
 const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}`;
 
-interface Placed { sig: string; unit: GlUnit; group: Group; alpha: number }
+interface Built { group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null }
+interface Placed extends Built {
+  sig: string; unit: GlUnit; alpha: number; kind: IdleKind;
+  /** Moving in this frame (a slide or a lunge), and when it last was (ms), so its idle life eases back in. */
+  moving: boolean; restSince: number; lunge: number | null;
+}
+/** The figure's body stands this far toward the viewer from the tile centre: its feet are 4 board units lower on screen. */
+const FEET_Z = 4 / SQUASH;
 
 export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, { value: unknown }>): Units3d | null {
   let renderer: WebGLRenderer;
@@ -106,11 +121,11 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   /** One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower on screen, as the svg feet. */
-  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, alpha: number, own?: Dim): Group {
+  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, alpha: number, own?: Dim): Built {
     const f = figureOf(type, look, hero);
     const g = new Group();
     const body = new Group();
-    body.position.set(0, 0, 4 / SQUASH);
+    body.position.set(0, 0, FEET_Z);
     const dim = own ?? (alpha < 1 ? dimOf(alpha) : null);
     const sh = new Mesh(shadowGeo, dim !== null ? dim.shadow : shadowMat);
     sh.rotation.x = -Math.PI / 2;
@@ -125,8 +140,27 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       meshes.push(new Mesh(f.hull, hullMat), new Mesh(f.fill, fillMat));
     }
     for (const m of meshes) { m.frustumCulled = false; body.add(m); }
+    // Moving pieces (the trebuchet's arm and stone): each in a group at its pivot, so turning the group swings it.
+    const piece = (name: string): Group | null => {
+      const pc = f.pieces[name];
+      if (pc === undefined) return null;
+      const at = new Group();
+      at.position.set(...pc.pivot);
+      const inner = new Group();
+      inner.position.set(-pc.pivot[0], -pc.pivot[1], -pc.pivot[2]);
+      const ms = dim !== null
+        ? [new Mesh(pc.hull, dim.depthHull), new Mesh(pc.fill, dim.depthFill), new Mesh(pc.hull, dim.hull), new Mesh(pc.fill, dim.fill)]
+        : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
+      for (const m of ms) { m.frustumCulled = false; inner.add(m); }
+      at.add(inner);
+      body.add(at);
+      return at;
+    };
+    const arm = piece(ARM);
+    const stone = piece(STONE_PIECE);
+    const axis = f.pieces[ARM]?.axis;
     g.add(body);
-    return g;
+    return { group: g, body, arm, stone, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1) };
   }
 
   const scene = new Scene();
@@ -145,7 +179,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         p = undefined;
       }
       if (p === undefined) {
-        p = { sig, unit: u, group: makeGroup(u.type, u.look, u.hero, u.alpha), alpha: u.alpha };
+        p = { sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.alpha), alpha: u.alpha, kind: idleKind(u.type), moving: false, restSince: -Infinity, lunge: null };
         scene.add(p.group);
         placed.set(u.id, p);
       }
@@ -167,6 +201,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     for (const p of placed.values()) {
       const now = at.get(p.unit.id);
       ground(now?.x ?? p.unit.x, now?.y ?? p.unit.y, p.group.position);
+      p.moving = now !== undefined;
+      p.lunge = now?.lunge ?? null;
+      if (p.moving) p.restSince = clock;
     }
     const live = new Set<string>();
     for (const f of falls) {
@@ -176,7 +213,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       let g = fallen.get(k);
       if (g === undefined) {
         const dim = makeDim(f.alpha);
-        g = { group: makeGroup(f.type, f.look, false, f.alpha, dim), dim };
+        g = { group: makeGroup(f.type, f.look, false, f.alpha, dim).group, dim };
         scene.add(g.group);
         fallen.set(k, g);
       }
@@ -191,6 +228,41 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       fallen.delete(k);
     }
   }
+
+  // Idle life and the trebuchet's throw, posed for the time of the frame. Only the body group and the arm's pivot
+  // group turn; the figure's group stays on its tile, so a figure never leaves its tile or its status plate.
+  let clock = 0;
+  const qa = new Quaternion(), qb = new Quaternion();
+  const Z = new Vector3(0, 0, 1), Y = new Vector3(0, 1, 0);
+  function tick(nowMs: number, motion: boolean): void {
+    clock = nowMs;
+    for (const p of placed.values()) {
+      if (p.moving) p.restSince = nowMs;
+      const w = motion && !p.moving ? settleWeight(nowMs - p.restSince) : 0;
+      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, w);
+      p.body.position.set(ip.shift, ip.bob, FEET_Z);
+      p.body.quaternion.copy(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, ip.yaw));
+      p.body.scale.set(1, 1 + ip.breathe, 1);
+      if (p.arm !== null) {
+        const angle = armSwing(p.lunge) + ip.arm;
+        p.arm.quaternion.setFromAxisAngle(p.armAxis, angle);
+        if (p.stone !== null) {
+          p.stone.quaternion.copy(p.arm.quaternion);
+          p.stone.visible = stoneLoaded(p.lunge);
+        }
+      }
+    }
+  }
+  function onScreen(cam: UnitsCamera, vp: UnitsViewport): boolean {
+    const hw = vp.w / 2 / cam.scale + 40, hh = vp.h / 2 / cam.scale + 60;
+    for (const p of placed.values()) {
+      if (p.kind === 'none') continue;
+      if (Math.abs(p.unit.x - cam.cx) <= hw && Math.abs(p.unit.y - cam.cy) <= hh) return true;
+    }
+    return false;
+  }
+  const extras = new Group();
+  scene.add(extras);
 
   const target = new Vector3();
   const dir = new Vector3(0, -SQUASH, -COS_E);
@@ -217,7 +289,10 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     placed.clear();
     for (const g of fallen.values()) disposeDim(g.dim);
     fallen.clear();
-    for (const f of looks.values()) { f.fill.dispose(); f.hull.dispose(); }
+    for (const f of looks.values()) {
+      f.fill.dispose(); f.hull.dispose();
+      for (const pc of Object.values(f.pieces)) { pc.fill.dispose(); pc.hull.dispose(); }
+    }
     looks.clear();
     const mats: Material[] = [fillMat, hullMat, shadowMat];
     for (const d of dims.values()) mats.push(d.depthFill, d.depthHull, d.fill, d.hull, d.shadow);
@@ -229,7 +304,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   return {
-    setUnits, pose, draw, dispose,
+    setUnits, pose, tick, onScreen, extras, draw, dispose,
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, dims: dims.size }),
   };
 }
