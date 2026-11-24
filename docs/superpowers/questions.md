@@ -3,31 +3,11 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-## Q3. Tuning and AI pass (answered 2026-11-24: proceed)
-
-- New tree sims, 200 matches each: Spartans 60 to 72%, Mongols 18 to 30%, stalls 10 to 22%.
-- Started 2026-11-24: balance, stalls, wasted tech buys (Fishing, Walls), Spartans never train Swordsmen, re-pin
-  the slow AI checks.
-
-## Q1 to Q3. Rules 8 tuning results (2026-11-24)
-
-- Report: docs/superpowers/plans/2026-11-24-rules8-tuning-report.md (branch mountains, ae53226..ab828e2, pushed,
-  not merged). Targets: 45 to 55% each side, seats within about 5 points, stalls under 8%.
-- Results (200 matches): Horseman start normal 50.2 / 45.3, stalls 9%; hard 49.0 / 48.3, stalls 5.5%. Second seed set
-  normal 56.3 / 41.5, stalls 4.5%; hard 49.3 / 49.3, stalls 3%. Warrior start hard 40.8 / 55.5.
-- Why Mongols fell: no Mongol roads (about 19 points), lost riding half-point (about 11). Fixes: Mongol growthExtra
-  1 to 0, Mongol tribute 3 to 4. AI: no useless techs, values blockades, takes champions, pushes late to end stalls.
-- Q1 (normal balance): normal Mongols are 41.5 to 45.3%, at the edge. One more small Mongol lever and a 400-match
-  confirm (my pick), or ship as is?
-- Q2 (blockades): blockades are rare in play (under 2 gold cut a match); Spartans spend 8 to 12 gold on Deep stores
-  for under 2 gold saved. Make the AI surround cities more often (my pick, the stronger lever), raise the cut, or leave it?
-- Q3 (Adaptive AI): its automatic check fails (it adapts too weakly: gap 0.096 vs 0.15 target; already failing before
-  this pass). Fix the adaptive dial before rules 8 ships (my pick), or ship and fix after? Your idea (Adaptive forces
-  a random opponent faction) would come with the biomes version.
-- Seat split swings 7 to 13 points at normal, within noise for 200 matches; a bigger run is needed before any seat lever.
+No open questions.
 
 ## Answered
 
+- Q3 (tuning and AI pass), 2026-11-24: proceed; done, report in docs/superpowers/plans/2026-11-24-rules8-tuning-report.md.
 - Q2 (WebGL second pass): renders approved; ship it in the game as a System menu option, off by default
   (2026-11-24). Tweaks: straight summit (no crooked top), mountains 15% lower, one main peak plus 2 to 3 smaller sub-peaks, 3 to 4 variants of every terrain tile, keep rotating layouts.
 - Q1 (Spartan slot, blockade), 2026-11-24: add a blockade rule that suppresses income, never stops it; Walls soften it;
@@ -61,3 +41,6 @@ move to the bottom.
   random, so the game picks the biome to match the player's skill from the gameplay stats. Level names and the
   easy rich / normal normal / hard sparse mapping approved. Spartans and Mongols both prefer grasslands for now.
   Jewels on sand and field ship with biomes.
+- Q1 to Q3 (rules 8 tuning), 2026-11-24 (David): Q1 leave normal balance as is; about 40% is good enough for now,
+  revisit when more factions arrive. Q2 leave blockades; an edge case humans may use more than the AI. Q3 yes, fix the
+  Adaptive AI dial before rules 8 ships (started 2026-11-24).
