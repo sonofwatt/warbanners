@@ -92,7 +92,7 @@ Worked examples (a Warrior is attack 4, defence 3, health 10; all on open field,
 3. A Warrior hits a Warrior, and a Watchful attacker takes 1 from the counter, not 2.
 4. A Watchful Warrior attacking a Spearman takes 4 from the counter, not 5.
 5. A counter of 1 against a Watchful attacker stays 1.
-6. Tireless: a Warrior has 4 half-points of movement, a Mongol Horseman 8.
+6. Tireless: a Warrior has 4 half-points of movement, a Mongol Horseman 6 (no riding bonus since rules 8).
 
 ## 5. Treasures
 
