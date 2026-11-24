@@ -117,6 +117,15 @@ export function Highlight(p: { mark: Mark }): ReactElement {
           <ellipse cx={0} cy={0} rx={7.6} ry={4.7} fill="none" stroke="#FFFFFF" strokeWidth={3.2} />
         </g>
       );
+    case 'moveEnds':
+      // rules 8: the move ring, dashed, with a dot in the middle: the unit can go there, and its turn ends there.
+      return (
+        <g>
+          <ellipse cx={0} cy={1.2} rx={7.6} ry={4.7} fill="none" stroke={UNDER} strokeOpacity={0.5} strokeWidth={3.2} />
+          <ellipse cx={0} cy={0} rx={7.6} ry={4.7} fill="none" stroke="#FFFFFF" strokeWidth={3.2} strokeDasharray="3.4 2.6" />
+          <ellipse cx={0} cy={0} rx={1.8} ry={1.1} fill="#FFFFFF" stroke={UNDER} strokeOpacity={0.5} strokeWidth={0.8} />
+        </g>
+      );
     case 'attack':
       return <g>{ring('#F0402F', 0.22)}</g>;
     case 'ability':

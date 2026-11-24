@@ -36,7 +36,7 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
         { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },
         { icon: <ShieldIcon />, label: T.ui.defence, value: stats.def },
         { icon: <BootIcon />, label: T.ui.movement, value: stats.move },
-        { icon: <RangeIcon />, label: T.ui.range, value: stats.range },
+        { icon: <RangeIcon />, label: T.ui.range, value: stats.range > def.range ? T.ui.rangeOnMountain(stats.range) : stats.range },   // rules 8
       ]} />
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>

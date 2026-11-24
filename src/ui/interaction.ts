@@ -1,5 +1,5 @@
 // Pure selection and tap logic. Every order comes from the engine's legal actions: nothing here decides what is allowed.
-import { legalActions } from '../engine';
+import { legalActions, mountainStep } from '../engine';
 import type { AbilityId, Action, BuildingId, HexKey, MatchState, PlayerId, PlayerView, TechId, UnitTypeId } from '../engine';
 import { aiInputFor, believedState } from '../ai/input';
 import type { Mark } from './board/mark';
@@ -122,7 +122,7 @@ export function marksFor(sel: Selection, view: PlayerView, ix: ActionIndex): Rec
     } else if (sel.askLure !== null) {
       marks[sel.askLure] = 'attack';
     } else {
-      for (const h of ix.moves[sel.id] ?? []) marks[h] = 'move';
+      for (const h of ix.moves[sel.id] ?? []) marks[h] = mountainStep(view, u.pos, h) ? 'moveEnds' : 'move';   // rules 8
       for (const h of ix.attacks[sel.id] ?? []) marks[h] = 'attack';
     }
   } else if (sel.kind === 'city') {

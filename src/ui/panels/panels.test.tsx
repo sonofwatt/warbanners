@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
 import { CONFIG, FACTIONS, UNITS, createMatch, isBraced, legalActions, statsOf, thresholdOf } from '../../engine';
 import type { DeedId, MatchState, Unit } from '../../engine';
-import { addCity, addUnit, blankMatch } from '../../engine/testkit';
+import { addCity, addUnit, blankMatch, setTile } from '../../engine/testkit';
 import type { DigestLine } from '../../app/digest';
 import { roundOf } from '../../app/record';
 import { App } from '../App';
@@ -223,4 +223,21 @@ test('rules 7: a chain unit shows its momentum left of its start, any viewer; a 
   expect(guard).toContain('Momentum 8 of 8');
   const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
   expect(plain).not.toContain(`aria-label="${T.ui.momentum}"`);
+});
+test('rules 8: a ranged unit on a mountain shows its range with the bonus; off it, or a melee unit on one, shows the plain range', () => {
+  const on = (type: 'horseArcher' | 'warrior', terrain: 'mountain' | 'field') => {
+    const s = blankMatch({ factions: ['mongols', 'spartans'] });
+    addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    setTile(s, 0, 0, { terrain });
+    return renderToStaticMarkup(<UnitPanel {...panelOf(s, addUnit(s, type, 0, 0, 0), true)} commands={[]} onCommand={noop} />);
+  };
+  expect(on('horseArcher', 'mountain')).toContain('3 (mountain)');
+  expect(on('horseArcher', 'field')).not.toContain('(mountain)');
+  expect(on('warrior', 'mountain')).not.toContain('(mountain)');
+});
+test('rules 8: the mountain tile says what it does; a field says nothing of it', () => {
+  const peak = renderToStaticMarkup(<TilePanel terrain="mountain" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
+  expect(peak).toContain(T.ui.mountainBlurb.replace(/'/g, '&#x27;'));
+  const flat = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
+  expect(flat).not.toContain('whole turn');
 });

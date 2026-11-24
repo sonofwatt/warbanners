@@ -93,7 +93,8 @@ test('other taps change the selection and never act', () => {
 test('marks for a selected unit', () => {
   const m = marksFor(unitSel(0), V, IX);
   expect(m['-2,5']).toBe('selected'); expect(m['-1,4']).toBe('move');
-  expect(Object.values(m).filter(x => x === 'move')).toHaveLength(11);
+  expect(m['-2,4']).toBe('moveEnds');                       // rules 8: the mountain beside the capital ends the Scout's turn
+  expect(Object.values(m).filter(x => x === 'move')).toHaveLength(10);
 });
 test('an attack that can lure asks first', () => {
   const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));

@@ -57,7 +57,7 @@ test('art stays inside its tile footprint', () => {
   const terrains: Terrain[] = ['field', 'forest', 'mountain', 'water'];
   const resources: Resource[] = ['orchard', 'cropland', 'game', 'ore'];
   const buildings: BuildingId[] = ['farm', 'lumberCamp', 'mine', 'market'];
-  const marks: Mark[] = ['move', 'attack', 'ability', 'selected'];
+  const marks: Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
   const factions: FactionId[] = ['spartans', 'mongols'];
   const all: ReactElement[] = [
     ...(['grass', 'water', 'rock', 'sand', 'fog'] as const).map((g) => <TileBase ground={g} />),

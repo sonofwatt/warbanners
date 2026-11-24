@@ -139,7 +139,7 @@ function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId
   );
 }
 
-const MARKS: readonly Mark[] = ['move', 'attack', 'ability', 'selected'];
+const MARKS: readonly Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
 const FACTIONS: readonly FactionId[] = ['spartans', 'mongols'];
 const VARIANTS = [0, 1, 2] as const;
 

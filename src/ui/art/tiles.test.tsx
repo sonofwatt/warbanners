@@ -26,8 +26,8 @@ test('ground follows terrain, and a city tile is sand', () => {
 });
 
 test('each mark draws something different', () => {
-  const marks: Mark[] = ['move', 'attack', 'ability', 'selected'];
-  expect(new Set(marks.map((m) => html(<Highlight mark={m} />))).size).toBe(4);
+  const marks: Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
+  expect(new Set(marks.map((m) => html(<Highlight mark={m} />))).size).toBe(5);
 });
 
 test('the ready glow fills the whole top face in translucent gold and pulses unless motion is reduced', () => {
