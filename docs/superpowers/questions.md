@@ -3,7 +3,13 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-No open questions.
+## Q1. Deep stores trigger (2026-11-24)
+
+- The AI buys Deep stores (Spartan defence tech) as soon as any enemy unit stands next to one of its cities.
+- That happens in about half of Spartan matches, around round 32; the tech costs 8 to 12 gold at that point.
+- Blockades cut under 2 gold a match in AI play, so the AI gets almost nothing back.
+- Fix (AI only, no rule change): buy it only when a city is actually blockaded, or has enemies on 2+ tiles.
+- Side effect: Spartans keep 8 to 12 gold in about half their matches, a small push up for the stronger side.
 
 ## Answered
 
