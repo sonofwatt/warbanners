@@ -190,3 +190,15 @@ test('items index lists useItem units and does not count them as active', () => 
   expect(ix.activeUnits).not.toContain(drinker.id);
   expect(indexActions([]).items).toEqual([]);
 });
+test("a pathfinder's step into the fog is marked as a move that ends the turn", () => {
+  const s = blankMatch({ unexplored: true });
+  addCity(s, 0, 0, 4); addCity(s, 1, 0, -4);
+  const scout = addUnit(s, 'scout', 0, 0, 0);
+  s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'].sort();
+  const ix = indexActions(legalActions(s));
+  const m = marksFor(unitSel(scout.id), playerView(s, 0), ix);
+  const fog = (ix.moves[scout.id] ?? []).filter((k) => !s.players[0]!.explored.includes(k));
+  expect(fog.length).toBeGreaterThan(0);
+  for (const k of fog) expect(m[k]).toBe('moveEnds');
+  expect(m['1,0']).toBe('move');
+});

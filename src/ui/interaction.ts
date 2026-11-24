@@ -122,7 +122,11 @@ export function marksFor(sel: Selection, view: PlayerView, ix: ActionIndex): Rec
     } else if (sel.askLure !== null) {
       marks[sel.askLure] = 'attack';
     } else {
-      for (const h of ix.moves[sel.id] ?? []) marks[h] = mountainStep(view, u.pos, h) ? 'moveEnds' : 'move';   // rules 8
+      // A move that ends the unit's turn: onto or off a mountain (rules 8), or a pathfinder's step into the fog (rules 6:
+      // the view holds only explored tiles)
+      for (const h of ix.moves[sel.id] ?? []) {
+        marks[h] = mountainStep(view, u.pos, h) || !Object.hasOwn(view.tiles, h) ? 'moveEnds' : 'move';
+      }
       for (const h of ix.attacks[sel.id] ?? []) marks[h] = 'attack';
     }
   } else if (sel.kind === 'city') {
