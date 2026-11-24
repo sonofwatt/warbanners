@@ -652,7 +652,7 @@ export function Board(p: BoardProps): ReactElement {
       {glWanted ? <canvas ref={unitsCanvasRef} className="board-terrain board-units3d" data-testid="board-units3d" aria-hidden="true" /> : null}
       {units3d ? (
         // The units' status, badges and effects, above the 3D figures. Taps go through to the board's svg below.
-        <svg className="board board-overlay" width="100%" height="100%" data-testid="board-overlay">
+        <svg className="board-overlay" width="100%" height="100%" data-testid="board-overlay">
           <g ref={overlayCamRef} data-camera="units" transform={cameraTransform(cam.current, vp.current)}>
             {overlay}
             {p.children}

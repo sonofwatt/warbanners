@@ -75,7 +75,7 @@ describe.runIf(process.env.BROWSER === '1')('the 3D terrain option', () => {
       // The unit figures move to their own canvas; the units' status stays svg, on a second svg above them.
       expect(await page.getByTestId('board-units3d').count()).toBe(1);
       expect(await page.locator('[data-testid=board-overlay] [data-unit]').count(), 'every unit keeps its svg status').toBe(units);
-      expect(await page.locator('svg.board:not(.board-overlay) [data-unit]').count(), 'no unit is left on the tile svg').toBe(0);
+      expect(await page.locator('svg.board [data-unit]').count(), 'no unit is left on the tile svg').toBe(0);
       expect(await page.locator('[data-testid=board-overlay] [data-unit] .unit-body *').count(), 'the svg figure art is left out').toBeLessThan(figureNodes);
 
       await toggle(page);
