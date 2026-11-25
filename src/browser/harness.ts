@@ -90,8 +90,26 @@ export async function frames(page: Page): Promise<void> {
   );
 }
 
-/** Taps a tile at the centre of its data-centre marker, as a finger would. */
+/**
+ * Resolves once the board's camera has held still for a few frames: an automatic pan (a selection that opened the
+ * unit card, Next unit, a followed action) eases over up to 400 ms, and a tile's place on screen is only known after.
+ */
+export async function cameraStill(page: Page): Promise<void> {
+  await page.evaluate(`new Promise((done) => {
+    let last = null, same = 0, n = 0;
+    function look() {
+      const t = document.querySelector('[data-camera="true"]')?.getAttribute('transform') ?? '';
+      same = t === last ? same + 1 : 0;
+      last = t;
+      if (same >= 3 || ++n > 240) done(); else requestAnimationFrame(look);
+    }
+    requestAnimationFrame(look);
+  })`);
+}
+
+/** Taps a tile at the centre of its data-centre marker, as a finger would, once the view has stopped moving. */
 export async function tapTile(page: Page, hex: string): Promise<void> {
+  await cameraStill(page);
   const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
   if (box === null) throw new Error(`tile ${hex} has no box`);
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);

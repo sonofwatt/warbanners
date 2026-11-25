@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp, tapTile } from './harness';
+import { cameraStill, frames, openApp, tapTile } from './harness';
 
 // Next unit, and the tile under a unit of your own. Seed 7: Player 1's Warrior (unit 0) stands on the capital at
 // -2,5 and can move to -1,4; once it has moved it has nothing left to do this turn.
@@ -103,13 +103,13 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
       expect(inside(await box(page, '[data-centre="-2,5"]'), await box(page, '[data-testid="board-slot"]'))).toBe(false);
       await page.getByTestId('next-unit').tap();
       await page.locator('.selection .unit-panel').waitFor();
-      await frames(page);
+      await cameraStill(page); // the view eases over
       const shown = await box(page, '[data-centre="-2,5"]');
       expect(inside(shown, await box(page, '[data-testid="board-slot"]'))).toBe(true);
 
-      // Already in sight: another tap (the same unit, the only one) leaves the board where it is.
+      // Already near the middle: another tap (the same unit, the only one) leaves the board where it is.
       await page.getByTestId('next-unit').tap();
-      await frames(page);
+      await cameraStill(page);
       const again = await box(page, '[data-centre="-2,5"]');
       expect(Math.hypot(again.x - shown.x, again.y - shown.y)).toBeLessThan(0.5);
     } finally {
