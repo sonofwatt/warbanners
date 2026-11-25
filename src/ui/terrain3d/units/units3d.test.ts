@@ -26,10 +26,12 @@ vi.mock('three', async (orig) => {
 const { createUnits3d } = await import('./units3d');
 const { ALL_TYPES, buildFigure } = await import('./figures');
 const { CLEAN } = await import('./parts');
+const { AIM_TURN_MS, frontsOf, moveYaw, TURN_MS } = await import('./facing');
+const { SQUASH } = await import('../layout');
 
 const RED = { main: '#B3261E', dark: '#8E1D17', accent: '#C8963E' };
 const BLUE = { main: '#2D6DB5', dark: '#1F4F87', accent: '#D4A72C' };
-const unit = (id: number, p: Partial<GlUnit> = {}): GlUnit => ({ id, type: 'warrior', look: RED, hero: false, x: id * 10, y: 0, alpha: 1, ...p });
+const unit = (id: number, p: Partial<GlUnit> = {}): GlUnit => ({ id, type: 'warrior', look: RED, hero: false, x: id * 10, y: 0, alpha: 1, hunkered: false, ...p });
 const make = () => createUnits3d({} as HTMLCanvasElement, {})!;
 const figuresIn = (u: ReturnType<typeof make>): unknown[] => drawn.at(-1)!.scene.children.filter((c) => c !== u.extras);
 const figures = (u: ReturnType<typeof make>): Group[] => { u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1); return figuresIn(u) as Group[]; };
@@ -193,5 +195,193 @@ describe('the 3D unit figures', () => {
     u.setUnits([unit(1, { x: 1000, y: 0 }), unit(2, { type: 'camp', x: 0, y: 0 })]);
     expect(u.onScreen({ cx: 0, cy: 0, scale: 1 }, { w: 200, h: 200 })).toBe(false);
     expect(u.onScreen({ cx: 950, cy: 0, scale: 1 }, { w: 200, h: 200 })).toBe(true);
+  });
+
+  describe('facing', () => {
+    /** The body's turn about the vertical (radians), at rest level 0 so idle life adds nothing. */
+    const yawOf = (g: Group): number => { const q = (g.children[0] as Group).quaternion; return 2 * Math.atan2(q.y, q.w); };
+    const near = (a: number, b: number): number => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+    test('a unit first seen stands in its rest three-quarter view, and keeps it while nothing happens', () => {
+      const u = make();
+      u.setUnits([unit(1), unit(2, { type: 'knight' }), unit(3, { type: 'catapult', hero: true })], 0);
+      const figs = figures(u);
+      for (let t = 0; t < 2000; t += 100) {
+        u.tick(t, 0);
+        for (const g of figs) expect(near(yawOf(g), 0)).toBeLessThan(1e-9);
+      }
+      expect(u.turning(0)).toBe(false);
+    });
+
+    test('a move turns it to face the way it went, eased, and it keeps that facing after it stops', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      u.setUnits([unit(1, { x: 30, y: 0 })], 1000);
+      const want = moveYaw('warrior', 30, 0)!;
+      expect(u.turning(1000)).toBe(true);
+      u.tick(1000, 0);
+      expect(near(yawOf(g), 0)).toBeLessThan(1e-9);
+      u.tick(1000 + TURN_MS / 2, 0);
+      const mid = yawOf(g);
+      expect(near(mid, 0)).toBeGreaterThan(0.1);
+      expect(near(mid, want)).toBeGreaterThan(0.1);
+      u.tick(1000 + TURN_MS, 0);
+      expect(near(yawOf(g), want)).toBeLessThan(1e-9);
+      expect(u.turning(1000 + TURN_MS)).toBe(false);
+      // Spent after its move, it is rebuilt dimmed: still facing the move, long after.
+      u.setUnits([unit(1, { x: 30, y: 0, alpha: 0.55 })], 1500);
+      const dim = figures(u)[0]!;
+      expect(dim).not.toBe(g);
+      u.tick(60_000, 0);
+      expect(near(yawOf(dim), want)).toBeLessThan(1e-9);
+    });
+
+    test('moving straight down the screen faces the viewer, up faces away, sideways is a profile', () => {
+      for (const [dx, dy, heading] of [[0, 40, 0], [0, -40, Math.PI], [40, 0, Math.PI / 2], [-40, 0, -Math.PI / 2]] as const) {
+        for (const type of ['warrior', 'knight', 'catapult', 'kingsGuard'] as const) {
+          const u = make();
+          u.setUnits([unit(1, { type, x: 0, y: 0 })], 0);
+          const g = figures(u)[0]!;
+          u.setUnits([unit(1, { type, x: dx, y: dy })], 0);
+          u.tick(1000, 0);
+          expect(near(frontsOf(type).move + yawOf(g), heading), `${type} toward ${dx},${dy}`).toBeLessThan(1e-9);
+        }
+      }
+    });
+
+    test('the front of the drawn figure points along the move on screen (through the camera tilt)', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      const d = [17, 25.5]; // a hex step down and to the right
+      u.setUnits([unit(1, { x: d[0]!, y: d[1]! })], 0);
+      u.tick(1000, 0);
+      // The built figure's front has its rest heading; the body turns it on from there.
+      const h = frontsOf('warrior').move + yawOf(g);
+      const screen = [Math.sin(h), Math.cos(h) * SQUASH];
+      expect(Math.abs(screen[0]! * d[1]! - screen[1]! * d[0]!)).toBeLessThan(1e-9);
+      expect(screen[0]! * d[0]! + screen[1]! * d[1]!).toBeGreaterThan(0);
+    });
+
+    test('an attack turns the attacker to its target, round by the time its lunge starts; the target stays', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { x: 0, y: -40 })], 0);
+      const [a, b] = figures(u) as [Group, Group];
+      u.aim(1, 0, -40, 1000, 1300);
+      u.tick(1100, 0);
+      expect(near(yawOf(a), 0), 'waits for its lunge').toBeLessThan(1e-9);
+      expect(u.turning(1100)).toBe(true);
+      u.tick(1300, 0);
+      expect(near(frontsOf('warrior').aim + yawOf(a), Math.PI), 'faces away, toward the target up the screen').toBeLessThan(1e-9);
+      expect(near(yawOf(b), 0), 'the one attacked is left as it was').toBeLessThan(1e-9);
+      // A lunge that starts now: the turn is as quick as it can be, from now.
+      u.aim(1, 40, -40, 2000, 2000);
+      u.tick(2000 + AIM_TURN_MS, 0);
+      expect(near(frontsOf('warrior').aim + yawOf(a), Math.atan2(40, -40 / SQUASH))).toBeLessThan(1e-9);
+      // An archer aims its arrow, side on.
+      const v = make();
+      v.setUnits([unit(1, { type: 'archer', x: 0, y: 0 })], 0);
+      const arch = figures(v)[0]!;
+      v.aim(1, 0, 40, 0);
+      v.tick(500, 0);
+      expect(near(frontsOf('archer').aim + yawOf(arch), 0)).toBeLessThan(1e-9);
+      expect(near(yawOf(arch), 0), 'not just its rest pose').toBeGreaterThan(0.5);
+    });
+
+    test('a unit that hunkers turns back to its rest facing; nothing else does', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      u.setUnits([unit(1, { x: -30, y: 0 })], 0);
+      u.tick(500, 0);
+      const moved = yawOf(g);
+      expect(near(moved, 0)).toBeGreaterThan(1);
+      // Selection, spent, a new look of the same unit: no turn.
+      u.setUnits([unit(1, { x: -30, y: 0, alpha: 0.55 })], 600);
+      expect(u.turning(600)).toBe(false);
+      u.setUnits([unit(1, { x: -30, y: 0, hunkered: true })], 1000);
+      expect(u.turning(1000)).toBe(true);
+      const g2 = figures(u)[0]!;
+      u.tick(1000 + TURN_MS / 2, 0);
+      expect(near(yawOf(g2), 0)).toBeGreaterThan(0.05);
+      u.tick(1000 + TURN_MS, 0);
+      expect(near(yawOf(g2), 0)).toBeLessThan(1e-9);
+      // Staying hunkered is not a new hunker: an attack turns it, and it keeps that.
+      u.aim(1, 30, 0, 2000);
+      u.setUnits([unit(1, { x: -30, y: 0, hunkered: true })], 2050);
+      u.tick(3000, 0);
+      expect(near(frontsOf('warrior').aim + yawOf(g2), Math.PI / 2)).toBeLessThan(1e-9);
+    });
+
+    test('a unit that leaves the scene and comes back is in its rest facing again', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      u.setUnits([unit(1, { x: 0, y: -40 })], 0);
+      u.setUnits([], 10);
+      u.setUnits([unit(1, { x: 0, y: -40 })], 5000);
+      u.tick(6000, 0);
+      expect(near(yawOf(figures(u)[0]!), 0)).toBeLessThan(1e-9);
+    });
+
+    test('with reduced motion a turn is made at once', () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce') }));
+      try {
+        const u = make();
+        u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+        const g = figures(u)[0]!;
+        u.setUnits([unit(1, { x: 30, y: 0 })], 1000);
+        expect(u.turning(1000)).toBe(false);
+        u.tick(1000, 0);
+        expect(near(yawOf(g), moveYaw('warrior', 30, 0)!)).toBeLessThan(1e-9);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    test('the trebuchet still swings its arm and aims at idle in a new facing', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'catapult', x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      u.aim(1, 0, -40, 0); // up the screen: it turns its back on the viewer
+      u.tick(500, 0);
+      const facing = yawOf(g);
+      expect(near(frontsOf('catapult').aim + facing, Math.PI)).toBeLessThan(1e-9);
+      const body = g.children[0] as Group;
+      const arm = body.children.at(-2) as Group;
+      const angle = (): number => 2 * Math.acos(Math.min(1, Math.abs(arm.quaternion.w)));
+      u.pose(new Map([[1, { x: 0, y: 0, lunge: 0.28 }]]), []);
+      u.tick(600, 1);
+      expect(angle()).toBeGreaterThan(2.5);
+      u.pose(new Map(), []);
+      let most = 0;
+      for (let t = 5000; t < 40_000; t += 250) { u.tick(t, 1); most = Math.max(most, near(yawOf(g), facing)); }
+      expect(most, 'its idle aim plays about the new facing').toBeGreaterThan(0.005);
+      expect(most).toBeLessThan(0.1);
+    });
+
+    test('the shadow turns its shape with the figure but stays under it', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      const sh = g.children[1]!;
+      const rest = sh.position.clone();
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 40 })], 0);
+      u.tick(1000, 0);
+      expect(Math.abs(sh.rotation.z - yawOf(g))).toBeLessThan(1e-9);
+      expect(sh.position.distanceTo(rest)).toBeLessThan(1);
+    });
+
+    test('a fallen unit falls the way it was facing', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'archer', x: 0, y: 0 })], 0);
+      u.setUnits([unit(1, { type: 'archer', x: 30, y: 0 })], 0);
+      u.tick(1000, 0);
+      const was = yawOf(figures(u)[0]!);
+      u.setUnits([], 1100);
+      u.pose(new Map(), [{ key: '0@x', type: 'archer', look: RED, x: 30, y: 0, angle: 0.2, alpha: 0.9 }]);
+      const fall = figures(u)[0]!;
+      expect(near(yawOf(fall), was)).toBeLessThan(1e-9);
+    });
   });
 });

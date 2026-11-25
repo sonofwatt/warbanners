@@ -217,7 +217,13 @@ attribute float aGloss; attribute vec3 aOut; attribute float aVeil;
 uniform float uOutline;
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
 void main() {
-  vColor = color; vNormal = normal; vGloss = aGloss;
+  vColor = color; vGloss = aGloss;
+#ifdef WORLD_NORMAL
+  // A figure that turns (units/facing.ts) is lit by the world's light, not its own: its normals turn with it.
+  vNormal = mat3(modelMatrix) * normal;
+#else
+  vNormal = normal;
+#endif
   vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position + aOut * uOutline, 1.0);
   vWorld = w.xyz;

@@ -42,7 +42,13 @@ export interface BoardProps {
   terrain3d?: boolean;
   // A sheet, menu or dialog covers the board: the 3D board's idle animation pauses until it is gone.
   covered?: boolean;
+  // The attacks of the action just shown (its lunges, with their delays): each new seq turns the 3D figure of each
+  // attacker to face its target. UI only; moves and hunkers are seen in the scene itself.
+  attacks?: BoardAttacks | null;
 }
+
+/** One action's attacks, for the 3D figures' facing: who attacks which tile, and when its lunge starts (ms from now). */
+export interface BoardAttacks { seq: number; list: readonly { unit: number; toward: HexKey; delay: number }[] }
 
 /** The screen the board assumes before it has been measured, and in Node. */
 export const ASSUMED_VIEWPORT: Viewport = { w: 412, h: 915 };
@@ -541,11 +547,14 @@ export function Board(p: BoardProps): ReactElement {
     const u = unitsLatest.current;
     if (!units3d || t === null || t.units === null || u === null || cam.current === null) return;
     if (shownUnits.current === u.key) return;
-    t.units.setUnits(u.units);
+    const now = performance.now();
+    t.units.setUnits(u.units, now);
     shownUnits.current = u.key;
-    t.tick(performance.now(), ambient.current?.level() ?? 0);
+    t.tick(now, ambient.current?.level() ?? 0);
     t.drawUnits(cam.current, vp.current);
     ambient.current?.drew();
+    // A move or a hunker turns a figure: follow the turn frame by frame (a move's slide is followed anyway).
+    if (t.units.turning(now)) followUnits();
   }, [units3d, unitsKey]);
 
   // While the svg plays a slide, a lunge or a fall, the 3D figures follow it frame by frame: each frame reads where
@@ -567,7 +576,7 @@ export function Board(p: BoardProps): ReactElement {
       t.drawUnits(cam.current, vp.current);
       // A slide or lunge is a game event: it wakes the loop; the frame just drawn counts as the loop's own.
       ambient.current?.drew();
-      if (live.moving) unitsFrame.current = requestAnimationFrame(step);
+      if (live.moving || t.units.turning(now)) unitsFrame.current = requestAnimationFrame(step);
     };
     unitsFrame.current = requestAnimationFrame(step);
   }, []);
@@ -575,6 +584,22 @@ export function Board(p: BoardProps): ReactElement {
     if (unitsFrame.current !== 0) cancelAnimationFrame(unitsFrame.current);
     unitsFrame.current = 0;
   }, []);
+  // An attack turns the attacker's figure to face its target, round by the time its lunge starts. After the scene's
+  // units are set (above), so a unit that has just appeared is there to turn. Once per action.
+  const attacks = p.attacks ?? null;
+  const shownAttacks = useRef(attacks?.seq ?? 0);
+  useLayoutEffect(() => {
+    if (attacks === null || attacks.seq === shownAttacks.current) return;
+    shownAttacks.current = attacks.seq;
+    const t = terrain.current;
+    if (!units3d || t === null || t.units === null) return;
+    const now = performance.now();
+    for (const a of attacks.list) {
+      const to = hexToBoard(a.toward);
+      t.units.aim(a.unit, to.x, to.y, now, now + a.delay);
+    }
+    if (t.units.turning(now)) followUnits();
+  }, [attacks, units3d, followUnits]);
   // Effects (a lunge, a fall) start in their own layout effects, which run before this one.
   useLayoutEffect(() => {
     if (units3d) followUnits();

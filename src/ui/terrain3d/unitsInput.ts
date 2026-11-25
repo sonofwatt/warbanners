@@ -15,6 +15,8 @@ export interface GlUnit {
   y: number;
   /** The SVG figure's opacity: 0.55 for an own spent unit, 0.7 for an own hidden one, else 1. */
   alpha: number;
+  /** Dug in (rules 7): a unit that hunkers turns back to its rest facing (units/facing.ts). */
+  hunkered: boolean;
 }
 
 /** How the SVG figure of a unit is dimmed (Board.tsx draws it with this opacity when the 3D figures are off). */
@@ -37,8 +39,9 @@ export function glUnitsOf(items: readonly SceneItem[], factions: readonly Factio
       id: u.id, type: u.type, look: { ...playerColour(faction), accent: ACCENT[faction] }, hero: isHero(u),
       x: it.at.x, y: it.at.y,
       alpha: unitAlpha({ mine: it.mine, spent: it.spent, hidden: UNITS[u.type].traits.includes('hidden') }),
+      hunkered: u.hunkered,
     });
   }
-  const key = units.map((u) => `${u.id}:${u.type}:${u.look.main}${u.look.dark}${u.look.accent}:${u.hero ? 'h' : ''}:${u.x},${u.y}:${u.alpha}`).join(' ');
+  const key = units.map((u) => `${u.id}:${u.type}:${u.look.main}${u.look.dark}${u.look.accent}:${u.hero ? 'h' : ''}:${u.x},${u.y}:${u.alpha}:${u.hunkered ? 'k' : ''}`).join(' ');
   return { units, key };
 }

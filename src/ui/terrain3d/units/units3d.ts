@@ -18,6 +18,8 @@ import type { Figure } from './figures';
 import { CLEAN } from './parts';
 import { armSwing, idleKind, idlePose, settleWeight, stoneLoaded } from './idle';
 import type { IdleKind } from './idle';
+import { AIM_TURN_MS, aimYaw, moveYaw, REST_TURN, TURN_MS, turnTo, turning, wrap, yawAt } from './facing';
+import type { Turn } from './facing';
 
 export interface UnitsCamera { cx: number; cy: number; scale: number }
 export interface UnitsViewport { w: number; h: number }
@@ -28,8 +30,19 @@ export interface UnitPose { x: number; y: number; lunge?: number }
 export interface UnitFall { key: string; type: GlUnit['type']; look: GlUnit['look']; x: number; y: number; angle: number; alpha: number }
 
 export interface Units3d {
-  /** The scene's units: new ones are added, gone ones removed, changed ones rebuilt. */
-  setUnits(units: readonly GlUnit[]): void;
+  /**
+   * The scene's units: new ones are added (in their rest facing), gone ones removed, changed ones rebuilt. One that
+   * stands on a new point turns to face the way it went, and one that has just hunkered turns back to rest; the turns
+   * start at `nowMs` (the clock tick is given; by default the last tick's time).
+   */
+  setUnits(units: readonly GlUnit[], nowMs?: number): void;
+  /**
+   * Unit `id` attacks the board point (x, y): it turns to aim at it, so that the turn is round by `atMs` (when its
+   * lunge starts) or as soon after `nowMs` as it can be. It keeps that facing until its next move, attack or hunker.
+   */
+  aim(id: number, x: number, y: number, nowMs: number, atMs?: number): void;
+  /** Whether any figure is still turning (or waiting to turn) at `nowMs`, so its frames must go on being drawn. */
+  turning(nowMs: number): boolean;
   /** Where units stand this frame while they move (others stay on their tiles), and the falls playing. */
   pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void;
   /**
@@ -53,7 +66,7 @@ const SHADOW_ALPHA = 0.18;
 
 const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}`;
 
-interface Built { group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null }
+interface Built { group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; shadow: Mesh; shadowX: number }
 interface Placed extends Built {
   sig: string; unit: GlUnit; alpha: number; kind: IdleKind;
   /** Moving in this frame (a slide or a lunge), and when it last was (ms), so its idle life eases back in. */
@@ -65,6 +78,27 @@ interface Placed extends Built {
 const EASE_OUT_MS = 150;
 /** The figure's body stands this far toward the viewer from the tile centre: its feet are 4 board units lower on screen. */
 const FEET_Z = 4 / SQUASH;
+/** The ground shadow sits this far right of the figure's own centre (the light is from the upper left) and back. */
+const SHADOW_DX = 1.2, SHADOW_DZ = -0.6;
+
+/** A unit's facing, kept by id across rebuilds (a unit that is spent after a move is rebuilt dimmed, still facing its move). */
+interface Facing { type: GlUnit['type']; x: number; y: number; hunkered: boolean; turn: Turn }
+
+/** Whether the player asks for less motion: turns are then made at once. Read when a turn starts, never at import. */
+function reducedMotion(): boolean {
+  try {
+    return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/** Turn the figure's body and its ground shadow to yaw `yaw` from rest (radians about the vertical). */
+function placeShadow(b: Pick<Built, 'shadow' | 'shadowX'>, yaw: number): void {
+  // The footprint turns with the figure; the light's offset does not.
+  b.shadow.rotation.set(-Math.PI / 2, 0, yaw);
+  b.shadow.position.set(b.shadowX * Math.cos(yaw) + SHADOW_DX, 0.15, FEET_Z - b.shadowX * Math.sin(yaw) + SHADOW_DZ);
+}
 
 export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, { value: unknown }>): Units3d | null {
   let renderer: WebGLRenderer;
@@ -79,8 +113,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   const uniforms = (outline: boolean, alpha?: number): Record<string, { value: unknown }> => ({
     ...shared, uOutline: { value: outline ? UNIT_OUTLINE : 0 }, uIsOutline: { value: outline }, ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
   });
-  const fillMat = new ShaderMaterial({ uniforms: uniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true });
-  const hullMat = new ShaderMaterial({ uniforms: uniforms(true), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, side: BackSide });
+  // The figures turn (facing.ts), so their normals are taken to world space for the light, which stays put.
+  const fillMat = new ShaderMaterial({ uniforms: uniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, defines: { WORLD_NORMAL: '' } });
+  const hullMat = new ShaderMaterial({ uniforms: uniforms(true), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, side: BackSide, defines: { WORLD_NORMAL: '' } });
   const shadowGeo = new CircleGeometry(1, 20);
   const shadowMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA, depthWrite: false });
 
@@ -91,7 +126,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   function makeDim(a: number): Dim {
     const mk = (outline: boolean, colour: boolean): ShaderMaterial => new ShaderMaterial({
       uniforms: uniforms(outline, a), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
-      side: outline ? BackSide : undefined, defines: { UNIT_ALPHA: '' },
+      side: outline ? BackSide : undefined, defines: { UNIT_ALPHA: '', WORLD_NORMAL: '' },
       colorWrite: colour, transparent: colour, depthWrite: !colour,
     });
     return {
@@ -134,12 +169,12 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     const body = new Group();
     body.position.set(0, 0, FEET_Z);
     const dim = own ?? (alpha < 1 ? dimOf(alpha) : null);
+    // The shadow lies in the figure's group, not its body: idle life does not lift it, and a turn turns only its shape.
     const sh = new Mesh(shadowGeo, dim !== null ? dim.shadow : shadowMat);
-    sh.rotation.x = -Math.PI / 2;
     sh.scale.set(f.shadow.rx, f.shadow.rz, 1);
-    sh.position.set(f.shadow.x + 1.2, 0.15, -0.6);
     sh.renderOrder = -1;
-    const meshes: Mesh[] = [sh];
+    sh.frustumCulled = false;
+    const meshes: Mesh[] = [];
     if (dim !== null) {
       const d = dim;
       meshes.push(new Mesh(f.hull, d.depthHull), new Mesh(f.fill, d.depthFill), new Mesh(f.hull, d.hull), new Mesh(f.fill, d.fill));
@@ -167,18 +202,41 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     const stone = piece(STONE_PIECE);
     const axis = f.pieces[ARM]?.axis;
     g.add(body);
-    return { group: g, body, arm, stone, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1) };
+    g.add(sh);
+    const built = { group: g, body, arm, stone, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x };
+    placeShadow(built, 0);
+    return built;
   }
 
   const scene = new Scene();
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
   const placed = new Map<number, Placed>();
   const ground = (x: number, y: number, out: Vector3): Vector3 => out.set(x, 0, y / SQUASH);
+  const facings = new Map<number, Facing>();
+  const turnMs = (ms: number): number => (reducedMotion() ? 0 : ms);
+  // The facing of a unit that has just left the scene, by its look and tile, so its fall starts the way it stood.
+  const gone = new Map<string, { yaw: number; at: number }>();
+  const spot = (type: string, x: number, y: number): string => `${type}@${Math.round(x * 10)},${Math.round(y * 10)}`;
+  const GONE_MS = 3000;
 
-  function setUnits(units: readonly GlUnit[]): void {
+  function setUnits(units: readonly GlUnit[], nowMs?: number): void {
+    const now = nowMs ?? clock;
     const keep = new Set<number>();
     for (const u of units) {
       keep.add(u.id);
+      const fc = facings.get(u.id);
+      if (fc === undefined) {
+        facings.set(u.id, { type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, turn: REST_TURN });
+      } else {
+        if (u.x !== fc.x || u.y !== fc.y) {
+          // A move (a slide, a lure, an advance): face the way it went.
+          const yaw = moveYaw(u.type, u.x - fc.x, u.y - fc.y);
+          if (yaw !== null) fc.turn = turnTo(fc.turn, yaw, now, turnMs(TURN_MS));
+        } else if (u.hunkered && !fc.hunkered) {
+          fc.turn = turnTo(fc.turn, 0, now, turnMs(TURN_MS));
+        }
+        fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
+      }
       const sig = `${lookKey(u.type, u.look, u.hero)}|${u.alpha}`;
       let p = placed.get(u.id);
       if (p !== undefined && p.sig !== sig) {
@@ -198,12 +256,35 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       scene.remove(p.group);
       placed.delete(id);
     }
+    for (const [k, g] of gone) if (now - g.at > GONE_MS) gone.delete(k);
+    for (const [id, fc] of facings) {
+      if (keep.has(id)) continue;
+      gone.set(spot(fc.type, fc.x, fc.y), { yaw: wrap(yawAt(fc.turn, now)), at: now });
+      facings.delete(id);
+    }
+  }
+
+  function aim(id: number, x: number, y: number, nowMs: number, atMs = nowMs): void {
+    const fc = facings.get(id);
+    if (fc === undefined) return;
+    const yaw = aimYaw(fc.type, x - fc.x, y - fc.y);
+    if (yaw === null) return;
+    const ms = turnMs(AIM_TURN_MS);
+    fc.turn = turnTo(fc.turn, yaw, nowMs, ms, atMs - ms);
+  }
+  function anyTurning(nowMs: number): boolean {
+    for (const id of placed.keys()) {
+      const fc = facings.get(id);
+      if (fc !== undefined && turning(fc.turn, nowMs)) return true;
+    }
+    return false;
   }
 
   // Falls: a figure of the fallen unit, turned about the line of sight through its tile centre and fading.
   const axis = new Vector3(0, -SQUASH, -COS_E); // the camera's view direction: a turn about it is a turn on screen
   const fallen = new Map<string, { group: Group; dim: Dim }>();
   const q = new Quaternion();
+  const Z = new Vector3(0, 0, 1), Y = new Vector3(0, 1, 0);
   function pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void {
     for (const p of placed.values()) {
       const now = at.get(p.unit.id);
@@ -220,7 +301,12 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       let g = fallen.get(k);
       if (g === undefined) {
         const dim = makeDim(f.alpha);
-        g = { group: makeGroup(f.type, f.look, false, f.alpha, dim).group, dim };
+        const b = makeGroup(f.type, f.look, false, f.alpha, dim);
+        // It falls facing the way it stood.
+        const yaw = gone.get(spot(f.type, f.x, f.y))?.yaw ?? 0;
+        b.body.quaternion.setFromAxisAngle(Y, yaw);
+        placeShadow(b, yaw);
+        g = { group: b.group, dim };
         scene.add(g.group);
         fallen.set(k, g);
       }
@@ -240,7 +326,6 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   // group turn; the figure's group stays on its tile, so a figure never leaves its tile or its status plate.
   let clock = 0;
   const qa = new Quaternion(), qb = new Quaternion();
-  const Z = new Vector3(0, 0, 1), Y = new Vector3(0, 1, 0);
   function tick(nowMs: number, level: number): void {
     const dt = Math.min(100, Math.max(0, nowMs - clock));
     clock = nowMs;
@@ -251,7 +336,11 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       p.weight = target < p.weight ? Math.max(target, p.weight - dt / EASE_OUT_MS) : target;
       const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, p.weight * Math.min(1, Math.max(0, level)));
       p.body.position.set(ip.shift, ip.bob, FEET_Z);
-      p.body.quaternion.copy(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, ip.yaw));
+      // The facing turns the body about its feet; the idle tilt stays a sway in the plane of the screen.
+      const fc = facings.get(p.unit.id);
+      const face = fc === undefined ? 0 : yawAt(fc.turn, nowMs);
+      p.body.quaternion.copy(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, face + ip.yaw));
+      placeShadow(p, face);
       p.body.scale.set(1, 1 + ip.breathe, 1);
       if (p.arm !== null) {
         const angle = armSwing(p.lunge) + ip.arm;
@@ -297,6 +386,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   function dispose(): void {
     scene.clear();
     placed.clear();
+    facings.clear();
+    gone.clear();
     for (const g of fallen.values()) disposeDim(g.dim);
     fallen.clear();
     for (const f of looks.values()) {
@@ -314,7 +405,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   return {
-    setUnits, pose, tick, onScreen, extras, draw, dispose,
+    setUnits, aim, turning: anyTurning, pose, tick, onScreen, extras, draw, dispose,
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, dims: dims.size }),
   };
 }
