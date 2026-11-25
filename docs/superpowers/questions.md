@@ -3,7 +3,21 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-No open questions.
+## Q1. Rules 9 balance swing (2026-11-25)
+
+- Rules 9 built on branch rules9 (17820eb..3155ebb): first level-up needs 2 for everyone (Spartan -1 from level 2),
+  level-2 gold reward 5, and Unhunker. Not merged or shipped.
+- Sims, 200 matches each: normal Spartans 52.3 to 26.8%, Mongols 43.3 to 68.0%; hard 51.0 to 26.3%, Mongols 46.0 to
+  71.8%. Stalls 9 to 10.5% (normal), 6 to 4% (hard).
+- The growth change alone does all of it (gold kept at 6 gives 26.3 / 71.0). Spartans end with about 2.2 cities
+  instead of 4.2; Mongols 5.4 instead of 3.5. City counts at round 10 barely move, so the gap opens mid-game.
+- One growth point at level 1 swinging 25 points is suspicious (likely a cascade: later levels, rewards, the AI's
+  expansion timing).
+- Options:
+  - A: find out why first (a short look at where the Spartan games go wrong), then a tuning pass to bring Spartans back
+    to 45 to 55% while keeping the slower first level-up. My pick.
+  - B: ship rules 9 now with the 5 gold and Unhunker only; leave the Spartan first level-up for a later rules version.
+  - C: keep the growth change and give the Spartans a set boost elsewhere without the investigation.
 
 ## Answered
 
