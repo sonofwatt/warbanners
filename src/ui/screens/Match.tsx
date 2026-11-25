@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
-  DEEDS, blockadeOf, growthNeeded, isBraced, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
+  DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
@@ -281,14 +281,18 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (city !== undefined) {
       const mine = city.owner === viewer;
       const owner = state.players[city.owner]!.faction;
+      // Joined to its owner's capital now, judged on what the viewer believes (roads seen, never ones in the fog).
+      const believed = believedState(aiInputFor(state, viewer));
+      const seen = believed.cities.find((c) => c.id === city.id);
+      const connected = seen !== undefined && isConnected(believed, seen);
       panel = mine ? (
         <CityPanel
           key={city.id} faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
           units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)} blockade={data.blockades.get(city.id)}
-          walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
+          walls={city.walls} connected={connected} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
       ) : (
-        <CityPanel faction={owner} level={city.level} capital={city.capital} walls={city.walls} commands={[]} onCommand={onCommand} />
+        <CityPanel faction={owner} level={city.level} capital={city.capital} walls={city.walls} connected={connected} commands={[]} onCommand={onCommand} />
       );
     }
   } else if (selection.kind === 'tile') {

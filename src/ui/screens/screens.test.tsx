@@ -233,7 +233,9 @@ test('an enemy city opened from under my unit shows only what the board shows', 
   expect(store.getState().selection).toEqual({ kind: 'city', id: foe.id });
   const html = render(store, <Match />);
   expect(html).toContain('city-panel');
-  expect(html).toContain(`>${T.ui.level}<`);
+  // The level is the badge on the picture's corner now, not a number in the row.
+  expect(html).toContain('data-testid="city-level"');
+  expect(html).not.toContain(`>${T.ui.level}<`);
   expect(html).toContain(`>${T.ui.walls}<`);
   for (const hidden of [T.ui.growth, T.ui.unitsHeld, T.ui.incomeWord]) expect(html).not.toContain(`>${hidden}<`);
   expect(html).not.toContain('data-testid="cmd-');

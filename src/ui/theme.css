@@ -411,7 +411,19 @@ input:focus { border-color: var(--blue); }
 .shop-hint { margin: var(--s1) 0 0; font-size: var(--t-s); font-weight: 600; color: var(--ink-soft); }
 .shop-card { margin-top: var(--s2); background: var(--paper-2); border-radius: var(--r); padding: var(--s3); }
 .shop-card h3 { margin: 0 0 var(--s1); font-size: var(--t-xl); font-weight: 850; }
-.picture-frame { flex: none; width: 68px; height: 68px; border-radius: var(--r); background: var(--sky); display: grid; place-items: center; overflow: hidden; }
+.picture-frame { position: relative; flex: none; width: 68px; height: 68px; border-radius: var(--r); background: var(--sky); display: grid; place-items: center; overflow: hidden; }
+/* Badges on the picture's bottom corners (a city card): the road to the capital on the left, the level on the right.
+   Small enough to leave the picture's middle clear, large enough to read on a phone. */
+.corner-badge {
+  position: absolute; bottom: 2px; height: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  background: var(--paper); border-radius: 999px; box-shadow: 0 0 0 1.5px var(--paper-edge);
+  font-size: var(--t-s); font-weight: 850; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.corner-badge .icon { width: 16px; height: 16px; }
+.corner-badge.linked { left: 2px; width: 24px; background: var(--ink); box-shadow: 0 0 0 1.5px var(--paper); }
+.corner-badge.linked .icon { width: 17px; height: 17px; }
+.corner-badge.level { right: 2px; min-width: 24px; padding: 0 5px 0 3px; }
+.corner-badge.level .icon { width: 14px; height: 14px; }
 .picture-frame .picture { width: 64px; height: auto; display: block; }
 .card-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .blurb { margin: 0; font-size: var(--t-m); line-height: 1.3; color: var(--ink-soft); font-weight: 550; }

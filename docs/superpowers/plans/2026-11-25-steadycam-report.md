@@ -137,20 +137,40 @@ of margin) reached under the collapsed card, so the view eased up just that far.
 
 ### The selected city's land
 
+David asked first for "a fainter outline indicating the land owned by a given city while that city is selected", then
+replaced it: "Instead of another outline, lets put a faction colour gradient over the city's tiles 50% opacity by the
+outer edge, lowering down to 0% within 1 tile width."
+
 - `scene.ts`: `SceneInput.cityLand` (the selected city's id, either player's); each tile of that city's territory
   the viewer has explored gets `cityEdges`, the directions where its neighbour is not in that land. The same
   knowledge the faction borders already show, so nothing hidden is revealed.
-- `art/tiles.tsx` `CityLand`: a faint tint of the tile face (10 percent of the faction colour) and an outline in the
-  faction colour, 1.5 wide against the border's 2.4, at 60 percent opacity, set further in (0.78 against 0.9) so it
-  runs just inside the faction border where they coincide. Drawn in the tile layer under the ready glow, the marks
-  and the units, so the selection ring and the figures stay on top. The 3D look draws it in the same tile svg over
-  the terrain canvas, as it does the borders.
+- `art/tiles.tsx` `CityGlow`: an inner glow, no line. On each land tile, one fill of the faction colour at 50 percent
+  (`CITY_GLOW_MAX`) through a mask. The mask holds, per outer edge, a linear gradient from white at that edge's middle
+  to black at the opposite side's middle: full strength at the city's edge, nothing one tile width in. The fades are
+  combined with `mix-blend-mode: lighten` inside an isolated group, so where two outer edges meet the stronger one
+  wins and the glow never passes 50 percent. A tile with no outer edge (the middle of a large city) draws nothing.
+  Cheap: a few polygons per land tile, drawn only while a city is selected, and memoised with the tile.
+- Drawn in the tile layer after the faction border and under the ready glow, the marks and the units, so the
+  selection ring and the figures stay on top. The 3D look draws it in the same tile svg over the terrain canvas.
 - `Match.tsx` passes the selected city; deselecting or selecting anything else drops it. It is part of the scene, so
   it moves no camera.
-- On turn 1 the capital's land is the whole faction territory, so the outline shows as a second, fainter line just
-  inside the border; it tells cities apart once a player has more than one.
 
-## 3. Tests
+### The city card's corner badges
+
+David: "On the city card, place a small icon overlaid on the bottom left corner of the city image tile indicating that
+it is connected to the capital. Also move the cities level to the bottom right of that image."
+
+- The engine already exports the rules 7 test, `isConnected(state, city)` (roads and the owner's cities joining it
+  to the owner's capital now; false for a capital), tested in `src/engine/connect.test.ts`. No engine change.
+- `Match.tsx` asks it of the viewer's believed state (`believedState(aiInputFor(...))`, as the unit card's brace and
+  myth touch do), so an enemy city's badge never tells of roads in the fog.
+- `CityPanel` / `CardHead` `corners`: on the picture's bottom left, a 24 px round dark badge (ink, a paper ring) with the road icon,
+  `role="img"`, its label and title "Connected to the capital" (`T.ui.connectedToCapital`), only when connected and
+  never on a capital. On the bottom right, a 24 px pill with a star and the level, labelled "Level N". The Level
+  tile left the numbers row (Growth, Units, Income, Walls and the blockade stay); a card with no picture keeps it in
+  the row. Both badges sit in the corners, clear of the picture's middle, and show in the collapsed card.
+
+## 3. Tests## 3. Tests
 
 Unit (`npx vitest run`): new `src/ui/board/cover.test.ts`: the uncovered dead zone (portrait and side), a followed
 action that is in the plain zone but low in what the card leaves, the clamp's extra room equal to the card (and only
@@ -173,10 +193,18 @@ Browser (`npm run test:browser`):
   row along the bottom, at least 48 px tall, each label on one line inside its button; the card replaces the bar and
   deselecting brings it back with the camera unchanged; End turn neutral (Tech's beige) with a unit to act and in the
   player's colour once none can, still enabled.
-- `cityland.test.ts` (SVG and 3D, 412x915): no outline with nothing or a unit selected; with the capital selected,
-  the outlined tiles include the capital and lie within its reach, the line is thinner and see-through; the camera
-  does not move; the outline is gone after deselecting. Unit: `scene.test.ts` checks that exactly the selected
-  city's explored tiles carry an outline and a capital's own tile has no outer edge.
+- `cityland.test.ts` (SVG and 3D, 412x915, a save built from the engine: seed 7 plus a level 2 city at 1,4 joined to
+  the capital by roads): no glow with nothing or a unit selected; with each city selected in turn, only its tiles
+  glow (the two lands share none), no line is drawn, and read off the screen (pictured with and without the glow) the
+  glow is between 0.3 and 0.53 of the way to the faction colour a tenth of a tile from the edge and under 0.08 nine
+  tenths of the way in; the camera does not move; nothing glows after deselecting. Unit: `scene.test.ts` (exactly
+  the selected city's explored tiles carry edges) and `tiles.test.tsx` (one 50 percent fill through a mask, one
+  white-to-black fade per edge across one tile width, combined with lighten, no line).
+- `citybadges.test.ts` (412x915, a save with a city at -1,3 joined by a road and one at 1,2 with none): the road
+  badge on the connected city only, never on the capital, with its label; the level badge shows the level; both
+  are 22 to 26 px, in their bottom corners, clear of the picture's middle, in the collapsed card; the row has no
+  Level and still has Growth. Unit: `panels.test.tsx` (badges in the picture frame, none on a capital told it is
+  connected) and `screens.test.tsx` (an enemy city's card has the level badge, no Level in the row).
 - Updated for the bar and the card lying over the board, without weakening what they prove:
   - `harness.ts`: `uncoveredBox` (the part of the slot the card or bar leaves); `deselect` (a tap on the sea past the
     map, else the selected tile until it cycles to nothing); `tapTile` now drags the board first when the card or the
@@ -197,12 +225,12 @@ Browser (`npm run test:browser`):
 Results of the final run (load average 12 to 20 on the shared box throughout):
 
 - `npx tsc -b`: clean. `npm run lint`: clean.
-- `npx vitest run`: 126 files passed, 25 skipped (the browser gates); 1306 tests passed. Under the box's load
+- `npx vitest run`: 126 files passed, 26 skipped (the browser gates); 1308 tests passed. Under the box's load
   `src/app/stats.test.ts` and `src/engine/speed.test.ts` timed out once each in earlier runs; both pass alone and on
   the baseline, and neither is touched here.
 - `GITHUB_PAGES_BASE=/warbanners/ npx vite build`: clean.
-- `npm run test:browser` (with the base): `ai.test.ts` 6 of 6, then the rest 20 files passed, 1 skipped (online,
-  gated on the emulator), 59 tests passed (after the city land outline).
+- `npm run test:browser` (with the base): `ai.test.ts` 6 of 6, then the rest 21 files passed, 1 skipped (online,
+  gated on the emulator), 60 tests passed (after the city land glow and the card badges).
 - The AI test's "never stands still for 100 ms" bound is close to the line on this loaded box. A/B with the 0.6.2
   build (same test file, the dist swapped), after the cover caching: 0.6.2 failed 2 of 3 runs (119, 124 ms), this
   branch 2 of 3 (106, 134 ms); both pass when the box is quieter, and it passed in the final run. Before the caching
@@ -222,7 +250,10 @@ Results of the final run (load average 12 to 20 on the shared box throughout):
 - The bar: `bar-nothing-selected-412x915.png` (Tech with its dot, Next unit with its count, End turn neutral),
   `unit-selected-card-412x915.png` (the card in the bar's place), `bar-end-turn-ready-412x915.png` (no unit left to
   act: End turn red, Next unit greyed), `topbar-412x915.png` (close-up: Menu, flag, name, gold, turn).
-- The city's land: `capital-land-svg-412x915.png`, `capital-land-3d-412x915.png`.
+- The city's land glow, each city selected in turn: `land-capital-svg-412x915.png`, `land-second-svg-412x915.png`,
+  `land-capital-3d-412x915.png`, `land-second-3d-412x915.png`.
+- The city card's badges: `city-card-connected-412x915.png`, `city-card-unconnected-412x915.png`,
+  `city-card-capital-412x915.png`.
 - The camera rule: `in-sight-412x915.png`, `in-sight-915x412.png` (selected in sight, nothing moved),
   `brought-in-412x915.png`, `brought-in-915x412.png` (a unit under the card brought just clear of it).
 

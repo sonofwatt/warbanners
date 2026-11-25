@@ -97,6 +97,24 @@ test('the city panel shows growth, units and a row of units to train', () => {
   expect(html).not.toContain('data-testid="cmd-train-warrior"');
   expect(html).toContain(T.ui.shopHint);
 });
+test('the city card: the level on the picture\'s corner, not in the row; the road badge only on a connected city', () => {
+  const card = (p: { connected?: boolean; capital?: boolean }) => renderToStaticMarkup(
+    <CityPanel faction="spartans" level={3} capital={p.capital} connected={p.connected} growth={1} growthNeeded={3} walls={false} commands={[]} onCommand={noop} />);
+  const linked = card({ connected: true });
+  expect(linked).toContain('data-testid="city-connected"');
+  expect(linked).toContain(`aria-label="${T.ui.connectedToCapital}"`);
+  expect(linked).toContain(`title="${T.ui.connectedToCapital}"`);
+  expect(linked).toMatch(/data-testid="city-level"[^>]*aria-label="Level 3"/);
+  expect(linked).not.toContain(`>${T.ui.level}<`);
+  expect(linked).toContain(`>${T.ui.growth}<`);
+  // Both badges sit in the picture's frame.
+  const frame = linked.slice(linked.indexOf('class="picture-frame"'), linked.indexOf('class="card-title"'));
+  expect(frame).toContain('city-connected'); expect(frame).toContain('city-level');
+  expect(card({ connected: false })).not.toContain('city-connected');
+  expect(card({})).not.toContain('city-connected');
+  // A capital never shows it, whatever it is told.
+  expect(card({ connected: true, capital: true })).not.toContain('city-connected');
+});
 test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
   expect(html).toContain('Mountain'); expect(html).toContain('Ore');
