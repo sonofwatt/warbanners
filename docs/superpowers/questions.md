@@ -3,7 +3,14 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-No open questions.
+## Q2. Next unit and End turn while a card is open (2026-11-25)
+
+- New layout (branch steadycam): the bottom bar (Tech, Next unit, End turn) is replaced by the card while anything is
+  selected, as asked.
+- A unit with moves left stays selected after it acts, so ending the turn or jumping to the next unit needs a
+  deselect first (tap the sea, the fog, or the tile again until nothing is selected).
+- Options: A, a small Next unit button on the collapsed card (End turn still needs a deselect, so it is never
+  tapped by accident); B, both Next unit and End turn as small buttons on the card; C, leave it as built.
 
 ## Answered
 
