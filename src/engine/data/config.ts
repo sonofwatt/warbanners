@@ -45,8 +45,8 @@ export const CONFIG = deepFreeze({
   capacityBase: 1,                            // unit capacity is level + capacityBase (+ rewards)
   growthBase: 1,                              // growth to leave level L is L + growthBase (+ faction extra)
   // rules 9: the faction's growthExtra counts only when leaving this level or a higher one, so every city needs
-  // 1 + growthBase growth for its first level-up and the Spartan -1 applies from level 2 on. 1 replays rules 8 (the
-  // extra on every level); only the provenance tests set it back.
+  // 1 + growthBase growth for its first level-up and the Spartan extra (-2 since rules 9's tuning) applies from level 2
+  // on. 1 with the Spartan extra at -1 replays rules 8 (the extra on every level); only the provenance tests set it back.
   growthExtraFrom: 2,
   mapgen: {
     field: 50, forest: 72, mountain: 86,

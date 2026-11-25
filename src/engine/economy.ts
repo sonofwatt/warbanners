@@ -50,11 +50,9 @@ export function playerIncome(s: MatchState, p: PlayerId): number {
   return total;
 }
 
-// rules 9: the faction extra counts only from level CONFIG.growthExtraFrom on, and its late extra from its own
-// growthExtraLateFrom on (data, not a faction check).
+// rules 9: the faction extra counts only from level CONFIG.growthExtraFrom on (data, not a faction check).
 export function growthNeeded(s: MatchState, c: City): number {
-  const f = FACTIONS[s.players[c.owner]!.faction];
-  const extra = (c.level >= CONFIG.growthExtraFrom ? f.growthExtra : 0) + (c.level >= f.growthExtraLateFrom ? f.growthExtraLate : 0);
+  const extra = c.level >= CONFIG.growthExtraFrom ? FACTIONS[s.players[c.owner]!.faction].growthExtra : 0;
   return c.level + CONFIG.growthBase + extra;
 }
 
@@ -63,7 +61,6 @@ export function addGrowth(s: MatchState, c: City, n: number, ev: GameEvent[]): v
   while (c.growth >= growthNeeded(s, c)) {
     c.growth -= growthNeeded(s, c);
     c.level += 1;
-    if (c.level === 2) c.growth += FACTIONS[s.players[c.owner]!.faction].levelTwoGrowth;   // rules 9
     c.pendingRewards.push(c.level);
     ev.push({ type: 'cityLevel', city: c.id, level: c.level });
   }

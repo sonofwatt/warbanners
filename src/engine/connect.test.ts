@@ -59,7 +59,7 @@ test('roads between two cities pay nothing until one joins the capital; then eac
   ]);
   expect(cityById(second.state, a.id)).toMatchObject({ level: 1, growth: 1 });
   expect(cityById(second.state, b.id)).toMatchObject({ level: 1, growth: 1 });
-  expect(cityById(second.state, cap.id)).toMatchObject({ level: 2, growth: 1 });   // 1 per city joined: the two fill level 1 (2 since rules 9), and a Spartan city gains 1 on reaching level 2
+  expect(cityById(second.state, cap.id)).toMatchObject({ level: 2, growth: 0 });   // 1 per city joined: the two fill level 1 (2 since rules 9)
 });
 
 test('a road tile inside enemy territory breaks the chain; one in neutral land does not', () => {
@@ -75,7 +75,7 @@ test('a road tile inside enemy territory breaks the chain; one in neutral land d
 
 test('a growth bonus that fills the bar levels the city and queues its reward', () => {
   const s = roads(blankMatch());
-  addCity(s, 0, 0, 0, { capital: true }); const c = addCity(s, 0, 2, 0, { level: 2, growth: 1 });   // level 2 needs 2, so the 1 paid fills the bar
+  addCity(s, 0, 0, 0, { capital: true }); const c = addCity(s, 0, 2, 0, { level: 2, growth: 0 });   // a Spartan level 2 needs 1 (rules 9; 2 before), so the 1 paid fills the bar
   const r = road(s, '1,0');
   expect(cityById(r.state, c.id)).toMatchObject({ level: 3, growth: 0, pendingRewards: [3] });
   expect(r.events).toContainEqual({ type: 'cityLevel', city: c.id, level: 3 });

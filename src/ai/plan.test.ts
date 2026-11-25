@@ -181,7 +181,7 @@ test('withGrowth levels cities through the engine, several levels at once, and l
   const before = structuredClone(s);
   const g = withGrowth(s, [sp.id, mo.id], 6);
   const at = (id: number) => g.cities.find((c) => c.id === id)!;
-  expect([at(sp.id).level, at(sp.id).growth, at(sp.id).pendingRewards]).toEqual([4, 2, [2, 3, 4]]);   // Spartans (rules 9: 2 to leave level 1, 1 given at level 2, L-1 from level 3): 7 growth pays 2, 1 more with the given one pays 2, then 2, and leaves 2 toward level 5 (3)
+  expect([at(sp.id).level, at(sp.id).growth, at(sp.id).pendingRewards]).toEqual([4, 2, [2, 3, 4]]);   // Spartans (rules 9: 2 to leave level 1, then L-1): 7 growth pays 2 + 1 + 2 and leaves 2 toward level 5 (3)
   expect([at(mo.id).level, at(mo.id).growth, at(mo.id).pendingRewards]).toEqual([3, 1, [2, 3]]);   // Mongols (rules 8, the common pace): 6 pays 2 + 3 and leaves 1
   expect(at(other.id)).toBe(s.cities.find((c) => c.id === other.id));
   expect(s).toEqual(before);

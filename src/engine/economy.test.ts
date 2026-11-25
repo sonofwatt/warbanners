@@ -4,6 +4,7 @@ import { hashState } from './hash';
 import { neighbors } from './hex';
 import { addGrowth, cityIncome, growthNeeded, playerIncome, unitCapacity } from './economy';
 import { CONFIG } from './data/config';
+import { FACTIONS } from './data/factions';
 import { cityById, claimTerritory, unitAt } from './state';
 import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import type { Action, BuildingId, GameEvent, TechId, Tile } from './types';
@@ -19,11 +20,12 @@ test('growth levels a city and queues the reward; Spartan cities level faster fr
   addGrowth(s, c, 1, ev);
   expect(c).toMatchObject({ level: 1, growth: 1, pendingRewards: [] }); expect(ev).toEqual([]);
   addGrowth(s, c, 1, ev);
-  expect(c).toMatchObject({ level: 2, growth: 1, pendingRewards: [2] });   // rules 9: a Spartan city reaching level 2 gains 1 growth
+  expect(c).toMatchObject({ level: 2, growth: 0, pendingRewards: [2] });
   expect(ev).toContainEqual({ type: 'cityLevel', city: c.id, level: 2 });
-  expect(growthNeeded(s, c)).toBe(2);                                // from level 2 a Spartan city leaves level L on L growth
+  expect(FACTIONS.spartans.growthExtra).toBe(-2);
+  expect(growthNeeded(s, c)).toBe(1);                                // rules 9: from level 2 a Spartan city leaves level L on L - 1 growth
   addGrowth(s, c, 1, []); expect(c).toMatchObject({ level: 3, growth: 0 });
-  expect(growthNeeded(s, c)).toBe(2);                                // rules 9: and from level 3 on L - 1
+  expect(growthNeeded(s, c)).toBe(2);
   addGrowth(s, c, 2, []); expect(c).toMatchObject({ level: 4, growth: 0 });
   expect(growthNeeded(s, c)).toBe(3);
   const m = addCity(s, 1, 3, 0);                                     // a Mongol city needs L + 1 since rules 8 (L + 2 before)

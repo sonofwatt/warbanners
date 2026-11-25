@@ -17,22 +17,16 @@ export interface FactionDef {
   blockadeStores: boolean;
   agoge: boolean;                        // earns traits from the lower agogeThresholds
   mythTouch: boolean;                    // a hero beside another hero of its owner has +1 attack and +1 defence
-  // rules 9: a further change to the growth a city needs to level up, from level growthExtraLateFrom on (on top of
-  // growthExtra, which counts from CONFIG.growthExtraFrom)
-  growthExtraLate: number; growthExtraLateFrom: number;
-  levelTwoGrowth: number;                // rules 9: growth points a city of the faction gains the moment it reaches level 2
 }
 
 // rules 13
 export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
   spartans: {
     startUnit: 'scout', champion: 'kingsGuard', support: 'piper',
-    cityCover: 2, canBuildWalls: false, growthExtra: -1, mountedMoveBonus: 0, mountedDiscount: 0,
+    // growthExtra -2 (rules 9; -1 in rules 7 and 8): counted from CONFIG.growthExtraFrom (2), so a Spartan city needs 2
+    // to leave level 1, like anyone's, and L-1 to leave level L from level 2 on: 2, 1, 2, 3, 4 (2026-11-25-rules9-report.md)
+    cityCover: 2, canBuildWalls: false, growthExtra: -2, mountedMoveBonus: 0, mountedDiscount: 0,
     forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true, blockadeStores: true, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: true, mythTouch: true,
-    // rules 9: with no discount on leaving level 1 (CONFIG.growthExtraFrom 2), a Spartan city gains 1 growth the moment
-    // it reaches level 2 and needs 1 more growth less from level 3 on: 2 to leave level 1, then 2, 2, and L-1 to leave
-    // level L, with the first of the level 2 bar given (2026-11-25-rules9-report.md)
-    growthExtraLate: -1, growthExtraLateFrom: 3, levelTwoGrowth: 1,
   },
   mongols: {
     startUnit: 'horseman', champion: 'khansGuard', support: 'skyCaller',
@@ -41,6 +35,5 @@ export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
     // growthExtra 0 (1 before rules 8): Mongol cities level as fast as anyone's, for the connection growth they lost
     // with their roads, and tribute 4 (3 before rules 8) for a village or a city's base (2026-11-24-rules8-tuning-report.md)
     forestStopsMounted: true, relayRiders: true, territoryRiding: false, relayMountedOnly: true, canBuildRoads: false, blockadeStores: false, tributeVillage: 4, tributeCityBase: 4, canLure: true, agoge: false, mythTouch: false,
-    growthExtraLate: 0, growthExtraLateFrom: 3, levelTwoGrowth: 0,
   },
 });
