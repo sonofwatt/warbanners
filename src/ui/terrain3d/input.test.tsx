@@ -14,7 +14,7 @@ const tile = (p: Partial<Tile> = {}): Tile => ({
 });
 const scene = (key: HexKey, t: Tile | null, p: Partial<SceneTile> = {}): SceneTile => ({
   kind: 'tile', key, at: hexToBoard(key), fog: t === null, tile: t, veiled: false, city: null, owner: null,
-  borderEdges: [], roadLinks: [], mark: null, ready: false, occupied: false, ...p,
+  borderEdges: [], cityEdges: null, roadLinks: [], mark: null, ready: false, occupied: false, ...p,
 });
 const html = (t: SceneTile, gl: boolean): string =>
   renderToStaticMarkup(<svg><BoardTile t={t} factions={['spartans', 'mongols']} viewer={0} gl={gl} /></svg>);

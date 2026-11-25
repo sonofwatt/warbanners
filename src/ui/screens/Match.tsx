@@ -236,14 +236,16 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     focusHeld.current = turnFocus(focusHeld.current, `${roundOf(state)}:${viewer}`, data.focus ?? '0,0');
   }
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
+  // While a city is selected (either player's), its land is outlined on the board.
+  const cityLand = selection.kind === 'city' ? selection.id : null;
   // The tile of the turn report line being looked at is ringed, so it can be found when the board's edge stops the
   // view short of centring it.
   const peekAt = peek !== null ? digest[peek]?.at : undefined;
   const items = useMemo(() => {
     if (data === null) return null;
     const marks = peekAt === undefined ? data.marks : { ...data.marks, [peekAt]: 'selected' as const };
-    return buildScene({ view: data.view, radius: data.radius, marks, ready: data.ready, selectedUnit, spentUnits: data.spent });
-  }, [data, selectedUnit, peekAt]);
+    return buildScene({ view: data.view, radius: data.radius, marks, ready: data.ready, selectedUnit, spentUnits: data.spent, cityLand });
+  }, [data, selectedUnit, peekAt, cityLand]);
   if (state === null || record === null || viewer === null || data === null || items === null) return null;
 
   const { view, ix } = data;

@@ -5,7 +5,7 @@ import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
-import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
+import { Border, CityLand, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
 import {
@@ -237,6 +237,9 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       {t.veiled ? <Veil>{body}</Veil> : null}
       {ownerFaction !== undefined && t.borderEdges.length > 0 ? (
         <Border edges={t.borderEdges} colour={playerColour(ownerFaction).main} />
+      ) : null}
+      {ownerFaction !== undefined && t.cityEdges !== null ? (
+        <g data-city-land="true"><CityLand edges={t.cityEdges} colour={playerColour(ownerFaction).main} /></g>
       ) : null}
       {glow}
       {mark}

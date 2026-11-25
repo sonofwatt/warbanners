@@ -175,13 +175,13 @@ export function ReadyGlow(): ReactElement {
  * edge is not a border here), the line runs on to that shared side, so it meets the next tile's
  * line there and the outline has no gap.
  */
-export function Border(p: { edges: readonly number[]; colour: string }): ReactElement {
+export function Border(p: { edges: readonly number[]; colour: string; inset?: number; width?: number; opacity?: number }): ReactElement {
   const c = topCorners();
-  const f = 0.9;
+  const f = p.inset ?? 0.9;
   const inner = shrink(c, f);
   const sides = new Set(p.edges.map(cornerEdge));
   return (
-    <g>
+    <g opacity={p.opacity}>
       {p.edges.map((d) => {
         const i = cornerEdge(d);
         const j = (i + 1) % 6;
@@ -198,11 +198,24 @@ export function Border(p: { edges: readonly number[]; colour: string }): ReactEl
             x2={r1(b.x)}
             y2={r1(b.y)}
             stroke={p.colour}
-            strokeWidth={2.4}
+            strokeWidth={p.width ?? 2.4}
             strokeLinecap="round"
           />
         );
       })}
+    </g>
+  );
+}
+
+/**
+ * The land of the selected city: a fainter outline than the faction's border, in the same colour, thinner and
+ * set a little further in, so it reads inside the border where the two run together, over a faint tint of the face.
+ */
+export function CityLand(p: { edges: readonly number[]; colour: string }): ReactElement {
+  return (
+    <g pointerEvents="none">
+      <polygon points={pts(shrink(topCorners(), 0.98))} fill={p.colour} fillOpacity={0.1} />
+      {p.edges.length > 0 ? <Border edges={p.edges} colour={p.colour} inset={0.78} width={1.5} opacity={0.6} /> : null}
     </g>
   );
 }

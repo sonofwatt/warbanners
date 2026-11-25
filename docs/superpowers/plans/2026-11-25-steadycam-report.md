@@ -10,6 +10,7 @@ David's reports on 0.6.2:
 3. Move Next unit, End turn and Tech to the bottom of the screen, all End turn's shape, with words; a selection's
    card replaces them; Menu to the left of the player's name.
 4. End turn stays neutral while there are moves left, and lights up red once there are none.
+5. "Let's add a fainter outline indicating the land owned by a given city while that city is selected." 
 
 ## 1. The cause, measured
 
@@ -134,6 +135,21 @@ of margin) reached under the collapsed card, so the view eased up just that far.
   `action-bar`, `units-to-act`, `selection`, `sheet-handle`. `can-act` is gone (its words are on Next unit for
   readers).
 
+### The selected city's land
+
+- `scene.ts`: `SceneInput.cityLand` (the selected city's id, either player's); each tile of that city's territory
+  the viewer has explored gets `cityEdges`, the directions where its neighbour is not in that land. The same
+  knowledge the faction borders already show, so nothing hidden is revealed.
+- `art/tiles.tsx` `CityLand`: a faint tint of the tile face (10 percent of the faction colour) and an outline in the
+  faction colour, 1.5 wide against the border's 2.4, at 60 percent opacity, set further in (0.78 against 0.9) so it
+  runs just inside the faction border where they coincide. Drawn in the tile layer under the ready glow, the marks
+  and the units, so the selection ring and the figures stay on top. The 3D look draws it in the same tile svg over
+  the terrain canvas, as it does the borders.
+- `Match.tsx` passes the selected city; deselecting or selecting anything else drops it. It is part of the scene, so
+  it moves no camera.
+- On turn 1 the capital's land is the whole faction territory, so the outline shows as a second, fainter line just
+  inside the border; it tells cities apart once a player has more than one.
+
 ## 3. Tests
 
 Unit (`npx vitest run`): new `src/ui/board/cover.test.ts`: the uncovered dead zone (portrait and side), a followed
@@ -157,6 +173,10 @@ Browser (`npm run test:browser`):
   row along the bottom, at least 48 px tall, each label on one line inside its button; the card replaces the bar and
   deselecting brings it back with the camera unchanged; End turn neutral (Tech's beige) with a unit to act and in the
   player's colour once none can, still enabled.
+- `cityland.test.ts` (SVG and 3D, 412x915): no outline with nothing or a unit selected; with the capital selected,
+  the outlined tiles include the capital and lie within its reach, the line is thinner and see-through; the camera
+  does not move; the outline is gone after deselecting. Unit: `scene.test.ts` checks that exactly the selected
+  city's explored tiles carry an outline and a capital's own tile has no outer edge.
 - Updated for the bar and the card lying over the board, without weakening what they prove:
   - `harness.ts`: `uncoveredBox` (the part of the slot the card or bar leaves); `deselect` (a tap on the sea past the
     map, else the selected tile until it cycles to nothing); `tapTile` now drags the board first when the card or the
@@ -177,12 +197,12 @@ Browser (`npm run test:browser`):
 Results of the final run (load average 12 to 20 on the shared box throughout):
 
 - `npx tsc -b`: clean. `npm run lint`: clean.
-- `npx vitest run`: 126 files passed, 24 skipped (the browser gates); 1305 tests passed. Under the box's load
+- `npx vitest run`: 126 files passed, 25 skipped (the browser gates); 1306 tests passed. Under the box's load
   `src/app/stats.test.ts` and `src/engine/speed.test.ts` timed out once each in earlier runs; both pass alone and on
   the baseline, and neither is touched here.
 - `GITHUB_PAGES_BASE=/warbanners/ npx vite build`: clean.
-- `npm run test:browser` (with the base): `ai.test.ts` 6 of 6, then the rest 19 files passed, 1 skipped (online,
-  gated on the emulator), 57 tests passed.
+- `npm run test:browser` (with the base): `ai.test.ts` 6 of 6, then the rest 20 files passed, 1 skipped (online,
+  gated on the emulator), 59 tests passed (after the city land outline).
 - The AI test's "never stands still for 100 ms" bound is close to the line on this loaded box. A/B with the 0.6.2
   build (same test file, the dist swapped), after the cover caching: 0.6.2 failed 2 of 3 runs (119, 124 ms), this
   branch 2 of 3 (106, 134 ms); both pass when the box is quieter, and it passed in the final run. Before the caching
@@ -202,6 +222,7 @@ Results of the final run (load average 12 to 20 on the shared box throughout):
 - The bar: `bar-nothing-selected-412x915.png` (Tech with its dot, Next unit with its count, End turn neutral),
   `unit-selected-card-412x915.png` (the card in the bar's place), `bar-end-turn-ready-412x915.png` (no unit left to
   act: End turn red, Next unit greyed), `topbar-412x915.png` (close-up: Menu, flag, name, gold, turn).
+- The city's land: `capital-land-svg-412x915.png`, `capital-land-3d-412x915.png`.
 - The camera rule: `in-sight-412x915.png`, `in-sight-915x412.png` (selected in sight, nothing moved),
   `brought-in-412x915.png`, `brought-in-915x412.png` (a unit under the card brought just clear of it).
 
