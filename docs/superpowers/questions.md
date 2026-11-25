@@ -3,7 +3,7 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-## Q2. Next unit and End turn while a card is open (2026-11-25)
+## Q1. Next unit and End turn while a card is open (2026-11-25)
 
 - New layout (branch steadycam): the bottom bar (Tech, Next unit, End turn) is replaced by the card while anything is
   selected, as asked.
