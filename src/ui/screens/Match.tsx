@@ -188,18 +188,22 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   // The sound is chosen by the same rule, from the same units.
   const fx = useMemo(() => {
     if (last === null || state === null || viewer === null || last.seq === shownBefore.current) return null;
-    const { visible, seenUnits } = seenBy(last.before, state, viewer);
+    const { visible, seenUnits, visibleBefore } = seenBy(last.before, state, viewer);
     return {
       seq: last.seq, sound: soundFor(last.events, hearingFor(last.before, state, viewer)),
-      list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer),
+      list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer, visibleBefore),
     };
   }, [last, state, viewer]);
-  // The same action's attacks and deaths, for the 3D figures' facing (each attacker turns to its target).
+  // The same action as the board plays it: its attacks and deaths (the 3D figures face, strike and block), when its
+  // moves start, and the tiles where it happened (the view follows them when they leave the middle of the screen).
   const attacks = useMemo((): BoardAttacks | null => {
     if (fx === null) return null;
-    const list = fx.list.flatMap((f) => (f.kind === 'lunge' ? [{ unit: f.unit, from: f.from, toward: f.toward, delay: f.delay }] : []));
+    const list = fx.list.flatMap((f) => (f.kind === 'lunge'
+      ? [{ unit: f.unit, from: f.from, toward: f.toward, delay: f.delay, target: f.target, counter: f.counter }] : []));
     const fallen = fx.list.flatMap((f) => (f.kind === 'fall' ? [f.unit] : []));
-    return list.length === 0 && fallen.length === 0 ? null : { seq: fx.seq, list, fallen };
+    const moves = fx.list.flatMap((f) => (f.kind === 'move' ? [{ unit: f.unit, delay: f.delay }] : []));
+    const tiles = fx.list.flatMap((f) => (f.kind === 'lunge' ? [f.from, f.toward] : f.kind === 'move' ? [f.to] : [f.at]));
+    return list.length === 0 && fallen.length === 0 && moves.length === 0 && tiles.length === 0 ? null : { seq: fx.seq, list, fallen, moves, tiles };
   }, [fx]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   useEffect(() => {

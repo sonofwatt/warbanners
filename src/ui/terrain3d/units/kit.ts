@@ -41,6 +41,9 @@ export interface BuiltPiece {
   /** The pivot point and the axis it turns about (unit length), in figure space. */
   pivot: V3;
   axis: V3;
+  /** Which way the piece pushes toward a target, and which way is up for it (unit length, figure space). */
+  fwd: V3;
+  up: V3;
 }
 
 export interface BuiltFigure {
@@ -60,16 +63,18 @@ export class Kit {
   private readonly stack: Matrix4[] = [];
   private decals = 0;
   private piece: string | null = null;
-  private readonly pivots = new Map<string, { pivot: V3; axis: V3 }>();
+  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3 }>();
 
   /**
    * Run `f` with every part it adds going to the moving piece `name`, which turns about `at` (in this frame) and
-   * this frame's z axis (toward the viewer before any turn, so the piece swings in the figure's own plane).
+   * this frame's z axis (toward the viewer before any turn, so the piece swings in the figure's own plane), or the
+   * axis `o.axis` of this frame. `o.fwd` (default this frame's z) and `o.up` (its y) say which way the piece pushes
+   * toward a target and which way it lifts.
    */
-  pivot(name: string, at: V3, f: () => void): void {
+  pivot(name: string, at: V3, f: () => void, o: { axis?: V3; fwd?: V3; up?: V3 } = {}): void {
     const p = new Vector3(...at).applyMatrix4(this.mat);
-    const ax = new Vector3(0, 0, 1).transformDirection(this.mat);
-    this.pivots.set(name, { pivot: [p.x, p.y, p.z], axis: [ax.x, ax.y, ax.z] });
+    const dir = (v: V3): V3 => { const d = new Vector3(...v).transformDirection(this.mat); return [d.x, d.y, d.z]; };
+    this.pivots.set(name, { pivot: [p.x, p.y, p.z], axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]) });
     const was = this.piece;
     this.piece = name;
     f();
@@ -256,7 +261,7 @@ export class Kit {
     for (const k of groups.keys()) {
       if (k === null) continue;
       const at = this.pivots.get(k)!;
-      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis };
+      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up };
     }
     return { ...mergeOf(null), triangles, pieces };
   }

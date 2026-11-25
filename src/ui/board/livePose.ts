@@ -4,6 +4,7 @@ import type { FactionId } from '../../engine';
 import { ACCENT, playerColour } from '../art/palette';
 import type { UnitFall, UnitPose } from '../terrain3d/units/units3d';
 import { hexToBoard } from './layout';
+import { travelPhase } from './motion';
 
 /** An element's live (animated) CSS transform: its translation and its turn in radians; null when it cannot be read. */
 export function liveTransform(el: Element): { x: number; y: number; angle: number } | null {
@@ -48,6 +49,16 @@ export function lungePhase(a: Animation): number | null {
   return Math.min(1, Math.max(0, (local - delay) / dur));
 }
 
+/** How far through the travel of a slide an animation is (motion.ts travelPhase), or null (turning first, or unknown). */
+export function slideTravel(a: Animation): number | null {
+  const effect = a.effect as { getComputedTiming?: () => ComputedEffectTiming } | null;
+  if (effect == null || typeof effect.getComputedTiming !== 'function') return null;
+  const t = effect.getComputedTiming();
+  const local = t.localTime, delay = t.delay ?? 0, dur = t.duration;
+  if (typeof local !== 'number' || typeof dur !== 'number' || !(dur > 0)) return null;
+  return travelPhase(local - delay, dur);
+}
+
 /**
  * The poses of the units with a running animation, the falls playing (from the svg fall's own turn and opacity,
  * keyed by `data-fall-key`, stable for the fall's life), and whether anything in `g` still animates.
@@ -58,6 +69,7 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
   if (typeof g.getAnimations !== 'function') return { at, falls, moving: false };
   const running = g.getAnimations({ subtree: true }).filter((a) => a.playState === 'running');
   const lunges = new Map<number, number>();
+  const travels = new Map<number, number>();
   for (const a of running) {
     const effect = a.effect as { target?: Element | null } | null;
     const unit = effect?.target?.closest('[data-unit]');
@@ -67,6 +79,10 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
     if (effect?.target?.classList?.contains('unit-body') === true) {
       const p = lungePhase(a);
       if (p !== null) lunges.set(id, p);
+    } else if (effect?.target === unit) {
+      // A slide plays on the unit's group: how far through its travel drives the gait.
+      const p = slideTravel(a);
+      if (p !== null) travels.set(id, p);
     }
     if (at.has(id)) continue;
     const pose = unitPoseOf(unit);
@@ -75,6 +91,10 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
   for (const [id, p] of lunges) {
     const pose = at.get(id);
     if (pose !== undefined) at.set(id, { ...pose, lunge: p });
+  }
+  for (const [id, p] of travels) {
+    const pose = at.get(id);
+    if (pose !== undefined) at.set(id, { ...pose, travel: p });
   }
   g.querySelectorAll('[data-fall]').forEach((el) => {
     const faction = factions[Number(el.getAttribute('data-fall-owner'))];

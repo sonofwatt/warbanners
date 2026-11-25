@@ -10,6 +10,7 @@ import { aiInputFor } from '../ai/input';
 import { LEVEL_DIAL } from '../ai/types';
 import type { AiLevel } from '../ai/types';
 import { watchMs } from '../ui/board/effects';
+import { terrain3dOn } from '../ui/terrain3d/option';
 import { afterAction, indexActions, isOffered, NONE, nextUnit as nextUnitOf, offered, tap as tapLogic } from '../ui/interaction';
 import type { Armed, Hit, Selection } from '../ui/interaction';
 import { T } from '../ui/text';
@@ -286,7 +287,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
           }
           if (play(record, state, step.action, res)) return;
           // Let the screen draw what it can see, and never hold the main thread through a long run of unseen actions.
-          const watch = watchMs(res.events, state, res.state, viewer);
+          const watch = watchMs(res.events, state, res.state, viewer, terrain3dOn());
           await deps.sleep(watch > 0 ? Math.max(AI_STEP_MS, watch) : 0);
           if (!live()) return;
         } catch (e) {

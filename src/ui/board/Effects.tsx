@@ -21,8 +21,8 @@ const place = (k: HexKey): string => {
   return `translate(${r2(p.x)} ${r2(p.y)})`;
 };
 
-/** What is drawn as its own shape: numbers always, falls and bursts only with motion. A lunge moves the unit itself. */
-const drawn = (f: Effect, still: boolean): boolean => f.kind === 'number' || (!still && f.kind !== 'lunge');
+/** What is drawn as its own shape: numbers always, falls and bursts only with motion. A lunge moves the unit itself, and a move is the board's slide. */
+const drawn = (f: Effect, still: boolean): boolean => f.kind === 'number' || (!still && f.kind !== 'lunge' && f.kind !== 'move');
 
 /**
  * Plays one action's effects inside the board's camera group, each removed when its
@@ -48,9 +48,10 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
       if (f.kind !== 'lunge') continue;
       const unit = cam.querySelector(`[data-unit="${f.unit}"]`);
       const body = unit?.querySelector('.unit-body');
-      const from = unit?.getAttribute('data-at');
-      if (body == null || from == null || typeof body.animate !== 'function') continue;
-      const a = hexToBoard(from);
+      if (body == null || typeof body.animate !== 'function') continue;
+      // From the tile it struck from, not the one it stands on now: a killer that then advances into its target's
+      // tile already stands there, and would otherwise lean nowhere.
+      const a = hexToBoard(f.from);
       const b = hexToBoard(f.toward);
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       if (len === 0) continue;
@@ -83,7 +84,7 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
   return (
     <g className="fx" pointerEvents="none" aria-hidden="true" ref={ref}>
       {p.effects.map((f, i) => {
-        if (!live.has(i) || f.kind === 'lunge') return null;
+        if (!live.has(i) || f.kind === 'lunge' || f.kind === 'move') return null;
         const style = { animationDelay: `${f.delay}ms`, animationDuration: `${effectMs(f)}ms` };
         let body: ReactElement | null = null;
         if (f.kind === 'number') {

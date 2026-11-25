@@ -8,10 +8,10 @@ import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
-import { centreOn, keepCorner, keepInView, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
+import { cameraBetween, centreOn, easeInOut, followAction, keepCorner, panMs, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
 import type { Camera, Viewport } from './camera';
 import { prefersReducedMotion } from './Effects';
-import { boardBounds, hexToBoard, THICK, tileBox } from './layout';
+import { boardBounds, hexToBoard, R, SQUASH, THICK } from './layout';
 import type { Box, Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
@@ -25,7 +25,8 @@ import type { AmbientLoop } from '../terrain3d/ambient';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
-import { livePose } from './livePose';
+import { livePose, liveTransform } from './livePose';
+import { hexesBetween, SLIDE_MS, slideFrames, slideMs3d } from './motion';
 
 export interface BoardProps {
   items: readonly SceneItem[];
@@ -49,13 +50,17 @@ export interface BoardProps {
 }
 
 /**
- * One action's attacks, for the 3D figures' facing: who attacks which tile from which, and when its lunge starts (ms
- * from now); and the ids of the units it killed.
+ * One action as the board plays it, for this viewer's eyes (effects.ts effectsFor): who attacks which unit on which
+ * tile from which, when its lunge starts (ms from now), and whether the unit attacked struck back; the ids of the
+ * units it killed; when each seen move starts (an advance waits for its blow); and the tiles where it all happened,
+ * which the view follows when they leave the middle of the screen. Each new seq is one new action.
  */
 export interface BoardAttacks {
   seq: number;
-  list: readonly { unit: number; from: HexKey; toward: HexKey; delay: number }[];
+  list: readonly { unit: number; from: HexKey; toward: HexKey; delay: number; target?: number; counter?: boolean }[];
   fallen?: readonly number[];
+  moves?: readonly { unit: number; delay: number }[];
+  tiles?: readonly HexKey[];
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -66,10 +71,11 @@ const MIN_SIDE = 48;
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** How long a unit takes to slide from one tile to the next. */
-export const SLIDE_MS = 180;
+export { SLIDE_MS };
 // A moved unit is drawn on top while it slides and goes back into the draw order a little after it arrives.
-const SETTLE_MS = SLIDE_MS + 40;
+const SETTLE_AFTER_MS = 40;
+/** The distance between neighbouring tile centres, in board units. */
+const TILE_STEP = R * Math.sqrt(3);
 
 const unitTransform = (at: Pt): string => `translate(${r2(at.x)}px, ${r2(at.y)}px)`;
 
@@ -283,18 +289,27 @@ const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.
 const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
- * After the slot has changed size with something selected: the least pan that keeps the selected tile in the
- * slot, and with it every marked tile (where the selection can go or act) when they all fit.
+ * After the slot has changed size with something selected: the view follows the selected tile by the dead-zone rule
+ * (camera.ts followAction), so it does not move while the selection stays in the middle of the slot.
  */
 function keepSelection(c: Camera, vp: Viewport, bounds: Box, items: readonly SceneItem[]): Camera {
-  const marked = items.filter((i): i is SceneTile => i.kind === 'tile' && i.mark !== null);
-  const selected = marked.find((t) => t.mark === 'selected');
-  if (selected === undefined) return c;
-  const all = marked.map((t) => tileBox(t.key)).reduce((a, b) => ({
+  const selected = items.find((i): i is SceneTile => i.kind === 'tile' && i.mark === 'selected');
+  return selected === undefined ? c : followAction(c, vp, boxOf([selected.key])!, bounds);
+}
+
+/**
+ * The board box round where some tiles' units stand: each tile's ground (not its wall, nor the figure's height
+ * above it), so a unit near the middle counts as being there.
+ */
+function boxOf(keys: readonly HexKey[]): Box | null {
+  if (keys.length === 0) return null;
+  const foot = (k: HexKey): Box => {
+    const c = hexToBoard(k);
+    return { minX: c.x - TILE_STEP / 2, maxX: c.x + TILE_STEP / 2, minY: c.y - R * SQUASH, maxY: c.y + R * SQUASH };
+  };
+  return keys.map(foot).reduce((a, b) => ({
     minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY),
   }));
-  const fits = (all.maxX - all.minX) * c.scale <= vp.w - 32 && (all.maxY - all.minY) * c.scale <= vp.h - 32;
-  return keepInView(c, vp, fits ? all : tileBox(selected.key), bounds);
 }
 
 /**
@@ -367,6 +382,41 @@ export function Board(p: BoardProps): ReactElement {
     frame.current = 0;
   }, []);
 
+  // An automatic pan (a followed action, Next unit, a turn report line, a slot that changed size): the camera eases
+  // from where it is to `to` over 250 to 400 ms (camera.ts panMs, easeInOut), a frame at a time. Any touch on the
+  // board stops it where it is, so it never fights a drag or a pinch. With reduced motion it moves at once.
+  const glide = useRef<{ from: Camera; to: Camera; start: number; ms: number; raf: number } | null>(null);
+  const stopGlide = useCallback((): void => {
+    const g = glide.current;
+    if (g === null) return;
+    cancelAnimationFrame(g.raf);
+    glide.current = null;
+  }, []);
+  const panTo = useCallback((to: Camera): void => {
+    stopGlide();
+    const c = cam.current;
+    if (c === null || to === c || (to.cx === c.cx && to.cy === c.cy && to.scale === c.scale)) return;
+    if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
+      cam.current = to;
+      schedule();
+      return;
+    }
+    const g = { from: c, to, start: performance.now(), ms: panMs(c, to, vp.current), raf: 0 };
+    const step = (): void => {
+      if (glide.current !== g) return;
+      const t = Math.min(1, Math.max(0, (performance.now() - g.start) / g.ms));
+      cam.current = cameraBetween(g.from, g.to, easeInOut(t));
+      // A camera frame already waiting would draw the same; this one draws now.
+      if (frame.current !== 0) { cancelAnimationFrame(frame.current); frame.current = 0; }
+      write();
+      if (t < 1) g.raf = requestAnimationFrame(step);
+      else glide.current = null;
+    };
+    glide.current = g;
+    g.raf = requestAnimationFrame(step);
+  }, [schedule, stopGlide, write]);
+  useEffect(() => stopGlide, [stopGlide]);
+
   // Measure before the first paint, and again on every resize or rotation.
   useLayoutEffect(() => {
     const el = svgRef.current;
@@ -375,29 +425,44 @@ export function Board(p: BoardProps): ReactElement {
       const r = el.getBoundingClientRect();
       if (r.width <= MIN_SIDE || r.height <= MIN_SIDE) return;
       const was = vp.current;
+      if (was.w === r.width && was.h === r.height && measured.current) return;
       vp.current = { w: r.width, h: r.height };
       const { bounds: b, focus, items } = latest.current;
       const selecting = items.some((i) => i.kind === 'tile' && i.mark === 'selected');
-      if (!measured.current || (!touched.current && !selecting)) {
+      // Where a pan under way was going, so a new size starts from there (and the pan itself stops).
+      const from = glide.current?.to ?? cam.current!;
+      stopGlide();
+      if (!measured.current) {
+        cam.current = startCamera(hexToBoard(focus), b, vp.current);
+        measured.current = true;
+        if (now) write();
+        else schedule();
+        return;
+      }
+      // The slot changed size (a panel opening or closing, a rotation): first the board stays exactly where it was
+      // on screen (its top-left corner kept, no clamp), so nothing jumps; then the view eases to where it belongs.
+      const c0 = cam.current!;
+      cam.current = { cx: c0.cx + (vp.current.w - was.w) / 2 / c0.scale, cy: c0.cy + (vp.current.h - was.h) / 2 / c0.scale, scale: c0.scale };
+      let to: Camera;
+      if (!touched.current && !selecting) {
         // Until the player pans, zooms or selects something, the camera keeps aiming at the focus: the clamp may
         // have moved the centre off it (a board shorter than the screen is centred), and a new size may let it aim closer.
-        cam.current = startCamera(hexToBoard(focus), b, vp.current);
+        to = startCamera(hexToBoard(focus), b, vp.current);
       } else {
-        // A panel opening or closing changes the slot: the board stays still under the finger, and moves only as
-        // far as it must to keep the selection in sight. From here on the camera no longer aims at the focus.
-        cam.current = keepSelection(keepCorner(cam.current!, was, vp.current, b), vp.current, b, items);
+        // The board stays still under the finger, and moves only as far as it must to keep the selection near the
+        // middle. From here on the camera no longer aims at the focus.
+        to = keepSelection(keepCorner(from, was, vp.current, b), vp.current, b, items);
         touched.current = true;
       }
-      measured.current = true;
       if (now) write();
-      else schedule();
+      panTo(to);
     };
     measure(true);
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => measure(false));
     ro.observe(el);
     return () => ro.disconnect();
-  }, [write, schedule]);
+  }, [write, schedule, panTo, stopGlide]);
 
   // A new focus re-centres; a new board size re-clamps. Both skip the first render, which already did it.
   const firstFocus = useRef(true);
@@ -406,44 +471,44 @@ export function Board(p: BoardProps): ReactElement {
       firstFocus.current = false;
       return;
     }
-    cam.current = startCamera(hexToBoard(p.focus), latest.current.bounds, vp.current);
+    panTo(startCamera(hexToBoard(p.focus), latest.current.bounds, vp.current));
     touched.current = false;
-    schedule();
-  }, [p.focus, schedule]);
+  }, [p.focus, panTo]);
   const firstBounds = useRef(true);
   useEffect(() => {
     if (firstBounds.current) {
       firstBounds.current = false;
       return;
     }
+    stopGlide();
     cam.current = refit(cam.current!, bounds, vp.current);
     schedule();
-  }, [bounds, schedule]);
+  }, [bounds, schedule, stopGlide]);
 
-  // A request to show a tile (Next unit): the least pan that brings it into the slot, none when it is already
-  // there. Keyed on n alone, so a request is served once and a later move of the same unit does not pan again.
+  // A request to show a tile (Next unit): none when it is already near the middle, else the least pan that brings
+  // it there (the dead-zone rule), eased. Keyed on n alone, so a request is served once and a later move of the same
+  // unit does not pan again.
   const revealN = p.reveal?.n ?? 0;
   useEffect(() => {
     const { reveal, bounds: b } = latest.current;
     if (revealN === 0 || reveal === null || cam.current === null || !measured.current) return;
-    const next = keepInView(cam.current, vp.current, tileBox(reveal.at), b);
-    if (next === cam.current) return;
-    cam.current = next;
+    const next = followAction(glide.current?.to ?? cam.current, vp.current, boxOf([reveal.at])!, b);
+    if (next === (glide.current?.to ?? cam.current)) return;
     touched.current = true;
-    schedule();
-  }, [revealN, schedule]);
+    panTo(next);
+  }, [revealN, panTo]);
 
   // A request to look at a tile (a line of the turn report): the tile goes to the middle of the slot, zoom kept.
   const centreN = p.centre?.n ?? 0;
   useEffect(() => {
     const { centre, bounds: b } = latest.current;
     if (centreN === 0 || centre === null || cam.current === null || !measured.current) return;
-    cam.current = centreOn(cam.current, hexToBoard(centre.at), b, vp.current);
     touched.current = true;
-    schedule();
-  }, [centreN, schedule]);
+    panTo(centreOn(cam.current, hexToBoard(centre.at), b, vp.current));
+  }, [centreN, panTo]);
 
-  useGestures(svgRef, (out) => {
+
+  const held = useGestures(svgRef, (out) => {
     const c = cam.current;
     ambient.current?.kick(); // any touch wakes the 3D board's idle life
     if (c === null || !measured.current) return;
@@ -456,7 +521,23 @@ export function Board(p: BoardProps): ReactElement {
     }
     touched.current = true;
     schedule();
-  });
+  }, stopGlide);
+
+  // Each new action: the view follows where it happened (its moves' ends, the attacker and the attacked, the falls,
+  // the bursts) only when that leaves the middle of the slot, and then eases over just far enough. Never while a
+  // finger is on the board: the player's own drag or pinch always wins.
+  const followSeq = p.attacks?.seq ?? 0;
+  const followTiles = p.attacks?.tiles;
+  useEffect(() => {
+    if (followSeq === 0 || followTiles === undefined || cam.current === null || !measured.current || held()) return;
+    const box = boxOf(followTiles);
+    if (box === null) return;
+    const from = glide.current?.to ?? cam.current;
+    const next = followAction(from, vp.current, box, latest.current.bounds);
+    if (next === from) return;
+    touched.current = true;
+    panTo(next);
+  }, [followSeq, followTiles, held, panTo]);
 
   // The 3D terrain. three.js is only downloaded once the option is on (a dynamic import, its own chunk), and the
   // svg keeps drawing the ground until the terrain has drawn its first frame. No WebGL 2 or a chunk that cannot
@@ -556,7 +637,10 @@ export function Board(p: BoardProps): ReactElement {
     if (!units3d || t === null || t.units === null || u === null || cam.current === null) return;
     if (shownUnits.current === u.key) return;
     const now = performance.now();
-    t.units.setUnits(u.units, now);
+    // When each move of the action shown starts (an advance waits for its blow), so its figure turns as it sets off.
+    const delays = new Map<number, number>();
+    for (const m of p.attacks?.moves ?? []) if (!delays.has(m.unit)) delays.set(m.unit, m.delay);
+    t.units.setUnits(u.units, now, delays);
     shownUnits.current = u.key;
     t.tick(now, ambient.current?.level() ?? 0);
     t.drawUnits(cam.current, vp.current);
@@ -606,6 +690,12 @@ export function Board(p: BoardProps): ReactElement {
       const to = hexToBoard(a.toward);
       t.units.aim(a.unit, to.x, to.y, now, now + a.delay, hexToBoard(a.from));
     }
+    // Each attacker strikes with its weapon; the unit attacked blocks or flinches if it lives, and strikes back if it does.
+    const fallen = new Set(attacks.fallen ?? []);
+    t.units.strikes(attacks.list.map((a) => ({
+      unit: a.unit, target: a.target, from: hexToBoard(a.from), to: hexToBoard(a.toward), delay: a.delay,
+      survives: a.target !== undefined && !fallen.has(a.target), counter: a.counter === true,
+    })), now);
     t.units.forget(attacks.fallen ?? []);
     if (t.units.turning(now)) followUnits();
   }, [attacks, units3d, followUnits]);
@@ -624,28 +714,52 @@ export function Board(p: BoardProps): ReactElement {
   const places = useMemo(() => placesKey(items), [items]);
   const [settledKey, setSettledKey] = useState(places);
   const settled = useMemo(() => parsePlaces(settledKey), [settledKey]);
+  // How long the slides just started run (set by the slide effect below, which runs first), so a moved unit goes
+  // back into the draw order only once it has arrived.
+  const settleAfter = useRef(SLIDE_MS + SETTLE_AFTER_MS);
   useEffect(() => {
     if (places === settledKey) return undefined;
-    const t = setTimeout(() => setSettledKey(places), SETTLE_MS);
+    const t = setTimeout(() => setSettledKey(places), settleAfter.current);
     return () => clearTimeout(t);
   }, [places, settledKey]);
 
-  const shownAt = useRef(new Map<number, Pt>());
+  // A move is played as a slide on the unit's group, in the svg the units are drawn in. The svg look slides quickly
+  // (SLIDE_MS); the 3D look holds the unit while its figure turns, then travels at its own pace (motion.ts), and its
+  // figure follows the slide and walks, trots, gallops or rolls along it (terrain3d/units). Either waits for the
+  // action's own timing (an advance after its blow). A unit still sliding from an earlier move sets off from where it
+  // is drawn now, never from where it was going. Reduced motion: no slide.
+  const shownAt = useRef(new Map<number, { at: Pt; pos: HexKey }>());
+  const attacksRef = useRef(p.attacks ?? null);
+  attacksRef.current = p.attacks ?? null;
   useLayoutEffect(() => {
     const g = units3d ? overlayCamRef.current : camRef.current;
     const still = prefersReducedMotion();
-    const next = new Map<number, Pt>();
+    const delays = new Map<number, number>();
+    for (const m of attacksRef.current?.moves ?? []) if (!delays.has(m.unit)) delays.set(m.unit, m.delay);
+    const next = new Map<number, { at: Pt; pos: HexKey }>();
+    let longest = SLIDE_MS;
     for (const it of items) {
       if (it.kind !== 'unit') continue;
-      next.set(it.unit.id, it.at);
+      next.set(it.unit.id, { at: it.at, pos: it.unit.pos });
       const was = shownAt.current.get(it.unit.id);
-      if (still || g === null || was === undefined || (was.x === it.at.x && was.y === it.at.y)) continue;
+      if (still || g === null || was === undefined || (was.at.x === it.at.x && was.at.y === it.at.y)) continue;
       const el = g.querySelector(`[data-unit="${it.unit.id}"]`);
-      if (el !== null && typeof el.animate === 'function') {
-        el.animate([{ transform: unitTransform(was) }, { transform: unitTransform(it.at) }], { duration: SLIDE_MS, easing: 'ease-out' });
-      }
+      if (el === null || typeof el.animate !== 'function') continue;
+      // Still sliding: start from where it is drawn this frame, and stop the old slide.
+      const old = typeof el.getAnimations === 'function' ? el.getAnimations().filter((a) => a.playState === 'running') : [];
+      const live = old.length > 0 ? liveTransform(el) : null;
+      for (const a of old) a.cancel();
+      const from: Pt = live ?? was.at;
+      const hexes = live === null ? hexesBetween(was.pos, it.unit.pos) : Math.max(1, Math.round(Math.hypot(it.at.x - from.x, it.at.y - from.y) / TILE_STEP));
+      const delay = live === null ? delays.get(it.unit.id) ?? 0 : 0;
+      const total = units3d ? slideMs3d(it.unit.type, hexes) : SLIDE_MS;
+      el.animate(slideFrames(unitTransform(from), unitTransform(it.at), total, units3d), {
+        duration: total, delay, easing: units3d ? 'linear' : 'ease-out', fill: 'backwards',
+      });
+      longest = Math.max(longest, delay + total);
     }
     shownAt.current = next;
+    settleAfter.current = longest + SETTLE_AFTER_MS;
     if (units3d) followUnits();
   }, [items, units3d, followUnits]);
 

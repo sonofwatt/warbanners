@@ -36,10 +36,11 @@ test('a fall draws the fallen unit in its owner\'s colour where it stood', () =>
   expect(html).not.toContain('#B3261E');
 });
 
-test('a burst is a small flash on its tile; a lunge draws nothing of its own', () => {
+test('a burst is a small flash on its tile; a lunge and a move draw nothing of their own', () => {
   const html = draw([
     { kind: 'burst', at: '0,0', tone: 'capture', delay: 0 },
-    { kind: 'lunge', unit: 3, from: '0,0', toward: '1,0', delay: 0 },
+    { kind: 'lunge', unit: 3, from: '0,0', toward: '1,0', delay: 0, target: 4, counter: false },
+    { kind: 'move', unit: 3, unitType: 'warrior', from: '0,0', to: '1,0', delay: 0 },
   ]);
   expect(html).toContain('fx-burst fx-capture');
   expect((html.match(/class="fx-/g) ?? []).length).toBe(1);

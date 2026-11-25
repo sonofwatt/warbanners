@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { UNITS } from '../../../engine';
 import type { UnitTypeId } from '../../../engine';
 import type { Group } from 'three';
+import { Vector3 } from 'three';
 import type { GlUnit } from '../unitsInput';
 
 // The units renderer without a GPU: three.js runs for real except the WebGLRenderer, which is a stand-in that
@@ -103,13 +104,15 @@ describe('the 3D unit figures', () => {
     spy.mockRestore();
   });
 
-  test('the trebuchet arm and its stone are their own pieces on the axle; other figures have none', () => {
+  test('the trebuchet arm and its stone are their own pieces on the axle; others have only their weapon and shield', () => {
     const t = buildFigure('catapult', { look: RED, wear: CLEAN });
     expect(Object.keys(t.pieces).sort()).toEqual(['arm', 'stone']);
     expect(t.pieces.arm!.fill.attributes.position!.count).toBeGreaterThan(0);
     expect(t.pieces.arm!.pivot).toEqual(t.pieces.stone!.pivot);
     expect(Math.hypot(...t.pieces.arm!.axis)).toBeCloseTo(1, 5);
-    expect(Object.keys(buildFigure('knight', { look: RED, wear: CLEAN }).pieces)).toEqual([]);
+    expect(Object.keys(buildFigure('knight', { look: RED, wear: CLEAN }).pieces)).toEqual(['weapon']);
+    expect(Object.keys(buildFigure('hoplite', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['shield', 'weapon']);
+    expect(Object.keys(buildFigure('piper', { look: RED, wear: CLEAN }).pieces)).toEqual([]);
   });
 
   test('idle life turns the body about the feet and never moves a figure off its tile', () => {
@@ -188,6 +191,135 @@ describe('the 3D unit figures', () => {
     u.tick(300, 1);
     expect(angle(), 'cocked, give or take its small idle aim').toBeLessThan(0.06);
     expect(stone.visible).toBe(true);
+  });
+
+  describe('motion: gaits, strikes and blocks', () => {
+    const pieceGroups = (g: Group): Group[] => (g.children[0] as Group).children.filter((c): c is Group => (c as Group).isGroup === true);
+    const turnOf = (g: Group): number => 2 * Math.acos(Math.min(1, Math.abs(g.quaternion.w)));
+    const bodyOf = (g: Group): Group => g.children[0] as Group;
+
+    test('a figure walks along its slide: it bobs and rolls while it travels, and stands still before and after', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      u.setUnits([unit(1, { x: 104, y: 0 })], 0); // two hexes to the right
+      const at = (x: number, travel?: number): void => { u.pose(new Map([[1, travel === undefined ? { x: 0, y: 0 } : { x, y: 0, travel }]]), []); };
+      at(0);
+      u.tick(100, 0);
+      expect(bodyOf(g).position.y).toBeCloseTo(0, 6);
+      const bobs: number[] = [];
+      for (let i = 1; i < 20; i++) { at((104 * i) / 20, i / 20); u.tick(200 + i * 20, 0); bobs.push(bodyOf(g).position.y); }
+      expect(Math.max(...bobs)).toBeGreaterThan(1.5);
+      at(104, 1);
+      u.tick(700, 0);
+      expect(bodyOf(g).position.y).toBeCloseTo(0, 6);
+      // Its feet stay on its line: the group moves only as the slide moves it.
+      expect(g.position.x).toBeCloseTo(104, 6);
+    });
+
+    test('a rider gallops: its front rises and dips as it goes', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      u.setUnits([unit(1, { type: 'knight', x: 104, y: 0 })], 0);
+      const tilts = new Set<number>();
+      for (let i = 1; i < 20; i++) { u.pose(new Map([[1, { x: (104 * i) / 20, y: 0, travel: i / 20 }]]), []); u.tick(500 + i * 20, 0); tilts.add(Math.round(bodyOf(g).quaternion.x * 100)); }
+      expect(tilts.size).toBeGreaterThan(4);
+    });
+
+    test('an advance turns only when its slide starts, after its blow', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { x: 52, y: -90 })], 0);
+      const g = figures(u)[0]!;
+      const yawOf = (f: Group): number => { const q = bodyOf(f).quaternion; return 2 * Math.atan2(q.y, q.w); };
+      u.setUnits([unit(1, { x: 0, y: -90 }), unit(2, { x: 52, y: -90 })], 1000, new Map([[1, 240]]));
+      u.tick(1100, 0);
+      expect(Math.abs(yawOf(g))).toBeLessThan(1e-9);
+      expect(u.turning(1100)).toBe(true);
+      u.tick(1240 + TURN_MS, 0);
+      expect(Math.abs(yawOf(g))).toBeGreaterThan(0.1);
+    });
+
+    test('a sword swing strikes with the weapon; the shielded defender raises its shield as the blow lands', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { type: 'hoplite', x: 52, y: 0, look: BLUE })], 0);
+      const [a, d] = figures(u) as [Group, Group];
+      const [sword] = pieceGroups(a);
+      const [, shield] = pieceGroups(d);
+      u.aim(1, 52, 0, 0, 0);
+      u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: false }], 0);
+      expect(u.turning(0)).toBe(true);
+      u.tick(60, 0);
+      expect(turnOf(sword!), 'wound up').toBeGreaterThan(0.2);
+      const rest = d.children[0]!.children.filter((c) => (c as Group).isGroup)[1]!.position.y;
+      u.tick(135, 0);
+      expect(turnOf(sword!), 'through at the hit').toBeGreaterThan(1.2);
+      u.tick(170, 0);
+      expect(shield!.position.y - rest, 'the shield is up').toBeGreaterThan(0);
+      u.tick(1000, 0);
+      expect(turnOf(sword!)).toBeLessThan(1e-6);
+      expect(u.turning(1000)).toBe(false);
+    });
+
+    test('a defender without a shield flinches away from the blow; one that dies does not react', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { type: 'archer', x: 52, y: 0 }), unit(3, { type: 'archer', x: -52, y: 0 })], 0);
+      const figs = figures(u);
+      u.strikes([
+        { unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: false },
+      ], 0);
+      u.tick(170, 0);
+      expect(bodyOf(figs[1]!).position.x, 'knocked away from the attacker').toBeGreaterThan(0.5);
+      const v = new Vector3(0, 40, 0).applyQuaternion(bodyOf(figs[1]!).quaternion);
+      expect(v.x, 'leans away').toBeGreaterThan(0);
+      const u2 = make();
+      u2.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { type: 'archer', x: 52, y: 0 })], 0);
+      const f2 = figures(u2);
+      u2.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: false, counter: false }], 0);
+      u2.tick(170, 0);
+      expect(bodyOf(f2[1]!).position.x).toBeCloseTo(0, 9);
+    });
+
+    test('a counter strike: the defender strikes back after its block, and the attacker takes the blow', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'swordsman', x: 0, y: 0 }), unit(2, { type: 'spearman', x: 52, y: 0 })], 0);
+      const [a, d] = figures(u) as [Group, Group];
+      const [spear] = pieceGroups(d);
+      u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: true }], 0);
+      u.tick(135 + 110 + 100, 0);
+      expect(turnOf(spear!), 'the spear comes down at the attacker').toBeGreaterThan(0.5);
+      u.tick(400, 0);
+      expect(bodyOf(a).position.x, 'the swordsman is knocked back').toBeLessThan(-0.3);
+      expect(u.turning(400)).toBe(true);
+      expect(u.turning(1000)).toBe(false);
+    });
+
+    test('an archer draws and looses: the arrow leaves the string and comes back', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'archer', x: 0, y: 0 }), unit(2, { x: 104, y: 0 })], 0);
+      const [a] = figures(u) as [Group];
+      const [, arrow] = pieceGroups(a);
+      u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 104, y: 0 }, delay: 0, survives: true, counter: false }], 0);
+      u.tick(100, 0);
+      expect(arrow!.visible).toBe(true);
+      u.tick(200, 0);
+      expect(arrow!.visible).toBe(false);
+      u.tick(600, 0);
+      expect(arrow!.visible).toBe(true);
+    });
+
+    test('reduced motion: no strike and no block', () => {
+      const real = globalThis.matchMedia;
+      globalThis.matchMedia = ((q: string) => ({ matches: q.includes('reduce') })) as unknown as typeof matchMedia;
+      try {
+        const u = make();
+        u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { type: 'hoplite', x: 52, y: 0 })], 0);
+        u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: true }], 0);
+        expect(u.turning(10)).toBe(false);
+      } finally {
+        globalThis.matchMedia = real;
+      }
+    });
   });
 
   test('on screen: only figures with idle life in the camera view count', () => {

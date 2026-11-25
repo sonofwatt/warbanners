@@ -130,3 +130,69 @@ export function screenToBoard(c: Camera, vp: Viewport, px: Pt): Pt {
 export function boardToScreen(c: Camera, vp: Viewport, p: Pt): Pt {
   return { x: vp.w / 2 + (p.x - c.cx) * c.scale, y: vp.h / 2 + (p.y - c.cy) * c.scale };
 }
+
+/**
+ * The dead zone: the middle part of the slot (this share of its width and of its height) where an action can happen
+ * without the view following it. The board slot sits between the top bar and the bottom panel, so the zone keeps
+ * clear of both.
+ */
+export const DEAD_ZONE = 0.6;
+
+/** The dead zone in slot pixels. */
+export function deadZone(vp: Viewport, zone = DEAD_ZONE): Box {
+  const mx = (vp.w * (1 - zone)) / 2, my = (vp.h * (1 - zone)) / 2;
+  return { minX: mx, minY: my, maxX: vp.w - mx, maxY: vp.h - my };
+}
+
+/**
+ * The view for an action covering `box` (board units): unchanged when the box is already inside the dead zone (a
+ * camera equal to `c` is returned as `c` itself), else the least pan that brings it inside, or, when it is larger
+ * than the zone along an axis, centres it along that axis. Clamped to the board as every pan is, so near the board's
+ * edge the view may stop short.
+ */
+export function followAction(c: Camera, vp: Viewport, box: Box, bounds: Box, zone = DEAD_ZONE): Camera {
+  const z = deadZone(vp, zone);
+  const lo = boardToScreen(c, vp, { x: box.minX, y: box.minY });
+  const hi = boardToScreen(c, vp, { x: box.maxX, y: box.maxY });
+  const shift = (a: number, b: number, zlo: number, zhi: number): number => {
+    if (b - a > zhi - zlo) return (zlo + zhi) / 2 - (a + b) / 2;
+    if (a < zlo) return zlo - a;
+    if (b > zhi) return zhi - b;
+    return 0;
+  };
+  const dx = shift(lo.x, hi.x, z.minX, z.maxX);
+  const dy = shift(lo.y, hi.y, z.minY, z.maxY);
+  if (dx === 0 && dy === 0) return c;
+  const next = panBy(c, dx, dy, bounds, vp);
+  return Math.abs(next.cx - c.cx) * c.scale < 0.5 && Math.abs(next.cy - c.cy) * c.scale < 0.5 ? c : next;
+}
+
+/** The shortest and longest an automatic pan takes: quick for a short hop, a little longer across the screen. */
+export const PAN_MIN_MS = 250;
+export const PAN_MAX_MS = 400;
+
+/** How long an automatic pan from `a` to `b` takes, by how far the board moves on screen (and how much it zooms). */
+export function panMs(a: Camera, b: Camera, vp: Viewport): number {
+  const px = Math.hypot((b.cx - a.cx) * a.scale, (b.cy - a.cy) * a.scale);
+  const zoom = Math.abs(Math.log(b.scale / a.scale)) * Math.max(vp.w, vp.h) / 2;
+  const reach = Math.max(vp.w, vp.h);
+  const t = Math.min(1, (px + zoom) / reach);
+  return Math.round(PAN_MIN_MS + (PAN_MAX_MS - PAN_MIN_MS) * t);
+}
+
+/** Ease in and out (cubic): a smooth but quick start, the same stop. 0 at 0, 1 at 1. */
+export function easeInOut(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+/** The camera a share `t` (0 to 1, already eased) of the way from `a` to `b`; the scale moves evenly in log space. */
+export function cameraBetween(a: Camera, b: Camera, t: number): Camera {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  return {
+    cx: a.cx + (b.cx - a.cx) * t,
+    cy: a.cy + (b.cy - a.cy) * t,
+    scale: a.scale * Math.pow(b.scale / a.scale, t),
+  };
+}
