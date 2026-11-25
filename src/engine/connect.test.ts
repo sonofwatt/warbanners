@@ -59,7 +59,7 @@ test('roads between two cities pay nothing until one joins the capital; then eac
   ]);
   expect(cityById(second.state, a.id)).toMatchObject({ level: 1, growth: 1 });
   expect(cityById(second.state, b.id)).toMatchObject({ level: 1, growth: 1 });
-  expect(cityById(second.state, cap.id)).toMatchObject({ level: 2, growth: 0 });   // 1 per city joined: the two fill level 1 (2 since rules 9)
+  expect(cityById(second.state, cap.id)).toMatchObject({ level: 2, growth: 1 });   // 1 per city joined: the two fill level 1 (2 since rules 9), and a Spartan city gains 1 on reaching level 2
 });
 
 test('a road tile inside enemy territory breaks the chain; one in neutral land does not', () => {

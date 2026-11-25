@@ -95,7 +95,8 @@ option, and statuses on your units (taunted, blinded) wear off.
   Spartan city from level 2 on, since rules 7; a Mongol city needed `L+2` before
   rules 8). Since rules 9 every city, Spartan or not, needs 2 for its first level-up:
   the faction's difference counts only from level 2 (`CONFIG.growthExtraFrom`). Spare
-  points carry over.
+  points carry over. Spartan cities also gain 1 growth point the moment they reach
+  level 2 and need 1 less again from level 3 on (since rules 9, section 13).
 - Connected cities (since rules 7): a city is connected when a chain of adjacent
   tiles joins it to its owner's capital, every tile of the chain being a road or
   a city of that owner. A road inside another player's territory breaks the
@@ -433,6 +434,13 @@ Spartans
 - A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
   from level `L` to `L+1`. Since rules 9 this starts at level 2: leaving level 1
   takes 2, as for anyone (rules 7 and 8: 1).
+- Since rules 9 a Spartan city gains 1 growth point the moment it reaches level 2
+  (spare points carry over on top), and from level 3 on it needs 1 less again:
+  `L-1` to go from level `L` to `L+1`. So a Spartan city needs 2 to leave level 1,
+  2 to leave level 2 (the first of them given), 2 to leave level 3, 3 to leave
+  level 4 and so on: 8 growth points gathered from level 1 to level 5 (10 in rules 8, 14 for
+  a Mongol city). (Faction data `levelTwoGrowth`, `growthExtraLate` from
+  `growthExtraLateFrom`.)
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
   For them the `walls` tech is Deep stores (rules 8): a blockade of any Spartan city
   takes 15% of its income instead of half (section 6).
@@ -568,6 +576,9 @@ This list, the one above and the one below are the file's changelog.
   leave level 1 (a Spartan city needed 1), and from level 2 on a Spartan city needs
   `L` as before (2 to leave level 2, 3 to leave level 3). Mongols are unchanged
   (sections 6 and 13).
+- Spartan cities gain 1 growth point on reaching level 2 and need 1 less growth to
+  level up from level 3 on (`L-1` to leave level `L`): the Spartans' balance after
+  the slower first level-up (2026-11-25-rules9-report.md; section 13).
 - The level 2 `gold` reward is +5 gold (was +6). A champion or support reward with
   no free tile pays the same +5 (section 6). The treasure's +5 gold is a separate
   number and unchanged (section 12).

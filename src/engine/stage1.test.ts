@@ -30,7 +30,7 @@ vi.mock('./data/units', async (orig) => {
 });
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
-  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0 }, mongols: { ...m.FACTIONS.mongols, growthExtra: 1, tributeVillage: 3, tributeCityBase: 3, territoryRiding: false, mountedMoveBonus: 2, relayMountedOnly: false, canBuildRoads: true } } };
+  return { FACTIONS: { ...m.FACTIONS, spartans: { ...m.FACTIONS.spartans, growthExtra: 0, growthExtraLate: 0, levelTwoGrowth: 0 }, mongols: { ...m.FACTIONS.mongols, growthExtra: 1, tributeVillage: 3, tributeCityBase: 3, territoryRiding: false, mountedMoveBonus: 2, relayMountedOnly: false, canBuildRoads: true } } };
 });
 
 // Strip what plan 5, rules 6, rules 7 (with hunker and momentum) and rules 8 (turnEnded, the harvested tile flag) added, so a stage 1 state hashes as it did on rules 3.
