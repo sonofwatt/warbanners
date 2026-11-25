@@ -118,7 +118,7 @@ test('growth is bought on the way to a level, and a level reached late in the tu
 });
 
 // rules 8: a tech is bought only when it gives the player something now (or leads to a tech that does).
-test('a tech with nothing for the player now is not worth gold: Fishing with no fish, an upgrade with nothing to upgrade, Deep stores in peace', () => {
+test('a tech with nothing for the player now is not worth gold: Fishing with no fish, an upgrade with nothing to upgrade, Deep stores until nearly blockaded', () => {
   const s = blankMatch();
   addCity(s, 0, 0, 2); addCity(s, 1, 0, -3);
   give(s, 0, 'prospecting', 'foraging', 'orchards', 'gathering');
@@ -132,7 +132,9 @@ test('a tech with nothing for the player now is not worth gold: Fishing with no 
   expect(gives('spears')).toBe(true);                                   // the Hoplite
   expect(gives('walls')).toBe(false);                                   // Deep stores, and no enemy beside a city
   addUnit(s, 'warrior', 1, 0, 1);
-  expect(gives('walls')).toBe(true);
+  expect(gives('walls')).toBe(false);                                   // one enemy beside it is not a blockade (David)
+  addUnit(s, 'warrior', 1, 1, 1);
+  expect(gives('walls')).toBe(true);                                    // two of the three tiles a blockade needs: nearly
   expect(gives('defence')).toBe(true);
   const m = blankMatch({ factions: ['mongols', 'spartans'] });
   addCity(m, 0, 0, 2); addCity(m, 1, 0, -3);

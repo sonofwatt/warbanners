@@ -97,8 +97,8 @@ export function chooseUnit(
 }
 
 // rules 8: whether a tech gives the player anything now: a unit type its persona trains, a harvest or a building with a
-// tile for it in its territory, climbing, roads or walls its faction uses (the Spartans' Deep stores only while an enemy
-// stands beside one of their cities), or a tech after it that does. Fishing with no fish in the territory, or a column 3
+// tile for it in its territory, climbing, roads or walls its faction uses (the Spartans' Deep stores only while one of their
+// cities is blockaded or nearly: enemies on all but one of the tiles a blockade needs), or a tech after it that does. Fishing with no fish in the territory, or a column 3
 // upgrade before any improvement to upgrade, gives nothing yet, so its gold goes to units and buildings instead.
 export function techGivesSomething(b: MatchState, me: PlayerId, persona: Persona, tech: TechId, depth = 2): boolean {
   const player = b.players[me]!;
@@ -108,7 +108,7 @@ export function techGivesSomething(b: MatchState, me: PlayerId, persona: Persona
   if (roadTech() === tech && faction.canBuildRoads) return true;
   if (wallsTech() === tech) {
     if (faction.canBuildWalls) return true;
-    if (faction.blockadeStores && b.cities.some((c) => c.owner === me && blockadeOf(b, c).enemies > 0)) return true;
+    if (faction.blockadeStores && b.cities.some((c) => c.owner === me && blockadeOf(b, c).enemies >= CONFIG.blockade.minTiles - 1)) return true;
   }
   const resources = (Object.keys(CONFIG.harvest) as Resource[]).filter((r) => harvestTech(r) === tech);
   const buildings = (Object.keys(CONFIG.buildings) as BuildingId[]).filter((x) => buildingTech(x) === tech);
