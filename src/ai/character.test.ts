@@ -282,7 +282,11 @@ describe('matches between two AIs end', () => {
     // the engine changed in that step, so the rule moved which matches stall. At hard all 16 end.
     // Rules 8's tuning pass (blockade, Mongol growth and tribute, supports capped, the AI pressing on): all 16 end at
     // normal, the longest '5 spartans' in 54 (each measured in its own process; the same list as the full SLOW file).
-    const KNOWN_NORMAL: string[] = [];
+    // Rules 9 (no Spartan growth discount on leaving level 1, level 2 gold reward 5): four of 16 do not end within 60
+    // rounds. '7 mongols' and '8 mongols' end in 66 and 69, the Mongols winning; '3 mongols' and '4 spartans' are still
+    // unended at 150. Over 200 fresh normal matches stalls went from 9.0% to 10.5% (5.5% with the growth change alone),
+    // so the rules moved which matches stall more than how many; the AI is unchanged. At hard the list is unchanged.
+    const KNOWN_NORMAL: string[] = ['3 mongols', '4 spartans', '7 mongols', '8 mongols'];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
