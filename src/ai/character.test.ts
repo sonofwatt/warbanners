@@ -286,7 +286,14 @@ describe('matches between two AIs end', () => {
     // rounds. '7 mongols' and '8 mongols' end in 66 and 69, the Mongols winning; '3 mongols' and '4 spartans' are still
     // unended at 150. Over 200 fresh normal matches stalls went from 9.0% to 10.5% (5.5% with the growth change alone),
     // so the rules moved which matches stall more than how many; the AI is unchanged. At hard the list is unchanged.
-    const KNOWN_NORMAL: string[] = ['3 mongols', '4 spartans', '7 mongols', '8 mongols'];
+    // Rules 9's Spartan tuning (a Spartan city gains 1 growth at level 2 and needs L-1 from level 3) and the Market's
+    // growth 3: three of 16 do not end within 60 rounds. '3 mongols' and '8 mongols' now end (34 and 46, the Spartans
+    // winning). '7 mongols' ends in 62 (the Spartans win) and '5 spartans' in 81 (the Mongols win). '4 spartans' is a
+    // deadlock, still unended at 150: from round 50 the Spartans hold one city, their level 8 capital, with a hunkered
+    // Scout on it, and the Mongols' 64 units stand round it, four of them beside it and seeing it, but their plans hold
+    // no attack on it (an AI matter, not yet looked into; the same match was already unended at 150 before the tuning). Over 200 fresh normal matches stalls are 8.5% (seeds 1 to 100) and 3.5%
+    // (1001 to 1100), against 8.0% untuned, so this is which matches stall.
+    const KNOWN_NORMAL: string[] = ['4 spartans', '5 spartans', '7 mongols'];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
@@ -296,7 +303,9 @@ describe('matches between two AIs end', () => {
     // Rules 8's tuning pass: '5 spartans' does not end within 60 rounds, the first hard stall of these 16 (every other
     // ends, the longest in 52); over 200 fresh hard matches stalls fell from 9.5% to 5.5%, so this is which match
     // stalls, not more stalling. Measured each in its own process and in the full SLOW file: the same list.
-    const KNOWN_HARD: string[] = ['5 spartans'];
+    // Rules 9's Spartan tuning and the Market's growth 3: all 16 end again ('5 spartans' in 33, the longest '4 mongols'
+    // in 49).
+    const KNOWN_HARD: string[] = [];
     test(`at hard, every match${but(KNOWN_HARD)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);
