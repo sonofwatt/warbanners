@@ -3,21 +3,7 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-## Q1. Rules 9 Spartan levers (2026-11-25)
-
-- Cause (a rule, not the AI): the Spartan capital reached level 2 at a median of round 3 in rules 8, round 8 in
-  rules 9. The capital's tiles rarely allow 2 growth cheaply (8 to 12 gold, or not at all on a third of maps), and
-  the Spartans also want Spears early. Income is 26% lower by round 10, King's Guard champions halve, then cities go.
-- Two Spartan-only levers found (growthExtraFrom 2, reward gold 5 and Market growth 3 kept):
-  - a Spartan city gains 1 growth the moment it reaches level 2;
-  - from level 3 on, a Spartan city needs 1 less growth per level (as in rules 8).
-  - Net: Spartans gather 8 growth from level 1 to 5 (rules 8: 10; untuned rules 9: 11; Mongols 14).
-- Results, 400 matches: normal Spartans 47.4 / Mongols 49.7, stalls 6.0%; hard 44.8 / 52.9, stalls 4.8% (Spartans
-  at the lower edge).
-- Downside: the Spartan growth rule is now three parts. Simplest single alternative: the capital starts with 1
-  growth, which gives back the quick first capital level-up David wanted to slow (normal tips to the Spartans).
-- Options: A, ship the two levers (my pick); B, the capital-starts-with-1-growth rule instead; C, add a third small
-  lever to centre hard before shipping.
+No open questions.
 
 ## Answered
 
@@ -68,3 +54,5 @@ move to the bottom.
   selection is fine.
 - Q1 (rules 9 balance swing), 2026-11-25 (David): A; find out why one growth point swings it so far, then tune the
   Spartans back to 45 to 55% keeping the slower first level-up.
+- Q1 (rules 9 Spartan levers), 2026-11-25 (David): no free growth point; lower the cost to reach level 3 instead.
+  Spartan costs to leave each level become 2, 1, 2, 3, 4 (everyone else 2, 3, 4, 5, 6); re-measured before release.
