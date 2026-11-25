@@ -16,6 +16,7 @@ import { fakeServer, type FakeServer } from './fakeNet';
 import { EMU, fb, setOnline, watchConnected } from './firebase';
 import { firebaseNet } from './firebaseNet';
 import type { Net } from './net';
+import { wait } from './waitScale';
 
 // ---- time and flushing on the fake ----
 
@@ -77,7 +78,7 @@ export async function settle(server: FakeServer): Promise<void> {
 
 /** Polls with settle-like flushes until pred holds; fails after ms of real time. */
 export async function until(pred: () => boolean, ms = 10_000): Promise<void> {
-  const end = Date.now() + ms;
+  const end = Date.now() + wait(ms);
   while (!pred()) {
     if (Date.now() > end) throw new Error('until: the condition never held');
     await turn();
@@ -228,7 +229,7 @@ export function fakeKit(): SessionKit {
     // Fake time moves only here: a quarter second per round once the fake has settled, so a body that waits for a
     // clock (a backup timeout) sees the phones' tickers fire.
     async until(pred, ms = 10_000) {
-      const end = Date.now() + ms;
+      const end = Date.now() + wait(ms);
       for (;;) {
         if (p) await settle(p.server); else await turn();
         if (pred()) return;
@@ -256,12 +257,29 @@ const connectedNow = (name: string): Promise<void> => new Promise((res) => {
   off = watchConnected(fb(name), (ok) => { if (ok && !done) { done = true; queueMicrotask(() => off?.()); res(); } });
 });
 
-async function poll(pred: () => boolean, ms = 20_000): Promise<void> {
-  const end = Date.now() + ms;
+async function poll(pred: () => boolean, ms = 20_000, report?: () => Promise<string>): Promise<void> {
+  const end = Date.now() + wait(ms);
   while (!pred()) {
-    if (Date.now() > end) throw new Error('until: the condition never held');
+    if (Date.now() > end) {
+      const why = report ? `\n${await report().catch((e: unknown) => `(no report: ${String(e)})`)}` : '';
+      throw new Error(`until: the condition never held${why}`);
+    }
     await sleep(25);
   }
+}
+
+// What a failed wait prints: the parts of a phone's view the waits test, one line per phone.
+function brief(v: SessionView): string {
+  const f = v.followed;
+  return JSON.stringify({
+    phase: v.phase, connected: v.connected, returning: v.returning, verifying: v.verifying, myTurn: v.myTurn,
+    sending: v.sending, timedOut: v.timedOut, failure: v.failure, mySeat: v.mySeat, absent: v.absent,
+    seats: v.room?.seats.map((s) => (s ? s.kind : null)) ?? null, members: v.room ? Object.values(v.room.members) : null,
+    presence: v.room ? Object.values(v.room.presence).map((p) => p.on) : null, metaPhase: v.room?.meta.phase ?? null,
+    head: v.room?.head ? { n: v.room.head.n, seat: v.room.head.seat } : null,
+    actions: f?.actions.length ?? null, current: f?.state.current ?? null, stamp: f?.state.stamp ?? null,
+    gold: f?.state.players.map((p) => p.gold) ?? null,
+  });
 }
 
 /** Identities a<k> and b<k> on the emulator, a fresh code per start, real timers, drops through setOnline. */
@@ -270,24 +288,46 @@ export function firebaseKit(k: number): SessionKit {
   const names = { a: `a${k}`, b: `b${k}` };
   let code = '';
   const opened: Session[] = [];
+  const t0 = Date.now();
+  // Every change of each phone's brief view, with the time since the kit was made, so a failed wait shows the story.
+  const story: { label: string; lines: string[] }[] = [];
   const open = (who: 'a' | 'b'): Session => {
-    const s = recorded((onChange) => openSession(code, { net: firebaseNet(names[who]), ai: thinker(), build: 't', setTimer: realTimer }, onChange));
+    const log = { label: `${who}#${story.length}`, lines: [] as string[] };
+    story.push(log);
+    let last = '';
+    const s = recorded((onChange) => openSession(code, { net: firebaseNet(names[who]), ai: thinker(), build: 't', setTimer: realTimer }, (v) => {
+      onChange(v);
+      const line = brief(v);
+      if (line !== last) { last = line; log.lines.push(`${Date.now() - t0}ms ${line}`); }
+    }));
     opened.push(s);
     return s;
   };
+  const report = async (): Promise<string> => {
+    let server = '';
+    await adminDo(async (db) => {
+      const r = (await get(ref(db, `rooms/${code}`))).val() as Record<string, unknown> | null;
+      server = JSON.stringify(r ? { meta: r.meta, seats: r.seats, members: r.members, presence: r.presence, head: r.head, actions: r.actions } : null);
+    });
+    const now = opened.map((s, i) => `  now ${story[i]!.label}: ${brief(s.view())}`).join('\n');
+    const past = story.map((l) => `  ${l.label} (last 25 changes):\n${l.lines.slice(-25).map((x) => `    ${x}`).join('\n')}`).join('\n');
+    const auth = `  auth: a ${fb(names.a).auth.currentUser?.uid ?? 'none'}, b ${fb(names.b).auth.currentUser?.uid ?? 'none'}`;
+    return `at ${Date.now() - t0}ms, code ${code}\n  server: ${server}\n${auth}\n${now}\n${past}`;
+  };
+  const waitFor = (pred: () => boolean, ms?: number): Promise<void> => poll(pred, ms, report);
   const uidOf = async (who: 'a' | 'b'): Promise<string> => firebaseNet(names[who]).uid();
   return {
     async start(opts) {
       code = makeRoomCode();
       expect(await firebaseNet(names.a).create({ code, name: 'Ann', hostFaction: 'spartans', clock: opts?.clock ?? 120, rulesVersion: RULES_VERSION, build: 't' })).toBe(true);
       const a = open('a');
-      await poll(() => a.view().phase === 'lobby');
+      await waitFor(() => a.view().phase === 'lobby');
       const b = open('b');
-      await poll(() => b.view().phase === 'join');
+      await waitFor(() => b.view().phase === 'join');
       expect(await b.join('Ben')).toBe(true);
-      await poll(() => b.view().phase === 'lobby' && a.view().room?.seats[1] !== null && !a.view().returning && !b.view().returning);
+      await waitFor(() => b.view().phase === 'lobby' && a.view().room?.seats[1] !== null && !a.view().returning && !b.view().returning);
       expect(await a.start(42)).toBe(true);
-      await poll(() => a.view().phase === 'playing' && b.view().phase === 'playing');
+      await waitFor(() => a.view().phase === 'playing' && b.view().phase === 'playing');
       return { a, b };
     },
     async reopen(who) { return open(who); },
@@ -304,7 +344,7 @@ export function firebaseKit(k: number): SessionKit {
       await adminDo(async (db) => { out = (await get(ref(db, `rooms/${code}/head`))).val() as Head | null; });
       return out;
     },
-    until: poll,
+    until: waitFor,
     closeAll: () => { for (const s of opened.splice(0)) s.close(); },
     net: (who) => firebaseNet(names[who]),
   };
@@ -318,12 +358,13 @@ async function heldAgainstTimeout(kit: SessionKit, play: (s: Session) => void): 
   await kit.until(() => a.view().myTurn && !b.view().returning);
   play(a); kit.drop('a');
   expect(a.view().sending).toBe(true);
-  await kit.until(() => b.view().absent.includes(0), 10_000);
+  await kit.until(() => b.view().absent.includes(0));
   await kit.rewind(310_000, { who: 'a', ms: 300_000 });           // the 120 s turn and the 180 s pause have run out
-  await kit.until(() => b.view().followed!.actions.length === 1 && b.view().followed!.state.current === 1, 10_000);
+  await kit.until(() => b.view().followed!.actions.length === 1 && b.view().followed!.state.current === 1);
   expect(b.view().followed!.actions).toEqual(['{"type":"endTurn"}']);
   await kit.back('a');
-  await kit.until(() => !a.view().sending && !a.view().returning && a.view().followed!.actions.length === 1, 10_000);
+  await kit.until(() => !a.view().sending && !a.view().returning && a.view().followed!.actions.length === 1
+    && a.view().phase === 'playing' && a.view().timedOut === 0 && !a.view().myTurn);   // her board is rebuilt, the timeUp line is in
   expect(a.view().followed!.actions).toEqual(b.view().followed!.actions);
   expect(hashState(a.view().followed!.state)).toBe(hashState(b.view().followed!.state));
   expect(a.view().phase).toBe('playing'); expect(a.view().followed!.state.winner).toBeNull();
@@ -354,7 +395,7 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
     expect(a.act({ type: 'endTurn' })).toBeNull();
     a.close(); await kit.back('a');
     const again = await kit.reopen('a');
-    await kit.until(() => again.view().myTurn);
+    await kit.until(() => again.view().myTurn && again.view().followed!.actions.length === 1);
     expect(again.view().followed!.actions).toEqual([encodeAction(move)]);
   },
   'resign out of turn': async (kit) => {
@@ -368,8 +409,8 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
     const { a, b } = await kit.start({ clock: 60 });
     await kit.until(() => a.view().myTurn);
     await kit.rewind(61_000);
-    await kit.until(() => b.view().followed?.state.current === 1, 10_000);
-    expect(a.view().timedOut).toBe(0);
+    await kit.until(() => b.view().followed?.state.current === 1);
+    await kit.until(() => a.view().timedOut === 0);                 // phone a hears of the timeout by its own update
   },
   'a resign that loses its index leaves the match playing': async (kit) => {
     const { a, b } = await kit.start();
@@ -379,7 +420,8 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
     expect(b.view().phase).toBe('over');                           // it wins locally at once
     expect(a.act(move)).not.toBeNull(); await kit.until(() => !a.view().sending);   // Ann's move takes index 0
     await kit.back('b');
-    await kit.until(() => !b.view().sending && !b.view().returning && b.view().followed!.actions.length === 1);
+    await kit.until(() => !b.view().sending && !b.view().returning && b.view().followed!.actions.length === 1
+      && b.view().phase === 'playing');                            // the local win is rolled back
     expect(b.view().followed!.actions).toEqual([encodeAction(move)]);
     expect(b.view().phase).toBe('playing'); expect(b.view().followed!.state.winner).toBeNull();
     expect(phasesSeen(b)).not.toContain('desync');                 // losing a race is not a broken match
@@ -411,7 +453,8 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
     for (let reopen = 0; reopen < 2; reopen++) {
       const again = await kit.reopen('b');
       await kit.until(() => again.view().phase === 'desync' && again.view().room !== null
-        && Object.hasOwn(again.view().room!.desync, again.view().me!), 10_000);
+        && Object.hasOwn(again.view().room!.desync, again.view().me!)
+        && again.view().followed?.state.players[0]?.gold === honest.players[0]!.gold);   // the replay has replaced the snapshot
       expect(again.view().followed!.state.players[0]!.gold).toBe(honest.players[0]!.gold);
       expect(hashState(again.view().followed!.state)).toBe(hashState(honest));
       expect(again.view().myTurn).toBe(false);
@@ -421,11 +464,15 @@ export const sharedBodies: Record<string, (kit: SessionKit) => Promise<void>> = 
   'back from a drop keeps the turn': async (kit) => {
     const { a, b } = await kit.start();
     await kit.until(() => a.view().myTurn);
-    kit.drop('a'); await kit.until(() => b.view().absent.includes(0), 10_000);
+    kit.drop('a'); await kit.until(() => b.view().absent.includes(0));
     await kit.rewind(150_000, { who: 'a', ms: 120_000 });       // dropped 30 s into the turn, now 150 s in
     await kit.back('a');
-    await kit.until(() => a.view().myTurn, 10_000);
-    const head = (await kit.head())!;
+    await kit.until(() => a.view().myTurn);
+    let head = (await kit.head())!;
+    for (const end = Date.now() + wait(10_000); head.paused === 0; head = (await kit.head())!) {   // the return credit lands by its own write
+      if (Date.now() > end) throw new Error('the return credit never landed');
+      await kit.until(() => true); await new Promise(r => setTimeout(r, 50));
+    }
     expect(head.n).toBe(0);
     expect(head.paused).toBeGreaterThan(115_000); expect(head.paused).toBeLessThan(DROP_PAUSE_MS);   // about 118 s plus the reconnect time
     await new Promise(r => setTimeout(r, 4_000));                 // past both phones' lead and grace

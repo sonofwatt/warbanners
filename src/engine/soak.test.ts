@@ -49,7 +49,7 @@ test.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])('seed %i: 60 random turns keep every 
   const viaJson = JSON.parse(JSON.stringify(s)) as MatchState;
   expect(hashState(viaJson)).toBe(hashState(s));
   if (s.winner === null) expect(hashState(must(applyAction(viaJson, { type: 'endTurn' })))).toBe(hashState(must(applyAction(s, { type: 'endTurn' }))));
-});
+}, 30_000);   // seed 6 takes about 2 s alone but passed the default 5 s on a loaded CI runner, beside the emulator suites
 
 test('hostile actions against a live match are all refused quietly', () => {
   const s = createMatch({ seed: 5, factions: ['spartans', 'mongols'] }); const before = hashState(s);

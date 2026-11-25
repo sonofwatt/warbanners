@@ -1,9 +1,10 @@
 import { ref, set } from 'firebase/database';
 import { describe, expect, test } from 'vitest';
+import { wait } from './waitScale';
 import { EMU, ensureSignedIn, fb, usingEmulator } from './firebase';
 
 const emu = describe.runIf(process.env.EMULATOR === '1');
-emu('the emulator', () => {
+emu('the emulator', { timeout: wait(30_000) }, () => {
   test('the app points at the namespace the rules are loaded into', () => {
     expect(EMU.databaseURL).toBe('http://127.0.0.1:9010?ns=demo-banners-default-rtdb');
     expect(usingEmulator()).toBe(true);

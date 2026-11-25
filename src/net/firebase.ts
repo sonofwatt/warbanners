@@ -70,10 +70,20 @@ export function fb(name = '[DEFAULT]'): Fb {
   return f;
 }
 
-/** Signs in anonymously unless already signed in, and returns the uid. */
+const signingIn = new WeakMap<Fb, Promise<string>>();
+/**
+ * Signs in anonymously unless already signed in, and returns the uid. Calls made while a sign-in is on its way share
+ * it: two sign-ins that overlap could each make an anonymous user, and the phone would end up as the second while
+ * holding the first one's uid. A failed sign-in is forgotten, so the next call tries again.
+ */
 export function ensureSignedIn(f: Fb): Promise<string> {
   if (f.auth.currentUser) return Promise.resolve(f.auth.currentUser.uid);
-  return signInAnonymously(f.auth).then((cred) => cred.user.uid);
+  let p = signingIn.get(f);
+  if (!p) {
+    p = signInAnonymously(f.auth).then((cred) => cred.user.uid).finally(() => { signingIn.delete(f); });
+    signingIn.set(f, p);
+  }
+  return p;
 }
 
 /** Calls cb with whether the SDK holds a live connection to the database. Returns the unsubscribe. */

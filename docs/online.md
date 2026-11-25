@@ -143,11 +143,12 @@ A phone's identity is an anonymous Firebase user kept in IndexedDB. On an iPhone
 
 This phone's own list of online matches lives under `warbanners.online.*` and is kept apart from the saves (`warbanners.saves.v1`, `warbanners.save.<id>`). It keeps at most 20 matches. Making room drops finished matches first, then the oldest unfinished one, and the player is told when an unfinished one goes; the room itself stays on the server. A write that fails is reported, never silent.
 
-## Three rules for the code
+## Four rules for the code
 
 - **Never subscribe to a whole room.** Listen to `meta`, `seats`, `members`, `presence`, `head`, `desync` and `actions` separately. Read `match`, `snap`, `checks`, and the fresh `head` and own presence on a return, once with `get()`. A whole-room listener re-downloads the whole action list on every move.
 - **Never compare two phones' clocks.** Every deadline is computed from server timestamps plus `.info/serverTimeOffset`, and the rules check the server's `now`.
 - **Nothing outside the engine changes a `MatchState`.** Every change, local or received, goes through `applyAction`.
+- **Sign in before touching the database.** The first listen, read or `.info` watch opens the socket, and the socket takes its token as it opens. If the sign-in ends while it opens, the SDK can lose the token and the socket stays signed out for about an hour: every room listener is refused and the phone sits on Connecting. `firebaseNet` waits for the sign-in before anything that touches the database, `serverNow()`'s offset listener included, and `ensureSignedIn` shares one sign-in between callers so two overlapping ones never make two users.
 
 ## AI seats online
 

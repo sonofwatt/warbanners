@@ -9,6 +9,7 @@ import { EMU, ensureSignedIn, fb, setOnline, watchConnected } from './firebase';
 import { firebaseNet } from './firebaseNet';
 import type { Net } from './net';
 import { serverTimestamp } from './patches';
+import { wait } from './waitScale';
 
 const emu = describe.runIf(process.env.EMULATOR === '1');
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -28,7 +29,7 @@ async function adminGet(path: string): Promise<unknown> {
   return out;
 }
 async function until(what: string, ok: () => Promise<boolean>, ms = 5_000): Promise<void> {
-  for (const end = Date.now() + ms; Date.now() < end; await sleep(50)) if (await ok()) return;
+  for (const end = Date.now() + wait(ms); Date.now() < end; await sleep(50)) if (await ok()) return;
   throw new Error(`timed out waiting for ${what}`);
 }
 const connected = (name: string): Promise<void> => new Promise((res) => {
@@ -36,7 +37,7 @@ const connected = (name: string): Promise<void> => new Promise((res) => {
   off = watchConnected(fb(name), (ok) => { if (ok && !done) { done = true; queueMicrotask(() => off?.()); res(); } });
 });
 
-emu('firebaseNet on the emulator', () => {
+emu('firebaseNet on the emulator', { timeout: wait(30_000) }, () => {
   afterAll(async () => { await env?.cleanup(); });
 
   contract('firebaseNet', async () => {
