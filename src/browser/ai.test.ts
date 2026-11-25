@@ -96,7 +96,7 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(3, 96);   // 25 units (re-picked for rules 9, as speed.test.ts; (3, 82) for rules 8's tuning pass)
+  const { entries, state } = savedHardMatch(7, 66);   // 25 units (re-picked for rules 9, as speed.test.ts; (3, 82) for rules 8's tuning pass)
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {

@@ -66,7 +66,7 @@ centre `(0,0)` is always a plain field.
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, hunker (since rules 7, see 11), capture, claim a
+move, attack, use an ability, hunker (since rules 7, see 11) or unhunker (since rules 9), capture, claim a
 treasure, train, harvest, build, lay a road, build walls, research, choose a city
 reward. Then end the turn.
 
@@ -373,6 +373,14 @@ end it. While hunkered:
   heal as before, at the start of the next turn. (`CONFIG.hunker.healAtTurnEnd`.)
 - A Heal on it gives 1 more: +5 health, up to its maximum.
 
+Unhunker (since rules 9): on their own turn a player may end the hunker of any of their
+hunkered units. It costs nothing and does nothing else: it is not doing something for
+resting, and it gives back no movement or attacks the unit has already spent (a unit
+that hunkered this turn still cannot move this turn; one hunkered on an earlier turn has
+its normal turn). A unit that unhunkered may not hunker again that turn. On the unit's
+card the Hunker button becomes an Unhunker button, drawn pressed in, while it is
+hunkered (`CONFIG.hunker.unhunker`).
+
 Both players see that a unit is hunkered (a shield beside its health on the board).
 The numbers are `CONFIG.hunker`.
 
@@ -563,3 +571,6 @@ This list, the one above and the one below are the file's changelog.
 - The level 2 `gold` reward is +5 gold (was +6). A champion or support reward with
   no free tile pays the same +5 (section 6). The treasure's +5 gold is a separate
   number and unchanged (section 12).
+- Unhunker: a player may end a unit's hunker on their turn, for nothing and with no
+  movement given back; the unit cannot hunker again that turn. The card shows an
+  Unhunker button for a hunkered unit (section 11).

@@ -3,7 +3,7 @@ import { attackHandler } from './combat';
 import { buildHandler, harvestHandler, rewardHandler, roadHandler, wallsHandler } from './economy';
 import { canCapture, canClaimTreasure, captureHandler, claimTreasureHandler, resignHandler } from './capture';
 import { canUseItem, useItemHandler } from './items';
-import { canHunker, endHunker, hunkerHandler } from './hunker';
+import { canHunker, canUnhunker, endHunker, hunkerHandler, unhunkerHandler } from './hunker';
 import { researchHandler } from './tech';
 import { campTrainHandler, trainHandler } from './training';
 import { endTurnHandler } from './turn';
@@ -43,6 +43,7 @@ export const HANDLERS: Partial<Record<Action['type'], Handler<any>>> = {
   claimTreasure: claimTreasureHandler,
   useItem: useItemHandler,
   hunker: hunkerHandler,
+  unhunker: unhunkerHandler,
   resign: resignHandler,
   endTurn: endTurnHandler,
 };
@@ -69,7 +70,7 @@ export function applyAction(state: MatchState, action: Action): Result {
     // its hunker before the action is worked out, so it has no hunker defence against a counter. A refusal drops the draft.
     // Since rules 8 a drink does not (CONFIG.hunker.drinkKeepsHunker).
     const own = (copy as { unit?: unknown }).unit;
-    const keeps = type === 'hunker' || (type === 'useItem' && CONFIG.hunker.drinkKeepsHunker);
+    const keeps = type === 'hunker' || type === 'unhunker' || (type === 'useItem' && CONFIG.hunker.drinkKeepsHunker);
     if (!keeps && typeof own === 'number') {
       const u = draft.units.find((x) => x.id === own);
       if (u !== undefined && u.owner === actor) endHunker(u, events);
@@ -112,6 +113,7 @@ export function legalActions(s: MatchState): Action[] {
     if (canClaimTreasure(s, u.id)) out.push({ type: 'claimTreasure', unit: u.id });
     if (canUseItem(s, u.id)) out.push({ type: 'useItem', unit: u.id });
     if (canHunker(s, u.id)) out.push({ type: 'hunker', unit: u.id });
+    if (canUnhunker(s, u.id)) out.push({ type: 'unhunker', unit: u.id });   // rules 9
     if (hasTrait(u, 'camp')) {
       const around = neighbors(parseKey(u.pos)).map(key).filter((k) => tileAt(s, k) !== undefined).sort();
       for (const unitType of unitTypes) {

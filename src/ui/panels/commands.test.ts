@@ -149,3 +149,16 @@ test('rules 7: Hunker is offered to a unit that has done nothing, never to a Cat
     { id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: idle.id }, arm: null, hint: T.ui.hunkerHint });
   for (const u of [cat, moved, dug]) expect(unitCommands(unitSel(u.id), s, ix).some(c => c.id === 'hunker')).toBe(false);
 });
+test('rules 9: a hunkered unit shows Unhunker, pressed, where Hunker would be; an idle one shows Hunker; never off turn', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const idle = addUnit(s, 'warrior', 0, 2, 0);
+  const dug = addUnit(s, 'warrior', 0, 2, -2, { hunkered: true });
+  const ix = ixOf(s);
+  const ids = (id: number) => unitCommands(unitSel(id), s, ix).map(c => c.id);
+  expect(ids(idle.id)).toContain('hunker'); expect(ids(idle.id)).not.toContain('unhunker');
+  expect(ids(dug.id)).toContain('unhunker'); expect(ids(dug.id)).not.toContain('hunker');
+  expect(unitCommands(unitSel(dug.id), s, ix).find(c => c.id === 'unhunker')).toEqual(
+    { id: 'unhunker', label: T.ui.unhunker, cost: null, enabled: true, why: null, action: { type: 'unhunker', unit: dug.id }, arm: null, hint: T.ui.unhunkerHint, pressed: true });
+  const off = must(applyAction(s, { type: 'endTurn' }));          // player 1's turn: nothing on player 0's unit
+  expect(unitCommands(unitSel(dug.id), off, ixOf(off)).some(c => c.id === 'unhunker')).toBe(false);
+});

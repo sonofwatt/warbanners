@@ -5,7 +5,7 @@ import { must } from './testkit';
 // If this fails, the game plays differently. Bump RULES_VERSION in types.ts and add the new hash here.
 // Two phones on different rules must never meet in a match, and a solo save from older rules must say so.
 // Before bumping, read the plan 2 final review ruling: a bump strands half-played solo saves.
-const FINGERPRINT: Record<number, string> = { 2: '3a5c3ebd861dd09c', 3: 'ba3e0e466edfedd3', 4: 'ee96ecdb02902404', 5: '75e001ae462131a1', 6: 'e52a5e1f88468e36', 7: 'fb56cf755cda717e', 8: '60916c498b6b16ec', 9: '1c0741146a928313' };   // 9: rules 9 (no Spartan discount on leaving level 1, level 2 gold reward 5). 8 re-pinned (unreleased) for rules 8's tuning pass (blockade, Mongol growth and tribute); before that for rules 8's tech tree; before that for the rules 8 additions: city sight, Scout, Mongol riding and roads, hunker heal, climbing tech
+const FINGERPRINT: Record<number, string> = { 2: '3a5c3ebd861dd09c', 3: 'ba3e0e466edfedd3', 4: 'ee96ecdb02902404', 5: '75e001ae462131a1', 6: 'e52a5e1f88468e36', 7: 'fb56cf755cda717e', 8: '60916c498b6b16ec', 9: '00ab42395a0dd506' };   // 9: rules 9 (no Spartan discount on leaving level 1, level 2 gold reward 5, the unhunker action); first pinned 1c0741146a928313 before unhunker. 8 re-pinned (unreleased) for rules 8's tuning pass (blockade, Mongol growth and tribute); before that for rules 8's tech tree; before that for the rules 8 additions: city sight, Scout, Mongol riding and roads, hunker heal, climbing tech
 
 test('RULES_VERSION changes whenever the rules do', () => {
   let s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
