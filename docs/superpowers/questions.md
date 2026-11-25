@@ -3,18 +3,7 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-## Q1. Spartan first level-up (2026-11-25)
-
-- Rules 8 numbers: every harvest (wild grain, orchard fruit, game, jewels, fish) costs 2 gold and gives 1 growth.
-- Growth to leave level L is L + 1, plus the faction's extra: Spartans -1 (since rules 7), Mongols 0.
-- So level 1 to 2 needs 2 growth for Mongols and 1 for Spartans: one 2-gold harvest levels a Spartan capital on turn 1.
-- Level 2 to 3 needs 3 (Mongols) or 2 (Spartans); the Spartan edge is one growth at every level.
-- Options:
-  - A: the Spartan -1 starts from level 2 (first level-up needs 2 for everyone; later levels keep the edge). My pick.
-  - B: drop the Spartan -1 entirely (Spartans were the stronger side at 52 / 43 on normal, so this also balances).
-  - C: raise the first level for everyone (growthBase 2: Mongols 3, Spartans 2).
-- Either way it is a rules change: rules 9, with sims, the level-2 gold reward going 6 to 5 (David, 2026-11-25) in the
-  same version, and no deploy during an online match.
+No open questions.
 
 ## Answered
 
@@ -59,3 +48,5 @@ move to the bottom.
   (enemies on 2 or more of its tiles); "no use to have it unless they're almost or are actively blockaded".
 - Q1 (archers' attack facing), 2026-11-24 (David): keep it; archers aim side on along the bow and the horse
   archer shoots back over the rump.
+- Q1 (Spartan first level-up), 2026-11-25 (David): A; the first level-up needs 2 growth for everyone, the Spartan
+  -1 applies from level 2 on. Ships in rules 9 with the level-2 gold reward 6 to 5.
