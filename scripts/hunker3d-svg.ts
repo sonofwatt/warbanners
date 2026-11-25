@@ -14,7 +14,7 @@ import type { UnitTypeId } from '../src/engine';
 import { FIGURES } from '../src/ui/art/factionUnits';
 import { ACCENT, playerColour } from '../src/ui/art/palette';
 import { TileBase } from '../src/ui/art/tiles';
-import { StatusOverlay } from '../src/ui/art/units';
+import { WarBanner } from '../src/ui/art/banner';
 
 const out = process.argv[2] ?? 'docs/superpowers/plans/shots/hunker3d';
 mkdirSync(out, { recursive: true });
@@ -30,7 +30,7 @@ function cell(type: UnitTypeId, i: number, hunkered: boolean, crouch: boolean): 
     h(TileBase, { ground: 'grass' } as never),
     h('g', { className: crouch && hunkered ? 'unit-crouch hunkered' : 'unit-crouch' },
       FIGURES[type]({ colour: playerColour(f), accent: ACCENT[f] })),
-    h(StatusOverlay, { hp: 10, maxHp: 10, spent: false, fresh: false, taunted: false, blinded: false, hunkered }));
+    h(WarBanner, { type, colour: playerColour(f), hp: 10, maxHp: 10, spent: false, fresh: false, taunted: false, blinded: false, hunkered }));
 }
 function sheet(crouch: boolean, scale: number): string {
   const per = 6, rows = Math.ceil(types.length / per);

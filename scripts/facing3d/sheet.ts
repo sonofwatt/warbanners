@@ -99,7 +99,7 @@ function sheet(rows: readonly Row[], scale = 2): void {
       const step = c === 0 ? null : STEPS[c - 1]!;
       hex(g, x, y, '#8aa860', '#5d7a3e');
       if (step !== null) { hex(g, x + step.d[0], y + step.d[1], '#7e9c56', '#5d7a3e'); arrow(g, x, y, step.d); }
-      const u: GlUnit = { id, type: row.type, look: look(row.faction), hero: row.hero === true, x, y, alpha: 1, hunkered: false };
+      const u: GlUnit = { id, type: row.type, look: look(row.faction), hero: row.hero === true, x, y, spent: false, hunkered: false };
       to.push(u);
       from.push(step === null ? u : { ...u, x: x - step.d[0], y: y - step.d[1] });
       if (ri === 0) label(step === null ? 'rest' : `move ${step.name}`, x, -RH / 2 - 8);
@@ -128,7 +128,7 @@ function clip(scale = 2.4): Clip {
   const archer = at(-1, -1);
   const treb = at(3, 1), trebTarget = at(3, -1);
   const knight = at(1, -2), knightTo = at(1, -1);
-  const base = (hx: [number, number], hk = false): Omit<GlUnit, 'id' | 'type' | 'look' | 'hero'> => ({ x: hx[0], y: hx[1], alpha: 1, hunkered: hk });
+  const base = (hx: [number, number], hk = false): Omit<GlUnit, 'id' | 'type' | 'look' | 'hero'> => ({ x: hx[0], y: hx[1], spent: false, hunkered: hk });
   // The timeline (ms): each move at 500 ms steps (180 ms slides), then an attack, then the hunker.
   const MOVE_AT = [400, 900, 1400, 1900];
   const ATTACK_AT = 2500, THROW_AT = 2700, HUNKER_AT = 3700, KNIGHT_AT = 3200;
@@ -188,8 +188,8 @@ function normals(world: boolean, scale = 3): void {
   g.fillStyle = '#6f8f4e'; g.fillRect(0, 0, view.w, view.h);
   for (const x of [0, 80, 160, 240]) hex(g, x, 0, '#8aa860', '#5d7a3e');
   units.setUnits([
-    { id: 1, type: 'catapult', look: look('spartans'), hero: false, x: 160, y: 0, alpha: 1, hunkered: false },
-    { id: 2, type: 'catapult', look: look('spartans'), hero: false, x: 240, y: 0, alpha: 1, hunkered: false },
+    { id: 1, type: 'catapult', look: look('spartans'), hero: false, x: 160, y: 0, spent: false, hunkered: false },
+    { id: 2, type: 'catapult', look: look('spartans'), hero: false, x: 240, y: 0, spent: false, hunkered: false },
   ], 0);
   units.aim(2, 240, -60, 0);
   units.tick(1000, 0);

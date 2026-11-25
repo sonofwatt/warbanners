@@ -627,8 +627,13 @@ input:focus { border-color: var(--blue); }
    in and out; at once when less motion is asked for. The 3D look draws its own crouch (terrain3d/units/crouch.ts). */
 .unit-crouch { transition: transform 230ms ease-in-out; }
 .unit-crouch.hunkered { transform: translate(0px, 0.8px) scale(1.06, 0.8); }
+/* An own unit with nothing left to do this turn: its svg figure and its war banner (art/banner.tsx) are drawn 40
+   percent darker and a little greyer, never see-through, eased in as it is spent and out as its next turn starts.
+   The 3D figure gets the same in its shader (terrain3d/units/units3d.ts). The marks round the banner keep their colour. */
+.unit-shade { transition: filter 200ms ease-in-out; }
+.unit-shade.spent { filter: brightness(0.6) saturate(0.75); }
 @media (prefers-reduced-motion: reduce) {
-  .unit-crouch { transition: none; }
+  .unit-crouch, .unit-shade { transition: none; }
 }
 
 /* The veil (art/tiles.tsx): a veiled tile's art drawn again as one dark silhouette. Every shape in it takes

@@ -30,10 +30,11 @@ const { CLEAN } = await import('./parts');
 const { AIM_TURN_MS, frontsOf, moveYaw, TURN_MS } = await import('./facing');
 const { SQUASH } = await import('../layout');
 const { CROUCH_MS, FOOT_DROP } = await import('./crouch');
+const { SHADE_MS } = await import('./shade');
 
 const RED = { main: '#B3261E', dark: '#8E1D17', accent: '#C8963E' };
 const BLUE = { main: '#2D6DB5', dark: '#1F4F87', accent: '#D4A72C' };
-const unit = (id: number, p: Partial<GlUnit> = {}): GlUnit => ({ id, type: 'warrior', look: RED, hero: false, x: id * 10, y: 0, alpha: 1, hunkered: false, ...p });
+const unit = (id: number, p: Partial<GlUnit> = {}): GlUnit => ({ id, type: 'warrior', look: RED, hero: false, x: id * 10, y: 0, spent: false, hunkered: false, ...p });
 const make = () => createUnits3d({} as HTMLCanvasElement, {})!;
 const figuresIn = (u: ReturnType<typeof make>): unknown[] => drawn.at(-1)!.scene.children.filter((c) => c !== u.extras);
 const figures = (u: ReturnType<typeof make>): Group[] => { u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1); return figuresIn(u) as Group[]; };
@@ -88,7 +89,7 @@ describe('the 3D unit figures', () => {
     u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
     expect(figuresIn(u)[0], 'the same group all through the fade').toBe(first);
     expect(u.stats().falls).toBe(1);
-    expect(u.stats().dims, 'no cached dim materials pile up').toBe(0);
+    expect(u.stats().shades, 'a fall caches no shared materials').toBe(0);
     u.pose(new Map(), []);
     expect(u.stats().falls).toBe(0);
     expect(groups(u)).toBe(0);
@@ -399,12 +400,12 @@ describe('the 3D unit figures', () => {
       u.tick(1000 + TURN_MS, 0);
       expect(near(yawOf(g), want)).toBeLessThan(1e-9);
       expect(u.turning(1000 + TURN_MS)).toBe(false);
-      // Spent after its move, it is rebuilt dimmed: still facing the move, long after.
-      u.setUnits([unit(1, { x: 30, y: 0, alpha: 0.55 })], 1500);
-      const dim = figures(u)[0]!;
-      expect(dim).not.toBe(g);
+      // Spent after its move, it darkens in place (no rebuild): still facing the move, long after.
+      u.setUnits([unit(1, { x: 30, y: 0, spent: true })], 1500);
+      const dark = figures(u)[0]!;
+      expect(dark).toBe(g);
       u.tick(60_000, 0);
-      expect(near(yawOf(dim), want)).toBeLessThan(1e-9);
+      expect(near(yawOf(dark), want)).toBeLessThan(1e-9);
     });
 
     test('moving straight down the screen faces the viewer, up faces away, sideways is a profile', () => {
@@ -467,9 +468,11 @@ describe('the 3D unit figures', () => {
       u.tick(500, 0);
       const moved = yawOf(g);
       expect(near(moved, 0)).toBeGreaterThan(1);
-      // Selection, spent, a new look of the same unit: no turn.
-      u.setUnits([unit(1, { x: -30, y: 0, alpha: 0.55 })], 600);
-      expect(u.turning(600)).toBe(false);
+      // Selection, spent, a new look of the same unit: no turn (spent only darkens, over SHADE_MS).
+      u.setUnits([unit(1, { x: -30, y: 0, spent: true })], 600);
+      u.tick(600 + SHADE_MS, 0);
+      expect(u.turning(600 + SHADE_MS)).toBe(false);
+      expect(near(yawOf(g), moved)).toBeLessThan(1e-9);
       u.setUnits([unit(1, { x: -30, y: 0, hunkered: true })], 1000);
       expect(u.turning(1000)).toBe(true);
       const g2 = figures(u)[0]!;
@@ -653,13 +656,13 @@ describe('the 3D unit figures', () => {
       expect(pieceOf(g, 'shield').position.distanceTo(shield)).toBeLessThan(1e-9);
     });
 
-    test('a unit already hunkered when first seen is crouched at once; a spent rebuild keeps the crouch', () => {
+    test('a unit already hunkered when first seen is crouched at once; being spent keeps the crouch', () => {
       const u = make();
       u.setUnits([unit(1, { type: 'archer', x: 0, y: 0, hunkered: true })], 0);
       expect(u.turning(0)).toBe(false);
       u.tick(10, 0);
       expect(bodyOf(figures(u)[0]!).position.y).toBeCloseTo(-FOOT_DROP, 6);
-      u.setUnits([unit(1, { type: 'archer', x: 0, y: 0, hunkered: true, alpha: 0.55 })], 20);
+      u.setUnits([unit(1, { type: 'archer', x: 0, y: 0, hunkered: true, spent: true })], 20);
       u.tick(30, 0);
       expect(bodyOf(figures(u)[0]!).position.y).toBeCloseTo(-FOOT_DROP, 6);
     });
@@ -725,6 +728,83 @@ describe('the 3D unit figures', () => {
       const armAngle = (g: Group): number => { const q = pieceOf(g, 'arm').quaternion; return 2 * Math.atan2(q.z, q.w); };
       expect(Math.abs(armAngle(c2) - armAngle(c1))).toBeGreaterThan(0.3);
       expect(bodyOf(c2).scale.y).toBeLessThan(bodyOf(c1).scale.y);
+    });
+  });
+
+  describe('a spent unit darkens', () => {
+    type Mat = { transparent: boolean; opacity?: number; uniforms?: Record<string, { value: unknown }> };
+    /** Every material on a figure's own meshes (its ground shadow aside). */
+    const mats = (g: Group): Mat[] => {
+      const out: Mat[] = [];
+      (g.children[0] as Group).traverse((o) => { const m = (o as unknown as { material?: Mat }).material; if (m !== undefined) out.push(m); });
+      return out;
+    };
+    /** How dark the figure is drawn (0 fresh, 1 spent), read from its materials, which must all agree. */
+    const shadeOf = (g: Group): number => {
+      const v = new Set(mats(g).map((m) => Number(m.uniforms?.uShade?.value ?? 0)));
+      expect(v.size).toBe(1);
+      return [...v][0]!;
+    };
+
+    test('it darkens in place over SHADE_MS, opaque all the while, and lightens the same way at its next turn', () => {
+      expect(SHADE_MS).toBeGreaterThanOrEqual(150);
+      expect(SHADE_MS).toBeLessThanOrEqual(250);
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      expect(shadeOf(g)).toBe(0);
+      u.setUnits([unit(1, { x: 0, y: 0, spent: true })], 1000);
+      expect(u.turning(1000)).toBe(true);
+      let last = 0;
+      for (let t = 1000; t <= 1000 + SHADE_MS; t += 20) {
+        u.tick(t, 0);
+        const v = shadeOf(g);
+        expect(v, `${t}`).toBeGreaterThanOrEqual(last);
+        expect(v - last, `no jump at ${t}`).toBeLessThanOrEqual(0.5);
+        last = v;
+        for (const m of mats(g)) expect(m.transparent, 'never see-through').toBe(false);
+      }
+      expect(shadeOf(g)).toBe(1);
+      expect(u.turning(1000 + SHADE_MS)).toBe(false);
+      expect(figures(u)[0]).toBe(g);
+      // Its next turn: it is not spent, and lightens.
+      u.setUnits([unit(1, { x: 0, y: 0 })], 5000);
+      expect(u.turning(5000)).toBe(true);
+      u.tick(5000 + SHADE_MS / 2, 0);
+      const mid = shadeOf(g);
+      expect(mid).toBeGreaterThan(0);
+      expect(mid).toBeLessThan(1);
+      u.tick(5000 + SHADE_MS, 0);
+      expect(shadeOf(g)).toBe(0);
+    });
+
+    test('spent when first seen is dark at once; materials are shared by step and freed with the renderer', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0, spent: true }), unit(2, { x: 40, y: 0, spent: true, type: 'knight' })], 0);
+      expect(u.turning(0)).toBe(false);
+      u.tick(0, 0);
+      const [a, b] = figures(u);
+      expect(shadeOf(a!)).toBe(1);
+      expect(shadeOf(b!)).toBe(1);
+      expect(u.stats().shades).toBe(1);
+      u.dispose();
+      expect(u.stats().shades).toBe(0);
+    });
+
+    test('with reduced motion it darkens and lightens at once', () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce') }));
+      try {
+        const u = make();
+        u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+        const g = figures(u)[0]!;
+        u.setUnits([unit(1, { x: 0, y: 0, spent: true })], 100);
+        expect(u.turning(100)).toBe(false);
+        expect(shadeOf(g)).toBe(1);
+        u.setUnits([unit(1, { x: 0, y: 0 })], 200);
+        expect(shadeOf(g)).toBe(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 });

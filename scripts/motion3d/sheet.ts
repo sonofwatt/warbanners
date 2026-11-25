@@ -128,7 +128,7 @@ function moves(movers: Mover[], v: View, qs: [number, number], rs: [number, numb
         const legs = legsAt(m);
         const leg = legs.filter((s) => t >= s).length;
         const p = m.path[leg]!;
-        list.push({ id: m.id, type: m.type, look: look(m.faction), hero: m.hero === true, x: p[0], y: p[1], alpha: 1, hunkered: false });
+        list.push({ id: m.id, type: m.type, look: look(m.faction), hero: m.hero === true, x: p[0], y: p[1], spent: false, hunkered: false });
         key += `${m.id}:${leg} `;
         if (leg > 0) {
           const s = slide(t, legs[leg - 1]!, m.type, m.hexes[leg - 1]!, m.path[leg - 1]!, p);
@@ -154,8 +154,8 @@ function duel(d: Duel, v: View, qs: [number, number], rs: [number, number]): Cli
   field(qs, rs);
   label(d.title, v.cx, v.cy - v.h / v.scale / 2 + 6);
   u.setUnits([
-    { id: 1, type: d.attacker.type, look: look(d.attacker.faction), hero: false, x: d.attacker.at[0], y: d.attacker.at[1], alpha: 1, hunkered: false },
-    { id: 2, type: d.defender.type, look: look(d.defender.faction), hero: false, x: d.defender.at[0], y: d.defender.at[1], alpha: 1, hunkered: false },
+    { id: 1, type: d.attacker.type, look: look(d.attacker.faction), hero: false, x: d.attacker.at[0], y: d.attacker.at[1], spent: false, hunkered: false },
+    { id: 2, type: d.defender.type, look: look(d.defender.faction), hero: false, x: d.defender.at[0], y: d.defender.at[1], spent: false, hunkered: false },
   ], 0);
   const STARTS = [300, 1500];
   const fired = new Set<number>();

@@ -95,19 +95,60 @@ test('a mark on a fog tile is drawn, and nothing else of that tile but its fog',
   expect(marked).toContain('data-mark="move"');
 });
 
-test('a spent own unit is dimmed to 55%, a fresh one is not', () => {
+test('a spent own unit is drawn darker with its banner, never see-through; a fresh one is not', () => {
   const me = s.units.find((u) => u.owner === 0)!;
-  expect(draw({ spentUnits: new Set([me.id]) })).toContain('opacity="0.55"');
-  expect(draw()).not.toContain('opacity="0.55"');
+  const spent = unitMarkup(draw({ spentUnits: new Set([me.id]) }), me.id);
+  const fresh = unitMarkup(draw(), me.id);
+  // The figure and the banner both take the shade (theme.css .unit-shade.spent); nothing has an opacity.
+  expect((spent.match(/class="unit-shade spent"/g) ?? []).length).toBe(2);
+  expect(fresh).not.toContain('unit-shade spent');
+  expect((fresh.match(/class="unit-shade"/g) ?? []).length).toBe(2);
+  for (const h of [spent, fresh]) expect(h).not.toMatch(/ opacity="/);
+  const crouch = groupAt(spent, spent.indexOf('<g class="unit-crouch'));
+  expect(crouch).toContain('unit-shade spent');
 });
 
-test('my own hidden unit is drawn at 70%', () => {
+test('an enemy unit is never darkened, even in the spent set', () => {
+  const view = structuredClone(playerView(s, 0));
+  const me = view.units[0]!;
+  const enemy: Unit = { ...structuredClone(me), id: 97, owner: 1, pos: '-1,4' };
+  const html = unitMarkup(draw({ view: { ...view, units: [...view.units, enemy] }, spentUnits: new Set([97]) }), 97);
+  expect(html).not.toContain('unit-shade spent');
+});
+
+test('my own hidden unit is opaque and carries the slashed eye; an enemy hidden unit shows no eye', () => {
   const view = playerView(s, 0);
   const me = view.units[0]!;
   const scout: Unit = { ...me, id: 99, type: 'scout', pos: '-2,4' };
-  const withScout: PlayerView = { ...view, units: [...view.units, scout] };
-  const html = draw({ view: withScout });
-  expect(html).toMatch(/data-unit="99"[^>]*>(<g[^>]*>)*?<g opacity="0.7"/);
+  const theirs: Unit = { ...me, id: 96, owner: 1, type: 'scout', pos: '-1,4' };
+  const warrior: Unit = { ...me, id: 95, type: 'warrior', pos: '-3,5' };
+  const html = draw({ view: { ...view, units: [...view.units, scout, theirs, warrior] }, spentUnits: new Set([99]) });
+  const mine = unitMarkup(html, 99);
+  expect(mine).not.toMatch(/ opacity="/);
+  expect(mine).toContain('data-hidden-eye');
+  // Spent and hidden: darker, and the eye.
+  expect(mine).toContain('unit-shade spent');
+  expect(unitMarkup(html, 96)).not.toContain('data-hidden-eye');
+  expect(unitMarkup(html, 95)).not.toContain('data-hidden-eye');
+});
+
+test('every unit has a war banner with its type\'s glyph, in its owner\'s colour', () => {
+  const view = structuredClone(playerView(s, 0));
+  const me = view.units[0]!;
+  const extra: Unit[] = [
+    { ...structuredClone(me), id: 90, type: 'archer', pos: '-1,4' },
+    { ...structuredClone(me), id: 91, owner: 1, type: 'knight', pos: '-3,5' },
+  ];
+  const html = draw({ view: { ...view, units: [...view.units, ...extra] } });
+  for (const u of [me, ...extra]) {
+    const m = unitMarkup(html, u.id);
+    expect(m).toContain(`data-banner="${u.type}"`);
+    expect(m).toContain(`data-glyph="${u.type}"`);
+    expect(m).toContain(u.owner === 0 ? '#B3261E' : '#2D6DB5');
+  }
+  // The banner is outside the crouch: only the figure sinks.
+  const m = unitMarkup(html, 90);
+  expect(groupAt(m, m.indexOf('<g class="unit-crouch'))).not.toContain('data-banner');
 });
 
 test('the capital is drawn as a city in the owner\'s colour, with a closed border around it', () => {
@@ -171,7 +212,7 @@ function unitMarkup(html: string, id: number): string {
   return groupAt(html, html.lastIndexOf('<g', html.indexOf(`data-unit="${id}"`)));
 }
 
-test('a hero carries the mark and a plain unit does not', () => {
+test('a hero carries the mark and a gold-edged banner, and a plain unit does not', () => {
   const view = structuredClone(playerView(s, 0));
   const me = view.units[0]!;
   const plain: Unit = { ...structuredClone(me), id: 98, pos: '-1,4' };
@@ -180,6 +221,8 @@ test('a hero carries the mark and a plain unit does not', () => {
   expect((html.match(/data-hero-mark/g) ?? []).length).toBe(1);
   expect(unitMarkup(html, me.id)).toContain('data-hero-mark');
   expect(unitMarkup(html, 98)).not.toContain('data-hero-mark');
+  expect(unitMarkup(html, me.id)).toContain('data-hero-banner');
+  expect(unitMarkup(html, 98)).not.toContain('data-hero-banner');
   // Inside the body, so a lunge carries it.
   const body = unitMarkup(html, me.id);
   expect(groupAt(body, body.indexOf('<g class="unit-body"'))).toContain('data-hero-mark');
@@ -227,7 +270,7 @@ test('a hunkered unit crouches in the svg look and keeps its hunker mark; a plai
   const html = unitMarkup(draw({ view }), me.id);
   expect(html).toContain('class="unit-crouch hunkered"');
   expect(html).toContain('data-hunker-mark');
-  // The status plate and its mark stay outside the crouch: only the figure sinks.
+  // The banner and its mark stay outside the crouch: only the figure sinks.
   const crouch = groupAt(html, html.indexOf('<g class="unit-crouch hunkered"'));
   expect(crouch).not.toContain('data-hunker-mark');
 });

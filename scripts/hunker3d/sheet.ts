@@ -86,7 +86,7 @@ function sheet(cells: readonly Cell[], scale: number, perRow: number): void {
     hex(x, y); hex(x + STEP, y, '#93b168');
     label(c.name, x + STEP / 2, y - RH * 0.56);
     for (const hunkered of [false, true]) {
-      list.push({ id: id++, type: c.type, look: look(c.faction), hero: c.hero === true, x: hunkered ? x + STEP : x, y, alpha: 1, hunkered });
+      list.push({ id: id++, type: c.type, look: look(c.faction), hero: c.hero === true, x: hunkered ? x + STEP : x, y, spent: false, hunkered });
     }
   });
   u.setUnits(list, 0);
@@ -106,7 +106,7 @@ function hunkerClip(scale: number, types: readonly UnitTypeId[]): Clip {
   const u = fresh({ w: Math.round((span * STEP + 20) * scale), h: Math.round(84 * scale), scale, cx: ((span - 1) * STEP) / 2, cy: -12 });
   types.forEach((_, i) => hex(i * STEP, 0));
   const at = (hunkered: boolean): GlUnit[] => types.map((type, i) => ({
-    id: i + 1, type, look: look(i % 2 === 0 ? 'spartans' : 'mongols'), hero: false, x: i * STEP, y: 0, alpha: 1, hunkered,
+    id: i + 1, type, look: look(i % 2 === 0 ? 'spartans' : 'mongols'), hero: false, x: i * STEP, y: 0, spent: false, hunkered,
   }));
   let shown: boolean | null = null;
   return {
@@ -136,8 +136,8 @@ function blockClip(scale: number): Clip {
   hex(-STEP, 0); hex(0, 0);
   const a: [number, number] = [-STEP, 0], d: [number, number] = [0, 0];
   const list = (hunkered: boolean): GlUnit[] => [
-    { id: 1, type: 'warrior', look: look('mongols'), hero: false, x: a[0], y: a[1], alpha: 1, hunkered: false },
-    { id: 2, type: 'hoplite', look: look('spartans'), hero: false, x: d[0], y: d[1], alpha: 1, hunkered },
+    { id: 1, type: 'warrior', look: look('mongols'), hero: false, x: a[0], y: a[1], spent: false, hunkered: false },
+    { id: 2, type: 'hoplite', look: look('spartans'), hero: false, x: d[0], y: d[1], spent: false, hunkered },
   ];
   u.setUnits(list(true), 0);
   const BLOW = 500;
