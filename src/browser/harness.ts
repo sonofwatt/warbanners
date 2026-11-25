@@ -12,7 +12,7 @@ import type { PreviewServer } from 'vite';
 // and `beforeOpen` sees the browser context before the first page load (to record requests, say).
 // `storageState` starts the browser with storage saved from an earlier one, and `port` serves on that port rather
 // than a free one: storage is kept per origin, so a browser that comes back with its saved storage must come back
-// on the same port. `webgl` launches Chromium with software WebGL (SwiftShader), for the 3D terrain. Each call launches its own Chromium, so two calls are two phones with separate storage.
+// on the same port. `webgl` launches Chromium with software WebGL (SwiftShader), for the 3D terrain, and `scale` sets the device pixel ratio (2.6 by default). Each call launches its own Chromium, so two calls are two phones with separate storage.
 
 const PHONE = { width: 412, height: 915 };
 const SCALE = 2.6;
@@ -42,6 +42,7 @@ export async function openApp(
     storageState?: Awaited<ReturnType<BrowserContext['storageState']>>;
     port?: number;
     webgl?: boolean;
+    scale?: number;
   } = {},
 ): Promise<{ page: Page; context: BrowserContext; origin: string; url: string; close(): Promise<void> }> {
   let server: PreviewServer | null = null;
@@ -64,7 +65,7 @@ export async function openApp(
     browser = await chromium.launch(opts.webgl === true ? { args: WEBGL_ARGS } : {});
     const context = await browser.newContext({
       viewport: { width: opts.width ?? PHONE.width, height: opts.height ?? PHONE.height },
-      deviceScaleFactor: SCALE,
+      deviceScaleFactor: opts.scale ?? SCALE,
       hasTouch: true,
       isMobile: true,
       serviceWorkers: opts.serviceWorkers ?? 'block',

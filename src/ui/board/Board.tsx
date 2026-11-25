@@ -430,7 +430,7 @@ export function Board(p: BoardProps): ReactElement {
   useLayoutEffect(() => {
     const el = svgRef.current;
     if (el === null) return;
-    const measure = (now: boolean): void => {
+    const measure = (): void => {
       const r = el.getBoundingClientRect();
       if (r.width <= MIN_SIDE || r.height <= MIN_SIDE) return;
       const was = vp.current;
@@ -444,8 +444,7 @@ export function Board(p: BoardProps): ReactElement {
       if (!measured.current) {
         cam.current = startCamera(hexToBoard(focus), b, vp.current);
         measured.current = true;
-        if (now) write();
-        else schedule();
+        write();
         return;
       }
       // The slot changed size (a panel opening or closing, a rotation): first the board stays exactly where it was
@@ -463,14 +462,31 @@ export function Board(p: BoardProps): ReactElement {
         to = keepSelection(keepCorner(from, was, vp.current, b), vp.current, b, items);
         touched.current = true;
       }
-      if (now) write();
+      // Every layer is redrawn for the new size now, before the browser paints this frame: the canvases' drawing
+      // buffers are resized only when they draw, and CSS stretches a canvas that keeps its old buffer to the new
+      // box, so the 3D board would be squashed or stretched off the svg until something moved the camera. The
+      // eased pan below may not run at all (the selection already in view, or a finger down).
+      write();
       panTo(to);
     };
-    measure(true);
+    measure();
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => measure(false));
+    const ro = new ResizeObserver(() => measure());
     ro.observe(el);
-    return () => ro.disconnect();
+    // A new pixel ratio (browser zoom, a window moved to another screen) changes no size, so the observer above
+    // misses it; the canvases draw at the new ratio on the next frame.
+    let mq: MediaQueryList | null = null;
+    const onRatio = (): void => {
+      mq?.removeEventListener('change', onRatio);
+      mq = typeof matchMedia === 'function' && typeof devicePixelRatio === 'number' ? matchMedia(`(resolution: ${devicePixelRatio}dppx)`) : null;
+      mq?.addEventListener('change', onRatio);
+      if (measured.current) schedule();
+    };
+    onRatio();
+    return () => {
+      ro.disconnect();
+      mq?.removeEventListener('change', onRatio);
+    };
   }, [write, schedule, panTo, stopGlide]);
 
   // A new focus re-centres; a new board size re-clamps. Both skip the first render, which already did it.
