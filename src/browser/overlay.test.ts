@@ -40,9 +40,13 @@ async function toReward(page: Page): Promise<void> {
   if (await page.getByTestId('cmd-harvest').count() === 0) await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
   await page.getByTestId('cmd-harvest').tap();
   await frames(page);
-  const second = await page.locator('[data-centre="-3,6"]').boundingBox();
-  if (second === null) throw new Error('no second fruit tile');
-  await tapAt(page, second.x + second.width / 2, second.y + second.height / 2);
+  // The second fruit, -3,6. The view may still be settling after the first harvest, so the tile is found again and
+  // tapped until its card offers the harvest.
+  for (let tries = 0; tries < 5 && await page.getByTestId('cmd-harvest').count() === 0; tries++) {
+    const second = await page.locator('[data-centre="-3,6"]').boundingBox();
+    if (second === null) throw new Error('no second fruit tile');
+    await tapAt(page, second.x + second.width / 2, second.y + second.height / 2);
+  }
   await page.getByTestId('cmd-harvest').tap();
   await page.getByTestId('reward-0').waitFor();
   await page.waitForTimeout(250); // the overlay's fade
