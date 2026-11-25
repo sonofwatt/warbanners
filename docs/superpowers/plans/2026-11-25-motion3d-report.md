@@ -16,7 +16,7 @@ same events). Everything 3D stays behind the "3D terrain" option.
 ## 1. Why moves snapped (diagnosis)
 
 `scripts/motion3d-probe.ts` opens the built app in Chromium with the 3D look on, loads a crowded saved match against
-the hard AI (92 random turns of seed 3 is the AI suite's board; the probe uses 82 turns of seed 3), makes the
+the hard AI (82 turns of random legal actions from seed 3, played by the probe itself), makes the
 person's moves with Next unit and a tap, ends the turn, and logs every slide and lunge started on a unit
 (`Element.animate`) and every camera write, then replays the saved actions in Node to name each move and what the
 viewer was shown. What it found on main (0.6.1):
@@ -74,8 +74,9 @@ The figures stand about 45 world units tall, so these read on a phone without le
 Straight lines only: there is still no path on the UI side, so a move of several hexes slides straight from start to
 end (it can cross a mountain or water tile it went round). Left as is, as ruled.
 
-`watchMs` (the AI's pause after a visible action) waits for the 3D walk to end when the 3D look is on (the store reads
-the option); the svg look's pauses are unchanged. An online opponent's steps play as they arrive, as before.
+`watchMs` (the AI's pause after a visible action) waits for the 3D walk to end only while the 3D figures are really
+drawn and reduced motion is off (`movesWalk3d` in `terrain3d/option.ts`, set by the board); otherwise, and in the svg
+look, the pauses are unchanged. An online opponent's steps play as they arrive, as before.
 
 ## 3. Camera: a dead zone and an eased pan
 
@@ -223,7 +224,8 @@ New and changed unit tests:
 Results (2026-11-25, this branch):
 
 - `npx tsc -b`: clean. `npm run lint`: no warnings.
-- `npx vitest run` (under the heavy-tests lock): 1295 passed, 124 skipped (the browser suites without BROWSER=1).
+- `npx vitest run` (under the heavy-tests lock): 1299 passed, 124 skipped (the browser suites without BROWSER=1),
+  after the review fixes below.
 - `GITHUB_PAGES_BASE=/warbanners/ npx vite build`, then `npm run test:browser` with the same base: AI suite 6 passed;
   the rest 50 passed, 2 skipped (the online suite, which needs the emulator).
 
@@ -231,8 +233,8 @@ Bundle (`GITHUB_PAGES_BASE=/warbanners/ npx vite build`):
 
 | Chunk | 0.6.1 | This branch |
 | --- | --- | --- |
-| index (main) | 528.64 kB, 165.59 kB gzip | 533.30 kB, 167.26 kB gzip (+4.7 kB, +1.7 kB gzip) |
-| terrain3d (lazy) | 602.45 kB, 164.23 kB gzip | 609.98 kB, 166.77 kB gzip (+7.5 kB, +2.5 kB gzip) |
+| index (main) | 528.64 kB, 165.59 kB gzip | 533.64 kB, 167.37 kB gzip (+5.0 kB, +1.8 kB gzip) |
+| terrain3d (lazy) | 602.45 kB, 164.23 kB gzip | 610.89 kB, 167.03 kB gzip (+8.4 kB, +2.8 kB gzip) |
 
 ## 8. Open concerns
 
@@ -249,3 +251,30 @@ Bundle (`GITHUB_PAGES_BASE=/warbanners/ npx vite build`):
 - Effects (blows, falls, damage numbers) now also show on tiles the viewer saw just before the action but not after
   it (a defender killed takes its sight with it). Units still have to have been seen; nothing new is revealed.
 - The block is made in the defender's own facing (it is not turned to the attacker).
+
+## 9. Review fixes
+
+The review found nothing critical. Fixed on this branch:
+
+1. **A finger always wins over an automatic pan.** `panTo` starts nothing while a finger is on the board (a turn
+   focus, a turn report line, a resize or Next unit included, not only a followed action), and every gesture event
+   stops a pan under way, as the first touch already did.
+2. **The AI's pause follows what is really drawn.** It waits for the 3D walk only while the board draws its 3D
+   figures (the option on, WebGL 2 there, the 3D chunk loaded, no lost context) and reduced motion is off
+   (`movesWalk3d`, set by the board through `setUnits3dDrawing`). Test in `option.test.ts`.
+3. **Each action is followed once.** The follow effect keeps the last action it followed, so a new array for the same
+   action never pans back to it.
+4. **An attacker killed by the counter still swings.** Its figure leaves the scene in the same update, so the swing
+   now plays on the figure that stands in for its fall, turned toward the unit it struck. Test in `units3d.test.ts`.
+5. **Leaving the scene drops what was pending.** A unit that goes out of sight loses its delayed move turn and its
+   strikes and blocks; seen again, it starts afresh. Test in `units3d.test.ts`.
+6. **No hidden distance in the AI's timing.** A move whose start the viewer did not see is timed as a unit
+   appearing (the same wait as before this branch). It already was; now a test in `effects.test.ts` says so.
+
+Also: `scripts/motion3d-probe.ts` imported the engine's testkit, which `src/boundaries.test.ts` forbids outside
+tests; it now plays its own random position through the engine's index.
+
+Results after the fixes: `npx tsc -b` clean; `npm run lint` no warnings; `npx vitest run` under the lock 1299 passed,
+124 skipped; `GITHUB_PAGES_BASE=/warbanners/ npx vite build` then `npm run test:browser`: AI suite 6 passed, the rest
+50 passed, 2 skipped (online). The Board's own pan guards (1 and 3) have no unit test (they live in the board's
+effects and need a browser with a finger down); the browser suites pass with them.
