@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { GameEvent } from '../engine';
 import type { Hearing } from './sound';
-import { HEARD_RULES, ORDER, SAMPLE_FILES, SOUNDS, isMuted, pickTake, play, resetSound, sampleUrl, setMuted, soundFor } from './sound';
+import { HEARD_RULES, ORDER, SAMPLE_FILES, SOUNDS, isMuted, pickTake, play, resetSound, sampleUrl, setMuted, soundFor, warmSound } from './sound';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -187,6 +187,43 @@ test('until a sample is decoded the synth plays, then the sample', async () => {
   expect(osc).toHaveBeenCalledTimes(1);
   expect(sources).toHaveLength(1);
   expect(sources[0]?.start).toHaveBeenCalled();
+});
+
+test('warming makes the context and loads the samples in later tasks, so the first sound pays for neither', async () => {
+  const { sources, osc, fetchMock } = fakeAudio();
+  const ctor = vi.fn();
+  const Fake = (globalThis as unknown as { AudioContext: new () => object }).AudioContext;
+  vi.stubGlobal('AudioContext', class extends (Fake as new () => object) { constructor() { super(); ctor(); } });
+  warmSound();
+  expect(ctor, 'nothing is made at once').not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+  await settle();
+  expect(ctor).toHaveBeenCalledTimes(1);
+  await settle();
+  expect(fetchMock).toHaveBeenCalledTimes(Object.values(SAMPLE_FILES).reduce((n, f) => n + (f?.takes ?? 0), 0));
+  await settle();
+  play('hit');
+  expect(ctor, 'the first sound reuses the warm context').toHaveBeenCalledTimes(1);
+  expect(sources).toHaveLength(1);
+  expect(osc).not.toHaveBeenCalled();
+});
+
+test('warming does nothing when muted, and can be cancelled', async () => {
+  const { fetchMock } = fakeAudio();
+  const ctor = vi.fn();
+  const Fake = (globalThis as unknown as { AudioContext: new () => object }).AudioContext;
+  vi.stubGlobal('AudioContext', class extends (Fake as new () => object) { constructor() { super(); ctor(); } });
+  setMuted(true);
+  warmSound();
+  await settle();
+  expect(ctor).not.toHaveBeenCalled();
+  setMuted(false);
+  const cancel = warmSound();
+  cancel();
+  await settle();
+  await settle();
+  expect(ctor).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 
 test('a failed load falls back to the synth, and a sound with no files is synth', async () => {

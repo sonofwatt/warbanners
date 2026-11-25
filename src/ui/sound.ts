@@ -195,6 +195,26 @@ function loadSamples(ac: AudioContext): void {
   }
 }
 
+/**
+ * Make the audio context and start loading the samples ahead of the first sound, each in a task of its own once the
+ * page is idle, so the action that plays the first sound does not also pay for them (about 25 ms for the context and
+ * 20 ms for the fetches on a slow phone, inside the AI's first move). Nothing when muted, already done, or no audio.
+ * Returns a function that cancels what has not run yet.
+ */
+export function warmSound(): () => void {
+  if (isMuted() || ctx !== null || typeof setTimeout === 'undefined') return () => {};
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  timers.push(setTimeout(() => {
+    try {
+      const ac = audioContext();
+      if (ac !== null) timers.push(setTimeout(() => loadSamples(ac), 0));
+    } catch {
+      // sound is a nicety
+    }
+  }, 0));
+  return () => { for (const t of timers) clearTimeout(t); };
+}
+
 // For tests: forget the context, the decoded samples and the last takes.
 export function resetSound(): void {
   ctx = null;

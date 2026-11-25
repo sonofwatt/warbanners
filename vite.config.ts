@@ -44,6 +44,15 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,m4a}'],
+        // The 3D terrain chunk (three.js) is not precached: a device that never turns the option on never downloads
+        // it. Once fetched it is kept, so the option still works offline.
+        globIgnores: ['**/terrain3d-*.js'],
+        runtimeCaching: [{
+          urlPattern: /\/assets\/terrain3d-[^/]*\.js$/,
+          handler: 'CacheFirst',
+          // Each release names the chunk anew: keep the newest two, so old ones do not pile up.
+          options: { cacheName: 'terrain3d', expiration: { maxEntries: 2 } },
+        }],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },

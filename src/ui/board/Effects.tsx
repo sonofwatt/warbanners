@@ -39,7 +39,9 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
   // A lunge nudges the attacker's figure toward its target and back. It animates the unit's
   // body, inside the group that places the unit, so it composes with a slide.
   useLayoutEffect(() => {
-    const cam = ref.current?.parentElement;
+    // The units may be in another svg than the effects (with the 3D terrain on the effects sit in the svg above the
+    // figures), so they are looked for in the board's container.
+    const cam = ref.current?.ownerSVGElement?.parentElement ?? ref.current?.parentElement;
     if (still || cam == null) return undefined;
     const running: Animation[] = [];
     for (const f of p.effects) {
@@ -94,7 +96,7 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
           const faction = p.factions[f.owner];
           if (faction === undefined) return null;
           body = (
-            <g className="fx-fall" style={style} onAnimationEnd={end(i)}>
+            <g className="fx-fall" style={style} onAnimationEnd={end(i)} data-fall={f.unitType} data-fall-owner={f.owner} data-fall-at={f.at} data-fall-key={i}>
               {FIGURES[f.unitType]({ colour: playerColour(faction), accent: ACCENT[faction] })}
             </g>
           );

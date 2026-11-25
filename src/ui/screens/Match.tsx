@@ -12,7 +12,7 @@ import { formatClock } from '../../online/clock';
 import { T, digestText, fill } from '../text';
 import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
-import { hearingFor, isMuted, play, setMuted, soundFor } from '../sound';
+import { hearingFor, isMuted, play, setMuted, soundFor, warmSound } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
 import type { Command } from '../panels/commands';
 import { CityPanel } from '../panels/CityPanel';
@@ -24,6 +24,7 @@ import { TechSheet } from '../panels/TechSheet';
 import { TilePanel } from '../panels/TilePanel';
 import { UnitPanel } from '../panels/UnitPanel';
 import { Board } from '../board/Board';
+import { setTerrain3d, terrain3dOn } from '../terrain3d/option';
 import { Effects } from '../board/Effects';
 import { effectsFor, seenBy } from '../board/effects';
 import { buildScene } from '../board/scene';
@@ -129,6 +130,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const [techFocus, setTechFocus] = useState<TechId | null>(null);
   const [locked, setLocked] = useState(true);
   const [soundOn, setSoundOn] = useState(() => !isMuted());
+  const [terrain3d, setTerrain3dState] = useState(terrain3dOn);
   const [later, setLater] = useState<number[]>([]);
   // Each tap on Next unit asks the board, once, to bring the unit it selected into view.
   const [revealed, setRevealed] = useState(0);
@@ -139,6 +141,9 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   useEffect(() => { setPeek(null); }, [digest]);
 
   // The phone's status bar takes the top bar's paper while a match is open (the sky colour comes back on leaving).
+  // The audio context and the samples are made ready once the match is up, not by the first sound of a move.
+  useEffect(() => (soundOn ? warmSound() : undefined), [soundOn]);
+
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (meta === null) return undefined;
@@ -269,6 +274,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   // In landscape the board takes the side column too while nothing is shown there.
   const side = sheet !== 'none' || panel !== null;
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
+  const toggleTerrain3d = (): void => { setTerrain3d(!terrain3d); setTerrain3dState(!terrain3d); };
   const waiting = isOnline && !myTurn;
   const nextDisabled = waiting || nextUnitDisabled({
     canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
@@ -324,6 +330,8 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       />
       <div className="board-slot" data-testid="board-slot">
         <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
+          terrain3d={terrain3d}
+          covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
           onTap={peeked !== undefined ? noTap : tap}
           reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
           centre={centred > 0 && peeked !== undefined ? { n: centred, at: peeked.at } : null}
@@ -343,7 +351,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       ) : null}
       {sheet === 'menu' ? (
         <Menu
-          soundOn={soundOn} onToggleSound={toggleSound} onResign={isOnline ? resignOnline : () => run({ type: 'resign' })}
+          soundOn={soundOn} onToggleSound={toggleSound} terrain3d={terrain3d} onToggleTerrain3d={toggleTerrain3d} onResign={isOnline ? resignOnline : () => run({ type: 'resign' })}
           resignDisabled={isOnline ? resignDisabled : aiBusy || !myTurn}
           onHome={goHome} onClose={() => setSheet('none')} onlineNote={isOnline ? T.ui.homeWaits : undefined}
         />

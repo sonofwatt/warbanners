@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import type { ReactElement } from 'react';
-import { CloseIcon, FlagIcon, HomeIcon, MenuIcon, SpeakerIcon } from '../icons';
+import { CloseIcon, FlagIcon, HomeIcon, MenuIcon, SpeakerIcon, TerrainIcon } from '../icons';
 import { T } from '../text';
 import { Version } from '../Version';
 
-export interface MenuProps { soundOn: boolean; onToggleSound: () => void; onResign: () => void; resignDisabled?: boolean; onHome: () => void; onClose: () => void; onlineNote?: string }
+export interface MenuProps {
+  soundOn: boolean; onToggleSound: () => void;
+  // The 3D terrain look, remembered per device; left out, the menu has no such line.
+  terrain3d?: boolean; onToggleTerrain3d?: () => void;
+  onResign: () => void; resignDisabled?: boolean; onHome: () => void; onClose: () => void; onlineNote?: string }
 
 export function Menu(p: MenuProps): ReactElement {
   const [asking, setAsking] = useState(false);
@@ -16,6 +20,11 @@ export function Menu(p: MenuProps): ReactElement {
       <button type="button" className="menu-item" data-testid="toggle-sound" aria-pressed={p.soundOn} onClick={p.onToggleSound}>
         <SpeakerIcon on={p.soundOn} />{p.soundOn ? T.ui.soundOn : T.ui.soundOff}
       </button>
+      {p.onToggleTerrain3d !== undefined ? (
+        <button type="button" className="menu-item" data-testid="toggle-terrain3d" aria-pressed={p.terrain3d === true} onClick={p.onToggleTerrain3d}>
+          <TerrainIcon />{p.terrain3d === true ? T.ui.terrain3dOn : T.ui.terrain3dOff}
+        </button>
+      ) : null}
       {asking ? (
         <div className="confirm">
           <p>{T.ui.resignAsk}</p>
