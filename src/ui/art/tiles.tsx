@@ -176,35 +176,43 @@ export function ReadyGlow(): ReactElement {
  * line there and the outline has no gap.
  */
 export function Border(p: { edges: readonly number[]; colour: string }): ReactElement {
+  return (
+    <g>
+      {borderLines(p.edges).map(({ d, a, b }) => (
+        <line
+          key={d}
+          x1={r1(a.x)}
+          y1={r1(a.y)}
+          x2={r1(b.x)}
+          y2={r1(b.y)}
+          stroke={p.colour}
+          strokeWidth={BORDER_WIDTH}
+          strokeLinecap="round"
+        />
+      ))}
+    </g>
+  );
+}
+
+/** The border line's width in board units. */
+export const BORDER_WIDTH = 2.4;
+
+/** The border's lines round the tile centre, in board units, one per edge in `edges` (as Border draws them). */
+export function borderLines(edges: readonly number[]): { d: number; a: Pt; b: Pt }[] {
   const c = topCorners();
   const f = 0.9;
   const inner = shrink(c, f);
-  const sides = new Set(p.edges.map(cornerEdge));
-  return (
-    <g>
-      {p.edges.map((d) => {
-        const i = cornerEdge(d);
-        const j = (i + 1) % 6;
-        let a = inner[i]!;
-        let b = inner[j]!;
-        const before = (i + 5) % 6; // the side ending at corner i
-        if (!sides.has(before)) a = cross(inner[j]!, inner[i]!, c[before]!, c[i]!);
-        if (!sides.has(j)) b = cross(inner[i]!, inner[j]!, c[j]!, c[(j + 1) % 6]!);
-        return (
-          <line
-            key={d}
-            x1={r1(a.x)}
-            y1={r1(a.y)}
-            x2={r1(b.x)}
-            y2={r1(b.y)}
-            stroke={p.colour}
-            strokeWidth={2.4}
-            strokeLinecap="round"
-          />
-        );
-      })}
-    </g>
-  );
+  const sides = new Set(edges.map(cornerEdge));
+  return edges.map((d) => {
+    const i = cornerEdge(d);
+    const j = (i + 1) % 6;
+    let a = inner[i]!;
+    let b = inner[j]!;
+    const before = (i + 5) % 6; // the side ending at corner i
+    if (!sides.has(before)) a = cross(inner[j]!, inner[i]!, c[before]!, c[i]!);
+    if (!sides.has(j)) b = cross(inner[i]!, inner[j]!, c[j]!, c[(j + 1) % 6]!);
+    return { d, a, b };
+  });
 }
 
 export function groundFor(tile: Tile, hasCity: boolean): 'grass' | 'water' | 'rock' | 'sand' {

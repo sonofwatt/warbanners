@@ -714,9 +714,18 @@ export function CityMark(p: {
     }
   }
   if (p.walls) palisade(ink);
-  if (p.pending) {
-    ink.star(-12, -30, 8, '#FFF4B8');
-    ink.star(-12, -30, 6.2, '#FFC21A');
-  }
+  if (p.pending) pendingStar(ink);
+  return ink.done();
+}
+
+function pendingStar(ink: Ink): void {
+  ink.star(-12, -30, 8, '#FFF4B8');
+  ink.star(-12, -30, 6.2, '#FFC21A');
+}
+
+/** A city's reward waiting to be chosen: the star over the city, alone (the 3D look draws the city itself). */
+export function PendingStar(): ReactElement {
+  const ink = new Ink();
+  pendingStar(ink);
   return ink.done();
 }

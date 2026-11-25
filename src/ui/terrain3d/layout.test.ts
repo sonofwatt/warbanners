@@ -44,7 +44,7 @@ test('ore or a mine on a mountain keeps the front of the tile clear', () => {
 });
 
 test('each terrain has four distinct layouts', () => {
-  const field: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false };
+  const field: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false, town: null };
   for (const terrain of ['field', 'forest', 'mountain', 'water'] as const) {
     const looks = new Set<string>();
     for (const k of ['0,0', '1,0', '2,0', '3,0']) {
@@ -69,7 +69,7 @@ test('the 3D walls are five times the svg walls, and the board bounds grow only 
 });
 
 // rules 8: what the SVG draws on each new tile, the 3D look draws too.
-const bare: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false };
+const bare: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false, town: null };
 const one = (t: Partial<GlTile>, k = '1,0') => tileSetup({ radius: 4, tiles: { [k]: { ...bare, ...t } }, fog: [] }, k);
 
 test('jewels on a mountain: crystals in the front corner and on the slopes, the peak moved back as for ore', () => {

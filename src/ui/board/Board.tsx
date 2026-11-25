@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
@@ -127,6 +127,7 @@ const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in
  */
 export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?: SvgLayers }): ReactElement {
   const { tile } = p;
+  const drawBuilding = p.layers?.building ?? true;
   const v = variantOf(p.k);
   const drawFeature = p.layers?.feature ?? true;
   const drawResource = p.layers?.resource ?? true;
@@ -135,7 +136,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?:
   const grove = drawFeature ? <Grove variant={v} /> : null;
   let art: ReactNode;
   if (tile.building !== null) {
-    art =
+    art = !drawBuilding ? null :
       tile.building === 'lumberCamp' || tile.building === 'lumberMill' ? (
         <>
           {grove}
@@ -145,7 +146,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?:
         <BuildingMark building={tile.building} />
       );
   } else if (tile.village) {
-    art = <Village />;
+    art = (p.layers?.village ?? true) ? <Village /> : null;
   } else {
     const beside = tile.treasure && p.occupied === true;
     const item = tile.treasure
@@ -184,9 +185,12 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?:
   );
 }
 
-function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: PlayerId | undefined }): ReactElement | null {
+function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: PlayerId | undefined; town?: boolean }): ReactElement | null {
   const faction = p.factions[p.city.owner];
   if (faction === undefined) return null;
+  const pending = p.city.owner === p.viewer && p.city.pendingRewards.length > 0;
+  // With the 3D look the city itself is drawn in 3D; the reward star stays here, over everything.
+  if (p.town === false) return pending ? <PendingStar /> : null;
   return (
     <CityMark
       faction={faction}
@@ -221,14 +225,14 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
     <>
       {layers.base ? <TileBase ground={groundFor(t.tile, t.city !== null)} /> : null}
       {layers.road && t.tile.road && t.city === null ? <Road links={t.roadLinks} /> : null}
-      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} layers={layers} />}
+      {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} town={layers.town} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} layers={layers} />}
     </>
   );
   return (
     <g data-hex={t.key} transform={at}>
       {body}
       {t.veiled ? <Veil>{body}</Veil> : null}
-      {ownerFaction !== undefined && t.borderEdges.length > 0 ? (
+      {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
         <Border edges={t.borderEdges} colour={playerColour(ownerFaction).main} />
       ) : null}
       {glow}
@@ -574,7 +578,7 @@ export function Board(p: BoardProps): ReactElement {
   // svg keeps drawing the ground until the terrain has drawn its first frame. No WebGL 2 or a chunk that cannot
   // load leaves this board all SVG; a lost context shows SVG until the context is restored. Neither touches the
   // stored option.
-  const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius) : null), [glWanted, p.items, p.radius]);
+  const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius, p.factions) : null), [glWanted, p.items, p.radius, p.factions]);
   const glLatest = useRef(glData);
   useLayoutEffect(() => {
     glLatest.current = glData;

@@ -12,6 +12,8 @@ import {
   centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_HARVESTED, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
 } from './layout';
 import type { Bit, Peak, Prop, Setup } from './layout';
+import { at, coloured } from './geom';
+import { townParts, worksParts } from './town';
 
 const N = 10; // top-face subdivisions per side
 
@@ -180,38 +182,6 @@ const PAL = {
   bush: '#4E9A4A', bushLight: '#62AE55', stone: '#A39D93', stoneDark: '#8E887F',
   flowers: ['#F7F3E8', '#F4CF4A', '#E98BB0', '#B9A2E8'], lily: '#5FA85A', lilyFlower: '#F2B6CF', reed: '#7D9B4A', reedTop: '#8A6A3E',
 } as const;
-
-function coloured(geo: BufferGeometry, colour: string, gloss = 0, outline = 1): BufferGeometry {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  if (g !== geo) geo.dispose();
-  g.computeVertexNormals(); // faceted
-  const col = new Color(colour);
-  const p = g.attributes.position!;
-  const n = p.count;
-  const cols = new Float32Array(n * 3), gl = new Float32Array(n), od = new Float32Array(n * 3);
-  g.computeBoundingBox();
-  const mid = new Vector3();
-  g.boundingBox!.getCenter(mid);
-  const d = new Vector3();
-  for (let i = 0; i < n; i++) {
-    cols[i * 3] = col.r; cols[i * 3 + 1] = col.g; cols[i * 3 + 2] = col.b;
-    gl[i] = gloss;
-    // The outline pushes each corner out from the part's centre, so faceted parts keep a closed hull.
-    d.set(p.getX(i) - mid.x, p.getY(i) - mid.y, p.getZ(i) - mid.z).normalize().multiplyScalar(outline);
-    od[i * 3] = d.x; od[i * 3 + 1] = d.y; od[i * 3 + 2] = d.z;
-  }
-  g.setAttribute('color', new Float32BufferAttribute(cols, 3));
-  g.setAttribute('aGloss', new Float32BufferAttribute(gl, 1));
-  g.setAttribute('aOut', new Float32BufferAttribute(od, 3));
-  for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color', 'aGloss', 'aOut'].includes(k)) g.deleteAttribute(k);
-  return g;
-}
-function at<G extends BufferGeometry>(g: G, x: number, y: number, z: number, ry = 0, sx = 1, sy = 1, sz = 1): G {
-  g.scale(sx, sy, sz);
-  g.rotateY(ry);
-  g.translate(x, y, z);
-  return g;
-}
 
 function pine(x: number, z: number, s: number, seed: number): BufferGeometry[] {
   const ry = seed * 2.4;
@@ -608,6 +578,8 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
     }
   }
   setup.peaks.forEach((p, i) => out.push(...matterhorn(c.x + p.x, c.z + p.z, 0, p, seed + i * 3.7)));
+  if (setup.town !== null) out.push(...townParts(setup.town, c.x, c.z, height));
+  if (setup.works !== null) out.push(...worksParts(setup.works, c.x, c.z, hash2(q * 1.7, r * 0.9)));
   for (const [x, z, size, sd] of setup.tufts) out.push(...res(tuft(c.x + x, height(x, z), c.z + z, size, sd)));
   for (const b of setup.bits) out.push(...bit(b, c.x + b.x, setup.t.terrain === 'water' ? 0 : height(b.x, b.z), c.z + b.z));
   return out;
