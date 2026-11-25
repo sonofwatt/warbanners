@@ -49,7 +49,7 @@ export interface Terrain3d {
 export const MAX_DPR = 2;
 
 const code = (t: GlTile | undefined): string =>
-  t === undefined ? 'x' : `${t.terrain[0]}${t.resource ?? '-'}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}`;
+  t === undefined ? 'x' : `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}`;
 
 /**
  * Make the renderer, or null when this device has no WebGL 2 (the board then stays all SVG). The options are for

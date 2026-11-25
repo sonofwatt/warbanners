@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
-import type { City, HexKey, Tile } from '../../engine';
+import type { City, HexKey, Terrain, Tile } from '../../engine';
 import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, ReadyGlow, TileBase } from '../art/tiles';
@@ -10,7 +10,7 @@ import type { SceneTile } from '../board/scene';
 import { GL_RESOURCE, GL_TERRAIN, glMapOf, svgLayers } from './input';
 
 const tile = (p: Partial<Tile> = {}): Tile => ({
-  terrain: 'field', resource: null, building: null, road: false, village: false, treasure: false, cityId: null, ...p,
+  terrain: 'field', resource: null, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null, ...p,
 });
 const scene = (key: HexKey, t: Tile | null, p: Partial<SceneTile> = {}): SceneTile => ({
   kind: 'tile', key, at: hexToBoard(key), fog: t === null, tile: t, veiled: false, city: null, owner: null,
@@ -76,7 +76,7 @@ test('the terrain map carries no detail of fogged tiles, and every terrain and r
   expect(Object.keys(map.tiles)).toEqual(['0,0']);
   expect(veiled).toEqual(['0,0']);
   for (const t of ['field', 'forest', 'mountain', 'water'] as const) expect(GL_TERRAIN.has(t)).toBe(true);
-  for (const r of ['orchard', 'cropland', 'game', 'ore'] as const) expect(GL_RESOURCE.has(r)).toBe(true);
+  for (const r of ['orchard', 'cropland', 'game', 'ore', 'jewels', 'fish'] as const) expect(GL_RESOURCE.has(r)).toBe(true);
 });
 
 test('a veil change keeps the map signature, so it only repaints', () => {
@@ -86,4 +86,28 @@ test('a veil change keeps the map signature, so it only repaints', () => {
   expect(a.veilKey).not.toBe(b.veilKey);
   const c = glMapOf([scene('0,0', tile({ road: true }))], 3);
   expect(c.key).not.toBe(a.key);
+});
+
+test('rules 8: jewels, fish and harvested resources go to the 3D look, never drawn twice; every new building stays in the svg', () => {
+  for (const [terrain, resource] of [['mountain', 'jewels'], ['water', 'fish']] as const) {
+    for (const harvested of [false, true]) {
+      const t = scene('1,0', tile({ terrain, resource, harvested }));
+      const mark = part(<ResourceMark resource={resource} harvested={harvested} />);
+      expect(html(t, false)).toContain(mark);
+      expect(html(t, true)).not.toContain(mark);
+      expect(svgLayers(t, true).resource).toBe(false);
+    }
+  }
+  const terrains = { farm: 'field', lumberCamp: 'forest', mine: 'mountain', market: 'field', orchard: 'field', plantation: 'field', lumberMill: 'forest', foundry: 'mountain', granary: 'field' } as const;
+  for (const [building, terrain] of Object.entries(terrains) as [keyof typeof terrains, Terrain][]) {
+    const on = html(scene('2,1', tile({ terrain, building })), true);
+    expect(on, building).toContain(part(<BuildingMark building={building} />));
+  }
+});
+
+test('a harvest changes the map signature, so the tile is rebuilt faded', () => {
+  const a = glMapOf([scene('0,0', tile({ resource: 'orchard' }))], 3);
+  const b = glMapOf([scene('0,0', tile({ resource: 'orchard', harvested: true }))], 3);
+  expect(b.map.tiles['0,0']!.harvested).toBe(true);
+  expect(b.key).not.toBe(a.key);
 });

@@ -1,6 +1,6 @@
 // The terrain's shaders: toon light in three soft bands, painted ground, packed earth roads, and today's flat fog.
 // Veiled tiles are dimmed toward the board's veil colour by the same 0.3 the SVG veil uses.
-import { INR, ROAD_HALF, WALL, WATER_Y } from './layout';
+import { INR, RES_HARVESTED, ROAD_HALF, WALL, WATER_Y } from './layout';
 
 export const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -117,7 +117,10 @@ void main() {
   bool wall = vInfo.y > 0.5;
   float edge = vInfo.z;
   float shore = vInfo.w;
-  int res = int(vTile.z + 0.5);
+  int resRaw = int(vTile.z + 0.5);
+  bool harvested = resRaw >= ${RES_HARVESTED}; // rules 8: the resource's ground tint fades, as its mark does
+  int res = harvested ? resRaw - ${RES_HARVESTED} : resRaw;
+  float resTint = harvested ? 0.45 : 1.0;
   vec2 p = vWorld.xz;
   vec3 col;
   float h = vWorld.y;
@@ -144,7 +147,7 @@ void main() {
     vec3 ground = patches(vec3(0.78, 0.75, 0.67), vec3(0.83, 0.80, 0.72), vec3(0.71, 0.68, 0.61), p, 7.0);
     vec3 rock = mix(rockBase, vec3(0.67, 0.64, 0.59), smoothstep(9.0, 10.0, h + 3.0 * noise(p * 0.12)));
     col = mix(ground, rock, smoothstep(1.4, 2.6, h));
-    if (res == 4) col = mix(col, vec3(0.62, 0.49, 0.40), 0.4); // ore: rust-tinted scree
+    if (res == 4) col = mix(col, vec3(0.62, 0.49, 0.40), 0.4 * resTint); // ore: rust-tinted scree
   } else if (terrain == 3) { // water
     float depth = smoothstep(2.0, 16.0, shore);
     col = mix(vec3(0.53, 0.80, 0.93), vec3(0.41, 0.72, 0.89), depth);
@@ -166,7 +169,7 @@ void main() {
     vec3 straw = mix(vec3(0.80, 0.74, 0.42), vec3(0.88, 0.79, 0.45), smoothstep(0.45, 0.6, wild));
     straw = mix(straw, vec3(0.62, 0.70, 0.36), smoothstep(0.42, 0.32, wild));
     straw *= 0.95 + 0.1 * noise(vec2(p.x * 0.35 + p.y * 0.2, p.y * 0.9));
-    col = mix(col, straw, reach * smoothstep(0.3, 0.42, wild + 0.12));
+    col = mix(col, straw, resTint * reach * smoothstep(0.3, 0.42, wild + 0.12));
   }
 
   if (!wall && terrain != 3) {

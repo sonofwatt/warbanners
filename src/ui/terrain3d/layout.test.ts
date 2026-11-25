@@ -44,7 +44,7 @@ test('ore or a mine on a mountain keeps the front of the tile clear', () => {
 });
 
 test('each terrain has four distinct layouts', () => {
-  const field: GlTile = { terrain: 'field', resource: null, building: null, village: false, treasure: false, road: false, city: false };
+  const field: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false };
   for (const terrain of ['field', 'forest', 'mountain', 'water'] as const) {
     const looks = new Set<string>();
     for (const k of ['0,0', '1,0', '2,0', '3,0']) {
@@ -66,4 +66,55 @@ test('the 3D walls are five times the svg walls, and the board bounds grow only 
   expect(gl.maxY - svg.maxY).toBe(THICK_3D - THICK);
   expect([gl.minX, gl.minY, gl.maxX]).toEqual([svg.minX, svg.minY, svg.maxX]);
   expect(hexToBoard('2,3')).toEqual(hexToBoard('2,3')); // tile tops do not move
+});
+
+// rules 8: what the SVG draws on each new tile, the 3D look draws too.
+const bare: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false };
+const one = (t: Partial<GlTile>, k = '1,0') => tileSetup({ radius: 4, tiles: { [k]: { ...bare, ...t } }, fog: [] }, k);
+
+test('jewels on a mountain: crystals in the front corner and on the slopes, the peak moved back as for ore', () => {
+  for (const k of ['0,0', '1,0', '2,0', '3,0']) {
+    const s = one({ terrain: 'mountain', resource: 'jewels' }, k);
+    const gems = s.props.filter((p) => p.kind === 'jewels');
+    expect(gems.length).toBeGreaterThanOrEqual(2);
+    expect(s.props.every((p) => p.kind === 'jewels')).toBe(true);
+    expect(gems[0]!.z).toBeGreaterThan(8);
+    expect(s.peaks.every((p) => p.ore !== true)).toBe(true); // jewels are never ore
+    for (const p of s.peaks.slice(1)) expect(p.z).toBeLessThanOrEqual(-8);
+  }
+});
+
+test('fish on water: one leaping pair, and no shadow on the water', () => {
+  for (const k of ['0,0', '1,0', '2,0', '3,0']) {
+    const s = one({ terrain: 'water', resource: 'fish' }, k);
+    expect(s.props.map((p) => p.kind)).toEqual(['fish']);
+    expect(s.blobs).toEqual([]);
+  }
+});
+
+test('a harvested resource is still drawn, faded; a building on it replaces it', () => {
+  for (const [terrain, resource] of [['field', 'orchard'], ['field', 'cropland'], ['forest', 'game'], ['mountain', 'ore'], ['mountain', 'jewels'], ['water', 'fish']] as const) {
+    const fresh = one({ terrain, resource });
+    const cut = one({ terrain, resource, harvested: true });
+    expect(cut.res).toBe(resource);
+    expect(cut.faded).toBe(true);
+    expect(fresh.faded).toBe(false);
+    expect(cut.props.length + cut.tufts.length).toBe(fresh.props.length + fresh.tufts.length);
+    expect(cut.props.length + cut.tufts.length).toBeGreaterThan(0);
+  }
+  expect(one({ terrain: 'mountain', resource: 'ore', harvested: true }).peaks.some((p) => p.ore === true)).toBe(false);
+  const built = one({ terrain: 'field', resource: 'orchard', harvested: true, building: 'orchard' });
+  expect([built.res, built.faded, built.props.length]).toEqual([null, false, 0]);
+});
+
+test('a foundry clears the front of its mountain as a mine does; mills, plantations and granaries leave room too', () => {
+  const mine = one({ terrain: 'mountain', resource: 'ore', building: 'mine' });
+  const foundry = one({ terrain: 'mountain', resource: 'ore', building: 'foundry' });
+  expect(foundry.peaks).toEqual(mine.peaks);
+  for (const p of foundry.peaks.slice(1)) expect(p.z).toBeLessThanOrEqual(-8);
+  expect(one({ terrain: 'forest', building: 'lumberMill' }).trees).toEqual(one({ terrain: 'forest', building: 'lumberCamp' }).trees);
+  for (const building of ['orchard', 'plantation', 'granary', 'farm'] as const) {
+    const s = one({ terrain: 'field', resource: building === 'farm' || building === 'granary' ? 'cropland' : 'orchard', building });
+    expect([s.props.length, s.tufts.length, s.bits.length]).toEqual([0, 0, 0]);
+  }
 });

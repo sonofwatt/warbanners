@@ -3,13 +3,13 @@
 // so a change on one tile rebuilds only that tile.
 import {
   BoxGeometry, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DodecahedronGeometry, Euler, Float32BufferAttribute,
-  IcosahedronGeometry, OctahedronGeometry, Vector3,
+  IcosahedronGeometry, OctahedronGeometry, TorusGeometry, Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
 import type { GlMap } from './input';
 import {
-  centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
+  centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_HARVESTED, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
 } from './layout';
 import type { Bit, Peak, Prop, Setup } from './layout';
 
@@ -106,7 +106,7 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
     if (ng === null) return;
     if (isWater !== (ng === TERRAIN_ID.water)) shoreEdges.push(e);
   });
-  const resId = RES_ID[setup.res ?? 'none'];
+  const resId = RES_ID[setup.res ?? 'none'] + (setup.faded ? RES_HARVESTED : 0);
 
   const pos: number[] = [], info: number[] = [], tile: number[] = [], ao: number[] = [], local: number[] = [], road: number[] = [];
   const idx = new Map<string, number>();
@@ -175,6 +175,8 @@ const PAL = {
   grass: ['#5E9A3C', '#73AD45', '#4F8A35'], straw: ['#DDB552', '#E9C764', '#C99B3F'], ear: '#F2CF62',
   deer: '#A8693A', deerBelly: '#E1BC8A', deerLeg: '#6E4222', antler: '#EFE3CC', nose: '#3A2516',
   oreDark: '#4E4B58', oreMid: '#6B6778', crystal: '#BFE3FA', crystalDeep: '#7FB8E6',
+  gems: ['#E0405A', '#9B6BE0', '#36C08C', '#F2B233'],
+  fish: '#D98A3D', fishBelly: '#F4C27E', fishFin: '#B96A28', ripple: '#EAF7FF',
   bush: '#4E9A4A', bushLight: '#62AE55', stone: '#A39D93', stoneDark: '#8E887F',
   flowers: ['#F7F3E8', '#F4CF4A', '#E98BB0', '#B9A2E8'], lily: '#5FA85A', lilyFlower: '#F2B6CF', reed: '#7D9B4A', reedTop: '#8A6A3E',
 } as const;
@@ -302,6 +304,97 @@ function oreCluster(x: number, z: number, s: number, seed: number, flip: boolean
   if (k !== 3) crystal(2.6, -4.2, 3.2, 0.6, PAL.crystal);
   if (k >= 2) crystal(2.2, 4.4, 4.0, -0.7, PAL.crystal);
   return p;
+}
+
+/**
+ * Jewels: a fan of large six-sided crystals (ruby, amethyst, emerald, amber) growing straight from the ground, glossy,
+ * with no rock under them, so they never read as ore (dark rock, small pale crystals). The seed turns the colours.
+ */
+function gemCluster(x: number, z: number, s: number, seed: number, flip: boolean): BufferGeometry[] {
+  const p: BufferGeometry[] = [];
+  const m = flip ? -1 : 1;
+  // [x, z, height, radius, lean toward x, lean toward z, colour]
+  const C: readonly (readonly [number, number, number, number, number, number, number])[] = [
+    [0, 0, 11, 1.9, 0.05, 0.05, 0], [-2.6, 0.8, 8, 1.6, 0.42, 0.1, 1], [2.4, 1.2, 8.6, 1.6, -0.4, 0.15, 2],
+    [-1.2, 2.6, 5.6, 1.3, 0.25, -0.35, 3], [1.6, 2.9, 5, 1.2, -0.3, -0.4, 1], [-4, 2.6, 4.2, 1.1, 0.7, -0.2, 2],
+    [3.9, -0.6, 5.2, 1.2, -0.65, 0.2, 0],
+  ];
+  const turn = Math.floor(hash2(seed, 5.1) * 4);
+  C.forEach(([px, pz, h, rad, tx, tz, k], i) => {
+    const colour = PAL.gems[(k + turn) % 4]!;
+    const prism = new CylinderGeometry(rad * s, rad * 1.05 * s, h * s, 6);
+    prism.translate(0, (h * s) / 2, 0);
+    const tip = new ConeGeometry(rad * s, rad * 1.8 * s, 6);
+    tip.translate(0, h * s + rad * 0.9 * s, 0);
+    for (const g of [prism, tip]) {
+      g.rotateY(seed * 3 + i);
+      g.rotateZ(-tx * 1.5 * m);
+      g.rotateX(tz * 1.5);
+      g.translate(x + px * 1.7 * s * m, -0.6 * s, z + pz * 1.7 * s);
+      p.push(coloured(g, colour, 1, 0.3));
+    }
+  });
+  return p;
+}
+
+/** Fish: two fish leaping over rings of ripples (as the SVG mark), facing each other, and a fin breaking the water. */
+function fishLeap(x: number, z: number, s: number, flip: boolean): BufferGeometry[] {
+  const out: BufferGeometry[] = [];
+  const m = flip ? -1 : 1;
+  const y0 = WATER_Y;
+  for (const [dx, dz, h, dir, size] of [[-5, 1, 5.4, 1, 1], [6, -4, 7.4, -1, 0.85]] as const) {
+    const k = s * size, d = dir * m, fx = x + dx * s * m, fz = z + dz * s;
+    const body = new IcosahedronGeometry(1, 1);
+    body.scale(3.6 * k, 1.45 * k, 1.1 * k);
+    body.rotateZ(0.45 * d);
+    body.translate(fx, y0 + h * k, fz);
+    out.push(coloured(body, PAL.fish, 0.6, 0.3));
+    const belly = new IcosahedronGeometry(1, 1);
+    belly.scale(2.8 * k, 0.7 * k, 0.9 * k);
+    belly.rotateZ(0.45 * d);
+    belly.translate(fx + 0.35 * k * d, y0 + (h - 0.75) * k, fz + 0.2 * k);
+    out.push(coloured(belly, PAL.fishBelly, 0, 0.15));
+    const tail = new ConeGeometry(1.5 * k, 2.6 * k, 4);
+    tail.rotateZ((Math.PI / 2) * d + 0.45 * d);
+    tail.scale(1, 1, 0.4);
+    tail.translate(fx - 3.9 * k * d, y0 + (h - 1.9) * k, fz);
+    out.push(coloured(tail, PAL.fishFin, 0, 0.25));
+    const eye = new IcosahedronGeometry(0.42 * k, 0);
+    eye.translate(fx + 2.3 * k * d, y0 + (h + 1.3) * k, fz + 0.95 * k);
+    out.push(coloured(eye, PAL.nose, 0, 0));
+    const ring = new TorusGeometry(2.6 * k, 0.3, 3, 14);
+    ring.rotateX(Math.PI / 2);
+    ring.scale(1, 1, 0.8);
+    ring.translate(fx - 2.5 * k * d, y0 + 0.15, fz + 1.2 * k);
+    out.push(coloured(ring, PAL.ripple, 0, 0));
+  }
+  const fin = new ConeGeometry(1.0 * s, 2.2 * s, 3);
+  fin.scale(1, 1, 0.3);
+  fin.translate(x + 11 * s * m, y0 + 1.0 * s, z + 6 * s);
+  out.push(coloured(fin, PAL.fishFin, 0, 0.2));
+  return out;
+}
+
+/**
+ * Fade a harvested resource's parts (rules 8), as the SVG draws its mark at 0.45 opacity over the ground: the colour
+ * goes most of the way to the ground's own tone, the glint dims and the outline thins. Opaque, so the merged prop
+ * mesh and its outline pass need no transparency.
+ */
+const GROUND_TONE: Record<string, string> = { field: '#A3D170', forest: '#6EA854', mountain: '#C7BFAB', water: '#87CCED' };
+const FADE = 0.55; // 1 - the SVG mark's 0.45 opacity
+function fade(parts: BufferGeometry[], terrain: string): BufferGeometry[] {
+  const tone = new Color(GROUND_TONE[terrain] ?? GROUND_TONE.field);
+  for (const g of parts) {
+    const c = g.attributes.color as Float32BufferAttribute;
+    for (let i = 0; i < c.count; i++) {
+      c.setXYZ(i, c.getX(i) + (tone.r - c.getX(i)) * FADE, c.getY(i) + (tone.g - c.getY(i)) * FADE, c.getZ(i) + (tone.b - c.getZ(i)) * FADE);
+    }
+    const gl = g.attributes.aGloss as Float32BufferAttribute;
+    for (let i = 0; i < gl.count; i++) if (gl.getX(i) > 0) gl.setX(i, gl.getX(i) * 0.3);
+    const o = g.attributes.aOut as Float32BufferAttribute;
+    for (let i = 0; i < o.count; i++) o.setXYZ(i, o.getX(i) * 0.4, o.getY(i) * 0.4, o.getZ(i) * 0.4);
+  }
+  return parts;
 }
 
 /**
@@ -501,18 +594,21 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
     if (y) for (const g of parts) g.translate(0, y, 0);
     out.push(...parts);
   };
+  // Every prop and tuft stands for the tile's resource; a harvested one is drawn faded (rules 8).
+  const res = (parts: BufferGeometry[]): BufferGeometry[] => (setup.faded ? fade(parts, setup.t.terrain) : parts);
   setup.trees.forEach(([x, z, s], i) => put(pine(c.x + x, c.z + z, s * 1.08, seed + i), x, z));
   for (const p of setup.props as Prop[]) {
-    if (p.kind === 'orchard') put(fruitTree(c.x + p.x, c.z + p.z, p.s, p.seed), p.x, p.z);
-    if (p.kind === 'deer') put(deer(c.x + p.x, c.z + p.z, p.s, p.flip), p.x, p.z);
-    if (p.kind === 'ore') {
-      const parts = oreCluster(c.x + p.x, c.z + p.z, p.s, p.seed, p.flip);
+    if (p.kind === 'orchard') put(res(fruitTree(c.x + p.x, c.z + p.z, p.s, p.seed)), p.x, p.z);
+    if (p.kind === 'deer') put(res(deer(c.x + p.x, c.z + p.z, p.s, p.flip)), p.x, p.z);
+    if (p.kind === 'fish') out.push(...res(fishLeap(c.x + p.x, c.z + p.z, p.s, p.flip)));
+    if (p.kind === 'ore' || p.kind === 'jewels') {
+      const parts = res((p.kind === 'ore' ? oreCluster : gemCluster)(c.x + p.x, c.z + p.z, p.s, p.seed, p.flip));
       if (p.y === undefined) put(parts, p.x, p.z);
       else { for (const g of parts) g.translate(0, p.y - 1.2 * p.s, 0); out.push(...parts); } // set into the slope
     }
   }
   setup.peaks.forEach((p, i) => out.push(...matterhorn(c.x + p.x, c.z + p.z, 0, p, seed + i * 3.7)));
-  for (const [x, z, size, sd] of setup.tufts) out.push(...tuft(c.x + x, height(x, z), c.z + z, size, sd));
+  for (const [x, z, size, sd] of setup.tufts) out.push(...res(tuft(c.x + x, height(x, z), c.z + z, size, sd)));
   for (const b of setup.bits) out.push(...bit(b, c.x + b.x, setup.t.terrain === 'water' ? 0 : height(b.x, b.z), c.z + b.z));
   return out;
 }

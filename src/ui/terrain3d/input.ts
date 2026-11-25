@@ -7,6 +7,7 @@ import type { SceneItem } from '../board/scene';
 export interface GlTile {
   terrain: Terrain;
   resource: Resource | null;
+  harvested: boolean; // rules 8: its resource was harvested; the resource stays and is drawn faded, as in the SVG
   building: BuildingId | null;
   village: boolean;
   treasure: boolean;
@@ -27,7 +28,7 @@ export const THICK_3D = 45;
 
 /** Terrains and resources that have WebGL art. Anything else is left to the SVG board, so nothing goes missing. */
 export const GL_TERRAIN: ReadonlySet<Terrain> = new Set<Terrain>(['field', 'forest', 'mountain', 'water']);
-export const GL_RESOURCE: ReadonlySet<Resource> = new Set<Resource>(['orchard', 'cropland', 'game', 'ore']);
+export const GL_RESOURCE: ReadonlySet<Resource> = new Set<Resource>(['orchard', 'cropland', 'game', 'ore', 'jewels', 'fish']);
 
 /** The SVG layers a tile draws. With the terrain on, the ground, roads, terrain features and resources go to WebGL. */
 export interface SvgLayers {
@@ -65,6 +66,7 @@ export function glMapOf(items: readonly SceneItem[], radius: number): { map: GlM
     tiles[it.key] = {
       terrain: t.terrain,
       resource: t.resource !== null && GL_RESOURCE.has(t.resource) ? t.resource : null,
+      harvested: t.harvested,
       building: t.building,
       village: t.village,
       treasure: t.treasure,
@@ -76,7 +78,7 @@ export function glMapOf(items: readonly SceneItem[], radius: number): { map: GlM
   const keys = Object.keys(tiles).sort();
   const key = `${radius}|${keys.map((k) => {
     const t = tiles[k]!;
-    return `${k}:${t.terrain[0]}${t.resource ?? '-'}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}`;
+    return `${k}:${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}`;
   }).join(' ')}|${fog.slice().sort().join(' ')}`;
   return { map: { radius, tiles, fog }, key, veiled, veilKey: veiled.slice().sort().join(' ') };
 }

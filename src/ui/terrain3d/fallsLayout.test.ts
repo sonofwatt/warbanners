@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { anyInView, fallSpots, FRONT_EDGES, waterfallEdges } from './fallsLayout';
 import type { GlMap, GlTile } from './input';
 
-const tile = (terrain: GlTile['terrain'], p: Partial<GlTile> = {}): GlTile => ({ terrain, resource: null, building: null, village: false, treasure: false, road: false, city: false, ...p });
+const tile = (terrain: GlTile['terrain'], p: Partial<GlTile> = {}): GlTile => ({ terrain, resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false, ...p });
 
 /** A radius 2 board, all field, with the given tiles replaced. */
 function board(over: Record<string, GlTile>, fog: string[] = []): GlMap {

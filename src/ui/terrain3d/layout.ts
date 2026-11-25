@@ -19,7 +19,9 @@ export const INR = (R * SQ3) / 2; // inradius
 export const ROAD_HALF = 2.7; // half width of a road in world units (the SVG stroke is 4.6 wide)
 
 export const TERRAIN_ID = { field: 0, forest: 1, mountain: 2, water: 3, sand: 4, fog: 5 } as const;
-export const RES_ID = { none: 0, cropland: 1, orchard: 2, game: 3, ore: 4 } as const;
+export const RES_ID = { none: 0, cropland: 1, orchard: 2, game: 3, ore: 4, jewels: 5, fish: 6 } as const;
+/** Added to a tile's RES_ID on the ground when its resource was harvested (rules 8): the ground tint fades too. */
+export const RES_HARVESTED = 8;
 
 // Neighbour directions by edge-normal angle 0, 60, ..., 300 degrees (world, z toward the viewer).
 export const EDGE_NB: readonly (readonly [number, number])[] = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
@@ -125,9 +127,12 @@ const ORCHARDS: [number, number, number][][] = [
 /** Low things on open ground and water: kind, x, z, size, seed. */
 export type BitKind = 'bush' | 'stone' | 'flower' | 'grass' | 'lily' | 'reed' | 'islet';
 export interface Bit { kind: BitKind; x: number; z: number; s: number; seed: number }
-export type PropKind = 'orchard' | 'deer' | 'ore';
+export type PropKind = 'orchard' | 'deer' | 'ore' | 'jewels' | 'fish';
 // `y`, when set, is the height the prop stands at (an ore deposit on a peak's slope); otherwise the ground's.
 export interface Prop { kind: PropKind; x: number; z: number; s: number; flip: boolean; seed: number; y?: number }
+
+/** Mountain buildings that stand in front of the peak, which moves back and aside for them (as for a mine). */
+const MOUNTAIN_WORKS: ReadonlySet<string> = new Set(['mine', 'foundry']);
 
 export interface Setup {
   t: GlTile;
@@ -136,6 +141,8 @@ export interface Setup {
   v: number;
   turn: number;
   res: GlTile['resource'];
+  // rules 8: the resource was harvested. Everything it puts on the tile is drawn faded, as the SVG draws it.
+  faded: boolean;
   links: number[] | null;
   trees: [number, number, number][];
   peaks: Peak[];
@@ -228,16 +235,19 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   const turn = turnOf(q, r);
   const city = t.city;
   const res = !city && t.building === null && !t.village && !t.treasure && t.resource ? t.resource : null;
-  // A mine replaces its ore. A mountain that shares its tile with ore, a mine or a treasure keeps its full peak,
-  // moved a little back and aside; the ore shrinks into the front corner instead.
-  const shared = t.terrain === 'mountain' && (res === 'ore' || t.building === 'mine' || t.treasure);
+  // A mine (or the foundry it is upgraded to) replaces its ore. A mountain that shares its tile with ore, jewels, a
+  // mine, a foundry or a treasure keeps its full peak, moved a little back and aside; the ore or jewels shrink into
+  // the front corner instead.
+  const works = MOUNTAIN_WORKS.has(t.building ?? '');
+  const shared = t.terrain === 'mountain' && (res === 'ore' || res === 'jewels' || works || t.treasure);
   const links = roadLinks(map, k);
-  const out: Setup = { t, q, r, v, turn, res, links, trees: [], peaks: [], props: [], bits: [], blobs: [], tufts: [], hillEdges: [] };
+  const faded = res !== null && t.harvested;
+  const out: Setup = { t, q, r, v, turn, res, faded, links, trees: [], peaks: [], props: [], bits: [], blobs: [], tufts: [], hillEdges: [] };
   if (city) return out;
   const seed = hash2(q, r) * 6.28;
   const free = res === null && t.building === null && !t.village && !t.treasure;
   if (t.terrain === 'mountain') {
-    out.peaks = peaksFor(v, turn, shared, t.building === 'mine');
+    out.peaks = peaksFor(v, turn, shared, works);
     for (const p of out.peaks) out.blobs.push([p.x + 6 * (p.h / 47), p.z + 3, p.b * 1.05, p.snow === 2 ? 0.28 : 0.2]);
   }
   if (t.terrain === 'forest') {
@@ -283,18 +293,39 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   if (res === 'ore') {
     if (shared) {
       place('ore', 11, 13, 0.62, 7, turn % 2 === 1);
-      // An ore mountain reads at a glance: rust-tinted rock and deposits scattered over its foot and slopes.
-      for (const pk of out.peaks) pk.ore = true;
+      // An ore mountain reads at a glance: rust-tinted rock and deposits scattered over its foot and slopes. Once
+      // harvested the deposits fade and the rock keeps its plain grey.
+      if (!faded) for (const pk of out.peaks) pk.ore = true;
       for (const d of oreDeposits(out.peaks, q, r)) out.props.push({ kind: 'ore', ...d, flip: d.seed > 0.5 });
     } else {
       const [x, z] = ([[0, 9], [-5, 8], [5, 7], [0, 5]] as const)[v]!;
       place('ore', x, z, v === 3 ? 0.9 : 1, 7, turn % 2 === 1);
     }
   }
+  if (res === 'jewels') {
+    // Jewels: a cluster of large crystals growing straight from the ground, no rock under them. On a mountain the
+    // main cluster stands in the front corner, where ore would, with smaller ones on the slopes; elsewhere (not in
+    // rules 8 maps, but drawn rather than lost) one large cluster near the middle.
+    if (shared) {
+      place('jewels', 11, 13, 1.2, 6, turn % 2 === 1);
+      for (const d of oreDeposits(out.peaks, q, r).slice(0, 4)) out.props.push({ kind: 'jewels', ...d, s: d.s * 0.8, flip: d.seed > 0.5 });
+    } else {
+      place('jewels', v % 2 ? -2 : 2, 5, 1.3, 6, turn % 2 === 1);
+    }
+  }
+  if (res === 'fish') {
+    // Fish: two fish leaping over rings of ripples, as the SVG mark; water only, so no road to keep off.
+    const m = turn % 2 === 0 ? 1 : -1;
+    const [x, z] = ([[0, 4], [-3, 6], [3, 3], [-1, 7]] as const)[v]!;
+    out.props.push({ kind: 'fish', x: x * m, z, s: 1.3, flip: m < 0, seed });
+  }
   if (res === 'cropland') out.tufts = tuftsFor(q, r, links);
   if (free && (t.terrain === 'field' || t.terrain === 'water')) out.bits.push(...bitsFor(t.terrain, v, turn, q, r, links, map));
   for (const [x, z, s] of out.trees) out.blobs.push([x, z, 6.5 * s, 0.32]);
-  for (const p of out.props) out.blobs.push([p.x, p.z, (p.kind === 'orchard' ? 7 : 8) * p.s, 0.3]);
+  for (const p of out.props) {
+    if (p.kind === 'fish') continue; // leaping over water: no shadow on the ground
+    out.blobs.push([p.x, p.z, (p.kind === 'orchard' ? 7 : p.kind === 'jewels' ? 6 : 8) * p.s, (faded ? 0.45 : 1) * 0.3]);
+  }
   for (const b of out.bits) if (b.kind === 'bush') out.blobs.push([b.x, b.z, 4.5 * b.s, 0.22]);
   // Rolling hills on open land next to a mountain: purely cosmetic, a board unit or two high.
   if (t.terrain !== 'mountain' && t.terrain !== 'water') {
