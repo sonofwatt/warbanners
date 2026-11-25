@@ -48,6 +48,13 @@ try {
   await page.evaluate((r) => (window as unknown as { facingSheet(rows: unknown[], s: number): void }).facingSheet(r, 1.3), all);
   await shoot('facing-all-types.png');
 
+  // The light on turned pieces, before and after the figures' normals went to world space.
+  for (const world of [false, true]) {
+    await page.evaluate((w) => (window as unknown as { facingNormals(w: boolean): void }).facingNormals(w), world);
+    await shoot(`normals-${world ? 'world' : 'object'}.png`);
+    console.log('materials switched', await page.evaluate(() => document.body.dataset.changed));
+  }
+
   // The clip, frame by frame at 25 frames a second.
   const frames = mkdtempSync(join(tmpdir(), 'facing3d-'));
   const length = await page.evaluate(() => (window as unknown as { facingClip(s: number): number }).facingClip(2.4));

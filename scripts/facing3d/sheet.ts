@@ -178,10 +178,46 @@ function clip(scale = 2.4): Clip {
   };
 }
 
+/**
+ * The light on turned pieces, with the figures' normals in world space (as shipped) or in object space (as before
+ * facing): falls mid-tip, a trebuchet mid-swing, and the same trebuchet turned away mid-swing.
+ */
+function normals(world: boolean, scale = 3): void {
+  size({ w: Math.round(330 * scale), h: Math.round(110 * scale), scale, cx: 120, cy: -10 });
+  const g = ground.getContext('2d')!;
+  g.fillStyle = '#6f8f4e'; g.fillRect(0, 0, view.w, view.h);
+  for (const x of [0, 80, 160, 240]) hex(g, x, 0, '#8aa860', '#5d7a3e');
+  units.setUnits([
+    { id: 1, type: 'catapult', look: look('spartans'), hero: false, x: 160, y: 0, alpha: 1, hunkered: false },
+    { id: 2, type: 'catapult', look: look('spartans'), hero: false, x: 240, y: 0, alpha: 1, hunkered: false },
+  ], 0);
+  units.aim(2, 240, -60, 0);
+  units.tick(1000, 0);
+  units.pose(new Map([[1, { x: 160, y: 0, lunge: 0.2 }], [2, { x: 240, y: 0, lunge: 0.2 }]]), [
+    { key: 'a', type: 'hoplite', look: look('spartans'), x: 0, y: 0, angle: 0.9, alpha: 1 },
+    { key: 'b', type: 'knight', look: look('mongols'), x: 80, y: 0, angle: 0.6, alpha: 1 },
+  ]);
+  units.tick(1100, 0);
+  let changed = 0;
+  units.extras.parent?.traverse((o) => {
+    const m = (o as { material?: { defines?: Record<string, string>; needsUpdate: boolean } }).material;
+    if (m?.defines === undefined) return;
+    const has = 'WORLD_NORMAL' in m.defines;
+    if (has === world) return;
+    if (world) m.defines.WORLD_NORMAL = ''; else delete m.defines.WORLD_NORMAL;
+    m.needsUpdate = true;
+    changed++;
+  });
+  document.body.dataset.changed = String(changed);
+  label(world ? 'world normals (now)' : 'object normals (before)', 120, -50);
+  draw();
+}
+
 let current: Clip | null = null;
 Object.assign(window, {
   facingSheet: (rows: Row[], scale?: number) => sheet(rows, scale),
   facingClip: (scale?: number) => { current = clip(scale); return current.length; },
   facingFrame: (t: number) => current?.frame(t),
+  facingNormals: (world: boolean) => normals(world),
 });
 document.body.dataset.ready = '1';
