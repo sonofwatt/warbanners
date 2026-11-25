@@ -3,12 +3,18 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-## Q1. Archers' attack facing (2026-11-24)
+## Q1. Spartan first level-up (2026-11-25)
 
-- 3D facing (branch facing3d): every unit turns to face its move or attack; hunker returns to the three-quarter view.
-- Archers aim side on along the bow, like a real archer, so an archer shooting straight down the screen shows its side.
-- The horse archer shoots back over the horse's rump (a parting shot), so its horse faces away from the target.
-- Alternative: every attacker turns body first to its target. One line per unit type in src/ui/terrain3d/units/facing.ts.
+- Rules 8 numbers: every harvest (wild grain, orchard fruit, game, jewels, fish) costs 2 gold and gives 1 growth.
+- Growth to leave level L is L + 1, plus the faction's extra: Spartans -1 (since rules 7), Mongols 0.
+- So level 1 to 2 needs 2 growth for Mongols and 1 for Spartans: one 2-gold harvest levels a Spartan capital on turn 1.
+- Level 2 to 3 needs 3 (Mongols) or 2 (Spartans); the Spartan edge is one growth at every level.
+- Options:
+  - A: the Spartan -1 starts from level 2 (first level-up needs 2 for everyone; later levels keep the edge). My pick.
+  - B: drop the Spartan -1 entirely (Spartans were the stronger side at 52 / 43 on normal, so this also balances).
+  - C: raise the first level for everyone (growthBase 2: Mongols 3, Spartans 2).
+- Either way it is a rules change: rules 9, with sims, the level-2 gold reward going 6 to 5 (David, 2026-11-25) in the
+  same version, and no deploy during an online match.
 
 ## Answered
 
@@ -51,3 +57,5 @@ move to the bottom.
   Adaptive AI dial before rules 8 ships (started 2026-11-24).
 - Q1 (Deep stores trigger), 2026-11-24 (David): yes, the AI buys it only when a city is blockaded or nearly
   (enemies on 2 or more of its tiles); "no use to have it unless they're almost or are actively blockaded".
+- Q1 (archers' attack facing), 2026-11-24 (David): keep it; archers aim side on along the bow and the horse
+  archer shoots back over the rump.
