@@ -29,6 +29,7 @@ const { ALL_TYPES, buildFigure } = await import('./figures');
 const { CLEAN } = await import('./parts');
 const { AIM_TURN_MS, frontsOf, moveYaw, TURN_MS } = await import('./facing');
 const { SQUASH } = await import('../layout');
+const { CROUCH_MS, FOOT_DROP } = await import('./crouch');
 
 const RED = { main: '#B3261E', dark: '#8E1D17', accent: '#C8963E' };
 const BLUE = { main: '#2D6DB5', dark: '#1F4F87', accent: '#D4A72C' };
@@ -104,15 +105,23 @@ describe('the 3D unit figures', () => {
     spy.mockRestore();
   });
 
-  test('the trebuchet arm and its stone are their own pieces on the axle; others have only their weapon and shield', () => {
+  test('the trebuchet arm and its stone are their own pieces on the axle; others have their weapon, shield and crouch pieces', () => {
     const t = buildFigure('catapult', { look: RED, wear: CLEAN });
     expect(Object.keys(t.pieces).sort()).toEqual(['arm', 'stone']);
     expect(t.pieces.arm!.fill.attributes.position!.count).toBeGreaterThan(0);
     expect(t.pieces.arm!.pivot).toEqual(t.pieces.stone!.pivot);
     expect(Math.hypot(...t.pieces.arm!.axis)).toBeCloseTo(1, 5);
-    expect(Object.keys(buildFigure('knight', { look: RED, wear: CLEAN }).pieces)).toEqual(['weapon']);
-    expect(Object.keys(buildFigure('hoplite', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['shield', 'weapon']);
-    expect(Object.keys(buildFigure('piper', { look: RED, wear: CLEAN }).pieces)).toEqual([]);
+    const knight = buildFigure('knight', { look: RED, wear: CLEAN }).pieces;
+    expect(Object.keys(knight).sort()).toEqual(['legs', 'neck', 'rider', 'weapon']);
+    // The lance is carried by the rider, who hunches over the horse's neck in a crouch.
+    expect(knight.weapon!.parent).toBe('rider');
+    expect(knight.rider!.parent).toBeNull();
+    expect(Object.keys(buildFigure('hoplite', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'weapon']);
+    expect(Object.keys(buildFigure('piper', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['feet', 'legs']);
+    const sw = buildFigure('swordsman', { look: RED, wear: CLEAN }).pieces;
+    expect([sw.weapon!.parent, sw.weapon2!.parent]).toEqual(['armR', 'armL']);
+    const ar = buildFigure('archer', { look: RED, wear: CLEAN }).pieces;
+    expect([ar.weapon!.parent, ar.arrow!.parent]).toEqual(['bow', 'bow']);
   });
 
   test('idle life turns the body about the feet and never moves a figure off its tile', () => {
@@ -194,7 +203,7 @@ describe('the 3D unit figures', () => {
   });
 
   describe('motion: gaits, strikes and blocks', () => {
-    const pieceGroups = (g: Group): Group[] => (g.children[0] as Group).children.filter((c): c is Group => (c as Group).isGroup === true);
+    const pieceOf = (g: Group, name: string): Group => g.getObjectByName(name) as Group;
     const turnOf = (g: Group): number => 2 * Math.acos(Math.min(1, Math.abs(g.quaternion.w)));
     const bodyOf = (g: Group): Group => g.children[0] as Group;
 
@@ -244,20 +253,20 @@ describe('the 3D unit figures', () => {
       const u = make();
       u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { type: 'hoplite', x: 52, y: 0, look: BLUE })], 0);
       const [a, d] = figures(u) as [Group, Group];
-      const [sword] = pieceGroups(a);
-      const [, shield] = pieceGroups(d);
+      const sword = pieceOf(a, 'weapon');
+      const shield = pieceOf(d, 'shield');
       u.aim(1, 52, 0, 0, 0);
       u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: false }], 0);
       expect(u.turning(0)).toBe(true);
       u.tick(60, 0);
-      expect(turnOf(sword!), 'wound up').toBeGreaterThan(0.2);
-      const rest = d.children[0]!.children.filter((c) => (c as Group).isGroup)[1]!.position.y;
+      expect(turnOf(sword), 'wound up').toBeGreaterThan(0.2);
+      const rest = shield.position.y;
       u.tick(135, 0);
-      expect(turnOf(sword!), 'through at the hit').toBeGreaterThan(1.2);
+      expect(turnOf(sword), 'through at the hit').toBeGreaterThan(1.2);
       u.tick(170, 0);
-      expect(shield!.position.y - rest, 'the shield is up').toBeGreaterThan(0);
+      expect(shield.position.y - rest, 'the shield is up').toBeGreaterThan(0);
       u.tick(1000, 0);
-      expect(turnOf(sword!)).toBeLessThan(1e-6);
+      expect(turnOf(sword)).toBeLessThan(1e-6);
       expect(u.turning(1000)).toBe(false);
     });
 
@@ -284,10 +293,10 @@ describe('the 3D unit figures', () => {
       const u = make();
       u.setUnits([unit(1, { type: 'swordsman', x: 0, y: 0 }), unit(2, { type: 'spearman', x: 52, y: 0 })], 0);
       const [a, d] = figures(u) as [Group, Group];
-      const [spear] = pieceGroups(d);
+      const spear = pieceOf(d, 'weapon');
       u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: true }], 0);
       u.tick(135 + 110 + 100, 0);
-      expect(turnOf(spear!), 'the spear comes down at the attacker').toBeGreaterThan(0.5);
+      expect(turnOf(spear), 'the spear comes down at the attacker').toBeGreaterThan(0.5);
       u.tick(400, 0);
       expect(bodyOf(a).position.x, 'the swordsman is knocked back').toBeLessThan(-0.3);
       expect(u.turning(400)).toBe(true);
@@ -298,14 +307,14 @@ describe('the 3D unit figures', () => {
       const u = make();
       u.setUnits([unit(1, { type: 'archer', x: 0, y: 0 }), unit(2, { x: 104, y: 0 })], 0);
       const [a] = figures(u) as [Group];
-      const [, arrow] = pieceGroups(a);
+      const arrow = pieceOf(a, 'arrow');
       u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 104, y: 0 }, delay: 0, survives: true, counter: false }], 0);
       u.tick(100, 0);
-      expect(arrow!.visible).toBe(true);
+      expect(arrow.visible).toBe(true);
       u.tick(200, 0);
-      expect(arrow!.visible).toBe(false);
+      expect(arrow.visible).toBe(false);
       u.tick(600, 0);
-      expect(arrow!.visible).toBe(true);
+      expect(arrow.visible).toBe(true);
     });
 
     test('an attacker killed by the counter still swings, on the figure that stands in for its fall', () => {
@@ -319,8 +328,8 @@ describe('the 3D unit figures', () => {
       u.pose(new Map(), [{ key: 'f', type: 'warrior', look: RED, x: 0, y: 0, angle: 0, alpha: 1 }]);
       u.tick(135, 0);
       const fall = figures(u).find((g) => g.position.x === 0)!;
-      const [sword] = pieceGroups(fall);
-      expect(turnOf(sword!), 'the blade comes through as it falls').toBeGreaterThan(1.2);
+      const sword = pieceOf(fall, 'weapon');
+      expect(turnOf(sword), 'the blade comes through as it falls').toBeGreaterThan(1.2);
       expect(u.turning(1000)).toBe(false);
     });
 
@@ -600,6 +609,122 @@ describe('the 3D unit figures', () => {
       u.pose(new Map(), [{ key: '0@x', type: 'archer', look: RED, x: 30, y: 0, angle: 0.2, alpha: 0.9 }]);
       const fall = figures(u)[0]!;
       expect(near(yawOf(fall), was)).toBeLessThan(1e-9);
+    });
+  });
+
+  describe('the hunker crouch', () => {
+    const bodyOf = (g: Group): Group => g.children[0] as Group;
+    const pieceOf = (g: Group, name: string): Group => g.getObjectByName(name) as Group;
+    /** Where a piece's pivot is in the figure's group (feet on the ground at y 0). */
+    const heightOf = (g: Group, name: string): number => {
+      g.updateMatrixWorld(true);
+      const p = pieceOf(g, name).getWorldPosition(new Vector3());
+      return p.y - g.position.y;
+    };
+
+    test('a unit that hunkers eases into its crouch; its feet stay on the ground; it stands up when no longer hunkered', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'hoplite', x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      u.tick(500, 0);
+      expect(bodyOf(g).position.y).toBeCloseTo(0, 9);
+      const feet = heightOf(g, 'feet');
+      const shield = pieceOf(g, 'shield').position.clone();
+      u.setUnits([unit(1, { type: 'hoplite', x: 0, y: 0, hunkered: true })], 1000);
+      expect(u.turning(1000)).toBe(true);
+      const ys: number[] = [];
+      for (let t = 1000; t <= 1000 + CROUCH_MS; t += 10) { u.tick(t, 0); ys.push(bodyOf(g).position.y); }
+      for (let i = 1; i < ys.length; i++) {
+        expect(ys[i]!).toBeLessThanOrEqual(ys[i - 1]! + 1e-9);
+        expect(ys[i - 1]! - ys[i]!, 'eased, no snap').toBeLessThan(FOOT_DROP * 0.1);
+      }
+      expect(ys.at(-1)!).toBeCloseTo(-FOOT_DROP, 6);
+      expect(u.turning(1000 + CROUCH_MS + 1)).toBe(false);
+      expect(heightOf(g, 'feet'), 'the feet stay put').toBeCloseTo(feet, 0);
+      const s = pieceOf(g, 'shield').position;
+      expect(s.y - shield.y, 'the shield is raised before the body').toBeGreaterThan(5);
+      // It moved (or acted): it stands up, eased, and is back as it was.
+      u.setUnits([unit(1, { type: 'hoplite', x: 0, y: 0, hunkered: false })], 2000);
+      u.tick(2000 + CROUCH_MS / 2, 0);
+      expect(bodyOf(g).position.y).toBeLessThan(-1);
+      expect(bodyOf(g).position.y).toBeGreaterThan(-FOOT_DROP + 1);
+      u.tick(2000 + CROUCH_MS, 0);
+      expect(bodyOf(g).position.y).toBeCloseTo(0, 9);
+      expect(pieceOf(g, 'shield').position.distanceTo(shield)).toBeLessThan(1e-9);
+    });
+
+    test('a unit already hunkered when first seen is crouched at once; a spent rebuild keeps the crouch', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'archer', x: 0, y: 0, hunkered: true })], 0);
+      expect(u.turning(0)).toBe(false);
+      u.tick(10, 0);
+      expect(bodyOf(figures(u)[0]!).position.y).toBeCloseTo(-FOOT_DROP, 6);
+      u.setUnits([unit(1, { type: 'archer', x: 0, y: 0, hunkered: true, alpha: 0.55 })], 20);
+      u.tick(30, 0);
+      expect(bodyOf(figures(u)[0]!).position.y).toBeCloseTo(-FOOT_DROP, 6);
+    });
+
+    test('with reduced motion the crouch is taken and left at once', () => {
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce') }));
+      try {
+        const u = make();
+        u.setUnits([unit(1, { type: 'hoplite', x: 0, y: 0 })], 0);
+        const g = figures(u)[0]!;
+        u.setUnits([unit(1, { type: 'hoplite', x: 0, y: 0, hunkered: true })], 100);
+        expect(u.turning(100)).toBe(false);
+        u.tick(100, 0);
+        expect(bodyOf(g).position.y).toBeCloseTo(-FOOT_DROP, 6);
+        u.setUnits([unit(1, { type: 'hoplite', x: 0, y: 0 })], 200);
+        u.tick(200, 0);
+        expect(bodyOf(g).position.y).toBeCloseTo(0, 9);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    test('idle life goes on while crouched, smaller', () => {
+      const sway = (hunkered: boolean): number => {
+        const u = make();
+        u.setUnits([unit(7, { x: 0, y: 0, hunkered })], 0);
+        const g = figures(u)[0]!;
+        let most = 0;
+        for (let t = 1000; t < 9000; t += 37) { u.tick(t, 1); most = Math.max(most, Math.abs(bodyOf(g).scale.y - 1)); }
+        return most;
+      };
+      const standing = sway(false), crouched = sway(true);
+      expect(crouched).toBeGreaterThan(0);
+      expect(crouched).toBeLessThan(standing * 0.7);
+    });
+
+    test('a block plays from the crouch and settles back into it while the unit stays hunkered', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: -52, y: 0 }), unit(2, { type: 'hoplite', x: 0, y: 0, look: BLUE, hunkered: true })], 0);
+      const [, d] = figures(u) as [Group, Group];
+      u.tick(100, 0);
+      const guard = pieceOf(d, 'shield').position.clone();
+      const body = bodyOf(d).position.y;
+      u.strikes([{ unit: 1, target: 2, from: { x: -52, y: 0 }, to: { x: 0, y: 0 }, delay: 0, survives: true, counter: false }], 200);
+      u.tick(200 + 170, 0);
+      expect(pieceOf(d, 'shield').position.y - guard.y, 'up from its guard').toBeGreaterThan(0);
+      expect(bodyOf(d).position.y, 'still crouched').toBeLessThan(body + 1.5);
+      u.tick(1200, 0);
+      expect(pieceOf(d, 'shield').position.distanceTo(guard), 'back in its guard').toBeLessThan(1e-6);
+      expect(bodyOf(d).position.y).toBeCloseTo(body, 6);
+      expect(u.turning(1200)).toBe(false);
+    });
+
+    test('a rider hunches and the horse lowers its head; the trebuchet lowers its arm', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 0, hunkered: true }), unit(2, { type: 'catapult', x: 60, y: 0 }), unit(3, { type: 'catapult', x: 120, y: 0, hunkered: true })], 0);
+      const [k, c1, c2] = figures(u) as [Group, Group, Group];
+      u.tick(10, 0);
+      const turn = (g: Group): number => 2 * Math.acos(Math.min(1, Math.abs(g.quaternion.w)));
+      expect(turn(pieceOf(k, 'rider'))).toBeGreaterThan(0.3);
+      expect(turn(pieceOf(k, 'neck'))).toBeGreaterThan(0.3);
+      expect(turn(pieceOf(k, 'weapon')), 'the lance is carried by the rider, not turned on its own').toBeLessThan(1e-9);
+      const armAngle = (g: Group): number => { const q = pieceOf(g, 'arm').quaternion; return 2 * Math.atan2(q.z, q.w); };
+      expect(Math.abs(armAngle(c2) - armAngle(c1))).toBeGreaterThan(0.3);
+      expect(bodyOf(c2).scale.y).toBeLessThan(bodyOf(c1).scale.y);
     });
   });
 });

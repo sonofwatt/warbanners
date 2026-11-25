@@ -216,3 +216,18 @@ test('a ready tile glows gold under its selection mark, and only ready tiles glo
   expect(tileMarkup(draw({ ready: new Set([k]) }), k)).toContain('class="ready-glow"');
   expect(draw()).not.toContain('data-ready');
 });
+
+test('a hunkered unit crouches in the svg look and keeps its hunker mark; a plain one stands', () => {
+  const view = structuredClone(playerView(s, 0));
+  const me = view.units[0]!;
+  const standing = unitMarkup(draw({ view }), me.id);
+  expect(standing).toContain('class="unit-crouch"');
+  expect(standing).not.toContain('unit-crouch hunkered');
+  view.units[0] = { ...me, hunkered: true };
+  const html = unitMarkup(draw({ view }), me.id);
+  expect(html).toContain('class="unit-crouch hunkered"');
+  expect(html).toContain('data-hunker-mark');
+  // The status plate and its mark stay outside the crouch: only the figure sinks.
+  const crouch = groupAt(html, html.indexOf('<g class="unit-crouch hunkered"'));
+  expect(crouch).not.toContain('data-hunker-mark');
+});

@@ -44,6 +44,10 @@ export interface BuiltPiece {
   /** Which way the piece pushes toward a target, and which way is up for it (unit length, figure space). */
   fwd: V3;
   up: V3;
+  /** The x, y and z axes of the frame the piece was built in (unit length, figure space), for poses set in that frame. */
+  basis: readonly [V3, V3, V3];
+  /** The piece it was built inside, which carries it (a rider's lance moves with the rider), or null. */
+  parent: string | null;
 }
 
 export interface BuiltFigure {
@@ -63,18 +67,24 @@ export class Kit {
   private readonly stack: Matrix4[] = [];
   private decals = 0;
   private piece: string | null = null;
-  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3 }>();
+  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3; basis: readonly [V3, V3, V3]; parent: string | null }>();
 
   /**
    * Run `f` with every part it adds going to the moving piece `name`, which turns about `at` (in this frame) and
    * this frame's z axis (toward the viewer before any turn, so the piece swings in the figure's own plane), or the
    * axis `o.axis` of this frame. `o.fwd` (default this frame's z) and `o.up` (its y) say which way the piece pushes
-   * toward a target and which way it lifts.
+   * toward a target and which way it lifts. A piece made inside another piece is carried by it. Calling it again
+   * with the same name adds more parts to the same piece (its pivot is taken from the first call).
    */
   pivot(name: string, at: V3, f: () => void, o: { axis?: V3; fwd?: V3; up?: V3 } = {}): void {
     const p = new Vector3(...at).applyMatrix4(this.mat);
     const dir = (v: V3): V3 => { const d = new Vector3(...v).transformDirection(this.mat); return [d.x, d.y, d.z]; };
-    this.pivots.set(name, { pivot: [p.x, p.y, p.z], axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]) });
+    if (!this.pivots.has(name)) {
+      this.pivots.set(name, {
+        pivot: [p.x, p.y, p.z], axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]),
+        basis: [dir([1, 0, 0]), dir([0, 1, 0]), dir([0, 0, 1])], parent: this.piece,
+      });
+    }
     const was = this.piece;
     this.piece = name;
     f();
@@ -257,11 +267,13 @@ export class Kit {
       for (const g of fills) g.dispose();
       return { fill, hull };
     };
+    // A piece that only carries others (all its parts are in pieces inside it) is still a piece.
+    for (const at of this.pivots.values()) if (at.parent !== null && !groups.has(at.parent)) groups.set(at.parent, { fills: [], hulls: [] });
     const pieces: Record<string, BuiltPiece> = {};
     for (const k of groups.keys()) {
       if (k === null) continue;
       const at = this.pivots.get(k)!;
-      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up };
+      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up, basis: at.basis, parent: at.parent };
     }
     return { ...mergeOf(null), triangles, pieces };
   }

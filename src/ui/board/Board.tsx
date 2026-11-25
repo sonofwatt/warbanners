@@ -258,9 +258,12 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
       {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and dims with it. */}
       <g className="unit-body">
         {p.figure === false ? null : (
-          <g opacity={opacity}>
-            {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
-            {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+          // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
+          <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
+            <g opacity={opacity}>
+              {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
+              {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+            </g>
           </g>
         )}
         <StatusOverlay

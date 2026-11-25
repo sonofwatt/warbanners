@@ -24,6 +24,8 @@ import { gaitKind, gaitPose, gaitWeight } from './gait';
 import type { GaitKind } from './gait';
 import { exchange, REACT_MS, reactPose, strikePose } from './strike';
 import type { ReactKind, StrikeKind } from './strike';
+import { CROUCH_MS, crouchAt, crouchBusy, crouchNow, crouchTo, guardOf } from './crouch';
+import type { Crouch, Guard } from './crouch';
 
 export interface UnitsCamera { cx: number; cy: number; scale: number }
 export interface UnitsViewport { w: number; h: number }
@@ -47,9 +49,10 @@ export interface UnitFall { key: string; type: GlUnit['type']; look: GlUnit['loo
 
 export interface Units3d {
   /**
-   * The scene's units: new ones are added (in their rest facing), gone ones removed, changed ones rebuilt. One that
-   * stands on a new point turns to face the way it went, and one that has just hunkered turns back to rest; the turns
-   * start at `nowMs` (the clock tick is given; by default the last tick's time).
+   * The scene's units: new ones are added (in their rest facing, crouched if they are hunkered), gone ones removed,
+   * changed ones rebuilt. One that stands on a new point turns to face the way it went, and one that has just
+   * hunkered turns back to rest and eases into its crouch (units/crouch.ts); one no longer hunkered stands up. The
+   * turns start at `nowMs` (the clock tick is given; by default the last tick's time).
    */
   setUnits(units: readonly GlUnit[], nowMs?: number, moveDelays?: ReadonlyMap<number, number>): void;
   /**
@@ -70,8 +73,8 @@ export interface Units3d {
    */
   forget(ids: Iterable<number>): void;
   /**
-   * Whether any figure is still turning (or waiting to turn), striking or blocking at `nowMs`, so its frames must go
-   * on being drawn.
+   * Whether any figure is still turning (or waiting to turn), crouching or standing up, striking or blocking at
+   * `nowMs`, so its frames must go on being drawn.
    */
   turning(nowMs: number): boolean;
   /** Where units stand this frame while they move (others stay on their tiles), and the falls playing. */
@@ -97,8 +100,11 @@ const SHADOW_ALPHA = 0.18;
 
 const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}`;
 
-/** A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow): its group, turned about its pivot. */
-interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3 }
+/**
+ * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,
+ * turned about its pivot, and its crouch guard (units/crouch.ts) in figure space: a turn about `gAxis` and a shift.
+ */
+interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3 }
 interface Built { group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; pieces: Map<string, Piece>; shadow: Mesh; shadowX: number }
 /** A strike or a reaction under way or waiting its time, on one unit (ms on the frame clock). */
 type Act =
@@ -112,6 +118,8 @@ interface Placed extends Built {
   weight: number;
   /** The last move (board points), how far along it the figure is (hexes) and through its travel (0 to 1, or null). */
   trip: { x0: number; y0: number } | null; stride: number; travel: number | null;
+  /** The crouch it takes when hunkered. */
+  guard: Guard;
 }
 /** The distance between neighbouring tile centres, in board units. */
 const TILE_STEP = R * SQ3;
@@ -129,6 +137,8 @@ interface Facing {
   later: { yaw: number; at: number } | null;
   /** Strikes and reactions to play. */
   acts: Act[];
+  /** The hunker crouch, easing in or out. */
+  crouch: Crouch;
 }
 
 /** Whether the player asks for less motion: turns are then made at once. Read when a turn starts, never at import. */
@@ -229,11 +239,18 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       meshes.push(new Mesh(f.hull, hullMat), new Mesh(f.fill, fillMat));
     }
     for (const m of meshes) { m.frustumCulled = false; body.add(m); }
-    // Moving pieces (the trebuchet's arm and stone): each in a group at its pivot, so turning the group swings it.
+    // Moving pieces (the trebuchet's arm and stone, weapons, shields, legs, a rider): each in a group at its pivot,
+    // so turning the group swings it. A piece built inside another is carried by it (a rider's lance).
+    const guard = guardOf(type);
+    const inners = new Map<string, Group>();
+    const pieces = new Map<string, Piece>();
     const piece = (name: string): Group | null => {
       const pc = f.pieces[name];
       if (pc === undefined) return null;
+      const made = inners.get(name);
+      if (made !== undefined) return made;
       const at = new Group();
+      at.name = name;
       at.position.set(...pc.pivot);
       const inner = new Group();
       inner.position.set(-pc.pivot[0], -pc.pivot[1], -pc.pivot[2]);
@@ -242,14 +259,23 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
       for (const m of ms) { m.frustumCulled = false; inner.add(m); }
       at.add(inner);
-      body.add(at);
-      return at;
+      const carrier = pc.parent === null ? null : piece(pc.parent);
+      (carrier ?? body).add(at);
+      inners.set(name, inner);
+      // The guard is set in the piece's own frame: turned into figure space here, once.
+      const g = guard.pieces[name];
+      const [bx, by, bz] = pc.basis;
+      const inFigure = (v: readonly [number, number, number]): Vector3 => new Vector3(
+        bx[0] * v[0] + by[0] * v[1] + bz[0] * v[2], bx[1] * v[0] + by[1] * v[1] + bz[1] * v[2], bx[2] * v[0] + by[2] * v[1] + bz[2] * v[2],
+      );
+      pieces.set(name, {
+        group: at, pivot: new Vector3(...pc.pivot), axis: new Vector3(...pc.axis), fwd: new Vector3(...pc.fwd), up: new Vector3(...pc.up),
+        gAxis: g?.axis !== undefined ? inFigure(g.axis).normalize() : new Vector3(...pc.axis),
+        gAngle: g?.angle ?? 0, gShift: g !== undefined ? inFigure(g.shift) : new Vector3(),
+      });
+      return inner;
     };
-    const pieces = new Map<string, Piece>();
-    for (const [name, pc] of Object.entries(f.pieces)) {
-      const at = piece(name);
-      if (at !== null) pieces.set(name, { group: at, pivot: new Vector3(...pc.pivot), axis: new Vector3(...pc.axis), fwd: new Vector3(...pc.fwd), up: new Vector3(...pc.up) });
-    }
+    for (const name of Object.keys(f.pieces)) piece(name);
     const arm = pieces.get(ARM)?.group ?? null;
     const stone = pieces.get(STONE_PIECE)?.group ?? null;
     const axis = f.pieces[ARM]?.axis;
@@ -286,7 +312,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         const was = unseen.get(u.id);
         unseen.delete(u.id);
         const face = was !== undefined && was.type === u.type ? heldAt(was.yaw) : REST_FACING;
-        facings.set(u.id, { type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, face, later: null, acts: [] });
+        facings.set(u.id, { type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, face, later: null, acts: [], crouch: crouchNow(u.hunkered, now) });
       } else {
         if (u.x !== fc.x || u.y !== fc.y) {
           // A move (a slide, a lure, an advance): face the way it went, as its slide starts (an advance waits for its
@@ -299,6 +325,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         } else if (u.hunkered && !fc.hunkered) {
           fc.face = turnNow(fc.face, 0, now, turnMs(TURN_MS));
         }
+        // Hunkered: it eases into its crouch; no longer hunkered (it moved, acted or was attacked out of it): it stands.
+        if (u.hunkered !== fc.hunkered) fc.crouch = crouchTo(fc.crouch, u.hunkered, now, turnMs(CROUCH_MS));
         fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
       }
       const sig = `${lookKey(u.type, u.look, u.hero)}|${u.alpha}`;
@@ -310,7 +338,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       if (p === undefined) {
         p = {
           sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.alpha), alpha: u.alpha, kind: idleKind(u.type), gait: gaitKind(u.type),
-          moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null,
+          moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null, guard: guardOf(u.type),
         };
         scene.add(p.group);
         placed.set(u.id, p);
@@ -405,6 +433,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       fc.face = settle(fc.face, nowMs);
       if (fc.later !== null || facingBusy(fc.face, nowMs)) return true;
       if (fc.acts.some((a) => actEnd(a) > nowMs)) return true;
+      if (crouchBusy(fc.crouch, nowMs)) return true;
     }
     for (const f of fallStrikes.values()) if (f.at + f.ms > nowMs) return true;
     return false;
@@ -462,10 +491,16 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   let clock = 0;
   const qa = new Quaternion(), qb = new Quaternion(), qc = new Quaternion(), qw = new Quaternion();
   const fwdM = new Vector3(), sideM = new Vector3(), sideA = new Vector3(), knockAxis = new Vector3();
-  /** A piece turned by `angle` about its axis and pushed along its fwd and up, from where it was built. */
-  function posePiece(pc: Piece, angle: number, push: number, lift: number): void {
+  const qg = new Quaternion();
+  /**
+   * A piece turned by `angle` about its axis and pushed along its fwd and up, from where it was built, on top of its
+   * crouch guard at `crouch` (0 standing, 1 crouched): a strike or a block plays from the guard.
+   */
+  function posePiece(pc: Piece, angle: number, push: number, lift: number, crouch = 0): void {
     pc.group.quaternion.setFromAxisAngle(pc.axis, angle);
+    if (crouch > 0 && pc.gAngle !== 0) pc.group.quaternion.premultiply(qg.setFromAxisAngle(pc.gAxis, pc.gAngle * crouch));
     pc.group.position.copy(pc.pivot).addScaledVector(pc.fwd, push).addScaledVector(pc.up, lift);
+    if (crouch > 0) pc.group.position.addScaledVector(pc.gShift, crouch);
   }
   function tick(nowMs: number, level: number): void {
     const dt = Math.min(100, Math.max(0, nowMs - clock));
@@ -476,9 +511,13 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const target = p.moving ? 0 : settleWeight(nowMs - p.restSince);
       // Into motion: ease out over EASE_OUT_MS rather than snap; back to rest: the settle curve brings it in.
       p.weight = target < p.weight ? Math.max(target, p.weight - dt / EASE_OUT_MS) : target;
-      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, p.weight * Math.min(1, Math.max(0, level)));
-      // The facing turns the body about its feet; the idle tilt stays a sway in the plane of the screen.
       const fc = facings.get(p.unit.id);
+      // The hunker crouch (0 standing, 1 crouched): idle life goes on in it, smaller.
+      const cr = fc === undefined ? 0 : crouchAt(fc.crouch, nowMs);
+      const g = p.guard;
+      const idleScale = 1 - (1 - g.idle) * cr;
+      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, p.weight * Math.min(1, Math.max(0, level)) * idleScale);
+      // The facing turns the body about its feet; the idle tilt stays a sway in the plane of the screen.
       if (fc !== undefined) { startLater(fc, nowMs); fc.face = settle(fc.face, nowMs); }
       const face = fc === undefined ? 0 : facingYaw(fc.face, nowMs);
       // The gait along a slide, and the strike and the block of an attack, in world space about the feet.
@@ -496,26 +535,27 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const mh = fronts.move + face, ah = fronts.aim + face;
       fwdM.set(Math.sin(mh), 0, Math.cos(mh)); sideM.set(Math.cos(mh), 0, -Math.sin(mh));
       sideA.set(Math.cos(ah), 0, -Math.sin(ah));
-      p.body.position.set(ip.shift + sideM.x * gp.sway + rdx * rp.knock, ip.bob + gp.bob, FEET_Z + sideM.z * gp.sway + rdz * rp.knock);
-      // A positive turn about a side axis tips the figure's top forward along that heading.
-      qw.setFromAxisAngle(sideM, gp.pitch - sp.rear)
+      p.body.position.set(ip.shift + sideM.x * gp.sway + rdx * rp.knock, ip.bob + gp.bob - g.drop * cr, FEET_Z + sideM.z * gp.sway + rdz * rp.knock);
+      // A positive turn about a side axis tips the figure's top forward along that heading (a crouch leans in).
+      qw.setFromAxisAngle(sideM, gp.pitch - sp.rear + g.lean * cr)
         .multiply(qb.setFromAxisAngle(fwdM, gp.roll))
         .multiply(qc.setFromAxisAngle(sideA, sp.lean));
       if (rp.lean !== 0) qw.premultiply(qc.setFromAxisAngle(knockAxis.set(rdz, 0, -rdx), rp.lean));
       p.body.quaternion.copy(qw).multiply(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, face + ip.yaw));
       placeShadow(p, face);
-      p.body.scale.set(1, 1 + ip.breathe, 1);
-      // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too).
-      const weapon = p.pieces.get(WEAPON), weapon2 = p.pieces.get(WEAPON2), shield = p.pieces.get(SHIELD), arrow = p.pieces.get(ARROW);
-      const strikeOnShield = weapon === undefined;
-      if (weapon !== undefined) posePiece(weapon, sp.angle, sp.push, sp.lift);
-      if (weapon2 !== undefined) posePiece(weapon2, sp.angle, sp.push, sp.lift);
-      if (arrow !== undefined) { posePiece(arrow, 0, sp.draw, 0); arrow.group.visible = sp.arrow; }
-      if (shield !== undefined) {
-        posePiece(shield, rp.angle + (strikeOnShield ? sp.angle : 0), rp.push + (strikeOnShield ? sp.push : 0), rp.lift + (strikeOnShield ? sp.lift : 0));
+      p.body.scale.set(1, (1 + ip.breathe) * (1 - g.squash * cr), 1);
+      // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too); the rest of
+      // the pieces hold their guard.
+      const strikeOnShield = !p.pieces.has(WEAPON);
+      for (const [name, pc] of p.pieces) {
+        if (name === WEAPON || name === WEAPON2) posePiece(pc, sp.angle, sp.push, sp.lift, cr);
+        else if (name === ARROW) { posePiece(pc, 0, sp.draw, 0, cr); pc.group.visible = sp.arrow; }
+        else if (name === SHIELD) {
+          posePiece(pc, rp.angle + (strikeOnShield ? sp.angle : 0), rp.push + (strikeOnShield ? sp.push : 0), rp.lift + (strikeOnShield ? sp.lift : 0), cr);
+        } else if (name !== ARM && name !== STONE_PIECE) posePiece(pc, 0, 0, 0, cr);
       }
       if (p.arm !== null) {
-        const angle = armSwing(p.lunge) + ip.arm;
+        const angle = armSwing(p.lunge) + ip.arm + g.arm * cr;
         p.arm.quaternion.setFromAxisAngle(p.armAxis, angle);
         if (p.stone !== null) {
           p.stone.quaternion.copy(p.arm.quaternion);

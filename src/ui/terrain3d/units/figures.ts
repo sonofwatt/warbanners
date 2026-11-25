@@ -8,7 +8,7 @@ import type { BuiltFigure, Surface, V3 } from './kit';
 import {
   arm, BLACK_HORSE, BLACK_HORSE_DARK, BLOOD, bloody, BOOT, BRONZE_RIM, crack, dent, dirt, discPoly, discWear, DUN,
   DUN_DARK, ell, faceWear, FELT, FUR, GOLD, GREY_HORSE, GREY_HORSE_DARK, groundDrops, HAIR, head, helmBroken,
-  horse, HORSE, HORSE_DARK, HORSE_HAIR, LEAF, MANE, onView, PALE_HORSE, PALE_HORSE_DARK, PIEBALD, PIPE, rider, roundShield,
+  horse, HORSE, HORSE_DARK, HORSE_HAIR, LEAF, legsAndBoots, MANE, NECK, NECK_AT, onView, PALE_HORSE, PALE_HORSE_DARK, PIEBALD, PIPE, rider, roundShield,
   scratches, SCRATCH, splitPoly, SCRATCH_DARK, setYaw, shieldCuts, shieldFrame, SKIN, smear, spear, standingBody, STEEL,
   STEEL_DARK, STONE, STRING, sword, tearPolys, TUNIC, tunicSurf, tunicWear, viewSphere, VISOR, WOOD, WOOD_DARK, worn,
 } from './parts';
@@ -43,6 +43,22 @@ export const WEAPON = 'weapon';
 export const WEAPON2 = 'weapon2';
 export const SHIELD = 'shield';
 export const ARROW = 'arrow';
+/** The crouch's pieces (units/crouch.ts): the legs and feet of a standing figure, a horse's neck and legs. */
+export { FEET, LEGS, NECK } from './parts';
+/** A rider, from the seat up, with what he holds: he leans forward over the horse's neck in a crouch. */
+export const RIDER = 'rider';
+/** An archer's bow, with the arm that holds it, the string, the drawing arm and the arrow: lowered and held close. */
+export const BOW = 'bow';
+/** The swordsman's arms, each carrying its blade: brought in across the body. */
+export const ARM_R = 'armR';
+export const ARM_L = 'armL';
+/** The seat of a rider in the rider's own turn (every mounted figure sits there). */
+const SEAT: V3 = [0, H(-10), 0.6];
+/**
+ * The axis, in the rider's turn, about which a positive turn tips the rider toward the horse's head (the horse faces
+ * +x in its own turn, MOUNT_YAW; the rider is turned RIDER_YAW).
+ */
+const HUNCH: V3 = [-Math.sin(MOUNT_YAW - RIDER_YAW), 0, -Math.cos(MOUNT_YAW - RIDER_YAW)];
 /** About the vertical: an archer's drawing hand comes back toward the shoulder. */
 const DRAW_BACK: V3 = [0, 1, 0];
 /** About the figure's own side axis: the top tips forward. */
@@ -186,15 +202,20 @@ function spearman(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
 function swordsman(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     standingBody(k, c, w);
-    arm(k, [-5.4, H(-15.8), 0], [-9.2, H(-12.2), 2.0], c.main);
-    arm(k, [5.4, H(-15.8), 0], [9.2, H(-12.2), 2.0], c.main);
-    // Both blades come down together, each about its own grip.
-    k.pivot(WEAPON2, [-9.4, H(-12.6), 2.2], () => {
-      sword(k, [-9.4, H(-12.6), 2.2], [-15.5, H(-25), 2.2], c.accent, { notch: worn(w, 2) ? 0.55 : undefined, blood: w.blood });
-    }, { axis: TIP_FORWARD });
-    k.pivot(WEAPON, [9.4, H(-12.6), 2.2], () => {
-      sword(k, [9.4, H(-12.6), 2.2], [15.5, H(-25), 2.2], c.accent, { notch: worn(w, 3) ? 0.4 : undefined, snap: worn(w, 4) ? 0.5 : undefined });
-    }, { axis: TIP_FORWARD });
+    // Each arm carries its blade (a crouch brings them in across the body); both blades come down together in a
+    // strike, each about its own grip.
+    k.pivot(ARM_L, [-5.4, H(-15.8), 0], () => {
+      arm(k, [-5.4, H(-15.8), 0], [-9.2, H(-12.2), 2.0], c.main);
+      k.pivot(WEAPON2, [-9.4, H(-12.6), 2.2], () => {
+        sword(k, [-9.4, H(-12.6), 2.2], [-15.5, H(-25), 2.2], c.accent, { notch: worn(w, 2) ? 0.55 : undefined, blood: w.blood });
+      }, { axis: TIP_FORWARD });
+    });
+    k.pivot(ARM_R, [5.4, H(-15.8), 0], () => {
+      arm(k, [5.4, H(-15.8), 0], [9.2, H(-12.2), 2.0], c.main);
+      k.pivot(WEAPON, [9.4, H(-12.6), 2.2], () => {
+        sword(k, [9.4, H(-12.6), 2.2], [15.5, H(-25), 2.2], c.accent, { notch: worn(w, 3) ? 0.4 : undefined, snap: worn(w, 4) ? 0.5 : undefined });
+      }, { axis: TIP_FORWARD });
+    });
     const hd = head(k, 0, -22.4);
     helmet(k, hd, STEEL, w, { r: 7.1, lift: 0.5, scratchDark: true });
     cheekGuard(k, hd, -1, STEEL);
@@ -291,23 +312,26 @@ function archer(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     else k.rod([0, hd.c[1] + 5.4, -1.6], [1.2, hd.c[1] + 7.4, -2.4], 2.4, c.dark, { r1: 1.0, seg: 6 });
     if (worn(w, 3)) { const s = viewSphere([hd.c[0], hd.c[1] + 0.6, hd.c[2] - 0.2], 6.95); const [lip, gap] = tearPolys(-4.6, 3.2, 2.6, 2.4); k.decal(lip, '#120F0D', s); k.decal(gap, HAIR, s); }
     faceWear(k, hd, w, 1);
-    // The bow, drawn: bow arm out to the left, the arrow nocked at the chest.
-    const grip: V3 = [-15.6, H(-14), 4.0];
-    const b = bow(k, [-10.6, H(-27.5), 3.6], grip, [-10.6, H(-0.5), 3.6], worn(w, 4));
-    const nock: V3 = [1.4, H(-14), 4.6];
-    k.rod(b.top, worn(w, 4) ? [-3, H(-12), 5.2] : nock, 0.3, STRING, { seg: 3, hull: 0.5 });
-    k.rod(worn(w, 4) ? [-3, H(-12), 5.2] : nock, b.bottom, 0.3, STRING, { seg: 3, hull: 0.5 });
-    arm(k, [-5.2, H(-15.6), 0.6], [-14.8, H(-14), 4.0], c.main);
-    // The drawing hand and the arrow: drawn back and loosed along the arrow (-x).
-    k.pivot(WEAPON, [5.2, H(-15.6), 0.6], () => arm(k, [5.2, H(-15.6), 0.6], [1.8, H(-14), 5.0], c.main), { axis: DRAW_BACK, fwd: [-1, 0, 0] });
-    if (!worn(w, 4)) {
-      k.pivot(ARROW, [5.2, H(-15.6), 0.6], () => {
-        k.rod([2.4, H(-14), 4.6], [-17, H(-14), 4.6], 0.42, WOOD, { seg: 4 });
-        k.rod([-17, H(-14), 4.6], [-20, H(-14), 4.6], 1.0, STEEL_DARK, { r1: 0.05, seg: 4 });
-        k.slab([0, 0, 2.4, 1.4, 2.4, -1.4], 0.4, c.accent, [2.0, H(-14), 4.6], [0, 0, 0]);
-      }, { fwd: [-1, 0, 0] });
-    }
-    if (bloody(w, 1)) smear(k, viewSphere([-14.8, H(-14), 4.0], 1.9), -0.6, 0.4, 1, -0.4, 1.6, 1.2);
+    // The bow, drawn: bow arm out to the left, the arrow nocked at the chest. All of it is one piece about the bow
+    // arm's shoulder, so a crouch can bring it down and in.
+    k.pivot(BOW, [-5.2, H(-15.6), 0.6], () => {
+      const grip: V3 = [-15.6, H(-14), 4.0];
+      const b = bow(k, [-10.6, H(-27.5), 3.6], grip, [-10.6, H(-0.5), 3.6], worn(w, 4));
+      const nock: V3 = [1.4, H(-14), 4.6];
+      k.rod(b.top, worn(w, 4) ? [-3, H(-12), 5.2] : nock, 0.3, STRING, { seg: 3, hull: 0.5 });
+      k.rod(worn(w, 4) ? [-3, H(-12), 5.2] : nock, b.bottom, 0.3, STRING, { seg: 3, hull: 0.5 });
+      arm(k, [-5.2, H(-15.6), 0.6], [-14.8, H(-14), 4.0], c.main);
+      // The drawing hand and the arrow: drawn back and loosed along the arrow (-x).
+      k.pivot(WEAPON, [5.2, H(-15.6), 0.6], () => arm(k, [5.2, H(-15.6), 0.6], [1.8, H(-14), 5.0], c.main), { axis: DRAW_BACK, fwd: [-1, 0, 0] });
+      if (!worn(w, 4)) {
+        k.pivot(ARROW, [5.2, H(-15.6), 0.6], () => {
+          k.rod([2.4, H(-14), 4.6], [-17, H(-14), 4.6], 0.42, WOOD, { seg: 4 });
+          k.rod([-17, H(-14), 4.6], [-20, H(-14), 4.6], 1.0, STEEL_DARK, { r1: 0.05, seg: 4 });
+          k.slab([0, 0, 2.4, 1.4, 2.4, -1.4], 0.4, c.accent, [2.0, H(-14), 4.6], [0, 0, 0]);
+        }, { fwd: [-1, 0, 0] });
+      }
+      if (bloody(w, 1)) smear(k, viewSphere([-14.8, H(-14), 4.0], 1.9), -0.6, 0.4, 1, -0.4, 1.6, 1.2);
+    });
     feetBlood(k, w);
   });
   return WIDE;
@@ -316,21 +340,23 @@ function archer(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
 function horseman(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
   turned(k, MOUNT_YAW, () => { horse(k, { coat: HORSE, shade: HORSE_DARK, mane: MANE }, w); });
   turned(k, RIDER_YAW, () => {
-    rider(k, [0, H(-10), 0.6], c, c.main, w);
-    arm(k, [4.0, H(-19.4), 0.6], [5, H(-14.8), 4.2], c.main);
-    arm(k, [-4.0, H(-19.4), 0.6], [-5.0, H(-13.6), 3.4], c.main);
-    const hd = head(k, 0, -25.6, 5.4);
-    // A soft cloth cap with a falling tail, no armour.
-    k.dome([0, hd.c[1] + 0.6, 0], 5.9, c.dark, { to: 1.0, seg: 10 });
-    k.ball([0, hd.c[1] - 0.2, -1.8], 5.4, c.dark, { detail: 1 });
-    if (!worn(w, 3)) k.rod([2.6, hd.c[1] + 2.8, -2.6], [6.8, hd.c[1] - 0.4, -4.6], 1.6, c.dark, { r1: 0.5, seg: 5 });
-    else k.rod([2.6, hd.c[1] + 2.8, -2.6], [4.4, hd.c[1] + 1.6, -3.4], 1.6, c.dark, { r1: 1.0, seg: 5 });
-    if (worn(w, 2)) dirt(k, viewSphere([0, hd.c[1] + 0.6, 0], 5.95), 2.0, 4.0, 2.8, c.dark);
-    faceWear(k, hd, w);
-    // A short spear held high in front of him, pointing forward: it comes down level and drives forward.
-    k.pivot(WEAPON, [5, H(-14.8), 4.4], () => {
-      spear(k, [2, H(-8), 4.4], [12.4, H(-31.6), 4.4], 5.6, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood }, 0.75);
-    }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+    k.pivot(RIDER, SEAT, () => {
+      rider(k, [0, H(-10), 0.6], c, c.main, w);
+      arm(k, [4.0, H(-19.4), 0.6], [5, H(-14.8), 4.2], c.main);
+      arm(k, [-4.0, H(-19.4), 0.6], [-5.0, H(-13.6), 3.4], c.main);
+      const hd = head(k, 0, -25.6, 5.4);
+      // A soft cloth cap with a falling tail, no armour.
+      k.dome([0, hd.c[1] + 0.6, 0], 5.9, c.dark, { to: 1.0, seg: 10 });
+      k.ball([0, hd.c[1] - 0.2, -1.8], 5.4, c.dark, { detail: 1 });
+      if (!worn(w, 3)) k.rod([2.6, hd.c[1] + 2.8, -2.6], [6.8, hd.c[1] - 0.4, -4.6], 1.6, c.dark, { r1: 0.5, seg: 5 });
+      else k.rod([2.6, hd.c[1] + 2.8, -2.6], [4.4, hd.c[1] + 1.6, -3.4], 1.6, c.dark, { r1: 1.0, seg: 5 });
+      if (worn(w, 2)) dirt(k, viewSphere([0, hd.c[1] + 0.6, 0], 5.95), 2.0, 4.0, 2.8, c.dark);
+      faceWear(k, hd, w);
+      // A short spear held high in front of him, pointing forward: it comes down level and drives forward.
+      k.pivot(WEAPON, [5, H(-14.8), 4.4], () => {
+        spear(k, [2, H(-8), 4.4], [12.4, H(-31.6), 4.4], 5.6, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood }, 0.75);
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+    }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
   return WIDE;
@@ -356,44 +382,46 @@ function knight(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
     const cloth = (x: number, y: number): { p: V3; n: V3 } => ({ p: [x, y, hemZ + 0.15], n: [0, 0.1, 1] });
     if (worn(w, 1)) dirt(k, cloth, -6, by - 3, 5, c.main);
     if (worn(w, 3)) { const [lip, gap] = tearPolys(4, by - 1.6, 3.8, 3.2); k.decal(lip, mix(c.main, '#000000', 0.5), cloth); k.decal(gap, GREY_HORSE, cloth); }
-    // The cloth over the neck.
-    k.rod([6.6, H(-10.5), 0], [10.8, H(-19), 0], 3.95, c.main, { r1: 2.95, seg: 7 });
+    // The cloth over the neck (it goes with the neck when the head is lowered).
+    k.pivot(NECK, NECK_AT, () => k.rod([6.6, H(-10.5), 0], [10.8, H(-19), 0], 3.95, c.main, { r1: 2.95, seg: 7 }));
   });
   turned(k, RIDER_YAW, () => {
-    // The rider in steel under a tabard, with a closed helm.
-    const top = rider(k, [0, H(-10.4), 0.6], c, STEEL_DARK, w);
-    k.frustum([0, 0, 0.9], H(-11), H(-18.6), 5.7, 4.9, c.dark, { sz: 0.72 });
-    const ts = tunicSurf(1.1);
-    if (worn(w, 2)) dent(k, ts, -1.4, H(-16), 1.2, c.dark);
-    arm(k, [4.2, top - 1.6, 0.6], [-1, H(-17.2), 5.2], STEEL_DARK);
-    arm(k, [-4.2, top - 1.6, 0.6], [-6.4, H(-12.6), 3.8], STEEL_DARK);
-    if (!(worn(w, 4) || w.scarred)) k.ball([-4.8, top - 1.0, 0.4], 2.6, STEEL, { s: [1.2, 0.8, 1.1], detail: 1, gloss: 0.3 });
-    const hc: V3 = [0, H(-27.2), 0.4];
-    k.ball(hc, 1, STEEL, { s: [5.4, 6.8, 5.4], detail: 1, gloss: 0.3 });
-    const hs = viewSphere(hc, 5.6);
-    k.line([-4.6, 0.8, 4.6, 0.8], 1.5, VISOR, hs);
-    k.line([0, -0.8, 0, -4.2], 1.0, STEEL_DARK, hs);
-    if (worn(w, 1)) scratches(k, hs, [[-3.4, 3.6, -1.6, 4.4], [2.0, -2.2, 3.6, -1.0]], SCRATCH_DARK, 0.8);
-    if (worn(w, 2)) dent(k, hs, 2.6, 3.0, 1.2, STEEL);
-    if (helmBroken(w)) {
-      k.decal([1.8, -0.6, 4.4, -1.2, 4.8, -3.6, 3.2, -4.6, 2.4, -3.0], '#2A1E19', hs);
-      if (bloody(w, 1)) smear(k, hs, 3.2, -2.6, 0, -1, 2.6, 1.3);
-    } else if (bloody(w, 1)) smear(k, hs, -3.6, -1.6, 0.2, -1, 2.6, 1.3);
-    if (w.scarred && !bloody(w, 1)) k.line([2.6, -1.8, 3.8, -3.8], 0.9, mix(SKIN, '#8C5A44', 0.5), hs);
-    // A plume in the metal colour on the helm.
-    crest(k, [0, hc[1] + 6.4, 0], 7, 4.6, c.accent, mix(c.accent, '#000000', 0.25), w, false, 1.6);
-    // A long lance couched under the arm and raised, passing above the horse's head.
-    const butt: V3 = [-12, H(-8), 5.6], tip: V3 = [16.2, H(-32.4), 5.6];
-    // The lance turns about the hand that couches it: lowered and driven forward in the charge.
-    k.pivot(WEAPON, [-1, H(-17.4), 5.6], () => {
-      if (worn(w, 4)) spear(k, butt, tip, 6, { snap: 0.55, blood: w.blood }, 1.05, WOOD);
-      else {
-        k.rod(butt, tip, 1.05, WOOD, { r1: 0.85 });
-        k.rod(tip, [19.6, H(-35.4), 5.6], 1.5, STEEL_DARK, { r1: 0.05, seg: 6, gloss: 0.5 });
-        if (bloody(w, 1)) k.ball([17.0, H(-33), 6.4], 0.9, BLOOD, { detail: 0, hull: 0 });
-      }
-    }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
-    k.slab([0, 0, 4.6, 1.8, 0.6, 4.4], 0.6, c.accent, [-1.6, H(-12.6), 6.4], [0, 0, 0.55]);
+    k.pivot(RIDER, SEAT, () => {
+      // The rider in steel under a tabard, with a closed helm.
+      const top = rider(k, [0, H(-10.4), 0.6], c, STEEL_DARK, w);
+      k.frustum([0, 0, 0.9], H(-11), H(-18.6), 5.7, 4.9, c.dark, { sz: 0.72 });
+      const ts = tunicSurf(1.1);
+      if (worn(w, 2)) dent(k, ts, -1.4, H(-16), 1.2, c.dark);
+      arm(k, [4.2, top - 1.6, 0.6], [-1, H(-17.2), 5.2], STEEL_DARK);
+      arm(k, [-4.2, top - 1.6, 0.6], [-6.4, H(-12.6), 3.8], STEEL_DARK);
+      if (!(worn(w, 4) || w.scarred)) k.ball([-4.8, top - 1.0, 0.4], 2.6, STEEL, { s: [1.2, 0.8, 1.1], detail: 1, gloss: 0.3 });
+      const hc: V3 = [0, H(-27.2), 0.4];
+      k.ball(hc, 1, STEEL, { s: [5.4, 6.8, 5.4], detail: 1, gloss: 0.3 });
+      const hs = viewSphere(hc, 5.6);
+      k.line([-4.6, 0.8, 4.6, 0.8], 1.5, VISOR, hs);
+      k.line([0, -0.8, 0, -4.2], 1.0, STEEL_DARK, hs);
+      if (worn(w, 1)) scratches(k, hs, [[-3.4, 3.6, -1.6, 4.4], [2.0, -2.2, 3.6, -1.0]], SCRATCH_DARK, 0.8);
+      if (worn(w, 2)) dent(k, hs, 2.6, 3.0, 1.2, STEEL);
+      if (helmBroken(w)) {
+        k.decal([1.8, -0.6, 4.4, -1.2, 4.8, -3.6, 3.2, -4.6, 2.4, -3.0], '#2A1E19', hs);
+        if (bloody(w, 1)) smear(k, hs, 3.2, -2.6, 0, -1, 2.6, 1.3);
+      } else if (bloody(w, 1)) smear(k, hs, -3.6, -1.6, 0.2, -1, 2.6, 1.3);
+      if (w.scarred && !bloody(w, 1)) k.line([2.6, -1.8, 3.8, -3.8], 0.9, mix(SKIN, '#8C5A44', 0.5), hs);
+      // A plume in the metal colour on the helm.
+      crest(k, [0, hc[1] + 6.4, 0], 7, 4.6, c.accent, mix(c.accent, '#000000', 0.25), w, false, 1.6);
+      // A long lance couched under the arm and raised, passing above the horse's head.
+      const butt: V3 = [-12, H(-8), 5.6], tip: V3 = [16.2, H(-32.4), 5.6];
+      // The lance turns about the hand that couches it: lowered and driven forward in the charge.
+      k.pivot(WEAPON, [-1, H(-17.4), 5.6], () => {
+        if (worn(w, 4)) spear(k, butt, tip, 6, { snap: 0.55, blood: w.blood }, 1.05, WOOD);
+        else {
+          k.rod(butt, tip, 1.05, WOOD, { r1: 0.85 });
+          k.rod(tip, [19.6, H(-35.4), 5.6], 1.5, STEEL_DARK, { r1: 0.05, seg: 6, gloss: 0.5 });
+          if (bloody(w, 1)) k.ball([17.0, H(-33), 6.4], 0.9, BLOOD, { detail: 0, hull: 0 });
+        }
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      k.slab([0, 0, 4.6, 1.8, 0.6, 4.4], 0.6, c.accent, [-1.6, H(-12.6), 6.4], [0, 0, 0.55]);
+    }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
   return WIDE;
@@ -541,7 +569,11 @@ function kingsGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     const cape = [-7, -21, 7, -21, 11.6, -13, ...capeHem, -14, -3, -12, -12];
     k.slab(cape.map((v, i) => (i % 2 ? H(v) : v)), 1.0, c.main, [0, 0, -4.2], [0.08, 0, 0]);
     // Legs, boots, a kilt and a bronze breastplate.
-    for (const s of [-1, 1]) { k.rod([s * 2.8, 2.2, 0], [s * 2.8, H(-6), 0], 1.75, SKIN); k.box([s * 3, 1.3, 0.6], [3.9, 2.6, 4.8], BOOT); }
+    legsAndBoots(k, () => {
+      for (const s of [-1, 1]) k.rod([s * 2.8, 2.2, 0], [s * 2.8, H(-6), 0], 1.75, SKIN);
+    }, () => {
+      for (const s of [-1, 1]) k.box([s * 3, 1.3, 0.6], [3.9, 2.6, 4.8], BOOT);
+    });
     k.frustum([0, 0, 0], H(-4), H(-10.6), 7.2, 6.4, c.main, { sz: 0.68 });
     k.frustum([0, 0, 0], H(-4) - 0.01, H(-5.6), 7.35, 7.2, c.dark, { sz: 0.7 });
     tunicWear(k, c, { ...w, stage: Math.min(w.stage, 2) as Wear['stage'] }, c.main);
@@ -618,11 +650,14 @@ function piper(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
 function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     // Crouched low: the back knee down, the front leg bent, ready to spring.
-    k.rod([-4.4, H(-3.6), -0.6], [-7.2, 1.6, -0.6], 1.8, SKIN);
-    k.box([-8, 1.2, -0.2], [4.4, 2.4, 4.6], BOOT);
-    k.rod([3.8, H(-4.4), 0.6], [7.2, H(-3.4), 2.2], 1.8, SKIN);
-    k.rod([7.2, H(-3.4), 2.2], [6.8, 1.6, 2.2], 1.7, SKIN);
-    k.box([7, 1.2, 2.6], [4.4, 2.4, 4.6], BOOT);
+    legsAndBoots(k, () => {
+      k.rod([-4.4, H(-3.6), -0.6], [-7.2, 1.6, -0.6], 1.8, SKIN);
+      k.rod([3.8, H(-4.4), 0.6], [7.2, H(-3.4), 2.2], 1.8, SKIN);
+      k.rod([7.2, H(-3.4), 2.2], [6.8, 1.6, 2.2], 1.7, SKIN);
+    }, () => {
+      k.box([-8, 1.2, -0.2], [4.4, 2.4, 4.6], BOOT);
+      k.box([7, 1.2, 2.6], [4.4, 2.4, 4.6], BOOT);
+    });
     k.frustum([0, 0, 0], H(-2.4), H(-12.6), 6.8, 5.6, c.main, { sz: 0.7 });
     k.frustum([0, 0, 0], H(-2.4) - 0.01, H(-4.8), 7.0, 6.8, c.dark, { sz: 0.72 });
     const ts = (x: number, y: number) => tunicSurf(0.3)(x, y);
@@ -662,27 +697,29 @@ function steppeCap(k: Kit, hd: { c: V3; r: number }, c: Look, w: Wear): void {
 function horseArcher(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
   turned(k, MOUNT_YAW, () => { horse(k, { coat: DUN, shade: DUN_DARK, mane: MANE }, w); });
   turned(k, RIDER_YAW, () => {
-    rider(k, [0, H(-10), 0.6], c, c.main, w);
-    k.frustum([0, 0, 0.6], H(-11.8), H(-13.6), 5.5, 5.3, c.accent, { sz: 0.74 });
-    const hd = head(k, 0, -25.6, 5.4);
-    steppeCap(k, hd, c, w);
-    faceWear(k, hd, w);
-    // Turned in the saddle, he draws the bow back over the horse's rump.
-    const b = bow(k, [-8.4, H(-30.8), 3.2], [-16.4, H(-17.4), 3.6], [-8.4, H(-4), 3.2], worn(w, 4));
-    const nock: V3 = [1.8, H(-17.4), 4.4];
-    const loose: V3 = [-4, H(-14), 5];
-    k.rod(b.top, worn(w, 4) ? loose : nock, 0.3, STRING, { seg: 3, hull: 0.5 });
-    k.rod(worn(w, 4) ? loose : nock, b.bottom, 0.3, STRING, { seg: 3, hull: 0.5 });
-    arm(k, [-4.4, H(-19.4), 0.8], [-13.4, H(-17.4), 3.6], c.main);
-    k.pivot(WEAPON, [4.4, H(-19.4), 0.8], () => arm(k, [4.4, H(-19.4), 0.8], [1.8, H(-17.4), 4.8], c.main), { axis: DRAW_BACK, fwd: [-1, 0, 0] });
-    if (!worn(w, 4)) {
-      k.pivot(ARROW, [4.4, H(-19.4), 0.8], () => {
-        k.rod([2.4, H(-17.4), 4.4], [-17.2, H(-17.4), 4.4], 0.42, WOOD, { seg: 4 });
-        k.rod([-17.2, H(-17.4), 4.4], [-20.2, H(-17.4), 4.4], 1.0, STEEL_DARK, { r1: 0.05, seg: 4 });
-        k.slab([0, 0, 2.4, 1.4, 2.4, -1.4], 0.4, c.accent, [2.0, H(-17.4), 4.4], [0, 0, 0]);
-      }, { fwd: [-1, 0, 0] });
-    }
-    if (bloody(w, 1)) smear(k, viewSphere([-13.4, H(-17.4), 3.6], 1.9), -0.4, 0.4, 1, -0.6, 1.6, 1.2);
+    k.pivot(RIDER, SEAT, () => {
+      rider(k, [0, H(-10), 0.6], c, c.main, w);
+      k.frustum([0, 0, 0.6], H(-11.8), H(-13.6), 5.5, 5.3, c.accent, { sz: 0.74 });
+      const hd = head(k, 0, -25.6, 5.4);
+      steppeCap(k, hd, c, w);
+      faceWear(k, hd, w);
+      // Turned in the saddle, he draws the bow back over the horse's rump.
+      const b = bow(k, [-8.4, H(-30.8), 3.2], [-16.4, H(-17.4), 3.6], [-8.4, H(-4), 3.2], worn(w, 4));
+      const nock: V3 = [1.8, H(-17.4), 4.4];
+      const loose: V3 = [-4, H(-14), 5];
+      k.rod(b.top, worn(w, 4) ? loose : nock, 0.3, STRING, { seg: 3, hull: 0.5 });
+      k.rod(worn(w, 4) ? loose : nock, b.bottom, 0.3, STRING, { seg: 3, hull: 0.5 });
+      arm(k, [-4.4, H(-19.4), 0.8], [-13.4, H(-17.4), 3.6], c.main);
+      k.pivot(WEAPON, [4.4, H(-19.4), 0.8], () => arm(k, [4.4, H(-19.4), 0.8], [1.8, H(-17.4), 4.8], c.main), { axis: DRAW_BACK, fwd: [-1, 0, 0] });
+      if (!worn(w, 4)) {
+        k.pivot(ARROW, [4.4, H(-19.4), 0.8], () => {
+          k.rod([2.4, H(-17.4), 4.4], [-17.2, H(-17.4), 4.4], 0.42, WOOD, { seg: 4 });
+          k.rod([-17.2, H(-17.4), 4.4], [-20.2, H(-17.4), 4.4], 1.0, STEEL_DARK, { r1: 0.05, seg: 4 });
+          k.slab([0, 0, 2.4, 1.4, 2.4, -1.4], 0.4, c.accent, [2.0, H(-17.4), 4.4], [0, 0, 0]);
+        }, { fwd: [-1, 0, 0] });
+      }
+      if (bloody(w, 1)) smear(k, viewSphere([-13.4, H(-17.4), 3.6], 1.9), -0.4, 0.4, 1, -0.6, 1.6, 1.2);
+    }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
   return WIDE;
@@ -700,7 +737,7 @@ function khansGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
     for (const y of [by + 1.4, by - 1.0]) k.line([-12, y, 9, y], 0.9, c.dark, cloth);
     if (worn(w, 1)) scratches(k, cloth, [[-8, by + 0.2, -5.6, by - 0.6], [2, by + 0.6, 4.4, by + 0.0]]);
     if (worn(w, 3)) for (const [x, y] of [[-4, by - 2.3], [3.4, by + 0.2], [-9, by + 0.2]] as const) k.decal([x - 1, y + 0.9, x + 1, y + 0.9, x + 1, y - 0.9, x - 1, y - 0.9], BLACK_HORSE, cloth);
-    k.rod([6.6, H(-10.5), 0], [10.8, H(-19), 0], 3.95, c.main, { r1: 2.95, seg: 7 });
+    k.pivot(NECK, NECK_AT, () => k.rod([6.6, H(-10.5), 0], [10.8, H(-19), 0], 3.95, c.main, { r1: 2.95, seg: 7 }));
   });
   turned(k, RIDER_YAW, () => {
     // The standard: a tall lance with a tuft of horsehair below a gold ring, held upright behind the saddle.
@@ -709,22 +746,24 @@ function khansGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
     k.frustum([-9, 0, -1], H(-31.4), H(-32.8), 1.6, 1.6, c.accent, { seg: 8, gloss: 0.4 });
     const tuftLen = worn(w, 3) ? 6 : 11;
     k.rod([-9.2, H(-31.4), -1], [-10.4, H(-31.4) - tuftLen, -1.4], 2.2, HORSE_HAIR, { r1: 1.4, seg: 6 });
-    // The rider sits tall in lamellar armour under a steel helmet with a spike.
-    rider(k, [0, H(-10), 0.6], c, c.main, w, { torsoTop: H(-23.6) });
-    const ls = tunicSurf(0.9);
-    for (const y of [-20.4, -17.4, -14.4]) k.line([-5.6, H(y), 5.6, H(y)], 0.8, c.dark, ls);
-    k.frustum([0, 0, 0.6], H(-11.4), H(-13.2), 5.7, 5.5, c.accent, { sz: 0.74 });
-    if (worn(w, 2)) dent(k, ls, 1.6, H(-19), 1.1, c.main);
-    arm(k, [-4.4, H(-21), 0.6], [-8.6, H(-15.4), 0.0], c.main);
-    arm(k, [4.4, H(-21), 0.6], [4.6, H(-14.6), 4.4], c.main);
-    const hd = head(k, 0, -27.6, 5.4);
-    // Neck flaps of dark steel each side, a spiked helmet with a gold band.
-    for (const s of [-1, 1]) if (!(s > 0 && helmBroken(w))) k.box(onView(hd.c, hd.r, s * 4.8, -2.4, -1.8), [2.2, 6, 4], STEEL_DARK, { rot: [0, s * 0.4, 0] });
-    const hs = helmet(k, hd, STEEL, w, { r: 6.1, lift: 0.9, scratchDark: true });
-    k.rod([0, hd.c[1] + 5.4, 0], [0, hd.c[1] + 12.8, 0], 2.4, STEEL, { r1: 0.1, seg: 6, gloss: 0.4 });
-    helmRim(k, hd, 6.1, 0.9, c.accent);
-    void hs;
-    faceWear(k, hd, w);
+    k.pivot(RIDER, SEAT, () => {
+      // The rider sits tall in lamellar armour under a steel helmet with a spike.
+      rider(k, [0, H(-10), 0.6], c, c.main, w, { torsoTop: H(-23.6) });
+      const ls = tunicSurf(0.9);
+      for (const y of [-20.4, -17.4, -14.4]) k.line([-5.6, H(y), 5.6, H(y)], 0.8, c.dark, ls);
+      k.frustum([0, 0, 0.6], H(-11.4), H(-13.2), 5.7, 5.5, c.accent, { sz: 0.74 });
+      if (worn(w, 2)) dent(k, ls, 1.6, H(-19), 1.1, c.main);
+      arm(k, [-4.4, H(-21), 0.6], [-8.6, H(-15.4), 0.0], c.main);
+      arm(k, [4.4, H(-21), 0.6], [4.6, H(-14.6), 4.4], c.main);
+      const hd = head(k, 0, -27.6, 5.4);
+      // Neck flaps of dark steel each side, a spiked helmet with a gold band.
+      for (const s of [-1, 1]) if (!(s > 0 && helmBroken(w))) k.box(onView(hd.c, hd.r, s * 4.8, -2.4, -1.8), [2.2, 6, 4], STEEL_DARK, { rot: [0, s * 0.4, 0] });
+      const hs = helmet(k, hd, STEEL, w, { r: 6.1, lift: 0.9, scratchDark: true });
+      k.rod([0, hd.c[1] + 5.4, 0], [0, hd.c[1] + 12.8, 0], 2.4, STEEL, { r1: 0.1, seg: 6, gloss: 0.4 });
+      helmRim(k, hd, 6.1, 0.9, c.accent);
+      void hs;
+      faceWear(k, hd, w);
+    }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
   return WIDE;
@@ -746,37 +785,39 @@ function skyCaller(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
     k.ball([-2, by + 5.0, 0], 1, PIEBALD, { s: [5, 2.2, 4.6], detail: 1, hull: 0 });
   });
   turned(k, RIDER_YAW, () => {
-    // The staff, topped with a bronze mirror, flies three broad streamers back over the horse's rump.
-    k.rod([-3.6, H(-9), -2], [-11.6, H(-31.4), -2], 0.8, WOOD_DARK);
-    const torn = worn(w, 3);
-    const streamer = (y: number, col: string, len: number): void => {
-      const l = torn ? len * 0.55 : len;
-      const pts = torn ? [0, 1.4, -l * 0.55, 0.6, -l, 0.9, -l * 0.8, -0.2, -l, -1.0, -l * 0.5, -1.0, 0, -1.4] : [0, 1.4, -l * 0.55, 0.4, -l, -1.0, -l * 0.5, -1.6, 0, -1.4];
-      k.slab(pts, 0.5, col, [-11.2 + (y + 31) * 0.36, H(y), -2], [0.1, 0, 0.35]);
-    };
-    streamer(-30, c.accent, 9);
-    streamer(-26.6, STRING, 9);
-    streamer(-23.2, c.main, 8);
-    const mc: V3 = [-12, H(-32.6), -1.4];
-    const cuts: Cut[] = worn(w, 4) ? [{ from: 290, to: 40, inner: 1.2, jag: 0.4 }] : [];
-    k.frame(mc, [-0.3, 0, 0], () => {
-      k.slab(discPoly(3.4, cuts, 0, 12), 1.0, c.accent, [0, 0, 0], [0, 0, 0], { gloss: 0.4 });
-      k.slab(discPoly(2.1, cuts, 0.6, 10), 1.0, STRING, [0, 0, 0.3], [0, 0, 0], { gloss: 0.9, hull: 0 });
-      if (worn(w, 3)) crack(k, flat(0.85), [-1.4, -0.8, 0.2, 0.2, -0.4, 1.4], 0.5);
-    });
-    rider(k, [0, H(-10), 0.6], c, c.main, w);
-    k.frustum([0, 0, 0.6], H(-11.8), H(-13.6), 5.5, 5.3, c.dark, { sz: 0.74 });
-    arm(k, [-4.4, H(-19.4), 0.6], [-7.2, H(-18.8), 0.6], c.main);
-    arm(k, [4.4, H(-19.4), 0.6], [4.8, H(-14.6), 4.2], c.main);
-    const hd = head(k, 0, -25.4, 5.4);
-    // A wide felt hat with a low crown and a short fringe over the brow (its brim torn once broken).
-    const brimCuts: Cut[] = helmBroken(w) ? [{ from: 320, to: 20, inner: 6.6, jag: 0.6 }] : [];
-    k.slab(discPoly(10.6, brimCuts, 0, 18).map((v, i) => (i % 2 ? v * 0.55 : v)), 1.0, c.dark, [0, H(-29.6), 0], [Math.PI / 2, 0, 0]);
-    k.dome([0, H(-30.2), 0], 5.2, c.dark, { to: 1.57, seg: 10, s: [1, 1.15, 1] });
-    k.frustum([0, 0, 0], H(-30.4), H(-31.8), 5.25, 5.2, c.accent, { seg: 10, sz: 1 });
-    for (const x of [-3.6, -1.2, 1.2, 3.6]) k.rod(onView(hd.c, hd.r, x, 3.6, 0.1), onView(hd.c, hd.r, x, 2.4, 0.2), 0.5, c.dark, { seg: 3, hull: 0 });
-    if (worn(w, 2)) dirt(k, viewSphere([0, H(-30.2), 0], 5.3), 1.4, 2.8, 2.6, c.dark);
-    faceWear(k, hd, w);
+    k.pivot(RIDER, SEAT, () => {
+      // The staff, topped with a bronze mirror, flies three broad streamers back over the horse's rump.
+      k.rod([-3.6, H(-9), -2], [-11.6, H(-31.4), -2], 0.8, WOOD_DARK);
+      const torn = worn(w, 3);
+      const streamer = (y: number, col: string, len: number): void => {
+        const l = torn ? len * 0.55 : len;
+        const pts = torn ? [0, 1.4, -l * 0.55, 0.6, -l, 0.9, -l * 0.8, -0.2, -l, -1.0, -l * 0.5, -1.0, 0, -1.4] : [0, 1.4, -l * 0.55, 0.4, -l, -1.0, -l * 0.5, -1.6, 0, -1.4];
+        k.slab(pts, 0.5, col, [-11.2 + (y + 31) * 0.36, H(y), -2], [0.1, 0, 0.35]);
+      };
+      streamer(-30, c.accent, 9);
+      streamer(-26.6, STRING, 9);
+      streamer(-23.2, c.main, 8);
+      const mc: V3 = [-12, H(-32.6), -1.4];
+      const cuts: Cut[] = worn(w, 4) ? [{ from: 290, to: 40, inner: 1.2, jag: 0.4 }] : [];
+      k.frame(mc, [-0.3, 0, 0], () => {
+        k.slab(discPoly(3.4, cuts, 0, 12), 1.0, c.accent, [0, 0, 0], [0, 0, 0], { gloss: 0.4 });
+        k.slab(discPoly(2.1, cuts, 0.6, 10), 1.0, STRING, [0, 0, 0.3], [0, 0, 0], { gloss: 0.9, hull: 0 });
+        if (worn(w, 3)) crack(k, flat(0.85), [-1.4, -0.8, 0.2, 0.2, -0.4, 1.4], 0.5);
+      });
+      rider(k, [0, H(-10), 0.6], c, c.main, w);
+      k.frustum([0, 0, 0.6], H(-11.8), H(-13.6), 5.5, 5.3, c.dark, { sz: 0.74 });
+      arm(k, [-4.4, H(-19.4), 0.6], [-7.2, H(-18.8), 0.6], c.main);
+      arm(k, [4.4, H(-19.4), 0.6], [4.8, H(-14.6), 4.2], c.main);
+      const hd = head(k, 0, -25.4, 5.4);
+      // A wide felt hat with a low crown and a short fringe over the brow (its brim torn once broken).
+      const brimCuts: Cut[] = helmBroken(w) ? [{ from: 320, to: 20, inner: 6.6, jag: 0.6 }] : [];
+      k.slab(discPoly(10.6, brimCuts, 0, 18).map((v, i) => (i % 2 ? v * 0.55 : v)), 1.0, c.dark, [0, H(-29.6), 0], [Math.PI / 2, 0, 0]);
+      k.dome([0, H(-30.2), 0], 5.2, c.dark, { to: 1.57, seg: 10, s: [1, 1.15, 1] });
+      k.frustum([0, 0, 0], H(-30.4), H(-31.8), 5.25, 5.2, c.accent, { seg: 10, sz: 1 });
+      for (const x of [-3.6, -1.2, 1.2, 3.6]) k.rod(onView(hd.c, hd.r, x, 3.6, 0.1), onView(hd.c, hd.r, x, 2.4, 0.2), 0.5, c.dark, { seg: 3, hull: 0 });
+      if (worn(w, 2)) dirt(k, viewSphere([0, H(-30.2), 0], 5.3), 1.4, 2.8, 2.6, c.dark);
+      faceWear(k, hd, w);
+    }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
   return WIDE;
