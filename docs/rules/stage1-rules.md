@@ -92,7 +92,9 @@ option, and statuses on your units (taunted, blinded) wear off.
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
 - To go from level `L` to `L+1` a city needs `L+1` growth points (`L` for a
-  Spartan city since rules 7; a Mongol city needed `L+2` before rules 8). Spare
+  Spartan city from level 2 on, since rules 7; a Mongol city needed `L+2` before
+  rules 8). Since rules 9 every city, Spartan or not, needs 2 for its first level-up:
+  the faction's difference counts only from level 2 (`CONFIG.growthExtraFrom`). Spare
   points carry over.
 - Connected cities (since rules 7): a city is connected when a chain of adjacent
   tiles joins it to its owner's capital, every tile of the chain being a road or
@@ -115,14 +117,14 @@ Rewards (pick one of two at each new level):
 
 | New level | Option 0 | Option 1 |
 |---|---|---|
-| 2 | `gold`: +6 gold | `scout`: explore every tile within 3 of the city |
+| 2 | `gold`: +5 gold (+6 before rules 9) | `scout`: explore every tile within 3 of the city |
 | 3 | `borders`: territory radius becomes 2 | `barracks`: +2 unit capacity |
 | 4 | `income`: +1 income for this city | `growth`: +2 growth points now |
 | 5 and every level after | `champion`: the faction's champion appears | `support`: the faction's support appears |
 
 A reward unit appears on the city tile, or if that is occupied on the first free
 enterable neighbour in direction order. If there is nowhere, the reward becomes
-+6 gold.
+the same gold as the level 2 `gold` reward (`CONFIG.rewardGold`): +5 gold (+6 before rules 9).
 
 Things you can do on a tile in your territory (one building per tile). Since rules 8 a
 harvest takes the one-off growth and marks the resource harvested, but the tile keeps its
@@ -421,7 +423,8 @@ Spartans
 - Start with `prospecting` (`bronze` before rules 8). The starting Krypteia Scout is
   placed as before, but Spearmen and Hoplites wait for `spears`.
 - A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
-  from level `L` to `L+1`.
+  from level `L` to `L+1`. Since rules 9 this starts at level 2: leaving level 1
+  takes 2, as for anyone (rules 7 and 8: 1).
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
   For them the `walls` tech is Deep stores (rules 8): a blockade of any Spartan city
   takes 15% of its income instead of half (section 6).
@@ -509,7 +512,7 @@ Mongols
 
 ## Rules 8 changes
 
-This list and the one above are the file's changelog.
+This list, the one above and the one below are the file's changelog.
 
 - Ranged units (range 2 or more) on a mountain have +1 range for their own attacks;
   a shot that uses the extra tile does 0.8 of the damage, rounded, at least 1. The
@@ -550,3 +553,13 @@ This list and the one above are the file's changelog.
   (was `L+2`), in place of the growth roads used to give them (sections 6 and 13).
 - Mongol tribute is 4 gold for a village and 4 + level for a city (was 3 and 3 + level)
   (section 13).
+
+## Rules 9 changes
+
+- The Spartan growth discount starts at level 2: every city needs 2 growth points to
+  leave level 1 (a Spartan city needed 1), and from level 2 on a Spartan city needs
+  `L` as before (2 to leave level 2, 3 to leave level 3). Mongols are unchanged
+  (sections 6 and 13).
+- The level 2 `gold` reward is +5 gold (was +6). A champion or support reward with
+  no free tile pays the same +5 (section 6). The treasure's +5 gold is a separate
+  number and unchanged (section 12).

@@ -44,6 +44,10 @@ export const CONFIG = deepFreeze({
   capitalIncome: 1,
   capacityBase: 1,                            // unit capacity is level + capacityBase (+ rewards)
   growthBase: 1,                              // growth to leave level L is L + growthBase (+ faction extra)
+  // rules 9: the faction's growthExtra counts only when leaving this level or a higher one, so every city needs
+  // 1 + growthBase growth for its first level-up and the Spartan -1 applies from level 2 on. 1 replays rules 8 (the
+  // extra on every level); only the provenance tests set it back.
+  growthExtraFrom: 2,
   mapgen: {
     field: 50, forest: 72, mountain: 86,
     orchard: 20, cropland: 40, game: 30, ore: 40,
@@ -94,7 +98,7 @@ export const CONFIG = deepFreeze({
     4: ['income', 'growth'],
     5: ['champion', 'support'],
   },
-  rewardGold: 6, rewardScoutRadius: 3, rewardBorderRadius: 2, rewardCapacity: 2, rewardIncome: 1, rewardGrowth: 2,
+  rewardGold: 5, rewardScoutRadius: 3, rewardBorderRadius: 2, rewardCapacity: 2, rewardIncome: 1, rewardGrowth: 2,
   // The techs that open harvests, buildings, walls and roads are in the tree (data/techs.ts). rules 8: wild grain
   // (cropland), jewels and fish are harvested too.
   harvest: {
@@ -145,7 +149,7 @@ export const CONFIG = deepFreeze({
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
   attacksPerTurn: { doubleStrike: number; base: number };
   newCity: { level: number; radius: number; growth: number };
-  capitalIncome: number; capacityBase: number; growthBase: number;
+  capitalIncome: number; capacityBase: number; growthBase: number; growthExtraFrom: number;
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;

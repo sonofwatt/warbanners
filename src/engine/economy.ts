@@ -50,8 +50,10 @@ export function playerIncome(s: MatchState, p: PlayerId): number {
   return total;
 }
 
+// rules 9: the faction extra counts only from level CONFIG.growthExtraFrom on (data, not a faction check).
 export function growthNeeded(s: MatchState, c: City): number {
-  return c.level + CONFIG.growthBase + FACTIONS[s.players[c.owner]!.faction].growthExtra;
+  const extra = c.level >= CONFIG.growthExtraFrom ? FACTIONS[s.players[c.owner]!.faction].growthExtra : 0;
+  return c.level + CONFIG.growthBase + extra;
 }
 
 export function addGrowth(s: MatchState, c: City, n: number, ev: GameEvent[]): void {

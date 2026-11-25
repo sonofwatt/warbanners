@@ -66,7 +66,7 @@ describe('endTurn', () => {
     const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 2, pendingRewards: [2] }); addCity(s, 1, 3, 0);
     const u = addUnit(s, 'warrior', 0, 1, 0, { taunted: true, blinded: true });
     const t = must(applyAction(s, end));
-    expect(cityById(t, c.id)!.pendingRewards).toEqual([]); expect(t.players[0]!.gold).toBe(26);
+    expect(cityById(t, c.id)!.pendingRewards).toEqual([]); expect(t.players[0]!.gold).toBe(25);
     expect(unitById(t, u.id)).toMatchObject({ taunted: false, blinded: false });
   });
   test('a Mongol mounted unit gets its movement back, with no bonus since rules 8', () => {

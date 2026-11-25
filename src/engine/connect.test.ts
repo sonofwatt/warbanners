@@ -38,12 +38,12 @@ test('a road chain from a city to the capital pays 1 growth to both, once', () =
   const b = road(a.state, '2,0');
   expect(isConnected(b.state, cityById(b.state, c.id)!)).toBe(true);
   expect(b.events).toContainEqual({ type: 'connected', city: c.id, capital: cap.id });
-  expect(cityById(b.state, c.id)).toMatchObject({ level: 2, growth: 0, linked: true });
-  expect(cityById(b.state, cap.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(b.state, c.id)).toMatchObject({ level: 1, growth: 1, linked: true });   // rules 9: a level 1 bar needs 2
+  expect(cityById(b.state, cap.id)).toMatchObject({ level: 1, growth: 1 });
   const d = road(b.state, '1,-1');                                    // a second road changes nothing
   expect(d.events.some((e) => e.type === 'connected')).toBe(false);
-  expect(cityById(d.state, c.id)).toMatchObject({ level: 2, growth: 0 });
-  expect(cityById(d.state, cap.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(d.state, c.id)).toMatchObject({ level: 1, growth: 1 });
+  expect(cityById(d.state, cap.id)).toMatchObject({ level: 1, growth: 1 });
 });
 
 test('roads between two cities pay nothing until one joins the capital; then each joined city pays', () => {
@@ -57,9 +57,9 @@ test('roads between two cities pay nothing until one joins the capital; then eac
     { type: 'connected', city: a.id, capital: cap.id },
     { type: 'connected', city: b.id, capital: cap.id },
   ]);
-  expect(cityById(second.state, a.id)).toMatchObject({ level: 2, growth: 0 });
-  expect(cityById(second.state, b.id)).toMatchObject({ level: 2, growth: 0 });
-  expect(cityById(second.state, cap.id)).toMatchObject({ level: 2, growth: 1 });   // 1 per city joined: the first fills level 1, the second starts level 2
+  expect(cityById(second.state, a.id)).toMatchObject({ level: 1, growth: 1 });
+  expect(cityById(second.state, b.id)).toMatchObject({ level: 1, growth: 1 });
+  expect(cityById(second.state, cap.id)).toMatchObject({ level: 2, growth: 0 });   // 1 per city joined: the two fill level 1 (2 since rules 9)
 });
 
 test('a road tile inside enemy territory breaks the chain; one in neutral land does not', () => {
@@ -92,12 +92,12 @@ test('a captured city that was linked pays its new owner once when joined to the
   const r = applyAction(s, { type: 'capture', unit: w.id });
   if (!r.ok) throw new Error(r.reason);
   expect(r.events).toContainEqual({ type: 'connected', city: c.id, capital: cap.id });
-  expect(cityById(r.state, c.id)).toMatchObject({ owner: 0, linked: true, level: 2, growth: 0 });
-  expect(cityById(r.state, cap.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(r.state, c.id)).toMatchObject({ owner: 0, linked: true, level: 1, growth: 1 });
+  expect(cityById(r.state, cap.id)).toMatchObject({ level: 1, growth: 1 });
   r.state.players[0]!.gold = 50; give(r.state, 0, 'riding');
   const again = road(r.state, '1,-1');
   expect(again.events.some((e) => e.type === 'connected')).toBe(false);
-  expect(cityById(again.state, c.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(again.state, c.id)).toMatchObject({ level: 1, growth: 1 });
 });
 
 test('no capital, no bonus', () => {
