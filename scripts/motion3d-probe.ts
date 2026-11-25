@@ -7,15 +7,30 @@ import { newRecord } from '../src/app/record';
 import type { MatchRecord } from '../src/app/record';
 import { writeSave } from '../src/app/saves';
 import { LEVEL_DIAL } from '../src/ai/types';
-import { applyAction, hashState, legalActions, playerView } from '../src/engine';
+import { applyAction, createMatch, hashState, legalActions, playerView } from '../src/engine';
 import type { Action, MatchState } from '../src/engine';
-import { randomPlayout } from '../src/engine/testkit';
 import { effectsFor, seenBy } from '../src/ui/board/effects';
 import { frames, openApp } from '../src/browser/harness';
 
 const seed = Number(process.argv[2] ?? 1);
 const turns = Number(process.argv[3] ?? 40);
-const state0 = randomPlayout(seed, turns);
+/** A crowded position: `turns` turns of random legal actions (a small LCG on the seed), ending on the person's move. */
+function playout(seedN: number, turnsN: number): MatchState {
+  let st = createMatch({ seed: seedN, factions: ['spartans', 'mongols'] });
+  let r = seedN >>> 0;
+  const next = (n: number): number => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r % n; };
+  for (let t = 0; t < turnsN && st.winner === null; t++) {
+    for (let k = 0; k < 40 && st.winner === null; k++) {
+      const acts = legalActions(st).filter((a) => a.type !== 'resign' && a.type !== 'endTurn');
+      if (acts.length === 0) break;
+      const res = applyAction(st, acts[next(acts.length)]!);
+      if (res.ok) st = res.state;
+    }
+    if (st.winner === null) { const res = applyAction(st, { type: 'endTurn' }); if (res.ok) st = res.state; }
+  }
+  return st;
+}
+const state0 = playout(seed, turns);
 const base = newRecord('probe', { seed, factions: ['spartans', 'mongols'] }, ['Person', {
   name: 'Hard', kind: 'ai', level: 'hard', salt: 12345, adapt: { dial: LEVEL_DIAL.hard, trend: 0 },
 }], 1_000_000);
@@ -125,7 +140,6 @@ try {
     if (fx.length > 0) named.push(`  effects ${JSON.stringify(fx)}`);
     s = r.state;
   }
-  void legalActions;
   console.log('--- engine ---');
   for (const n of named) console.log(n);
   console.log('--- page ---');

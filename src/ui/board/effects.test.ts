@@ -340,3 +340,16 @@ test('a unit killed takes its sight with it, but the viewer still sees the blow 
   // Nothing about a tile seen at neither time.
   expect(effectsFor(events, s, s, none, everyone(s), 0, new Set(['5,5']))).toEqual([]);
 });
+
+test('the AI waits no longer for a move whose start the viewer did not see than for a unit appearing', () => {
+  const s = blankMatch();
+  const u = addUnit(s, 'warrior', 1, -3, 0);
+  addUnit(s, 'scout', 0, 4, -1); // the viewer's own unit: it sees the end, not the start
+  const after = structuredClone(s);
+  after.units[0]!.pos = '3,0';
+  const events: GameEvent[] = [{ type: 'moved', unit: u.id, from: '-3,0', to: '3,0' }];
+  const { visible, visibleBefore } = seenBy(s, after, 0);
+  expect(visible.has('3,0')).toBe(true);
+  expect(visibleBefore.has('-3,0') || visible.has('-3,0')).toBe(false);
+  expect(watchMs(events, s, after, 0, true)).toBe(EFFECT_MS);
+});

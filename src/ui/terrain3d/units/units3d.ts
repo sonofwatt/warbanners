@@ -326,14 +326,24 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       placed.delete(id);
     }
     for (const [k, g] of gone) if (now - g.at > GONE_MS) gone.delete(k);
+    for (const [k, l] of left) if (now - l.at > GONE_MS) left.delete(k);
+    for (const [k, f] of fallStrikes) if (now - f.at > GONE_MS) fallStrikes.delete(k);
     for (const [id, fc] of facings) {
       if (keep.has(id)) continue;
       const yaw = wrap(facingYaw(fc.face, now));
       gone.set(spot(fc.type, fc.x, fc.y), { yaw, at: now });
       unseen.set(id, { type: fc.type, yaw });
+      left.set(id, { type: fc.type, x: fc.x, y: fc.y, at: now });
+      // Whatever it was waiting to do (a delayed turn, a strike, a block) goes with it: seen again, it starts afresh.
+      fc.later = null;
+      fc.acts = [];
       facings.delete(id);
     }
   }
+  // Units that have just left the scene (by id), and the strike a fallen attacker plays as it falls (by its spot):
+  // an attacker killed by the blow it drew back still swings, on the figure that stands in for its fall.
+  const left = new Map<number, { type: GlUnit['type']; x: number; y: number; at: number }>();
+  const fallStrikes = new Map<string, { at: number; ms: number; strike: StrikeKind; yaw: number | null }>();
 
   function aim(id: number, x: number, y: number, nowMs: number, atMs = nowMs, from?: { x: number; y: number }): void {
     const fc = facings.get(id);
@@ -346,9 +356,18 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     if (reducedMotion()) return;
     for (const a of list) {
       const att = facings.get(a.unit);
-      if (att === undefined) continue;
-      const def = a.target === undefined ? undefined : facings.get(a.target);
       const dx = a.to.x - a.from.x, dy = a.to.y - a.from.y;
+      if (att === undefined) {
+        // Killed in this same action (by the counter): its figure is gone, and its fall stands in; it still swings.
+        const l = left.get(a.unit);
+        if (l === undefined) continue;
+        const kind = exchange({ attacker: l.type, defender: 'warrior', hexes: 1, survives: false, counter: false }).strike;
+        if (kind.kind !== 'sling' && kind.kind !== 'none') {
+          fallStrikes.set(spot(l.type, l.x, l.y), { at: nowMs + a.delay, ms: kind.ms, strike: kind.kind, yaw: aimYaw(l.type, dx, dy) });
+        }
+        continue;
+      }
+      const def = a.target === undefined ? undefined : facings.get(a.target);
       const hexes = Math.max(1, Math.round(Math.hypot(dx, dy) / TILE_STEP));
       const ex = exchange({ attacker: att.type, defender: def?.type ?? 'warrior', hexes, survives: def !== undefined && a.survives, counter: a.counter });
       const t0 = nowMs + a.delay;
@@ -387,12 +406,13 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       if (fc.later !== null || facingBusy(fc.face, nowMs)) return true;
       if (fc.acts.some((a) => actEnd(a) > nowMs)) return true;
     }
+    for (const f of fallStrikes.values()) if (f.at + f.ms > nowMs) return true;
     return false;
   }
 
   // Falls: a figure of the fallen unit, turned about the line of sight through its tile centre and fading.
   const axis = new Vector3(0, -SQUASH, -COS_E); // the camera's view direction: a turn about it is a turn on screen
-  const fallen = new Map<string, { group: Group; dim: Dim }>();
+  const fallen = new Map<string, { group: Group; dim: Dim; pieces: Map<string, Piece>; spot: string }>();
   const q = new Quaternion();
   const Z = new Vector3(0, 0, 1), Y = new Vector3(0, 1, 0);
   function pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void {
@@ -416,11 +436,12 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       if (g === undefined) {
         const dim = makeDim(f.alpha);
         const b = makeGroup(f.type, f.look, false, f.alpha, dim);
-        // It falls facing the way it stood.
-        const yaw = gone.get(spot(f.type, f.x, f.y))?.yaw ?? 0;
+        // It falls facing the way it stood (or toward the unit it struck, if it struck as it fell).
+        const at = spot(f.type, f.x, f.y);
+        const yaw = fallStrikes.get(at)?.yaw ?? gone.get(at)?.yaw ?? 0;
         b.body.quaternion.setFromAxisAngle(Y, yaw);
         placeShadow(b, yaw);
-        g = { group: b.group, dim };
+        g = { group: b.group, dim, pieces: b.pieces, spot: at };
         scene.add(g.group);
         fallen.set(k, g);
       }
@@ -449,6 +470,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   function tick(nowMs: number, level: number): void {
     const dt = Math.min(100, Math.max(0, nowMs - clock));
     clock = nowMs;
+    tickFalls(nowMs);
     for (const p of placed.values()) {
       if (p.moving) p.restSince = nowMs;
       const target = p.moving ? 0 : settleWeight(nowMs - p.restSince);
@@ -500,6 +522,19 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
           p.stone.visible = stoneLoaded(p.lunge);
         }
       }
+    }
+  }
+  /** The strike an attacker that has fallen plays on its falling figure. */
+  function tickFalls(nowMs: number): void {
+    for (const g of fallen.values()) {
+      const f = fallStrikes.get(g.spot);
+      if (f === undefined) continue;
+      const sp = strikePose(f.strike, nowMs < f.at ? null : (nowMs - f.at) / f.ms);
+      const weapon = g.pieces.get(WEAPON), weapon2 = g.pieces.get(WEAPON2), shield = g.pieces.get(SHIELD), arrow = g.pieces.get(ARROW);
+      if (weapon !== undefined) posePiece(weapon, sp.angle, sp.push, sp.lift);
+      if (weapon2 !== undefined) posePiece(weapon2, sp.angle, sp.push, sp.lift);
+      if (weapon === undefined && shield !== undefined) posePiece(shield, sp.angle, sp.push, sp.lift);
+      if (arrow !== undefined) { posePiece(arrow, 0, sp.draw, 0); arrow.group.visible = sp.arrow; }
     }
   }
   function onScreen(cam: UnitsCamera, vp: UnitsViewport): boolean {

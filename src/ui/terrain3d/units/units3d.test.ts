@@ -308,6 +308,35 @@ describe('the 3D unit figures', () => {
       expect(arrow!.visible).toBe(true);
     });
 
+    test('an attacker killed by the counter still swings, on the figure that stands in for its fall', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { type: 'spearman', x: 52, y: 0 })], 0);
+      figures(u);
+      // The action's scene no longer has the attacker: it died to the counter.
+      u.setUnits([unit(2, { type: 'spearman', x: 52, y: 0 })], 0);
+      u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: true }], 0);
+      expect(u.turning(100)).toBe(true);
+      u.pose(new Map(), [{ key: 'f', type: 'warrior', look: RED, x: 0, y: 0, angle: 0, alpha: 1 }]);
+      u.tick(135, 0);
+      const fall = figures(u).find((g) => g.position.x === 0)!;
+      const [sword] = pieceGroups(fall);
+      expect(turnOf(sword!), 'the blade comes through as it falls').toBeGreaterThan(1.2);
+      expect(u.turning(1000)).toBe(false);
+    });
+
+    test('a unit that leaves before its delayed turn comes back with no turn pending', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 })], 0);
+      const yawOf = (f: Group): number => { const q = bodyOf(f).quaternion; return 2 * Math.atan2(q.y, q.w); };
+      u.setUnits([unit(1, { x: 52, y: 0 })], 1000, new Map([[1, 240]]));
+      u.setUnits([], 1100); // out of sight before its turn started
+      u.setUnits([unit(1, { x: 52, y: 0 })], 1150);
+      const g = figures(u)[0]!;
+      expect(u.turning(1150)).toBe(false);
+      u.tick(2000, 0);
+      expect(Math.abs(yawOf(g))).toBeLessThan(1e-9);
+    });
+
     test('reduced motion: no strike and no block', () => {
       const real = globalThis.matchMedia;
       globalThis.matchMedia = ((q: string) => ({ matches: q.includes('reduce') })) as unknown as typeof matchMedia;

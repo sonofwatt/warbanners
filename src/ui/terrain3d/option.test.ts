@@ -37,3 +37,20 @@ test('blocked storage falls back to memory for the session', () => {
   setTerrain3d(false);
   expect(terrain3dOn()).toBe(false);
 });
+
+test('moves walk in 3D only while the 3D figures are drawn, and not with reduced motion', async () => {
+  const { movesWalk3d, setUnits3dDrawing } = await import('./option');
+  setUnits3dDrawing(false);
+  expect(movesWalk3d()).toBe(false);
+  setUnits3dDrawing(true);
+  const real = globalThis.matchMedia;
+  try {
+    globalThis.matchMedia = ((q: string) => ({ matches: !q.includes('reduce') })) as unknown as typeof matchMedia;
+    expect(movesWalk3d()).toBe(true);
+    globalThis.matchMedia = ((q: string) => ({ matches: q.includes('reduce') })) as unknown as typeof matchMedia;
+    expect(movesWalk3d()).toBe(false);
+  } finally {
+    globalThis.matchMedia = real;
+    setUnits3dDrawing(false);
+  }
+});

@@ -23,7 +23,7 @@ import type { SvgLayers } from '../terrain3d/input';
 import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
 import type { AmbientLoop } from '../terrain3d/ambient';
 import { startTerrain3d } from '../terrain3d/lifecycle';
-import { webgl2Available } from '../terrain3d/option';
+import { setUnits3dDrawing, webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
 import { livePose, liveTransform } from './livePose';
 import { hexesBetween, SLIDE_MS, slideFrames, slideMs3d } from './motion';
@@ -328,6 +328,11 @@ export function Board(p: BoardProps): ReactElement {
   // (status, badges, effects) moves to a second svg above that canvas, and the svg figures are left out.
   const [glUnitsReady, setGlUnitsReady] = useState(false);
   const units3d = gl && glUnitsReady;
+  // Tell the AI's pacing whether moves walk in 3D now (terrain3d/option.ts movesWalk3d).
+  useEffect(() => {
+    setUnits3dDrawing(units3d);
+    return () => setUnits3dDrawing(false);
+  }, [units3d]);
   const bounds = useMemo(() => boardBounds(p.radius, gl ? THICK_3D : THICK), [p.radius, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
@@ -392,10 +397,14 @@ export function Board(p: BoardProps): ReactElement {
     cancelAnimationFrame(g.raf);
     glide.current = null;
   }, []);
+  // Whether a finger is on the board now (set once the gestures are attached, below).
+  const fingerDown = useRef<() => boolean>(() => false);
   const panTo = useCallback((to: Camera): void => {
     stopGlide();
     const c = cam.current;
     if (c === null || to === c || (to.cx === c.cx && to.cy === c.cy && to.scale === c.scale)) return;
+    // A finger on the board always wins: no automatic pan starts under it.
+    if (fingerDown.current()) return;
     if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
       cam.current = to;
       schedule();
@@ -511,6 +520,7 @@ export function Board(p: BoardProps): ReactElement {
   const held = useGestures(svgRef, (out) => {
     const c = cam.current;
     ambient.current?.kick(); // any touch wakes the 3D board's idle life
+    stopGlide(); // the finger wins over any automatic pan
     if (c === null || !measured.current) return;
     const { bounds: b, items, radius, onTap } = latest.current;
     if (out.kind === 'pan') cam.current = panBy(c, out.dx, out.dy, b, vp.current);
@@ -522,13 +532,18 @@ export function Board(p: BoardProps): ReactElement {
     touched.current = true;
     schedule();
   }, stopGlide);
+  fingerDown.current = held;
 
   // Each new action: the view follows where it happened (its moves' ends, the attacker and the attacked, the falls,
   // the bursts) only when that leaves the middle of the slot, and then eases over just far enough. Never while a
   // finger is on the board: the player's own drag or pinch always wins.
   const followSeq = p.attacks?.seq ?? 0;
   const followTiles = p.attacks?.tiles;
+  // Each action is followed once: a new array for the same action never pans back to it.
+  const followed = useRef(followSeq);
   useEffect(() => {
+    if (followSeq === followed.current) return;
+    followed.current = followSeq;
     if (followSeq === 0 || followTiles === undefined || cam.current === null || !measured.current || held()) return;
     const box = boxOf(followTiles);
     if (box === null) return;
