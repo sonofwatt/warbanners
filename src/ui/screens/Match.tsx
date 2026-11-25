@@ -24,6 +24,7 @@ import { TechSheet } from '../panels/TechSheet';
 import { TilePanel } from '../panels/TilePanel';
 import { UnitPanel } from '../panels/UnitPanel';
 import { Board } from '../board/Board';
+import type { BoardAttacks } from '../board/Board';
 import { setTerrain3d, terrain3dOn } from '../terrain3d/option';
 import { Effects } from '../board/Effects';
 import { effectsFor, seenBy } from '../board/effects';
@@ -193,6 +194,13 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer),
     };
   }, [last, state, viewer]);
+  // The same action's attacks and deaths, for the 3D figures' facing (each attacker turns to its target).
+  const attacks = useMemo((): BoardAttacks | null => {
+    if (fx === null) return null;
+    const list = fx.list.flatMap((f) => (f.kind === 'lunge' ? [{ unit: f.unit, from: f.from, toward: f.toward, delay: f.delay }] : []));
+    const fallen = fx.list.flatMap((f) => (f.kind === 'fall' ? [f.unit] : []));
+    return list.length === 0 && fallen.length === 0 ? null : { seq: fx.seq, list, fallen };
+  }, [fx]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   useEffect(() => {
     if (fx === null || fx.seq === heard.current) return;
@@ -330,7 +338,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       />
       <div className="board-slot" data-testid="board-slot">
         <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
-          terrain3d={terrain3d}
+          terrain3d={terrain3d} attacks={attacks}
           covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
           onTap={peeked !== undefined ? noTap : tap}
           reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}

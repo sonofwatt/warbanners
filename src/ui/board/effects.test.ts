@@ -26,7 +26,7 @@ test('a killing blow: lunge, number, fall, in order', () => {
   if (!r.ok) throw new Error(r.reason);
   const dmg = (r.events.find((e) => e.type === 'attacked') as { damage: number }).damage;
   const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state), 0);
-  expect(fx).toContainEqual({ kind: 'lunge', unit: rider.id, toward: '1,0', delay: 0 });
+  expect(fx).toContainEqual({ kind: 'lunge', unit: rider.id, from: '0,0', toward: '1,0', delay: 0 });
   expect(fx).toContainEqual({ kind: 'number', at: '1,0', text: `-${dmg}`, tone: 'hurt', delay: 0 });
   expect(fx.find((f) => f.kind === 'fall')).toMatchObject({ unitType: 'warrior', owner: 1, at: '1,0' });
   expect(effectsFor(r.events, s, r.state, new Set(['0,0']), everyone(s, r.state), 0).filter((f) => 'at' in f && f.at === '1,0')).toEqual([]);
@@ -92,7 +92,7 @@ test('the fall follows a unit that moved earlier in the list', () => {
     { type: 'died', unit: u.id },
   ];
   const fx = effectsFor(events, s, s, new Set(['0,0', '1,0']), everyone(s, s), 0);
-  expect(fx).toEqual([{ kind: 'fall', unitType: 'archer', owner: 1, at: '1,0', delay: 0 }]);
+  expect(fx).toEqual([{ kind: 'fall', unit: u.id, unitType: 'archer', owner: 1, at: '1,0', delay: 0 }]);
 });
 
 test('building gives a burst and an unseen tile gives nothing', () => {
