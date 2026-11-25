@@ -3,7 +3,12 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-No open questions.
+## Q1. Archers' attack facing (2026-11-24)
+
+- 3D facing (branch facing3d): every unit turns to face its move or attack; hunker returns to the three-quarter view.
+- Archers aim side on along the bow, like a real archer, so an archer shooting straight down the screen shows its side.
+- The horse archer shoots back over the horse's rump (a parting shot), so its horse faces away from the target.
+- Alternative: every attacker turns body first to its target. One line per unit type in src/ui/terrain3d/units/facing.ts.
 
 ## Answered
 
