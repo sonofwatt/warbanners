@@ -58,6 +58,8 @@ never deploy a RULES_VERSION bump during a live online match).
 
 ## Open items
 
+- **Next after the rules 9 release (0.7.0):** a tutorial for new players (David, 2026-11-25). Not started; design it
+  with David first (brainstorm), then plan and build.
 - Rules 7 balance as above; then the final whole-branch review of `connected-cities`, merge, deploy 0.5.0.
 - UI labels for the `connected` and `capitalMoved` events (no sound); the connected-cities measurement log.
 - The adaptive SLOW test; the engine speed test (`legalActions on a 25-unit position is fast`, 6.5 ms locally) and
