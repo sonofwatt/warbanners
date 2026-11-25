@@ -3,7 +3,16 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-No open questions.
+## Q1. Spartan growth curve (2026-11-25)
+
+- Growth to reach levels 2, 3, 4, 5: Mongols 2, 3, 4, 5. Rules 8 Spartans 1, 2, 3, 4 (one 2-gold harvest levels the
+  capital on turn 1, which David flagged). Tuned rules 9: 2, 1, 2, 3 (David dislikes the 1 for level 3).
+- "1 less at each level" is the rules 8 curve.
+- Options: A, back to rules 8 (1, 2, 3, 4), keeping reward gold 5, Market growth 3, Unhunker; B, even step 2, 2, 3, 4
+  (untuned rules 9, Spartans about 26%) plus a non-growth Spartan boost to tune; C, everyone 2 for the first level,
+  but each capital starts with 1 growth banked, and Spartans 1 less from level 3 (tested: hard 47.0, normal 54.5
+  to 55.8); D, keep 2, 1, 2, 3. My lean: C.
+- The rules 9 branch is paused with the 2, 1, 2, 3 form committed as WIP (f078936).
 
 ## Answered
 
