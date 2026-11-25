@@ -1,14 +1,15 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { cameraStill, frames, openApp } from './harness';
+import { cameraStill, frames, openApp, uncoveredBox } from './harness';
 
-// Selecting something opens a panel that takes room from the board (below it in portrait, beside it in
-// landscape). The board must stay where the player put it while the selection is near the middle of what is left
-// (the dead zone, the middle 60 percent of the slot each way), and otherwise ease over only as far as it must to
-// bring the selection into that zone. Seed 7: Player 1's Warrior (unit 0) stands on the capital at -2,5, near the
-// bottom of the board. Set SHOT_DIR to save a picture of each case once the panel is open.
+// Selecting something opens a card that lies over the board (at the bottom in portrait, in the side column in
+// landscape). The board's slot keeps its size, so the board stays exactly where the player put it, unless the
+// selected tile would otherwise be hidden under the card: then it eases over the least distance that brings the tile
+// (with its figure) a third of a tile clear of the card. Deselecting never moves it. Seed 7: Player 1's Scout
+// (unit 0) stands on the capital at -2,5, near the bottom of the board. Set SHOT_DIR to save pictures.
 
 const SEED = '?seed=7';
+const HEX_W = 30 * Math.sqrt(3); // a tile's width in board units (R = 30, board/layout.ts)
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -18,19 +19,14 @@ async function box(page: Page, selector: string): Promise<Rect> {
   return b;
 }
 const mid = (r: Rect) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
-const dist = (a: Rect, b: Rect): number => Math.hypot(mid(a).x - mid(b).x, mid(a).y - mid(b).y);
-const inside = (r: Rect, slot: Rect): boolean =>
-  r.x >= slot.x - 0.5 && r.y >= slot.y - 0.5 && r.x + r.width <= slot.x + slot.width + 0.5 && r.y + r.height <= slot.y + slot.height + 0.5;
 const slotBox = (page: Page) => box(page, '[data-testid="board-slot"]');
-/** The dead zone: the middle 60 percent of the slot each way. */
-const zoneOf = (s: Rect): Rect => ({ x: s.x + s.width * 0.2, y: s.y + s.height * 0.2, width: s.width * 0.6, height: s.height * 0.6 });
-/** A tile's ground (what the camera follows): its hex's width, and the hex's depth on the tilted board. */
-async function ground(page: Page, key: string): Promise<Rect> {
-  const c = mid(await box(page, `[data-centre="${key}"]`));
-  const t = await page.locator('[data-camera="true"]').getAttribute('transform') ?? '';
-  const scale = Number(/scale\(([\d.]+)\)/.exec(t)?.[1] ?? 'NaN');
-  const w = 30 * Math.sqrt(3) * scale, h = 2 * 30 * 0.62 * scale; // R = 30, SQUASH = 0.62 (board/layout.ts)
-  return { x: c.x - w / 2, y: c.y - h / 2, width: w, height: h };
+const camera = (page: Page) => page.locator('[data-camera="true"]').getAttribute('transform');
+const scaleOf = (t: string | null): number => Number(/scale\(([\d.]+)\)/.exec(t ?? '')?.[1] ?? 'NaN');
+/** The box round the selected tile and the figure standing on it. */
+async function tileAndFigure(page: Page, key: string, unit: string): Promise<Rect> {
+  const a = await box(page, `[data-hex="${key}"]`), b = await box(page, `[data-unit="${unit}"]`);
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+  return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
 }
 
 async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: number): Promise<void> {
@@ -41,109 +37,197 @@ async function drag(page: Page, from: { x: number; y: number }, dx: number, dy: 
   await frames(page);
 }
 
-/** Into Player 1's first turn (or Player 2's, when `second`), zoomed in on the anchor tile unless told not to (so
- * the board is larger than the slot both ways), then dragged so the anchor lands as near `place(slot)` as the
- * board's edges allow. The anchor is the Warrior's capital, or Player 2's own first unit. */
-async function intoMatch(width: number, height: number, place: (slot: Rect) => { x: number; y: number }, zoom = true, second = false) {
+/** Into Player 1's first turn, zoomed in on the capital, then dragged so the capital lands as near `place(slot)` as
+ * the board's edges allow. */
+async function intoMatch(width: number, height: number, place: (slot: Rect) => { x: number; y: number }) {
   const app = await openApp(SEED, { width, height });
   const { page } = app;
   await page.getByTestId('new-match').tap();
   await page.getByTestId('start').tap();
   await page.getByTestId('ready').tap();
   await page.getByTestId('match').waitFor();
-  if (second) {
-    await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
-    await page.getByTestId('end-turn').tap();
-    await page.getByTestId('ready').tap();
-    await page.getByTestId('match').waitFor();
-  }
   await page.locator('[data-unit]').first().waitFor({ state: 'attached' });
   await frames(page);
-  // The tile the drag places: the Warrior's capital, or Player 2's own first unit.
-  const anchor = second ? await page.locator('[data-unit]').first().getAttribute('data-at') : '-2,5';
-  const at = mid(await box(page, `[data-centre="${anchor}"]`));
-  if (zoom) {
-    await page.mouse.move(at.x, at.y);
-    await page.mouse.wheel(0, -400);
-    await frames(page);
-  }
+  const at = mid(await box(page, '[data-centre="-2,5"]'));
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.wheel(0, -400);
+  await frames(page);
   const slot = await slotBox(page);
-  const start = mid(await box(page, `[data-centre="${anchor}"]`));
+  const start = mid(await box(page, '[data-centre="-2,5"]'));
   const to = place(slot);
-  await drag(page, { x: slot.x + slot.width / 2, y: slot.y + slot.height / 2 }, to.x - start.x, to.y - start.y);
+  await drag(page, { x: slot.x + slot.width / 2, y: slot.y + slot.height / 4 }, to.x - start.x, to.y - start.y);
+  await cameraStill(page);
   return app;
 }
 
-/** Taps at `at`, waits for the panel and the camera, and reports where `watch` (a selector) went. */
-async function selectAt(page: Page, at: { x: number; y: number }, watch: string[], shot: string) {
-  const slotBefore = await slotBox(page);
-  const before = await Promise.all(watch.map((w) => box(page, w)));
+async function tapAt(page: Page, at: { x: number; y: number }): Promise<void> {
   await page.touchscreen.tap(at.x, at.y);
-  await page.locator('.selection').waitFor();
-  await page.locator('[data-mark="selected"]').first().waitFor({ state: 'attached' });
   await frames(page);
   await cameraStill(page);
-  const after = await Promise.all(watch.map((w) => box(page, w)));
-  const slot = await slotBox(page);
-  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/${shot}.png` });
-  return { slotBefore, slot, before, after, moved: Math.max(...before.map((b, i) => dist(b, after[i]!))) };
 }
 
-describe.runIf(process.env.BROWSER === '1')('the board when a selection panel opens', () => {
-  for (const [w, h] of [[360, 640], [915, 412]] as const) {
+describe.runIf(process.env.BROWSER === '1')('the board when something is selected', () => {
+  for (const [w, h] of [[412, 915], [915, 412]] as const) {
     const portrait = w < h;
 
-    test(`${w}x${h}: selecting a tile near the middle of the slot moves nothing`, async () => {
-      // Player 2's first turn at the opening zoom. A first tap opens the panel (the view may ease the first tile in);
-      // then a second explored tile whose ground lies in the dead zone of the slot that is left is selected.
-      const { page, close } = await intoMatch(w, h, (s) => ({ x: s.x + s.width * 0.5, y: s.y + s.height * 0.4 }), false, true);
+    test(`${w}x${h}: selecting and deselecting a unit, then its city, in sight leaves the camera and the slot as they were`, async () => {
+      const { page, close } = await intoMatch(w, h, (s) => ({ x: s.x + s.width * 0.4, y: s.y + s.height * 0.35 }));
       try {
-        const keys = await page.locator('[data-hex]:not([data-fog])').evaluateAll((els) => els.map((e) => e.getAttribute('data-hex')!));
-        const first = keys.find((k) => k !== '-2,5')!;
-        await selectAt(page, mid(await box(page, `[data-centre="${first}"]`)), [`[data-centre="${first}"]`], `first-${w}x${h}`);
-        const zone = zoneOf(await slotBox(page));
-        let best: string | null = null;
-        for (const key of keys) {
-          if (key === first || key === '-2,5') continue;
-          if (inside(await ground(page, key), zone)) { best = key; break; }
-        }
-        expect(best).not.toBeNull();
-        const key = best!;
-        const r = await selectAt(page, mid(await box(page, `[data-centre="${key}"]`)), [`[data-centre="${key}"]`, `[data-centre="${first}"]`], `clear-${w}x${h}`);
-        expect(await page.locator(`[data-hex="${key}"] [data-mark="selected"]`).count()).toBe(1);
-        expect(r.moved).toBeLessThanOrEqual(1);
+        const slot = await slotBox(page);
+        // The capital sits near the board's foot, so the drag may stop short and the first selections may bring it
+        // out from under the card: the Scout's card, then the city's (whose top, its row of units, is taller). From
+        // then on it is in sight, and nothing moves the board.
+        await tapAt(page, mid(await box(page, '[data-centre="-2,5"]')));
+        await page.locator('.selection .unit-panel').waitFor();
+        await tapAt(page, mid(await box(page, '[data-centre="-2,5"]')));
+        await page.locator('.selection .city-panel').waitFor();
+        await cameraStill(page);
+        const cam = await camera(page);
+        expect(await slotBox(page), 'the slot keeps its size').toEqual(slot);
+        const at = mid(await box(page, '[data-centre="-2,5"]'));
+        // Nothing, the Scout, the city, nothing: each tap on the same tile.
+        await tapAt(page, at);
+        await expect.poll(() => page.locator('.selection').count()).toBe(0);
+        await cameraStill(page);
+        expect(await camera(page), 'deselecting').toBe(cam);
+        expect(await slotBox(page)).toEqual(slot);
+        await tapAt(page, at);
+        await page.locator('.selection .unit-panel').waitFor();
+        await cameraStill(page);
+        if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/in-sight-${w}x${h}.png` });
+        expect(await camera(page), 'selecting the unit in sight').toBe(cam);
+        expect(await slotBox(page)).toEqual(slot);
+        await tapAt(page, at);
+        await page.locator('.selection .city-panel').waitFor();
+        await cameraStill(page);
+        expect(await camera(page), 'selecting the city in sight').toBe(cam);
+        await tapAt(page, at);
+        await expect.poll(() => page.locator('.selection').count()).toBe(0);
+        await cameraStill(page);
+        expect(await camera(page), 'deselecting again').toBe(cam);
+        expect(await slotBox(page)).toEqual(slot);
       } finally {
         await close();
       }
     }, 60_000);
 
-    test(`${w}x${h}: a unit where the panel lands is brought just into sight, not further`, async () => {
-      // Low in a portrait slot, right in a landscape one: where the panel will be.
-      const place = (s: Rect) => (portrait ? { x: s.x + s.width * 0.4, y: s.y + s.height - 60 } : { x: s.x + s.width - 80, y: s.y + s.height * 0.5 });
+    test(`${w}x${h}: a unit where the card lands is brought just clear of it, and deselecting leaves the view there`, async () => {
+      // Low in a portrait slot, right in a landscape one: where the card will lie.
+      const place = (s: Rect) => (portrait ? { x: s.x + s.width * 0.4, y: s.y + s.height - 70 } : { x: s.x + s.width - 90, y: s.y + s.height * 0.5 });
       const { page, close } = await intoMatch(w, h, place);
       try {
-        const unit = mid(await box(page, '[data-unit="0"]'));
-        const tileBefore = await box(page, '[data-hex="-2,5"]');
-        const r = await selectAt(page, unit, ['[data-centre="-2,5"]', '[data-centre="0,0"]'], `panel-${w}x${h}`);
-        expect(await page.locator('[data-hex="-2,5"] [data-mark="selected"]').count()).toBe(1);
-        // Before the panel opened, the Scout's tile reached past where the slot now ends.
-        expect(inside(tileBefore, r.slot)).toBe(false);
-        // Now its tile and its figure are wholly in the slot.
-        expect(inside(await box(page, '[data-hex="-2,5"]'), r.slot)).toBe(true);
-        expect(inside(await box(page, '[data-unit="0"]'), r.slot)).toBe(true);
-        // The board moved, but only as far as it had to: the unit's ground now lies in the dead zone of the slot that
-        // is left, its edge nearest the panel on the zone's edge (or short of it, where the board's own edge stops the
-        // view first).
-        expect(r.moved).toBeGreaterThan(0);
-        const g = await ground(page, '-2,5');
-        const zone = zoneOf(r.slot);
-        const far = portrait ? g.y + g.height : g.x + g.width;
-        const edge = portrait ? zone.y + zone.height : zone.x + zone.width;
-        expect(far).toBeLessThanOrEqual(edge + 1);
-        if (!portrait) expect(edge - far).toBeLessThan(2);
+        const slot = await slotBox(page);
+        const before = await camera(page);
+        await tapAt(page, mid(await box(page, '[data-unit="0"]')));
+        await page.locator('.selection .unit-panel').waitFor();
+        await cameraStill(page);
+        if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/brought-in-${w}x${h}.png` });
+        const after = await camera(page);
+        expect(after, 'the view moved').not.toBe(before);
+        expect(await slotBox(page), 'the slot keeps its size').toEqual(slot);
+        const free = await uncoveredBox(page);
+        const margin = (HEX_W * scaleOf(after)) / 3;
+        const t = await tileAndFigure(page, '-2,5', '0');
+        // Wholly in the uncovered part, about a third of a tile clear of the card, and no further (the least pan).
+        if (portrait) {
+          const gap = free.y + free.height - (t.y + t.height);
+          expect(gap).toBeGreaterThanOrEqual(margin - 8);
+          expect(gap).toBeLessThanOrEqual(margin + 8);
+        } else {
+          const gap = free.x + free.width - (t.x + t.width);
+          expect(gap).toBeGreaterThanOrEqual(margin - 8);
+          expect(gap).toBeLessThanOrEqual(margin + 8);
+        }
+        expect(t.y).toBeGreaterThanOrEqual(free.y); expect(t.x).toBeGreaterThanOrEqual(free.x);
+        // Deselect with a tap on fog (no tile to select): the card goes, the view stays.
+        const fog = await page.locator('[data-fog="true"] [data-centre]').evaluateAll((els, f) => els.map((e) => e.getBoundingClientRect())
+          .map((b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 }))
+          .find((p) => p.x > f.x + 20 && p.x < f.x + f.width - 20 && p.y > f.y + 20 && p.y < f.y + f.height - 20), free);
+        expect(fog).toBeDefined();
+        await tapAt(page, fog!);
+        await expect.poll(() => page.locator('.selection').count()).toBe(0);
+        await cameraStill(page);
+        expect(await camera(page), 'deselecting never pans').toBe(after);
       } finally {
         await close();
       }
     }, 60_000);
   }
+
+  test('412x915 in the 3D look: select and deselect neither resize nor re-create the canvases, nor move the camera', async () => {
+    const app = await openApp(SEED, { width: 412, height: 915, webgl: true });
+    const { page, close } = app;
+    try {
+      await page.getByTestId('new-match').tap();
+      await page.getByTestId('start').tap();
+      await page.getByTestId('ready').tap();
+      await page.getByTestId('match').waitFor();
+      await page.locator('[data-unit]').first().waitFor({ state: 'attached' });
+      await page.getByTestId('open-menu').tap();
+      await page.getByTestId('toggle-terrain3d').tap();
+      await page.getByTestId('close-sheet').tap();
+      await page.locator('[data-terrain3d="on"]').waitFor({ state: 'attached', timeout: 60_000 });
+      await frames(page);
+      await cameraStill(page);
+      // Mark each canvas, so a new one would show; note its drawing size.
+      const canvases = () => page.evaluate(() => [...document.querySelectorAll('canvas.board-terrain')].map((c) => {
+        const el = c as HTMLCanvasElement & { probe?: number };
+        return { probe: el.probe ?? null, w: el.width, h: el.height };
+      }));
+      await page.evaluate(() => { document.querySelectorAll('canvas.board-terrain').forEach((c, i) => { (c as HTMLCanvasElement & { probe?: number }).probe = i + 1; }); });
+      const before = await canvases();
+      expect(before.length).toBe(2);
+      const cam = await camera(page);
+      const slot = await slotBox(page);
+      // The first selection may bring the Scout out from under the card (it stands near the board's foot); then
+      // deselecting and selecting it again move nothing.
+      const at = () => box(page, '[data-centre="-2,5"]').then(mid);
+      await tapAt(page, await at());
+      await page.locator('.selection .unit-panel').waitFor();
+      await cameraStill(page);
+      expect(await canvases()).toEqual(before);
+      const placed = await camera(page);
+      const fog = await page.locator('[data-fog="true"] [data-centre]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())
+        .map((b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 })).find((p) => p.y > 150 && p.y < 500 && p.x > 30 && p.x < 380));
+      expect(fog).toBeDefined();
+      await tapAt(page, fog!);
+      await expect.poll(() => page.locator('.selection').count()).toBe(0);
+      await cameraStill(page);
+      expect(await camera(page)).toBe(placed);
+      expect(await canvases()).toEqual(before);
+      await tapAt(page, await at());
+      await page.locator('.selection .unit-panel').waitFor();
+      await cameraStill(page);
+      expect(await camera(page)).toBe(placed);
+      expect(await canvases()).toEqual(before);
+      expect(await slotBox(page)).toEqual(slot);
+      expect(cam).not.toBeNull();
+    } finally {
+      await close();
+    }
+  }, 120_000);
+
+  test('412x915: taps on the card never reach the board; taps above it work as before', async () => {
+    const { page, close } = await intoMatch(412, 915, (s) => ({ x: s.x + s.width * 0.4, y: s.y + s.height * 0.35 }));
+    try {
+      await tapAt(page, mid(await box(page, '[data-unit="0"]')));
+      await page.locator('.selection .unit-panel').waitFor();
+      const cam = await camera(page);
+      // A tap on the card's numbers, over where the board runs on under the card: nothing on the board changes.
+      const stat = await box(page, '.selection .stat');
+      await tapAt(page, mid(stat));
+      expect(await page.locator('.selection .unit-panel').count()).toBe(1);
+      expect(await page.locator('[data-hex="-2,5"] [data-mark="selected"]').count()).toBe(1);
+      expect(await camera(page)).toBe(cam);
+      // A drag on the card does not pan the board.
+      await drag(page, mid(stat), -120, 0);
+      await cameraStill(page);
+      expect(await camera(page)).toBe(cam);
+      // A tap on the board above the card still selects what is there (the city under the Scout).
+      await tapAt(page, mid(await box(page, '[data-centre="-2,5"]')));
+      await page.locator('.selection .city-panel').waitFor();
+    } finally {
+      await close();
+    }
+  }, 60_000);
 });

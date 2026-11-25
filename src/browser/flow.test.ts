@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // The whole game in a real browser, opened with ?seed=7. Facts about seed 7, checked against the engine:
 // Player 1 (Spartans) moves first with 10 gold and one Krypteia Scout (unit 0) on the capital at -2,5, which can
@@ -25,8 +25,12 @@ async function throughCurtain(page: Page, name: string): Promise<void> {
   await frames(page);
 }
 
-/** End turn is locked for a moment after the match appears; wait until it can be tapped. */
+/**
+ * End turn is locked for a moment after the match appears; wait until it can be tapped. A selection's card holds the
+ * bar's place, so whatever is selected is let go first.
+ */
 async function endTurnReady(page: Page): Promise<void> {
+  await deselect(page);
   await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
 }
 
@@ -268,9 +272,14 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await throughCurtain(page, 'Player 1');
       await endTurnReady(page);
 
+      await expectTidy(page, 'match with nothing selected');
+      await expectEndTurnUncovered(page);
       await tapTile(page, '-2,5');
       await page.locator('.selection').waitFor();
       await expectTidy(page, 'match with a unit selected');
+      // The unit's card holds the bar's place until it is let go.
+      expect(await page.getByTestId('end-turn').count()).toBe(0);
+      await deselect(page);
       await expectEndTurnUncovered(page);
 
       await page.getByTestId('open-tech').tap();

@@ -17,7 +17,7 @@ import { Match, nextUnitDisabled, turnFocus } from './Match';
 import { Pass } from './Pass';
 import { Result, resultSound } from './Result';
 import { Setup, setupLine } from './Setup';
-import { Hud } from '../panels/Hud';
+import { ActionBar, Hud } from '../panels/Hud';
 
 const thinker = (): AiClient => ({ think: async (input, opts) => planTurn(input, opts), dispose: () => {} });
 
@@ -239,15 +239,14 @@ test('an enemy city opened from under my unit shows only what the board shows', 
   expect(html).not.toContain('data-testid="cmd-');
 });
 
-test('the Hud says the AI is thinking', () => {
-  const props = {
-    name: 'Ann', colour: '#f00', faction: 'spartans' as const, gold: 8, income: 2, round: 1, unitsToAct: 1, techReady: false,
-    onOpenTech: () => {}, onOpenMenu: () => {}, onEndTurn: () => {}, onNextUnit: () => {},
-  };
+test('the Hud says the AI is thinking, and the bar greys End turn meanwhile', () => {
+  const props = { name: 'Ann', colour: '#f00', faction: 'spartans' as const, gold: 8, income: 2, round: 1, onOpenMenu: () => {} };
   expect(renderToStaticMarkup(<Hud {...props} />)).not.toContain(T.ai.thinking);
-  const html = renderToStaticMarkup(<Hud {...props} thinking endDisabled />);
-  expect(html).toContain(T.ai.thinking);
-  expect(html).toMatch(/disabled=""[^>]*data-testid="end-turn"|data-testid="end-turn"[^>]*disabled=""/);
+  expect(renderToStaticMarkup(<Hud {...props} thinking />)).toContain(T.ai.thinking);
+  const bar = renderToStaticMarkup(
+    <ActionBar colour="#f00" faction="spartans" unitsToAct={1} techReady={false} endDisabled onOpenTech={() => {}} onEndTurn={() => {}} onNextUnit={() => {}} />,
+  );
+  expect(bar).toMatch(/disabled=""[^>]*data-testid="end-turn"|data-testid="end-turn"[^>]*disabled=""/);
 });
 
 test('the match screen shows Thinking while the AI plays, and a blocked move\'s reason', () => {

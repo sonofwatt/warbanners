@@ -37,13 +37,20 @@ export function CityPanel(p: CityPanelProps): ReactElement {
   const actions = chosen === undefined ? others : [{ ...chosen, label: T.ui.train }, ...others];
   const title = p.capital === true ? T.ui.capitalTitle : T.ui.cityTitle;
   const picture = p.faction === undefined ? null : <CityPicture faction={p.faction} level={p.level} capital={p.capital === true} walls={p.walls} />;
+  // The top of the card (what a collapsed card shows): the name, the actions and the row of units to train. The
+  // picked unit's card and the city's numbers show when the card is pulled up.
   return (
     <section className="panel city-panel">
-      {picture !== null
-        ? <CardHead picture={picture} title={title} faction={p.faction} actions={<CommandList commands={actions} primary={chosen?.id} onCommand={p.onCommand} />} />
-        : <><h2>{title}</h2><CommandList commands={others} onCommand={p.onCommand} /></>}
-      {p.faction !== undefined ? <UnitShop commands={train} faction={p.faction} picked={picked} onPick={setPicked} /> : null}
-      <Stats stats={stats} />
+      <div className="card-peek">
+        {picture !== null
+          ? <CardHead picture={picture} title={title} faction={p.faction} actions={<CommandList commands={actions} primary={chosen?.id} onCommand={p.onCommand} />} />
+          : <><h2>{title}</h2><CommandList commands={others} onCommand={p.onCommand} /></>}
+        {p.faction !== undefined ? <UnitShop part="strip" commands={train} faction={p.faction} picked={picked} onPick={setPicked} /> : null}
+      </div>
+      <div className="card-more">
+        {p.faction !== undefined ? <UnitShop part="details" commands={train} faction={p.faction} picked={picked} onPick={setPicked} /> : null}
+        <Stats stats={stats} />
+      </div>
     </section>
   );
 }

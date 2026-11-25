@@ -5,7 +5,7 @@ import type { MatchRecord } from '../app/record';
 import { writeSave } from '../app/saves';
 import { hashState } from '../engine';
 import { addCity, addUnit, blankMatch } from '../engine/testkit';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile, uncoveredBox } from './harness';
 
 // The turn report: each line is a button that puts the board's view on the tile where it happened.
 // A hotseat match, saved with Player 1's Horseman next to a wounded Mongol Warrior in the middle of a wide board,
@@ -45,6 +45,7 @@ describe.runIf(process.env.BROWSER === '1')('the turn report', () => {
       await tapTile(page, '0,-1');
       await tapTile(page, LOST);
       await page.waitForTimeout(400);
+      await deselect(page); // a selection's card holds the bar's place
       await page.getByTestId('end-turn').tap();
       await page.getByTestId('ready').tap();
       await page.getByTestId('digest').waitFor();
@@ -58,7 +59,8 @@ describe.runIf(process.env.BROWSER === '1')('the turn report', () => {
       expect(await page.getByTestId('digest').count()).toBe(0);
       await frames(page);
       await page.screenshot({ path: process.env.DIGEST_SHOTS ? `${process.env.DIGEST_SHOTS}/2-peek.png` : undefined });
-      const slot = await page.getByTestId('board-slot').boundingBox();
+      // The middle of the part of the board the bar of turn buttons leaves uncovered.
+      const slot = await uncoveredBox(page);
       const tile = await page.locator(`[data-centre="${LOST}"]`).boundingBox();
       expect(slot).not.toBeNull(); expect(tile).not.toBeNull();
       const dx = Math.abs(tile!.x + tile!.width / 2 - (slot!.x + slot!.width / 2));

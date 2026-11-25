@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // A build button that waits only on a tech opens the tech tree at that tech. Seed 7: the Field at -1,5, beside
 // Player 1's capital, offers Build Farm, which needs Farming. Set SHOT_DIR to save a picture of the sheet.
@@ -52,6 +52,7 @@ describe.runIf(process.env.BROWSER === '1')('a locked command opens the tech tre
         if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/techlink-${w}x${h}.png` });
         // Opened from the bar, the sheet rings nothing.
         await page.getByTestId('close-sheet').tap();
+        await deselect(page); // the tile's card holds the bar's place
         await page.getByTestId('open-tech').tap();
         await row.waitFor();
         expect(await page.locator('.tech-sheet li.focus').count()).toBe(0);
