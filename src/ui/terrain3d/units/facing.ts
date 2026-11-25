@@ -115,3 +115,54 @@ export function turnTo(prev: Turn, target: number, now: number, ms: number, at =
   if (!(ms > 0)) return { from: to, to, at: now, ms: 0 };
   return { from, to, at: Math.max(now, at), ms };
 }
+
+/** A turn waiting its time: to yaw `yaw`, starting at `at`, taking `ms` (an attack later in a chain). */
+export interface Pending { yaw: number; at: number; ms: number }
+
+/**
+ * A figure's facing: the turn under way and the turns queued after it, in time order. Each queued turn starts from
+ * wherever the figure has got to when its time comes, so a chain of attacks faces each target in turn.
+ */
+export interface Facing { turn: Turn; queue: readonly Pending[] }
+
+export const REST_FACING: Facing = Object.freeze({ turn: REST_TURN, queue: Object.freeze([]) as readonly Pending[] });
+
+/** A facing held at yaw `yaw` (a unit seen again, as it was last seen). */
+export const heldAt = (yaw: number): Facing => ({ turn: { from: yaw, to: yaw, at: -Infinity, ms: 0 }, queue: [] });
+
+/** The facing at `now` with every queued turn whose time has come started (in order, each from where the last got to). */
+export function settle(f: Facing, now: number): Facing {
+  if (f.queue.length === 0 || f.queue[0]!.at > now) return f;
+  let turn = f.turn;
+  let i = 0;
+  for (; i < f.queue.length && f.queue[i]!.at <= now; i++) {
+    const p = f.queue[i]!;
+    turn = turnTo(turn, p.yaw, p.at, p.ms);
+  }
+  return { turn, queue: f.queue.slice(i) };
+}
+
+/** The yaw at `now`, with queued turns taken into account. */
+export const facingYaw = (f: Facing, now: number): number => yawAt(settle(f, now).turn, now);
+
+/** Whether the facing is still turning, or has a turn queued, at `now`. */
+export const facingBusy = (f: Facing, now: number): boolean => f.queue.length > 0 || turning(f.turn, now);
+
+/** A new turn now that replaces anything queued (a move or a hunker is a new action: older aims are dropped). */
+export function turnNow(f: Facing, yaw: number, now: number, ms: number): Facing {
+  return { turn: turnTo(settle(f, now).turn, yaw, now, ms), queue: [] };
+}
+
+/**
+ * Queue a turn to yaw `yaw` that should be round by `by` (a lunge's start): it starts `ms` before, but never before
+ * now nor before the turns already under way or queued have finished, so each target of a chain is faced in order.
+ * With no time (reduced motion) it still waits for its moment and then turns at once.
+ */
+export function queueTurn(f: Facing, yaw: number, now: number, ms: number, by: number): Facing {
+  const s = settle(f, now);
+  const last = s.queue.at(-1);
+  const busyUntil = last !== undefined ? last.at + last.ms : s.turn.ms > 0 ? s.turn.at + s.turn.ms : now;
+  const at = Math.max(now, by - ms, busyUntil);
+  if (at <= now && s.queue.length === 0) return { turn: turnTo(s.turn, yaw, now, ms), queue: [] };
+  return { turn: s.turn, queue: [...s.queue, { yaw, at, ms }] };
+}

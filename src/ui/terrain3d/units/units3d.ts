@@ -18,8 +18,8 @@ import type { Figure } from './figures';
 import { CLEAN } from './parts';
 import { armSwing, idleKind, idlePose, settleWeight, stoneLoaded } from './idle';
 import type { IdleKind } from './idle';
-import { AIM_TURN_MS, aimYaw, moveYaw, REST_TURN, TURN_MS, turnTo, turning, wrap, yawAt } from './facing';
-import type { Turn } from './facing';
+import { AIM_TURN_MS, aimYaw, facingBusy, facingYaw, heldAt, moveYaw, queueTurn, REST_FACING, settle, TURN_MS, turnNow, wrap } from './facing';
+import type { Facing as Face } from './facing';
 
 export interface UnitsCamera { cx: number; cy: number; scale: number }
 export interface UnitsViewport { w: number; h: number }
@@ -37,10 +37,17 @@ export interface Units3d {
    */
   setUnits(units: readonly GlUnit[], nowMs?: number): void;
   /**
-   * Unit `id` attacks the board point (x, y): it turns to aim at it, so that the turn is round by `atMs` (when its
-   * lunge starts) or as soon after `nowMs` as it can be. It keeps that facing until its next move, attack or hunker.
+   * Unit `id` attacks the board point (x, y) from `from` (by default the point it stands on now; a unit that attacked
+   * and then advanced lunged from its old point): it turns to aim at it, so that the turn is round by `atMs` (when
+   * its lunge starts) or as soon after as the turns before it allow. Several aims in one action (a chain) are faced
+   * in order. It keeps that facing until its next move, attack or hunker.
    */
-  aim(id: number, x: number, y: number, nowMs: number, atMs?: number): void;
+  aim(id: number, x: number, y: number, nowMs: number, atMs?: number, from?: { x: number; y: number }): void;
+  /**
+   * Units that have died: their remembered facing is dropped (a unit that only went out of sight keeps it, and is
+   * shown facing that way when it is seen again).
+   */
+  forget(ids: Iterable<number>): void;
   /** Whether any figure is still turning (or waiting to turn) at `nowMs`, so its frames must go on being drawn. */
   turning(nowMs: number): boolean;
   /** Where units stand this frame while they move (others stay on their tiles), and the falls playing. */
@@ -82,7 +89,7 @@ const FEET_Z = 4 / SQUASH;
 const SHADOW_DX = 1.2, SHADOW_DZ = -0.6;
 
 /** A unit's facing, kept by id across rebuilds (a unit that is spent after a move is rebuilt dimmed, still facing its move). */
-interface Facing { type: GlUnit['type']; x: number; y: number; hunkered: boolean; turn: Turn }
+interface Facing { type: GlUnit['type']; x: number; y: number; hunkered: boolean; face: Face }
 
 /** Whether the player asks for less motion: turns are then made at once. Read when a turn starts, never at import. */
 function reducedMotion(): boolean {
@@ -216,6 +223,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   const turnMs = (ms: number): number => (reducedMotion() ? 0 : ms);
   // The facing of a unit that has just left the scene, by its look and tile, so its fall starts the way it stood.
   const gone = new Map<string, { yaw: number; at: number }>();
+  // The facing of each unit that has gone out of sight (not died), by id, so it is seen again the way it stood.
+  const unseen = new Map<number, { type: GlUnit['type']; yaw: number }>();
   const spot = (type: string, x: number, y: number): string => `${type}@${Math.round(x * 10)},${Math.round(y * 10)}`;
   const GONE_MS = 3000;
 
@@ -226,14 +235,19 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       keep.add(u.id);
       const fc = facings.get(u.id);
       if (fc === undefined) {
-        facings.set(u.id, { type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, turn: REST_TURN });
+        // First seen: at rest. Seen again after it went out of sight: as it stood when last seen (where it went
+        // meanwhile is not known, so it is not turned for that).
+        const was = unseen.get(u.id);
+        unseen.delete(u.id);
+        const face = was !== undefined && was.type === u.type ? heldAt(was.yaw) : REST_FACING;
+        facings.set(u.id, { type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, face });
       } else {
         if (u.x !== fc.x || u.y !== fc.y) {
           // A move (a slide, a lure, an advance): face the way it went.
           const yaw = moveYaw(u.type, u.x - fc.x, u.y - fc.y);
-          if (yaw !== null) fc.turn = turnTo(fc.turn, yaw, now, turnMs(TURN_MS));
+          if (yaw !== null) fc.face = turnNow(fc.face, yaw, now, turnMs(TURN_MS));
         } else if (u.hunkered && !fc.hunkered) {
-          fc.turn = turnTo(fc.turn, 0, now, turnMs(TURN_MS));
+          fc.face = turnNow(fc.face, 0, now, turnMs(TURN_MS));
         }
         fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
       }
@@ -259,23 +273,29 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     for (const [k, g] of gone) if (now - g.at > GONE_MS) gone.delete(k);
     for (const [id, fc] of facings) {
       if (keep.has(id)) continue;
-      gone.set(spot(fc.type, fc.x, fc.y), { yaw: wrap(yawAt(fc.turn, now)), at: now });
+      const yaw = wrap(facingYaw(fc.face, now));
+      gone.set(spot(fc.type, fc.x, fc.y), { yaw, at: now });
+      unseen.set(id, { type: fc.type, yaw });
       facings.delete(id);
     }
   }
 
-  function aim(id: number, x: number, y: number, nowMs: number, atMs = nowMs): void {
+  function aim(id: number, x: number, y: number, nowMs: number, atMs = nowMs, from?: { x: number; y: number }): void {
     const fc = facings.get(id);
     if (fc === undefined) return;
-    const yaw = aimYaw(fc.type, x - fc.x, y - fc.y);
+    const yaw = aimYaw(fc.type, x - (from?.x ?? fc.x), y - (from?.y ?? fc.y));
     if (yaw === null) return;
-    const ms = turnMs(AIM_TURN_MS);
-    fc.turn = turnTo(fc.turn, yaw, nowMs, ms, atMs - ms);
+    fc.face = queueTurn(fc.face, yaw, nowMs, turnMs(AIM_TURN_MS), atMs);
+  }
+  function forget(ids: Iterable<number>): void {
+    for (const id of ids) unseen.delete(id);
   }
   function anyTurning(nowMs: number): boolean {
     for (const id of placed.keys()) {
       const fc = facings.get(id);
-      if (fc !== undefined && turning(fc.turn, nowMs)) return true;
+      if (fc === undefined) continue;
+      fc.face = settle(fc.face, nowMs);
+      if (facingBusy(fc.face, nowMs)) return true;
     }
     return false;
   }
@@ -338,7 +358,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       p.body.position.set(ip.shift, ip.bob, FEET_Z);
       // The facing turns the body about its feet; the idle tilt stays a sway in the plane of the screen.
       const fc = facings.get(p.unit.id);
-      const face = fc === undefined ? 0 : yawAt(fc.turn, nowMs);
+      if (fc !== undefined) fc.face = settle(fc.face, nowMs);
+      const face = fc === undefined ? 0 : facingYaw(fc.face, nowMs);
       p.body.quaternion.copy(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, face + ip.yaw));
       placeShadow(p, face);
       p.body.scale.set(1, 1 + ip.breathe, 1);
@@ -388,6 +409,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     placed.clear();
     facings.clear();
     gone.clear();
+    unseen.clear();
     for (const g of fallen.values()) disposeDim(g.dim);
     fallen.clear();
     for (const f of looks.values()) {
@@ -405,7 +427,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   return {
-    setUnits, aim, turning: anyTurning, pose, tick, onScreen, extras, draw, dispose,
+    setUnits, aim, forget, turning: anyTurning, pose, tick, onScreen, extras, draw, dispose,
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, dims: dims.size }),
   };
 }

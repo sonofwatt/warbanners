@@ -3,7 +3,8 @@ import { hexToBoard } from '../../board/layout';
 import { SQUASH } from '../layout';
 import { ALL_TYPES } from './figures';
 import {
-  AIM_TURN_MS, aimYaw, frontsOf, headingOf, moveYaw, REST_TURN, TURN_MS, turnTo, turning, wrap, yawAt,
+  AIM_TURN_MS, aimYaw, facingBusy, facingYaw, frontsOf, headingOf, heldAt, moveYaw, queueTurn, REST_FACING, REST_TURN,
+  settle, TURN_MS, turnNow, turnTo, turning, wrap, yawAt,
 } from './facing';
 
 /** Where a world heading points on screen (board units: x right, y down): the camera squashes depth by SQUASH. */
@@ -115,5 +116,48 @@ describe('3D unit facing', () => {
     const now = turnTo(REST_TURN, 1, 0, 0, 300);
     expect(yawAt(now, 0), 'reduced motion: at once').toBe(1);
     expect(turning(now, 0)).toBe(false);
+  });
+});
+
+describe('queued turns', () => {
+  test('aims sent together are started in order, each when the one before is round', () => {
+    let f = REST_FACING;
+    f = queueTurn(f, 1, 0, AIM_TURN_MS, 0);
+    f = queueTurn(f, 2, 0, AIM_TURN_MS, 120);
+    f = queueTurn(f, -2.5, 0, AIM_TURN_MS, 240);
+    expect(facingYaw(f, AIM_TURN_MS)).toBeCloseTo(1, 12);
+    expect(facingYaw(f, 2 * AIM_TURN_MS)).toBeCloseTo(2, 12);
+    expect(wrap(facingYaw(f, 3 * AIM_TURN_MS))).toBeCloseTo(-2.5, 12);
+    expect(facingBusy(f, 100)).toBe(true);
+    // The last turn went the short way: from 2 to -2.5 through pi.
+    let most = 0;
+    for (let t = 2 * AIM_TURN_MS; t <= 3 * AIM_TURN_MS; t += 5) most = Math.max(most, Math.abs(wrap(facingYaw(f, t))));
+    expect(most).toBeGreaterThan(3);
+    const done = settle(f, 1000);
+    expect(done.queue).toEqual([]);
+    expect(facingBusy(done, 1000)).toBe(false);
+  });
+
+  test('a later aim waits for a turn under way, and a turn now drops what waits', () => {
+    const moving = turnNow(REST_FACING, 1, 0, TURN_MS);
+    const aimed = queueTurn(moving, -1, 0, AIM_TURN_MS, 0);
+    expect(facingYaw(aimed, TURN_MS)).toBeCloseTo(1, 12);
+    expect(facingYaw(aimed, TURN_MS + AIM_TURN_MS)).toBeCloseTo(-1, 12);
+    const moved = turnNow(aimed, 0.5, 10, 0);
+    expect(moved.queue).toEqual([]);
+    expect(facingYaw(moved, 10_000)).toBeCloseTo(0.5, 12);
+  });
+
+  test('with no time to turn, each aim still waits for its moment and then turns at once', () => {
+    let f = queueTurn(REST_FACING, 1, 0, 0, 0);
+    f = queueTurn(f, 2, 0, 0, 120);
+    expect(facingYaw(f, 0)).toBe(1);
+    expect(facingYaw(f, 119)).toBe(1);
+    expect(facingYaw(f, 120)).toBe(2);
+  });
+
+  test('a unit seen again is held at its last facing', () => {
+    expect(facingYaw(heldAt(2), 0)).toBe(2);
+    expect(facingBusy(heldAt(2), 0)).toBe(false);
   });
 });

@@ -30,7 +30,7 @@ test('heal and gold numbers have their own tones', () => {
 });
 
 test('a fall draws the fallen unit in its owner\'s colour where it stood', () => {
-  const html = draw([{ kind: 'fall', unitType: 'warrior', owner: 1, at: '1,0', delay: 0 }]);
+  const html = draw([{ kind: 'fall', unit: 9, unitType: 'warrior', owner: 1, at: '1,0', delay: 0 }]);
   expect(html).toContain('fx-fall');
   expect(html).toContain('#2D6DB5'); // the Mongol blue
   expect(html).not.toContain('#B3261E');
@@ -39,7 +39,7 @@ test('a fall draws the fallen unit in its owner\'s colour where it stood', () =>
 test('a burst is a small flash on its tile; a lunge draws nothing of its own', () => {
   const html = draw([
     { kind: 'burst', at: '0,0', tone: 'capture', delay: 0 },
-    { kind: 'lunge', unit: 3, toward: '1,0', delay: 0 },
+    { kind: 'lunge', unit: 3, from: '0,0', toward: '1,0', delay: 0 },
   ]);
   expect(html).toContain('fx-burst fx-capture');
   expect((html.match(/class="fx-/g) ?? []).length).toBe(1);

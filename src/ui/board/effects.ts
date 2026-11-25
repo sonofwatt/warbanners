@@ -4,8 +4,8 @@ import type { GameEvent, HexKey, MatchState, PlayerId, UnitTypeId } from '../../
 
 export type Effect =
   | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number; ms?: number }
-  | { kind: 'lunge'; unit: number; toward: HexKey; delay: number }
-  | { kind: 'fall'; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
+  | { kind: 'lunge'; unit: number; from: HexKey; toward: HexKey; delay: number }
+  | { kind: 'fall'; unit: number; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
   | { kind: 'burst'; at: HexKey; tone: 'build' | 'capture' | 'level' | 'treasure'; delay: number };
 
 export const EFFECT_MS = 450;
@@ -93,7 +93,7 @@ export function effectsFor(
         const from = unitPos(e.unit);
         const to = unitPos(e.target);
         // A lunge shows both tiles, so it needs both to be visible.
-        if (seen(from) && seen(to) && known(e.unit) && known(e.target)) mine.push({ kind: 'lunge', unit: e.unit, toward: to, delay });
+        if (seen(from) && seen(to) && known(e.unit) && known(e.target)) mine.push({ kind: 'lunge', unit: e.unit, from, toward: to, delay });
         if (seen(to) && known(e.target)) mine.push({ kind: 'number', at: to, text: `-${e.damage}`, tone: 'hurt', delay });
         if (e.counter > 0 && seen(from) && known(e.unit)) {
           mine.push({ kind: 'number', at: from, text: `-${e.counter}`, tone: 'hurt', delay: delay + COUNTER_MS });
@@ -113,7 +113,7 @@ export function effectsFor(
       case 'died': {
         const u = before.units.find((x) => x.id === e.unit);
         const at = unitPos(e.unit);
-        if (u && at && known(u.id)) mine.push({ kind: 'fall', unitType: u.type, owner: u.owner, at, delay });
+        if (u && at && known(u.id)) mine.push({ kind: 'fall', unit: u.id, unitType: u.type, owner: u.owner, at, delay });
         break;
       }
       case 'ability': {

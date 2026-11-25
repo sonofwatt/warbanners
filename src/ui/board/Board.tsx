@@ -42,13 +42,21 @@ export interface BoardProps {
   terrain3d?: boolean;
   // A sheet, menu or dialog covers the board: the 3D board's idle animation pauses until it is gone.
   covered?: boolean;
-  // The attacks of the action just shown (its lunges, with their delays): each new seq turns the 3D figure of each
-  // attacker to face its target. UI only; moves and hunkers are seen in the scene itself.
+  // The attacks of the action just shown (its lunges, with their delays) and the units it killed: each new seq turns
+  // the 3D figure of each attacker to face its target, in order, and forgets the facings of the dead. UI only; moves
+  // and hunkers are seen in the scene itself.
   attacks?: BoardAttacks | null;
 }
 
-/** One action's attacks, for the 3D figures' facing: who attacks which tile, and when its lunge starts (ms from now). */
-export interface BoardAttacks { seq: number; list: readonly { unit: number; toward: HexKey; delay: number }[] }
+/**
+ * One action's attacks, for the 3D figures' facing: who attacks which tile from which, and when its lunge starts (ms
+ * from now); and the ids of the units it killed.
+ */
+export interface BoardAttacks {
+  seq: number;
+  list: readonly { unit: number; from: HexKey; toward: HexKey; delay: number }[];
+  fallen?: readonly number[];
+}
 
 /** The screen the board assumes before it has been measured, and in Node. */
 export const ASSUMED_VIEWPORT: Viewport = { w: 412, h: 915 };
@@ -596,8 +604,9 @@ export function Board(p: BoardProps): ReactElement {
     const now = performance.now();
     for (const a of attacks.list) {
       const to = hexToBoard(a.toward);
-      t.units.aim(a.unit, to.x, to.y, now, now + a.delay);
+      t.units.aim(a.unit, to.x, to.y, now, now + a.delay, hexToBoard(a.from));
     }
+    t.units.forget(attacks.fallen ?? []);
     if (t.units.turning(now)) followUnits();
   }, [attacks, units3d, followUnits]);
   // Effects (a lunge, a fall) start in their own layout effects, which run before this one.

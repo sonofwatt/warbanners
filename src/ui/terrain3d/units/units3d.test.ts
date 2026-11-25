@@ -314,14 +314,71 @@ describe('the 3D unit figures', () => {
       expect(near(frontsOf('warrior').aim + yawOf(g2), Math.PI / 2)).toBeLessThan(1e-9);
     });
 
-    test('a unit that leaves the scene and comes back is in its rest facing again', () => {
+    test('a unit that goes out of sight and is seen again faces as it did; one that died, or a fresh board, is at rest', () => {
+      const u = make();
+      u.setUnits([unit(1, { x: 0, y: 0 }), unit(2, { x: 40, y: 0 })], 0);
+      u.setUnits([unit(1, { x: 0, y: -40 }), unit(2, { x: 40, y: -40 })], 0);
+      u.tick(1000, 0);
+      const was = yawOf(figures(u)[0]!);
+      expect(near(was, 0)).toBeGreaterThan(1);
+      u.setUnits([], 1100); // both out of sight
+      u.forget([2]); // and unit 2 died there
+      // Unit 1 is seen again somewhere else: it keeps the facing it was last seen with.
+      u.setUnits([unit(1, { x: 80, y: 0 }), unit(2, { x: 40, y: -40 })], 5000);
+      expect(u.turning(5000)).toBe(false);
+      u.tick(6000, 0);
+      const [a, b] = figures(u) as [Group, Group];
+      expect(near(yawOf(a), was)).toBeLessThan(1e-9);
+      expect(near(yawOf(b), 0), 'a forgotten id starts at rest').toBeLessThan(1e-9);
+      // A new board (a reload, the option toggled) knows nothing of it.
+      const v = make();
+      v.setUnits([unit(1, { x: 80, y: 0 })], 0);
+      v.tick(10, 0);
+      expect(near(yawOf(figures(v)[0]!), 0)).toBeLessThan(1e-9);
+    });
+
+    test('a chain of attacks in one action faces each target in its turn, in order', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      const targets: [number, number][] = [[40, 0], [0, 40], [-40, 0]];
+      // As the board sends them: all at once, with the lunges' delays.
+      targets.forEach(([x, y], i) => u.aim(1, x, y, 1000, 1000 + 120 * i));
+      const facesTarget = (i: number): number => near(frontsOf('knight').aim + yawOf(g), Math.atan2(targets[i]![0], targets[i]![1] / SQUASH));
+      const seen = new Set<number>();
+      let order: number[] = [];
+      for (let t = 1000; t <= 1600; t += 10) {
+        u.tick(t, 0);
+        for (let i = 0; i < 3; i++) if (facesTarget(i) < 1e-6 && !seen.has(i)) { seen.add(i); order = [...order, i]; }
+        if (t === 1000 + AIM_TURN_MS) expect(facesTarget(0), 'the first is faced as its lunge plays').toBeLessThan(1e-9);
+      }
+      expect(order).toEqual([0, 1, 2]);
+      u.tick(3000, 0);
+      expect(facesTarget(2), 'and the last one is kept').toBeLessThan(1e-9);
+      expect(u.turning(3000)).toBe(false);
+    });
+
+    test('an attack that is followed by an advance aims from where it lunged, not from where it ends up', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 0 })], 0);
+      const g = figures(u)[0]!;
+      // The action: it attacks the tile below, the target dies and it advances into it. The board sees the move
+      // first (its scene), then the attack from the old point.
+      u.setUnits([unit(1, { type: 'knight', x: 0, y: 40 })], 1000);
+      u.aim(1, 0, 40, 1000, 1000, { x: 0, y: 0 });
+      u.tick(1080, 0);
+      u.tick(2000, 0);
+      expect(near(frontsOf('knight').aim + yawOf(g), 0), 'facing its target, down the screen').toBeLessThan(1e-9);
+    });
+
+    test('a move drops any aims still waiting', () => {
       const u = make();
       u.setUnits([unit(1, { x: 0, y: 0 })], 0);
-      u.setUnits([unit(1, { x: 0, y: -40 })], 0);
-      u.setUnits([], 10);
-      u.setUnits([unit(1, { x: 0, y: -40 })], 5000);
-      u.tick(6000, 0);
-      expect(near(yawOf(figures(u)[0]!), 0)).toBeLessThan(1e-9);
+      const g = figures(u)[0]!;
+      u.aim(1, 40, 0, 0, 500);
+      u.setUnits([unit(1, { x: 0, y: 40 })], 100);
+      u.tick(2000, 0);
+      expect(near(frontsOf('warrior').move + yawOf(g), 0)).toBeLessThan(1e-9);
     });
 
     test('with reduced motion a turn is made at once', () => {

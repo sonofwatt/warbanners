@@ -179,11 +179,12 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer),
     };
   }, [last, state, viewer]);
-  // The same action's attacks, for the 3D figures' facing (each attacker turns to its target).
+  // The same action's attacks and deaths, for the 3D figures' facing (each attacker turns to its target).
   const attacks = useMemo((): BoardAttacks | null => {
     if (fx === null) return null;
-    const list = fx.list.flatMap((f) => (f.kind === 'lunge' ? [{ unit: f.unit, toward: f.toward, delay: f.delay }] : []));
-    return list.length === 0 ? null : { seq: fx.seq, list };
+    const list = fx.list.flatMap((f) => (f.kind === 'lunge' ? [{ unit: f.unit, from: f.from, toward: f.toward, delay: f.delay }] : []));
+    const fallen = fx.list.flatMap((f) => (f.kind === 'fall' ? [f.unit] : []));
+    return list.length === 0 && fallen.length === 0 ? null : { seq: fx.seq, list, fallen };
   }, [fx]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   useEffect(() => {
