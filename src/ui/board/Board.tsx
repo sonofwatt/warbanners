@@ -8,10 +8,12 @@ import { ACCENT, playerColour } from '../art/palette';
 import { Border, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { StatusOverlay } from '../art/units';
-import { cameraBetween, centreOn, easeInOut, followAction, keepCorner, panMs, refit, screenToBoard, startCamera, panBy, zoomAt } from './camera';
-import type { Camera, Viewport } from './camera';
+import {
+  cameraBetween, centreOn, easeInOut, followAction, keepCorner, keepInView, NO_INSETS, panMs, refit, screenToBoard, slackFor, startCamera, panBy, zoomAt,
+} from './camera';
+import type { Camera, Insets, Viewport } from './camera';
 import { prefersReducedMotion } from './Effects';
-import { boardBounds, hexToBoard, R, SQUASH, THICK } from './layout';
+import { boardBounds, hexToBoard, R, SQUASH, THICK, tileBox } from './layout';
 import type { Box, Pt } from './layout';
 import { pick } from './scene';
 import type { SceneItem, SceneTile, SceneUnit } from './scene';
@@ -47,6 +49,11 @@ export interface BoardProps {
   // the 3D figure of each attacker to face its target, in order, and forgets the facings of the dead. UI only; moves
   // and hunkers are seen in the scene itself.
   attacks?: BoardAttacks | null;
+  // What a panel lying over the board covers of it now (the unit card at the bottom in portrait, the side column in
+  // landscape), read when the board decides where to look. The slot keeps its size while panels open and close, so
+  // only this tells the camera what the player cannot see. `coverN` changes each time that may have changed.
+  cover?: () => Insets;
+  coverN?: number;
 }
 
 /**
@@ -289,12 +296,19 @@ const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.
 const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
- * After the slot has changed size with something selected: the view follows the selected tile by the dead-zone rule
- * (camera.ts followAction), so it does not move while the selection stays in the middle of the slot.
+ * After the slot has changed size (a rotation, a window or browser bar resize) with something selected: the view
+ * follows the selected tile by the dead-zone rule (camera.ts followAction), measured in the part of the slot no
+ * panel covers, so it does not move while the selection stays in the middle of what the player can see.
  */
-function keepSelection(c: Camera, vp: Viewport, bounds: Box, items: readonly SceneItem[]): Camera {
+function keepSelection(c: Camera, vp: Viewport, bounds: Box, items: readonly SceneItem[], cover: Insets): Camera {
+  const selected = selectedKey(items);
+  return selected === null ? c : followAction(c, vp, boxOf([selected])!, bounds, { cover, slack: slackFor(c, bounds, vp, cover) });
+}
+
+/** The tile ringed as selected, if any. */
+function selectedKey(items: readonly SceneItem[]): HexKey | null {
   const selected = items.find((i): i is SceneTile => i.kind === 'tile' && i.mark === 'selected');
-  return selected === undefined ? c : followAction(c, vp, boxOf([selected.key])!, bounds);
+  return selected?.key ?? null;
 }
 
 /**
@@ -341,11 +355,28 @@ export function Board(p: BoardProps): ReactElement {
   if (cam.current === null) cam.current = startCamera(hexToBoard(p.focus), bounds, vp.current);
 
   // The latest props for the event handlers, which are attached once.
-  const latest = useRef({ items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null });
+  const latest = useRef({
+    items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null, cover: p.cover,
+  });
   // A layout effect, so a resize observed in the same frame as a new selection already sees it.
   useLayoutEffect(() => {
-    latest.current = { items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null };
+    latest.current = {
+      items: p.items, radius: p.radius, onTap: p.onTap, focus: p.focus, bounds, reveal: p.reveal ?? null, centre: p.centre ?? null, cover: p.cover,
+    };
   });
+  // What the panels cover, as last read. Reading it measures the page's layout, which mid-frame forces a layout of
+  // the whole board, so it is read again only when it may have changed (a selection, the card's top changing size,
+  // a resize, a tap on Next unit or a report line); a drag, a pinch or a followed action (the AI's turn) uses it as
+  // it was.
+  const coverSeen = useRef<Insets>(NO_INSETS);
+  const coverStale = useRef(true);
+  const coverNow = useCallback((fresh = false): Insets => {
+    if (fresh || coverStale.current) {
+      coverSeen.current = latest.current.cover?.() ?? NO_INSETS;
+      coverStale.current = false;
+    }
+    return coverSeen.current;
+  }, []);
 
   // The 3D terrain, when on and loaded: it is aimed and drawn in the same frame the svg camera moves.
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -436,13 +467,14 @@ export function Board(p: BoardProps): ReactElement {
       const was = vp.current;
       if (was.w === r.width && was.h === r.height && measured.current) return;
       vp.current = { w: r.width, h: r.height };
+      coverStale.current = true;
       const { bounds: b, focus, items } = latest.current;
       const selecting = items.some((i) => i.kind === 'tile' && i.mark === 'selected');
       // Where a pan under way was going, so a new size starts from there (and the pan itself stops).
       const from = glide.current?.to ?? cam.current!;
       stopGlide();
       if (!measured.current) {
-        cam.current = startCamera(hexToBoard(focus), b, vp.current);
+        cam.current = startCamera(hexToBoard(focus), b, vp.current, coverNow());
         measured.current = true;
         if (now) write();
         else schedule();
@@ -456,11 +488,11 @@ export function Board(p: BoardProps): ReactElement {
       if (!touched.current && !selecting) {
         // Until the player pans, zooms or selects something, the camera keeps aiming at the focus: the clamp may
         // have moved the centre off it (a board shorter than the screen is centred), and a new size may let it aim closer.
-        to = startCamera(hexToBoard(focus), b, vp.current);
+        to = startCamera(hexToBoard(focus), b, vp.current, coverNow());
       } else {
         // The board stays still under the finger, and moves only as far as it must to keep the selection near the
         // middle. From here on the camera no longer aims at the focus.
-        to = keepSelection(keepCorner(from, was, vp.current, b), vp.current, b, items);
+        to = keepSelection(keepCorner(from, was, vp.current, b), vp.current, b, items, coverNow());
         touched.current = true;
       }
       if (now) write();
@@ -471,7 +503,7 @@ export function Board(p: BoardProps): ReactElement {
     const ro = new ResizeObserver(() => measure(false));
     ro.observe(el);
     return () => ro.disconnect();
-  }, [write, schedule, panTo, stopGlide]);
+  }, [write, schedule, panTo, stopGlide, coverNow]);
 
   // A new focus re-centres; a new board size re-clamps. Both skip the first render, which already did it.
   const firstFocus = useRef(true);
@@ -480,9 +512,9 @@ export function Board(p: BoardProps): ReactElement {
       firstFocus.current = false;
       return;
     }
-    panTo(startCamera(hexToBoard(p.focus), latest.current.bounds, vp.current));
+    panTo(startCamera(hexToBoard(p.focus), latest.current.bounds, vp.current, coverNow()));
     touched.current = false;
-  }, [p.focus, panTo]);
+  }, [p.focus, panTo, coverNow]);
   const firstBounds = useRef(true);
   useEffect(() => {
     if (firstBounds.current) {
@@ -490,7 +522,7 @@ export function Board(p: BoardProps): ReactElement {
       return;
     }
     stopGlide();
-    cam.current = refit(cam.current!, bounds, vp.current);
+    cam.current = refit(cam.current!, bounds, vp.current, slackFor(cam.current!, bounds, vp.current, coverSeen.current));
     schedule();
   }, [bounds, schedule, stopGlide]);
 
@@ -501,11 +533,13 @@ export function Board(p: BoardProps): ReactElement {
   useEffect(() => {
     const { reveal, bounds: b } = latest.current;
     if (revealN === 0 || reveal === null || cam.current === null || !measured.current) return;
-    const next = followAction(glide.current?.to ?? cam.current, vp.current, boxOf([reveal.at])!, b);
-    if (next === (glide.current?.to ?? cam.current)) return;
+    const from = glide.current?.to ?? cam.current;
+    const cover = coverNow(true);
+    const next = followAction(from, vp.current, boxOf([reveal.at])!, b, { cover, slack: slackFor(from, b, vp.current, cover) });
+    if (next === from) return;
     touched.current = true;
     panTo(next);
-  }, [revealN, panTo]);
+  }, [revealN, panTo, coverNow]);
 
   // A request to look at a tile (a line of the turn report): the tile goes to the middle of the slot, zoom kept.
   const centreN = p.centre?.n ?? 0;
@@ -513,8 +547,9 @@ export function Board(p: BoardProps): ReactElement {
     const { centre, bounds: b } = latest.current;
     if (centreN === 0 || centre === null || cam.current === null || !measured.current) return;
     touched.current = true;
-    panTo(centreOn(cam.current, hexToBoard(centre.at), b, vp.current));
-  }, [centreN, panTo]);
+    const cover = coverNow(true);
+    panTo(centreOn(cam.current, hexToBoard(centre.at), b, vp.current, cover, slackFor(cam.current, b, vp.current, cover)));
+  }, [centreN, panTo, coverNow]);
 
 
   const held = useGestures(svgRef, (out) => {
@@ -523,8 +558,9 @@ export function Board(p: BoardProps): ReactElement {
     stopGlide(); // the finger wins over any automatic pan
     if (c === null || !measured.current) return;
     const { bounds: b, items, radius, onTap } = latest.current;
-    if (out.kind === 'pan') cam.current = panBy(c, out.dx, out.dy, b, vp.current);
-    else if (out.kind === 'zoom') cam.current = zoomAt(c, out.factor, out.at, b, vp.current);
+    // The clamp gives room for what the panel covers, and never pulls in a view a closed panel left past the edge.
+    if (out.kind === 'pan') cam.current = panBy(c, out.dx, out.dy, b, vp.current, slackFor(c, b, vp.current, coverSeen.current));
+    else if (out.kind === 'zoom') cam.current = zoomAt(c, out.factor, out.at, b, vp.current, slackFor(c, b, vp.current, coverSeen.current));
     else {
       onTap(pick(items, screenToBoard(c, vp.current, out.at), radius));
       return;
@@ -548,11 +584,32 @@ export function Board(p: BoardProps): ReactElement {
     const box = boxOf(followTiles);
     if (box === null) return;
     const from = glide.current?.to ?? cam.current;
-    const next = followAction(from, vp.current, box, latest.current.bounds);
+    const b = latest.current.bounds;
+    const cover = coverNow();
+    const next = followAction(from, vp.current, box, b, { cover, slack: slackFor(from, b, vp.current, cover) });
     if (next === from) return;
     touched.current = true;
     panTo(next);
-  }, [followSeq, followTiles, held, panTo]);
+  }, [followSeq, followTiles, held, panTo, coverNow]);
+
+  // A new selection (or a panel that changed what it covers): the view stays exactly where it is while the selected
+  // tile, with its figure, is wholly in sight in the part of the board no panel covers, a third of a tile clear of
+  // its edges. Otherwise it eases over the least distance that brings it there. Deselecting never moves it: the
+  // panel just goes, and the board under it was there all along. After the effects above, so a Next unit or a
+  // followed action that is already panning is measured where it is going.
+  const selKey = useMemo(() => selectedKey(p.items), [p.items]);
+  const coverN = p.coverN ?? 0;
+  useEffect(() => {
+    const cover = coverNow(true);
+    if (selKey === null || cam.current === null || !measured.current || held()) return;
+    const from = glide.current?.to ?? cam.current;
+    const b = latest.current.bounds;
+    const margin = (TILE_STEP * from.scale) / 3;
+    const next = keepInView(from, vp.current, tileBox(selKey, gl ? THICK_3D : THICK), b, { cover, margin, slack: slackFor(from, b, vp.current, cover) });
+    if (next === from) return;
+    touched.current = true;
+    panTo(next);
+  }, [selKey, coverN, held, panTo, coverNow]);
 
   // The 3D terrain. three.js is only downloaded once the option is on (a dynamic import, its own chunk), and the
   // svg keeps drawing the ground until the terrain has drawn its first frame. No WebGL 2 or a chunk that cannot
