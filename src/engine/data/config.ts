@@ -116,7 +116,7 @@ export const CONFIG = deepFreeze({
     farm: { cost: 5, growth: 2, on: 'field', upgrades: null, income: 0 },
     lumberCamp: { cost: 4, growth: 2, on: 'forest', upgrades: null, income: 0 },   // rules 7: cost 4 (was 3), growth 2 (was 1)
     mine: { cost: 5, growth: 2, on: 'mountain', upgrades: null, income: 0 },
-    market: { cost: 6, growth: 2, on: 'field', upgrades: null, income: 2 },         // rules 7: growth 2 (was 1)
+    market: { cost: 6, growth: 3, on: 'field', upgrades: null, income: 2 },         // rules 9: growth 3 (2 in rules 7 and 8, 1 before)
     orchard: { cost: 5, growth: 2, on: 'field', upgrades: null, income: 0 },
     plantation: { cost: 7, growth: 3, on: 'field', upgrades: 'orchard', income: 0 },
     lumberMill: { cost: 6, growth: 3, on: 'forest', upgrades: 'lumberCamp', income: 0 },

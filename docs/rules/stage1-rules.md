@@ -146,7 +146,7 @@ and fish are harvested from the city like any other resource: no unit need stand
 | Build Foundry on a Mine, replacing it | tech `foundry` | 7 | +3 |
 | Build Farm on cropland, harvested or not | tech `farming` | 5 | +2 |
 | Build Granary on a Farm, replacing it | tech `granary` | 7 | +3 |
-| Build Market on a field with no resource, one per city | tech `granary` | 6 | +2 (+1 before rules 7), and +2 income |
+| Build Market on a field with no resource, one per city | tech `granary` | 6 | +3 (+2 in rules 7 and 8, +1 before), and +2 income |
 | Build Walls (the city itself, not Spartans) | tech `walls` | 6 | none |
 | Road, on any field or forest tile that is yours or unclaimed (not Mongols, since rules 8) | tech `riding` | 1 | none |
 
@@ -574,3 +574,5 @@ This list, the one above and the one below are the file's changelog.
 - Unhunker: a player may end a unit's hunker on their turn, for nothing and with no
   movement given back; the unit cannot hunker again that turn. The card shows an
   Unhunker button for a hunkered unit (section 11).
+- A Market gives 3 growth (was 2). Its cost (6), its +2 income and the one per city
+  are unchanged (section 6).

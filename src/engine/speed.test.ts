@@ -7,6 +7,8 @@ import { playerView } from './vision';
 
 const digest = (v: unknown) => hashState(v as MatchState);
 test.each([
+  // re-pinned for rules 9's Market growth 3 (the playouts of seeds 7 and 3 level a city differently after a Market, so
+  // their digests and legal counts moved, 183 to 239 and 90 to 69; seed 1's row is unchanged; none has ended); before that
   // re-pinned for rules 9's unhunker action (a new legal action the random playouts pick: every digest and legal count
   // moved; none of the three has ended by its row's turn); before that re-pinned for rules 9 (Spartan cities need 2
   // growth to leave level 1, the level 2 gold reward is 5: every digest and legal count moved; none of the three has ended by its row's turn, so the rows keep their turns); before that
@@ -36,9 +38,9 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 130, 183, '24d46ed35a84de62', '3992ab2b0f358f5a', 'e3616d6c6b4adc91'],
+  [7, 130, 239, 'dfa97276d7b13ca7', '160f16021f092035', 'c90a800ab73f1799'],
   [1, 75, 88, 'f940e2c853d55841', '3c660be5f23e34ca', '874e7da8c482a30b'],
-  [3, 90, 90, 'fa599dbd6562ee40', '8559d42c6cff49f3', '294f05d0ce55f58f'],
+  [3, 90, 69, '09de0efe5a8b2165', '982b8b666caca355', '949de6d37d9645b4'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);
