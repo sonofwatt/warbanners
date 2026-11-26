@@ -15,6 +15,7 @@
 // Idle life goes on while crouched, smaller. A strike or a block plays on top of the guard (units3d.ts adds them).
 import { ARM_L, ARM_R, BOW, FEET, LEGS, NECK, RIDER, SHIELD, WEAPON, WEAPON2 } from './figures';
 import type { UnitType } from './figures';
+import { THIGHS } from './hoplite3d';
 import type { V3 } from './kit';
 
 /** How long the crouch takes to ease in or out (ms). */
@@ -126,8 +127,25 @@ const GUARDS: Record<UnitType, Guard> = {
   camp: { drop: 0, lean: 0, squash: 0.04, idle: 0.45, arm: 0, pieces: {} },
 };
 
-export function guardOf(type: UnitType): Guard {
-  return GUARDS[type];
+/**
+ * Gritty's realistic Hoplite (hoplite3d.ts) has real legs: it sinks less, the thighs turn forward about the hips and
+ * the shins back about the ankles so the knees bend over the feet, the shield comes across in front and the spear
+ * slides up through the hand so its butt stays on the ground.
+ */
+const REAL_DROP = 5;
+const REAL_GUARDS: Partial<Record<UnitType, Guard>> = {
+  hoplite: {
+    ...foot({
+      [THIGHS]: { angle: -0.7, shift: NONE },
+      [SHIELD]: { angle: 0.12, shift: [3.2, 1.6, 2.4] },
+      [WEAPON]: spearUp(REAL_DROP, 0.12, -0.6),
+    }, { drop: REAL_DROP, lean: 0.12, knees: 0.72, toes: 0 }),
+  },
+};
+
+/** A figure's guard; `real` for the Gritty realistic figure of its type. */
+export function guardOf(type: UnitType, real = false): Guard {
+  return (real ? REAL_GUARDS[type] : undefined) ?? GUARDS[type];
 }
 
 /** The crouch of one unit: easing from `from` to `to` (0 standing, 1 crouched) over `ms` from `at`. */

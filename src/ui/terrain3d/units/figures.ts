@@ -1,7 +1,7 @@
 // The 17 unit figures in 3D, one builder each, from the SVG figures' own shapes and coordinates (art/units.tsx and
 // art/factionUnits.tsx): x as on screen, heights through H(svgY) so every part lands where the SVG draws it.
-// Every builder takes the owner's look and a Wear and returns one model. The game passes CLEAN: wear is for Gritty
-// mode, which is not on main, so on main the wear branches are never taken (they stay so Gritty can switch them on).
+// Every builder takes the owner's look and a Wear and returns one model. Bright passes CLEAN; Gritty passes each
+// unit's own battle wear, and builds the realistic Hoplite (hoplite3d.ts) in place of the toon one.
 import { Vector3 } from 'three';
 import { flat, H, Kit, mix } from './kit';
 import type { BuiltFigure, Surface, V3 } from './kit';
@@ -13,14 +13,22 @@ import {
   STEEL_DARK, STONE, STRING, sword, tearPolys, TUNIC, tunicSurf, tunicWear, viewSphere, VISOR, WOOD, WOOD_DARK, worn,
 } from './parts';
 import type { Cut, Look, Wear } from './parts';
+import { realHoplite } from './hoplite3d';
 
 export type UnitType =
   | 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult' | 'sellsword'
   | 'hoplite' | 'kingsGuard' | 'piper' | 'scout' | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp';
 
-export interface FigureOpts { look: Look; wear: Wear; hero?: boolean }
-/** A built figure plus the size of its ground shadow (an ellipse at the feet, in world units). */
-export interface Figure extends BuiltFigure { shadow: { rx: number; rz: number; x: number } }
+/** `gritty`: the Gritty art style, which has its own realistic figures for some types (so far the Hoplite). */
+export interface FigureOpts { look: Look; wear: Wear; hero?: boolean; gritty?: boolean }
+/**
+ * A built figure plus the size of its ground shadow (an ellipse at the feet, in world units). `real`: a Gritty
+ * realistic figure, smooth shaded and drawn with the Gritty light; the rest are the toon figures.
+ */
+export interface Figure extends BuiltFigure { shadow: { rx: number; rz: number; x: number }; real: boolean }
+
+/** The unit types that have a realistic figure in Gritty. */
+export const REAL_TYPES: ReadonlySet<UnitType> = new Set<UnitType>(['hoplite']);
 
 /** How far the figures turn toward the right of the screen: a three-quarter view, so they read as solid. */
 export const STAND_YAW = 0.38;
@@ -891,9 +899,10 @@ export const FIGURES: Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; 
 export function buildFigure(type: UnitType, o: FigureOpts): Figure {
   const k = new Kit();
   if (o.hero) heroMark(k, o.look.accent);
-  const shadow = FIGURES[type](k, o);
+  const real = o.gritty === true && REAL_TYPES.has(type);
+  const shadow = real ? realHoplite(k, o) : FIGURES[type](k, o);
   setYaw(0);
-  return { ...k.build(), shadow };
+  return { ...k.build(), shadow, real };
 }
 
 export const ALL_TYPES: readonly UnitType[] = Object.keys(FIGURES) as UnitType[];

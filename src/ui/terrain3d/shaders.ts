@@ -252,9 +252,38 @@ vec3 shade(vec3 c) { return mix(c, mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))
 #else
 vec3 shade(vec3 c) { return c; }
 #endif
+// Gritty's figures (units/units3d.ts) define GRITTY_MUTE: their colours a little less saturated and a touch darker,
+// to sit in the overcast board. The realistic ones (units/hoplite3d.ts) also define GRITTY_LIGHT: no toon bands but a
+// soft, low overcast key from the upper left, a cool sky fill and a warm bounce from the ground, a broad sheen on
+// bronze and iron, and a faint cool rim so the figure stands off the ground; their outline is thin and very dark.
+#ifdef GRITTY_MUTE
+vec3 mute(vec3 c) { return mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, 0.78) * 0.9; }
+#else
+vec3 mute(vec3 c) { return c; }
+#endif
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
 void main() {
-  if (uIsOutline) { gl_FragColor = vec4(shade(finish(vColor * vec3(0.30, 0.32, 0.36), vVeil)), ALPHA); return; }
+#ifdef GRITTY_LIGHT
+  if (uIsOutline) { gl_FragColor = vec4(shade(finish(mute(vColor) * vec3(0.12, 0.12, 0.13), vVeil)), ALPHA); return; }
+  vec3 gn = normalize(vNormal);
+  if (!gl_FrontFacing) gn = -gn;
+  vec3 gKey = normalize(vec3(-0.72, 0.5, 0.48));
+  vec3 gView = normalize(vec3(0.0, 0.62, 0.785));
+  float gd = dot(gn, gKey);
+  // A wrapped, soft key (no bands): full on the faces toward it, easing into the fill well past the terminator.
+  float gDiff = smoothstep(-0.35, 1.0, gd);
+  gDiff *= gDiff * (3.0 - 2.0 * gDiff);
+  vec3 gAmb = mix(vec3(0.24, 0.21, 0.19), vec3(0.33, 0.38, 0.47), gn.y * 0.5 + 0.5);
+  vec3 gAlb = mute(vColor) * (0.96 + 0.08 * noise(vWorld.xz * 0.9 + vWorld.y * 0.45));
+  vec3 gLit = gAlb * (gAmb + vec3(1.0, 0.92, 0.80) * 1.05 * gDiff);
+  float gSpec = pow(max(dot(reflect(-gKey, gn), gView), 0.0), 16.0);
+  gLit += vec3(1.0, 0.9, 0.74) * max(vGloss, 0.0) * gSpec * 0.6;
+  float gRim = pow(1.0 - max(dot(gn, gView), 0.0), 3.0);
+  gLit += vec3(0.5, 0.58, 0.7) * gRim * 0.1;
+  gl_FragColor = vec4(shade(finish(gLit, vVeil)), ALPHA);
+  return;
+#endif
+  if (uIsOutline) { gl_FragColor = vec4(shade(finish(mute(vColor) * vec3(0.30, 0.32, 0.36), vVeil)), ALPHA); return; }
   vec3 n = normalize(vNormal);
   float band = toon(n);
   if (vGloss < 0.0) {
@@ -263,7 +292,7 @@ void main() {
     float d = dot(n, uLightDir);
     band = 0.5 * smoothstep(0.12, 0.16, d) + 0.5 * smoothstep(0.5, 0.54, d);
   }
-  vec3 col = vColor * (0.95 + 0.1 * noise(vWorld.xz * 0.6 + vWorld.y * 0.3));
+  vec3 col = mute(vColor) * (0.95 + 0.1 * noise(vWorld.xz * 0.6 + vWorld.y * 0.3));
   vec3 lit = lightUp(col, band);
   // A hard glint on glossy parts (ore crystals, fruit): toon specular.
   vec3 view = normalize(vec3(0.0, 0.62, 0.785));

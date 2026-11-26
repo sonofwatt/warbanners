@@ -32,7 +32,11 @@ interface Part {
   piece: string | null;
 }
 
-export interface PartOpts { gloss?: number; hull?: number }
+export interface PartOpts {
+  gloss?: number; hull?: number;
+  /** Keep the geometry's own normals (smooth shading, the Gritty realistic figures); solids are faceted otherwise. */
+  smooth?: boolean;
+}
 
 /** A part of a figure that moves on its own, about a pivot: its geometry is in figure space, as built. */
 export interface BuiltPiece {
@@ -106,7 +110,7 @@ export class Kit {
     const g = geo.index ? geo.toNonIndexed() : geo;
     if (g !== geo) geo.dispose();
     g.applyMatrix4(this.mat);
-    this.parts.push({ geo: g, colour: new Color(colour), gloss: o.gloss ?? 0, hull: o.hull ?? 1, ownNormals, piece: this.piece });
+    this.parts.push({ geo: g, colour: new Color(colour), gloss: o.gloss ?? 0, hull: o.hull ?? 1, ownNormals: ownNormals || o.smooth === true, piece: this.piece });
   }
 
   // ---- solids ----
@@ -229,8 +233,11 @@ export class Kit {
       const n = pos.count;
       triangles += n / 3;
       const cols = new Float32Array(n * 3), gl = new Float32Array(n), out = new Float32Array(n * 3);
+      // A part may bring its own per-corner colour (a cloak's dirty hem, shade in a fold): it tints the part's colour.
+      const own = g.attributes.color;
       for (let i = 0; i < n; i++) {
-        cols[i * 3] = p.colour.r; cols[i * 3 + 1] = p.colour.g; cols[i * 3 + 2] = p.colour.b;
+        const [tr, tg, tb] = own === undefined ? [1, 1, 1] : [own.getX(i), own.getY(i), own.getZ(i)];
+        cols[i * 3] = p.colour.r * tr; cols[i * 3 + 1] = p.colour.g * tg; cols[i * 3 + 2] = p.colour.b * tb;
         gl[i] = p.gloss;
       }
       if (p.hull > 0) {
