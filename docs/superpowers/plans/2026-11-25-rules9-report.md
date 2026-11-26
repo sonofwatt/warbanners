@@ -164,7 +164,7 @@ commit 32c0bd9). The rules 3 provenance replays already mock it (1). Alone it mo
 hard and 26.8 to 27.5% at normal (Spartans build 1 to 2 Markets a match, Mongols under half of one). Every tuning
 run below has it in.
 
-## Tuning the Spartans back
+## Tuning the Spartans back (the two-lever form, superseded by the head start below)
 
 Since the cause is the rules, not the AI, no AI change was kept: the two planner variants above moved nothing, and
 the narrow one cost the Spartans 10 points on rules 8 growth (53.0 to 42.8% hard). Levers tried, Spartans only,
@@ -201,7 +201,7 @@ A Spartan city now needs 2 to leave level 1, then (with the 1 given) 1 more to l
 gathered from level 1 to level 5, against 10 in rules 8 and 11 in rules 9 before this pass (Mongols 14). So the
 Spartans are slower than rules 8 for the first level and faster after it.
 
-### Final sims (rules 9 with the Market, r2g and g3)
+### Final sims of the two-lever form (rules 9 with the Market, r2g and g3)
 
 | Seeds | Level | Spartans | Mongols | Seat 1 / seat 2 | Stalls | Median rounds | Cities at the end (Sp / Mo) |
 |---|---|---|---|---|---|---|---|
@@ -251,3 +251,88 @@ Checks on the final code (each heavy suite under the shared lock): `npx tsc -b` 
 `npx vitest run` 126 files passed, 22 skipped (1307 tests passed, 124 skipped); `SLOW=1 npx vitest run src/ai` 12
 files, 137 tests passed, the adaptive check included (here and on the sim worker); `GITHUB_PAGES_BASE=/warbanners/
 npx vite build` fine; `npm run test:browser` AI 6 passed, then 50 passed and 2 skipped.
+
+## The Spartan head start (David's decision, 2026-11-25)
+
+David on the two levers: "Instead of an extra growth point, why not just reduce the level 3 growth cost?" A costs-only
+form followed (Spartan `growthExtra` -2 from level 2: 2, 1, 2, 3, 4; commit f078936, not simmed), then his decision:
+"Have the Spartans growth cost the same as others but give their capital a head start." So the two levers above are
+gone, and with them every Spartan growth discount:
+
+- Spartan `growthExtra` 0: every city needs `L+1` to leave level `L` (2, 3, 4, 5). `CONFIG.growthExtraFrom` stays at
+  2 (it changes nothing now; the rules 3 provenance replays set it to 1).
+- `capitalStartGrowth: 3` (faction data, Mongols 0): the Spartan capital starts the match with 3 growth banked.
+  `createMatch` sets it directly, not through `addGrowth`, so the capital stays level 1 with no reward at the start
+  even though 3 fills its bar of 2; the first growth its owner adds (a harvest, a building, a connection) levels it,
+  with the spare carried into level 2. Every engine call of `addGrowth` is an action, so nothing levels it between
+  turns (economy.test.ts checks both).
+- `extraStartTechs: ['foraging']` (faction data, Mongols none): the Spartans know Foraging from the start as well as
+  Prospecting. This is the one extra lever: the head start alone did not reach the targets, and Foraging answers
+  the cause found above (Prospecting harvests 0.11 resources on average near the capital, Foraging's orchards 0.89).
+  It is a tech, not a growth discount.
+
+Levers tried on this form, seed 1, 200 matches each, Spartans / Mongols (Market 3 in every row):
+
+| Spartan growthExtra 0 and | Hard | Normal |
+|---|---|---|
+| capital head start 1 | 29.3 / 67.5 | 31.8 / 64.5 |
+| head start 2 | 35.0 / 62.3 | 35.0 / 61.0 |
+| head start 3 | 38.8 / 58.3 | 45.8 / 50.0 |
+| head start 2 and Spears from the start | 29.8 / 66.3 | 32.8 / 62.3 |
+| head start 2 and Foraging from the start | 41.0 / 56.0 | 42.3 / 52.5 |
+| **head start 3 and Foraging from the start (kept)** | **46.5 / 51.0** | **49.0 / 46.8** |
+
+Head start 3 is one more than the brief's "1, then 2": 2 left both levels near 35 alone and near 41 with Foraging.
+Spears from the start (it saves the 6 gold they spend on turn 0) did nothing.
+
+### Final sims (head start 3 and Foraging), next to the earlier forms
+
+| Seeds | Level | Head start | Seats | Stalls | Median | Cities Sp / Mo | Two levers (r2g, g3) |
+|---|---|---|---|---|---|---|---|
+| 1 to 100 | hard | 46.5 / 51.0 | 45.0 / 52.5 | 5.0% | 34 | 3.75 / 3.94 | 43.0 / 54.0 |
+| 1 to 100 | normal | 49.0 / 46.8 | 47.5 / 48.3 | 8.5% | 39 | 4.07 / 3.67 | 44.8 / 51.0 |
+| 1001 to 1100 | hard | 52.3 / 46.0 | 54.8 / 43.5 | 3.5% | 34 | 4.09 / 3.64 | 46.5 / 51.7 |
+| 1001 to 1100 | normal | 53.5 / 43.0 | 49.5 / 47.0 | 7.0% | 38 | 4.24 / 3.48 | 50.0 / 48.3 |
+
+Over 400 matches: hard 49.4 / 48.5, stalls 4.3%; normal 51.3 / 44.9, stalls 7.8%. Hard is centred; normal is a touch
+Spartan, the Mongols 0.1 under 45 over the 400 (46.8 and 43.0 on the two sets). Seats are within 3.5 points on three
+runs and 11 on seed 1001 hard (first seat ahead), as the two-lever form showed on that same run. The kept variant was
+measured as a patched copy; the committed code (faction data, `startTechs` in the engine index, the AI's belief of a
+rival's start techs) gives byte-identical simai output on 4 hard matches checked.
+
+### Re-pins and tests for this form
+
+- Fingerprint `3747e0372e1e9fa6`; the `speed.test.ts` rows (390 to 140, 74 to 183, 69 to 93 legal actions; none has
+  ended); the 25-unit position, now `(1, 80)` with 174 legal actions, in the speed, `ai/plan` and `browser/ai` tests.
+- Growth counts in the economy, connect, capital and `withGrowth` tests (the common pace); `state.test.ts` (the
+  Spartans start with Prospecting and Foraging, the capital with 3 growth); the UI tests that read seed 7 or 42's
+  opening (research list, tech rows, the orchard harvest now enabled, the capital's growth shown as 3/2, the tech
+  sheet's research buttons).
+- `ai/assess.test.ts`'s moveScore identity moved from `(3, 90)` to `(3, 88)`: at (3, 90) some long Knight moves now
+  differ by whole points, as they already did at (9, 90) before this change (moveScore's own approximation).
+- `browser/overlay.test.ts` is back on seed 7: one orchard harvest now levels the capital (the head start of 3 fills
+  the bar of 2), so the reward choice opens on turn 1 again.
+- Provenance: the two rules 3 files mock `capitalStartGrowth` 0 and `extraStartTechs` [] for the Spartans and replay
+  hash for hash; the rules 6 and 7 files pass unchanged.
+
+- `character.test.ts` (SLOW): all 32 seeded matches end within 60 rounds, at normal for the first time this branch
+  (`KNOWN_NORMAL` now empty; '4 spartans', the deadlock of the two-lever form, ends in 29 with the Mongols winning; the
+  longest, '7 spartans', in 53). Hard: all 16 end, the longest '6 spartans' in 54.
+- The adaptive check (`sim.test.ts`, SLOW) fails: seeds 8 and 14 read 0.559 and -0.004 (both must be above 0). Over
+  start seeds 1 to 16 the gaps are 0.144, 0.303, 0.753, 0.012, 0.278, 0.045, 0.656, 0.559, 0.435, 0.719, -0.263,
+  -0.732, -0.575, -0.004, -0.054, 0.619: mean 0.181 (the bound is 0.15) with 11 of 16 above 0 (the bound is 12), so
+  the 16-seed reading misses by one seed. Not re-picked, as the brief says; seed 14's dial ends where it started.
+  Everything else in `SLOW=1 npx vitest run src/ai` passes.
+
+### Open for this form
+
+- The Spartan capital's card reads "3/2" growth for its first turn (the banked head start is above its bar until it
+  levels). Correct by the rule, but it may read as a bug; the bar could cap its display or the card could say
+  "levels on its next growth".
+- Normal leans Spartan by about 3 points over 400 (Mongols 44.9).
+- The adaptive check, above: one seed short of its 16-seed bound and red on its two seeds.
+
+Checks on the final code (head start 3 and Foraging), each heavy suite under the shared lock: `npx tsc -b` and
+`npm run lint` clean; `npx vitest run` 126 files passed, 22 skipped (1308 tests passed, 124 skipped);
+`GITHUB_PAGES_BASE=/warbanners/ npx vite build` fine; `npm run test:browser` AI 6 passed, then 50 passed and 2
+skipped; `SLOW=1 npx vitest run src/ai` 136 of 137 passed, the adaptive check failing as above.
