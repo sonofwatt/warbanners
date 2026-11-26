@@ -336,3 +336,51 @@ Checks on the final code (head start 3 and Foraging), each heavy suite under the
 `npm run lint` clean; `npx vitest run` 126 files passed, 22 skipped (1308 tests passed, 124 skipped);
 `GITHUB_PAGES_BASE=/warbanners/ npx vite build` fine; `npm run test:browser` AI 6 passed, then 50 passed and 2
 skipped; `SLOW=1 npx vitest run src/ai` 136 of 137 passed, the adaptive check failing as above.
+
+## Rules 9 as released: a level 2 Spartan capital (David's final decision, 2026-11-25)
+
+David: "Let's have the Spartans start on level 2, and all levels from there are 1 point cheaper. Ship it. We'll
+balance test later." This replaces every tuning form above; the head start (`capitalStartGrowth`), Foraging from the
+start (`extraStartTechs`, `startTechs`) and the two levers are all gone, and the Spartans start with Prospecting only,
+as in rules 8.
+
+- New faction field `capitalStartLevel` (Spartans 2, Mongols 1). `createMatch` sets the capital's level directly
+  after founding it: no level-up happens, so no level 2 reward is queued. Income (level + capital = 3), unit capacity
+  (level + 1 = 3) and the growth need follow the level as for any city; the territory radius stays 1 (only the
+  borders reward changes it) and sight does not depend on level. The AI reads all of this from the state.
+- Spartan `growthExtra` -1 from `CONFIG.growthExtraFrom` 2, as in this branch's first rules 9 commit: a new Spartan
+  city needs 2 to leave level 1 like anyone's, then `L` to leave level `L` (2, 3, 4 against the Mongols' 3, 4, 5).
+- Reward gold 5, Market growth 3 and Unhunker stay.
+
+One sim set for the record, nothing changed on it (seed 1, 200 matches each):
+
+| Level | Spartans / Mongols | Seats (first / second) | Stalls | Median rounds | Cities at the end (Sp / Mo) |
+|---|---|---|---|---|---|
+| hard | 48.3 / 49.3 | 48.5 / 49.0 | 5.0% | 36 | 3.87 / 3.90 |
+| normal | 56.3 / 39.5 | 49.8 / 46.0 | 8.5% | 38 | 4.58 / 3.20 |
+
+Hard is even; normal leans Spartan (the Mongols 5.5 under 45). Seed 1001 was not run, as asked.
+
+Tests for this form:
+
+- Re-pinned as consequences: the fingerprint (`d51b5776849292d1`), the `speed.test.ts` rows (239 to 206, 88 to 57,
+  69 to 359 legal actions; none has ended), the 25-unit position, now `(7, 56)` with 187 legal actions (speed,
+  `ai/plan` and `browser/ai` tests), `state.test.ts` (the capital at level 2, and a new test: no reward pending,
+  income 3, capacity 3, growth need 2 for the Spartans in either seat), and `adapt.test.ts`'s opening standing (the
+  level 2 capital puts the Spartans 3 points ahead, 13.5 against 10.75 on seed 42; even without it). The growth-count
+  tests are back to the first rules 9 commit's, which this form matches.
+- `browser/overlay.test.ts` keeps seed 16: Foraging and two harvests now take the level 2 capital to level 3, which
+  opens the reward choice on turn 1 as before.
+- Provenance: the rules 3 files mock `capitalStartLevel` 1 for the Spartans and replay hash for hash; the rules 6 and
+  7 files pass unchanged.
+- `character.test.ts` (SLOW): all 16 seeded matches end at normal (longest '7 spartans', 54) and at hard (longest
+  '7 spartans', 53), so `KNOWN_NORMAL` and `KNOWN_HARD` are empty.
+- The adaptive check (`sim.test.ts`, SLOW) fails: seed 8 reads 0.707 and seed 14 -0.274 (both must be above 0).
+  Not re-picked. Everything else in `SLOW=1 npx vitest run src/ai` passes (136 of 137, here and on the sim worker).
+- Open: normal leans Spartan on this one seed set (56.3%); the adaptive check is red; the AI's standing measure now
+  starts the Spartans 3 points ahead, which the adaptive dial reads as a lead at turn 0.
+
+Checks on the released form, each heavy suite under the shared lock: `npx tsc -b` and `npm run lint` clean;
+`npx vitest run` 126 files passed, 22 skipped (1308 tests passed, 124 skipped); `GITHUB_PAGES_BASE=/warbanners/ npx
+vite build` fine; `npm run test:browser` AI 6 passed, then 50 passed and 2 skipped; `SLOW=1 npx vitest run src/ai`
+136 of 137, the adaptive check failing as above.
