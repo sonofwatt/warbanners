@@ -440,13 +440,19 @@ export const EMBLEMS: Record<UnitTypeId, Draw> = {
       w.shape('M -9 -20 L 9 -20 L 9 -14 L -9 -14 Z', w.p.main);
     });
   },
-  // An antlered shaman, a fringe hanging over the eyes; a frame drum with a lightning bolt.
+  // A shaman under a tall fan of five feathers, a fringe hanging over the eyes; a staff with ribbons and a bolt.
   skyCaller: (pen) => {
     const { main, shade, ink, light } = pen.p;
-    // The far antler, then the near one: a beam sweeping up and back, its tines forward.
-    pen.bar('M 8 -29 Q 14 -39 28 -44 M 15 -37 L 13 -48 M 22 -41 L 25 -50', shade, 3.6);
+    // The fan: five long feathers spreading from behind the head (their quills hidden by it), the middle one
+    // tallest, drawn outside in so it is on top.
+    const feathers: [number, number][] = [[-38, 37], [38, 37], [-19, 41], [19, 41], [0, 43]];
+    for (const [a, len] of feathers) {
+      pen.at(-1, -10, a, (f) => {
+        f.shape(`M 0 ${-len} Q 5 ${-len * 0.78} 3.6 ${-len * 0.4} L -3.6 ${-len * 0.4} Q -5 ${-len * 0.78} 0 ${-len} Z`, f.p.shade);
+        f.line(`M 0 ${-len + 4} L 0 ${-len * 0.5}`, f.p.light, f.small ? 2 : 1.3);
+      });
+    }
     head(pen);
-    pen.bar('M -4 -31 Q -12 -41 -4 -51 M -8 -39 L -22 -44 M -9 -46 L -20 -51', main, 4.2);
     pen.shape('M -22 -14 Q -20 -32 0 -32 Q 20 -32 20 -14 Z', main);
     pen.shape('M -25 -14 L 21 -14 L 21 -8 L -25 -8 Z', shade);
     pen.shape('M -25 -8 L -9 -8 L -9 2 L -25 2 Z', shade);
@@ -455,14 +461,12 @@ export const EMBLEMS: Record<UnitTypeId, Draw> = {
       pen.line('M -14 -24 Q -8 -30 2 -30', light, 1.4);
     });
     eye(pen, -15, 1);
-    pen.at(23, 21, 0, (w) => {
-      w.bar('M 9 13 L 16 25', w.p.shade, 3);
-      w.circle(0, 0, 15, w.p.main);
-      // The skin: dark on the small form, so the bolt stands out at badge size.
-      w.circle(0, 0, 10.6, w.small ? w.p.ground : w.p.shade);
-      const bolt = 'M 2.6 -9 L -5.4 1.4 L -0.4 1.4 L -3.4 9.6 L 6 -2 L 1 -2 L 4.6 -9 Z';
-      if (w.small) w.flat(bolt, w.p.light);
-      else w.shape(bolt, w.p.light);
+    // The staff, upright at the lower right: two ribbons streaming back from under its head, a bolt on top.
+    pen.at(26, 4, 0, (w) => {
+      w.shape('M 0 -2 Q 12 2 16 22 L 10 23 Q 8 8 0 4 Z', w.p.main);
+      w.shape('M 0 2 Q 8 10 9 30 L 3 30 Q 3 14 0 8 Z', w.p.light);
+      w.bar('M 0 -4 L 0 44', w.p.shade, 3.6);
+      w.shape('M 3 -27 L -6 -11 L -0.6 -11 L -3.6 1 L 8 -16 L 2.4 -16 L 7 -27 Z', w.small ? w.p.light : w.p.main);
     });
   },
   // The roof of a round felt tent breaking the top, its smoke ring above; a campfire.

@@ -1,6 +1,7 @@
 // The unit emblem proposal (src/ui/art/emblems.tsx), drawn three ways for David to judge:
 //   emblems-sheet.png  all 17 at about 160 px, by group, in a faction colour per group (shared ones in a neutral blue);
 //   emblems-gold.png   the same in gold on black;
+//   skycaller-crown.png  the Sky Caller's feather crown, full and small form, large, at badge size and at 3x;
 //   banner-sizes.png   two ways onto the war banner, on a unit on grass, at the board's opening zoom on a phone
 //                      (64 css px a tile, as scripts/warbanner-sheet.ts) and at 3x that.
 // Run: npx tsx scripts/emblems-sheets.ts [out dir]
@@ -51,7 +52,7 @@ const GROUPS: { title: string; faction: FactionId | null; types: [UnitTypeId, st
     title: 'Mongols', faction: 'mongols', types: [
       ['horseArcher', 'Horse head with plume and throat tassel; recurve bow'],
       ['khansGuard', 'Spiked steppe helmet, fur brim, mail neck guard; horsetail standard'],
-      ['skyCaller', 'Antlered shaman, fringe over the eyes; frame drum with a bolt'],
+      ['skyCaller', 'Fan of five feathers, fringe over the eyes; staff with ribbons and a bolt'],
       ['camp', 'Felt tent roof and smoke ring; campfire'],
     ],
   },
@@ -168,9 +169,23 @@ function sizes(): string {
     <div>${panel(3 * S, '3x zoom of the same')}</div></body></html>`;
 }
 
+/** The Sky Caller alone: full form in Mongol blue and gold, the small form large, at true badge size and at 3x. */
+function skyCaller(): string {
+  const blue = emblemPaint(playerColour('mongols'));
+  const badge = BANNER_H * 1.3 * (64 / 52) * (108 / 68);
+  return `<!doctype html><html><head><style>
+    body{margin:0;padding:16px 20px;background:#EFE8DA;color:#2A2520;font-family:sans-serif;width:860px}
+    h1{font-size:18px;margin:0 0 10px} .row{display:flex;gap:16px;align-items:center} .green{background:#6f8f4e;color:#F2EEDF;padding:10px 14px;border-radius:6px;margin-top:10px}
+    span{font-size:12px}
+    </style></head><body><h1>Sky Caller: feather crown and ribbon staff</h1>
+    <div class="row">${svg('skyCaller', blue, 200)}${svg('skyCaller', GOLD_PAINT, 200)}<span>full form, Mongol blue and gold</span></div>
+    <div class="row green"><span>small form:</span>${svg('skyCaller', blue, 160, true)}<span>badge, true size:</span>${svg('skyCaller', blue, Math.round(badge), true)}<span>3x:</span>${svg('skyCaller', blue, Math.round(3 * badge), true)}</div>
+    </body></html>`;
+}
+
 const browser = await chromium.launch();
 try {
-  for (const [name, html] of [['emblems-sheet', sheet(false)], ['emblems-gold', sheet(true)], ['banner-sizes', sizes()]] as const) {
+  for (const [name, html] of [['emblems-sheet', sheet(false)], ['emblems-gold', sheet(true)], ['skycaller-crown', skyCaller()], ['banner-sizes', sizes()]] as const) {
     const page = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 1100, height: 800 } });
     await page.setContent(html);
     await page.waitForTimeout(300);
