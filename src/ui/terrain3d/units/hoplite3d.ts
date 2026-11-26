@@ -14,7 +14,7 @@
 // snapped and a cheek plate is broken out of the helmet, showing the face. Blood from battered, more at level 2, on
 // the skin, the face under the gap and the ground. Scarred: the gap stays, with a pale scar on the cheek.
 import {
-  BufferGeometry, CylinderGeometry, Euler, Float32BufferAttribute, LatheGeometry, Quaternion, ShapeUtils, SphereGeometry,
+  BufferGeometry, Color, CylinderGeometry, Euler, Float32BufferAttribute, LatheGeometry, Quaternion, ShapeUtils, SphereGeometry,
   Vector2, Vector3,
 } from 'three';
 import { ground, Kit, mix } from './kit';
@@ -27,11 +27,11 @@ import type { Cut, Look, Wear } from './parts';
 
 // ---- palette: realistic and a little muted already (the Gritty shader mutes every figure further) ----
 
-const SKIN = '#A97E62';
-const SKIN_DARK = '#8C664D';
-const BRONZE = '#A9803E';
-const BRONZE_DARK = '#6E5126';
-const BRONZE_LIT = '#C9A86A';
+const SKIN = '#A3725A';
+const SKIN_DARK = '#6E4A37';
+const BRONZE = '#5F4420';
+const BRONZE_DARK = '#4A3618';
+const BRONZE_LIT = '#E2C27A';
 const BRONZE_IN = '#2A1E12';
 /** A fresh scratch in bronze: bright metal, not paint. */
 const WORN_BRONZE = '#D8C49A';
@@ -43,7 +43,20 @@ const IRON = '#8B8E92';
 const IRON_DARK = '#5D6166';
 const SHIELD_BACK = '#4A3626';
 /** A healed scar on this darker skin: paler than the toon SCAR so it shows. */
-const SCAR_PALE = '#DDB69C';
+const SCAR_PALE = '#EBCDB4';
+const SCAR_LINE = '#C99C82';
+
+/**
+ * The owner's colour on this figure, deepened and saturated (a crimson for the Spartans): the Gritty light does not
+ * mute the realistic figures, so this glows against the dull ground and tells the sides apart at a glance.
+ */
+function vivid(hex: string): string {
+  const col = new Color(hex), hsl = { h: 0, s: 0, l: 0 };
+  col.getHSL(hsl);
+  // A touch toward crimson (red leans to blue-red; other hues shift the same small step), saturated and deep.
+  col.setHSL((hsl.h + 0.975) % 1, Math.min(1, hsl.s * 1.35 + 0.1), Math.max(0.18, hsl.l * 0.7));
+  return '#' + col.getHexString();
+}
 
 /** The thighs: a piece of their own, turning about the hips, so a crouch bends the knees. */
 export const THIGHS = 'thighs';
@@ -72,8 +85,19 @@ const HEAD_R: V3 = [2.6, 3.3, 2.95];
 const sm = (o: PartOpts = {}): PartOpts => ({ ...o, smooth: true });
 
 /** A smooth ellipsoid at c with radii r, turned by rot (YXZ), `w` x `h` segments. */
-function blob(k: Kit, c: V3, r: V3, colour: string, o: PartOpts & { w?: number; h?: number; rot?: V3 } = {}): void {
+function blob(k: Kit, c: V3, r: V3, colour: string, o: PartOpts & { w?: number; h?: number; rot?: V3; cavity?: V3 } = {}): void {
   const g = new SphereGeometry(1, o.w ?? 8, o.h ?? 6);
+  if (o.cavity) {
+    // A muscle: darker where it turns away from its own front and meets the body, so the hollows between muscles
+    // sit in deep shade (ambient occlusion by hand).
+    const n = g.attributes.normal!, tint: number[] = [];
+    for (let i = 0; i < n.count; i++) {
+      const d = n.getX(i) * o.cavity[0] + n.getY(i) * o.cavity[1] + n.getZ(i) * o.cavity[2];
+      const t = 0.42 + 0.58 * Math.min(1, Math.max(0, (d + 0.15) / 0.75));
+      tint.push(t, t * 0.94, t * 0.9);
+    }
+    g.setAttribute('color', new Float32BufferAttribute(tint, 3));
+  }
   g.scale(...r);
   if (o.rot) g.applyQuaternion(new Quaternion().setFromEuler(new Euler(o.rot[0], o.rot[1], o.rot[2], 'YXZ')));
   g.translate(...c);
@@ -355,8 +379,11 @@ function tOpening(): number[] {
   return pts;
 }
 
-/** The cells of the helmet broken out when it is broken: part of the near (left, toward the viewer) cheek plate. */
-const HELM_GAP = new Set(['10,5', '10,6', '10,7', '10,8', '10,9', '9,5', '9,6', '9,7', '9,8', '9,9', '8,6', '8,7', '8,8', '8,9', '7,8', '7,9']);
+/** The cells of the helmet broken out when it is broken: the whole near cheek plate (the figure's left, toward the viewer). */
+const HELM_GAP = new Set([
+  '10,6', '10,7', '10,8', '10,9', '9,6', '9,7', '9,8', '9,9', '8,5', '8,6', '8,7', '8,8', '8,9', '7,5', '7,6', '7,7', '7,8', '7,9',
+  '6,7', '6,8', '6,9',
+]);
 
 function helmet(k: Kit, c: Look, w: Wear): void {
   const broken = helmBroken(w);
@@ -384,65 +411,53 @@ function helmet(k: Kit, c: Look, w: Wear): void {
   crest(k, c, w);
 }
 
-/** The horsehair crest, front to back over the helmet, in the owner's colour; torn short from battered. */
+/** The horsehair crest: a thin, tall fan of hair front to back over the helmet, ragged at its edge; torn short from battered. */
 function crest(k: Kit, c: Look, w: Wear): void {
   const top = HELM_C[1] + HB;
-  // (z, y) from the front base over the top to the tail at the back, then back along its root.
+  // Darker than the cloak: the crest stands in the full key light.
+  const red = mix(vivid(c.main), '#000000', 0.3), deep = mix(vivid(c.main), '#000000', 0.6), lit = vivid(c.main);
+  // The outer edge (z, y) from the front over the top to the tail at the back, and the root along the helmet's top.
   const outer: [number, number][] = [
-    [2.4, top - 0.6], [3.7, top + 2.0], [3.8, top + 5.0], [2.6, top + 7.6], [0.4, top + 9.2], [-2.4, top + 9.6],
-    [-5.0, top + 8.8], [-7.1, top + 6.6], [-8.4, top + 3.6], [-8.8, top + 0.2], [-8.3, top - 3.2],
+    [2.6, top + 0.4], [3.6, top + 3.4], [3.4, top + 6.6], [2.0, top + 9.4], [-0.4, top + 11.2], [-3.2, top + 11.6],
+    [-5.9, top + 10.6], [-7.9, top + 8.2], [-9.0, top + 5.0], [-9.3, top + 1.4], [-8.8, top - 2.6],
   ];
-  const root: [number, number][] = [[-6.6, top - 2.6], [-5.6, top - 1.4], [-4.0, top - 0.5], [-1.8, top + 0.05], [0.6, top + 0.05], [2.2, top - 0.5]];
-  let poly: number[] = [];
-  outer.forEach(([z, y], i) => {
-    // A ragged edge of hair along the top.
-    const r = i > 0 && i < outer.length - 1 ? (i % 2 ? 0.35 : -0.2) : 0;
-    poly.push(z, y + r);
-  });
-  for (const [z, y] of root) poly.push(z, y);
-  const torn = worn(w, 3);
-  if (torn) {
-    // The back half torn away, the end ragged.
-    poly = [];
-    const cut = -1.6;
-    for (const [z, y] of outer) if (z >= cut) poly.push(z, y);
-    poly.push(cut - 0.5, top + 6.6, cut + 0.3, top + 5.2, cut - 0.6, top + 3.6, cut + 0.2, top + 2.2, cut - 0.3, top + 0.4);
-    for (const [z, y] of root) if (z >= cut) poly.push(z, y);
-  }
-  const at: V3 = [0, 0, HELM_C[2] - 0.6];
-  // Turned so the polygon's x runs along the figure's z (front to back); its faces look along x.
-  k.slab(poly, 1.0, c.main, at, [0, -Math.PI / 2, 0], { hull: 0.6 });
-  // Tufts of hair fanning out from the root along the arc, so it reads as a brush.
+  const root: [number, number][] = [[2.2, top - 0.5], [0.6, top + 0.05], [-1.8, top + 0.05], [-4.0, top - 0.5], [-5.6, top - 1.4], [-6.8, top - 2.8]];
   const along = (pts: readonly (readonly [number, number])[], t: number): [number, number] => {
     const f = t * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(f)), u = f - i;
     return [pts[i]![0] + (pts[i + 1]![0] - pts[i]![0]) * u, pts[i]![1] + (pts[i + 1]![1] - pts[i]![1]) * u];
   };
-  const rootF = [...root].reverse();
-  const N = 11;
+  const torn = worn(w, 3);
+  // Battered, the back of the brush is torn away: only the strands from the front 45 percent stay, ragged.
+  const reach = torn ? 0.45 : 1;
+  const at: V3 = [0, 0, HELM_C[2] - 0.6];
+  // A thin core so no light shows through the fan, its edge ragged.
+  const core: number[] = [];
+  const NC = 18;
+  for (let n = 0; n <= NC; n++) {
+    const t = (n / NC) * reach;
+    const [oz, oy] = along(outer, t), [rz, ry] = along(root, t);
+    const f = 0.9 + (n % 3 === 1 ? 0.06 : n % 3 === 2 ? -0.04 : 0);
+    core.push(rz + (oz - rz) * f, ry + (oy - ry) * f);
+  }
+  for (let n = NC; n >= 0; n--) { const [rz, ry] = along(root, (n / NC) * reach); core.push(rz, ry); }
+  k.slab(core, 1.15, red, at, [0, -Math.PI / 2, 0], { hull: 0.4 });
+  // The hair: strands fanned from the root out to the edge, some longer, some shorter, a little apart side to side.
+  const N = 30;
+  const JIT = [0.06, -0.08, 0.12, -0.02, 0.09, -0.11, 0.03, 0.1, -0.06, 0.0, 0.13, -0.09, 0.05];
   for (let n = 0; n < N; n++) {
-    const t = (n + 0.5) / N;
-    const [oz, oy] = along(outer, t);
-    if (torn && oz < -1.4) continue;
-    const [rz, ry] = along(rootF, 1 - t);
-    const side = n % 2 ? 0.32 : -0.32;
-    const col = n % 3 === 0 ? mix(c.main, c.dark, 0.35) : c.main;
-    k.rod([side, ry, at[2] + rz], [side * 1.4, oy + (n % 2 ? 0.2 : -0.1), at[2] + oz], 0.85, col, { r1: 0.38, seg: 5, hull: 0.5 });
+    const t = ((n + 0.5) / N) * reach;
+    const [oz, oy] = along(outer, t), [rz, ry] = along(root, t);
+    const j = JIT[n % JIT.length]!;
+    const f = 0.97 + j * 0.9;
+    const tip: V3 = [(n % 2 ? 0.5 : -0.5) + (n % 3 - 1) * 0.15, ry + (oy - ry) * f, at[2] + rz + (oz - rz) * f];
+    const col = n % 4 === 0 ? deep : n % 4 === 2 ? lit : red;
+    k.rod([(n % 2 ? 0.35 : -0.35), ry, at[2] + rz], tip, 0.5, col, { r1: 0.1, seg: 3, hull: 0.3 });
   }
-  // A fuller middle of hair, a shade darker, so it reads as a brush rather than a board.
-  const inner: number[] = [];
-  for (let i = 0; i < poly.length; i += 2) {
-    const z = poly[i]!, y = poly[i + 1]!;
-    inner.push(-2.2 + (z + 2.2) * 0.8, top + 3.0 + (y - top - 3.0) * 0.78);
-  }
-  k.slab(inner, 2.0, mix(c.main, c.dark, 0.55), at, [0, -Math.PI / 2, 0], { hull: 0 });
-  // Strands on both faces.
-  for (const side of [-1, 1]) {
-    const face: Surface = (x, y) => ({ p: [side * 0.92, y, at[2] + x], n: [side, 0, 0] });
-    const arcs = torn ? [0.55, 0.78] : [0.42, 0.6, 0.76];
-    for (const f of arcs) {
-      const line: number[] = [];
-      for (const [z, y] of outer.slice(1, -1)) if (!torn || z >= -1.2) line.push(-2.2 + (z + 2.2) * f, top + 3.0 + (y - top - 3.0) * f);
-      k.line(line, 0.16, mix(c.main, '#000000', 0.4), face);
+  if (torn) {
+    // The torn end: a few short broken strands sticking back.
+    for (const [dz, dy, l] of [[-0.4, 4.0, 1.6], [0.2, 6.2, 1.2], [-0.2, 2.2, 1.4]] as const) {
+      const [rz] = along(root, reach);
+      k.rod([0, top + dy, at[2] + rz + 0.6 + dz], [0.1, top + dy + 0.3, at[2] + rz - l], 0.28, deep, { r1: 0.05, seg: 3, hull: 0 });
     }
   }
 }
@@ -465,40 +480,52 @@ const torsoSurf: Surface = frontmost(
 );
 
 function torso(k: Kit): void {
-  lathe(k, [0, 0, 0], TORSO, SKIN, { sz: TORSO_SZ, seg: 14, gloss: 0.12 });
-  for (const m of PECS) blob(k, m.c, m.r, SKIN, { w: 9, h: 6, hull: 0, rot: m.rot, gloss: 0.12 });
-  for (const m of ABS) blob(k, m.c, m.r, SKIN, { w: 5, h: 4, hull: 0 });
+  lathe(k, [0, 0, 0], TORSO, SKIN_DARK, { sz: TORSO_SZ, seg: 14, gloss: 0.25 });
+  for (const m of PECS) blob(k, m.c, m.r, SKIN, { w: 9, h: 6, hull: 0, rot: m.rot, gloss: 0.3, cavity: [0, 0.35, 0.94] });
+  for (const m of ABS) blob(k, m.c, m.r, SKIN, { w: 6, h: 4, hull: 0, gloss: 0.3, cavity: [0, 0, 1] });
   // The obliques over the hips, the slope of the shoulders and the shoulders themselves.
   for (const s of [-1, 1]) {
-    blob(k, [s * 3.5, 26.6, 1.0], [1.3, 2.4, 1.6], SKIN, { w: 6, h: 5, hull: 0 });
-    blob(k, [s * 2.9, 37.9, -0.6], [2.5, 1.0, 1.8], SKIN, { w: 8, h: 5, hull: 0 });
-    blob(k, [s * 5.75, 36.3, -0.05], [1.8, 2.3, 1.9], SKIN, { w: 8, h: 6 });
+    blob(k, [s * 3.5, 26.6, 1.0], [1.3, 2.4, 1.6], SKIN, { w: 6, h: 5, hull: 0, cavity: [s * 0.5, 0, 0.87] });
+    blob(k, [s * 2.9, 37.9, -0.6], [2.5, 1.0, 1.8], SKIN, { w: 8, h: 5, hull: 0, cavity: [0, 1, 0] });
+    blob(k, [s * 5.75, 36.3, -0.05], [1.8, 2.3, 1.9], SKIN, { w: 8, h: 6, gloss: 0.3, cavity: [s * 0.8, 0.45, 0.4] });
   }
   // The neck, mostly inside the helmet.
   limb(k, [0, 38.4, -0.3], [0, 42.4, 0.05], 1.6, 1.35, SKIN, { seg: 8 });
+}
+
+/** A bulge along a bone (a biceps, a forearm): darker toward its ends and its sides, where it meets the limb. */
+function endShade(g: SphereGeometry): void {
+  const n = g.attributes.normal!, tint: number[] = [];
+  for (let i = 0; i < n.count; i++) {
+    const t = 0.45 + 0.55 * Math.pow(Math.max(0, 1 - Math.abs(n.getY(i))), 0.8);
+    tint.push(t, t * 0.94, t * 0.9);
+  }
+  g.setAttribute('color', new Float32BufferAttribute(tint, 3));
 }
 
 /** An arm from the shoulder through the elbow to the hand, with its biceps and forearm. */
 function arm(k: Kit, shoulder: V3, elbow: V3, hand: V3): void {
   const sv = new Vector3(...shoulder), ev = new Vector3(...elbow), hv = new Vector3(...hand);
   const up = sv.clone().lerp(ev, 0.08);
-  limb(k, [up.x, up.y, up.z], elbow, 1.45, 1.05, SKIN);
+  limb(k, [up.x, up.y, up.z], elbow, 1.45, 1.05, SKIN_DARK);
   const bi = sv.clone().lerp(ev, 0.45);
   const dir = ev.clone().sub(sv).normalize();
   const g = new SphereGeometry(1, 8, 6);
+  endShade(g);
   g.scale(1.3, ev.distanceTo(sv) * 0.3, 1.35);
   g.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir));
   g.translate(bi.x, bi.y, bi.z + 0.15);
-  k.add(g, SKIN, sm());
+  k.add(g, SKIN, sm({ gloss: 0.3 }));
   blob(k, elbow, [1.02, 1.02, 1.02], SKIN, { w: 6, h: 5, hull: 0 });
-  limb(k, elbow, hand, 1.1, 0.78, SKIN);
+  limb(k, elbow, hand, 1.1, 0.78, SKIN_DARK);
   const fa = ev.clone().lerp(hv, 0.3);
   const fd = hv.clone().sub(ev).normalize();
   const f = new SphereGeometry(1, 7, 5);
+  endShade(f);
   f.scale(1.18, ev.distanceTo(hv) * 0.3, 1.12);
   f.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), fd));
   f.translate(fa.x, fa.y, fa.z);
-  k.add(f, SKIN, sm({ hull: 0 }));
+  k.add(f, SKIN, sm({ hull: 0, gloss: 0.3 }));
   blob(k, hand, [0.95, 1.1, 0.95], SKIN_DARK, { w: 6, h: 5 });
 }
 
@@ -525,9 +552,11 @@ function legs(k: Kit, w: Wear): void {
   const ankle = (s: number): V3 => [s * 3.15, ANKLE_Y, 0.1];
   k.pivot(THIGHS, [0, HIP_Y, 0.1], () => {
     for (const s of [-1, 1]) {
-      limb(k, hip(s), knee(s), 2.45, 1.55, SKIN);
-      blob(k, [s * 2.7, 18.2, 0.85], [2.05, 4.1, 1.85], SKIN, { w: 8, h: 6, hull: 0 });
-      blob(k, knee(s), [1.45, 1.4, 1.4], SKIN, { w: 7, h: 5 });
+      limb(k, hip(s), knee(s), 2.45, 1.5, SKIN_DARK);
+      // The front of the thigh, and the knee with its cap.
+      blob(k, [s * 2.7, 18.0, 0.9], [2.1, 4.3, 1.9], SKIN, { w: 8, h: 6, hull: 0, gloss: 0.3, cavity: [s * 0.2, 0.1, 0.97] });
+      blob(k, knee(s), [1.4, 1.45, 1.35], SKIN_DARK, { w: 7, h: 5 });
+      blob(k, [knee(s)[0], KNEE_Y + 0.3, knee(s)[2] + 1.0], [0.85, 0.95, 0.6], SKIN, { w: 6, h: 5, hull: 0, gloss: 0.3, cavity: [0, 0, 1] });
     }
     if (bloody(w, 1)) runDown(k, onUpright(-2.7, 0.85, 1.9), -2.1, 21.0, 4.2, 0.45);
     if (heavy(w)) { runDown(k, onUpright(2.7, 0.85, 1.9), 2.2, 20.6, 5.2, 0.5); runDown(k, onUpright(-2.7, 0.85, 1.9), -3.1, 19.8, 3.0, 0.4); }
@@ -535,12 +564,15 @@ function legs(k: Kit, w: Wear): void {
   k.pivot(LEGS, [0, ANKLE_Y + 0.2, 0], () => {
     for (const s of [-1, 1]) {
       const kn = knee(s), an = ankle(s);
-      limb(k, an, kn, 0.95, 1.5, SKIN);
-      blob(k, [s * 2.95, 9.0, -0.55], [1.35, 3.1, 1.45], SKIN, { w: 7, h: 5, hull: 0 });
-      // The greave wraps the front of the shin from the ankle to over the knee.
-      const at: V3 = [an[0] + (kn[0] - an[0]) * 0.5, 0, 0.35];
-      lathe(k, at, [[1.2, ANKLE_Y + 0.6], [1.45, 4.6], [1.95, 7.8], [1.85, 10.4], [1.62, 12.6], [1.6, 13.8], [1.15, 14.6]], BRONZE, { sz: 1.0, seg: 9, from: -2.1, arc: 4.2, gloss: 0.5 });
-      const gs = onUpright(at[0], at[2], 1.85);
+      limb(k, an, kn, 0.95, 1.4, SKIN_DARK);
+      // The calf behind, full at the top and tapering to the ankle.
+      blob(k, [s * 2.95, 8.6, -0.7], [1.45, 3.3, 1.55], SKIN, { w: 7, h: 5, hull: 0, gloss: 0.25, cavity: [0, 0, -1] });
+      // The greave: bronze shaped to the shin and the calf, from the ankle to just under the knee.
+      const at: V3 = [an[0] + (kn[0] - an[0]) * 0.45, 0, 0.3];
+      lathe(k, at, [[1.15, ANKLE_Y + 0.7], [1.3, 3.6], [1.75, 6.4], [2.0, 8.4], [1.85, 10.2], [1.6, 11.3], [1.45, 11.8]], BRONZE, { sz: 0.92, seg: 10, from: -2.2, arc: 4.4, gloss: 0.9 });
+      // A turned-out lip along its top edge.
+      lathe(k, at, [[1.5, 11.65], [1.62, 11.95]], BRONZE_LIT, { sz: 0.92, seg: 10, from: -2.2, arc: 4.4, gloss: 0.9, hull: 0 });
+      const gs = onUpright(at[0], at[2], 1.8);
       if (worn(w, 1)) { scratches(k, gs, [[at[0] - 0.6, 10.4, at[0] + 0.3, 8.6]], WORN_BRONZE, 0.14); dirt(k, gs, at[0] + 0.2, 4.2, 2.0, BRONZE); }
       if (worn(w, 2) && s > 0) dent(k, gs, at[0] + 0.3, 7.2, 0.6, BRONZE);
       if (heavy(w) && s < 0) smear(k, gs, at[0] + 0.3, 11.5, 0.1, -1, 3.0, 0.7);
@@ -590,7 +622,7 @@ function cloak(k: Kit, c: Look, w: Wear): void {
       const k2 = 1 - (1 - dirtTo) * t * t;
       return [k2, k2 * (worn(w, 1) ? 0.92 : 1), k2 * (worn(w, 1) ? 0.84 : 1)];
     },
-  }, c.main, mix(c.dark, '#000000', 0.35), mix(c.dark, '#000000', 0.2), { hull: 0.6 });
+  }, vivid(c.main), mix(vivid(c.main), '#000000', 0.55), mix(vivid(c.main), '#000000', 0.35), { hull: 0.6 });
 }
 
 // ---- the shield: a great domed bronze shield, the owner's mark on it ----
@@ -659,7 +691,7 @@ function shield(k: Kit, c: Look, w: Wear): void {
   const ring: number[] = [];
   for (let i = 0; i <= 28; i++) { const a = (i / 28) * Math.PI * 2; ring.push(Math.cos(a) * SR * 0.895, Math.sin(a) * SR * 0.895); }
   if (!worn(w, 3)) k.line(ring, 0.22, BRONZE_DARK, shieldSurf);
-  const mark = mix(c.main, c.dark, 0.25);
+  const mark = vivid(c.main);
   const lam = broken ? [0.6, 5.0, 4.8, -5.6, 2.6, -5.6, 0.6, -0.8] : [0, 6.6, 5.2, -5.6, 2.7, -5.6, 0, 0.9, -2.7, -5.6, -5.2, -5.6];
   fineDecal(k, lam, mark, shieldSurf, 2.0, 0.08);
   shieldWear(k, w);
@@ -741,10 +773,10 @@ function bodyWear(k: Kit, w: Wear): void {
     bleed(k, torsoSurf, -2.8, 31.6, 0.15, -1, 3.2, 0.9);
     runDown(k, torsoSurf, -2.4, 29.4, 2.6, 0.4);
     // From under the cheek plate down the neck onto the chest.
-    bleed(k, torsoSurf, 1.2, 38.0, -0.1, -1, 2.8, 0.75);
+    bleed(k, torsoSurf, 1.2, 38.0, -0.3, -1, 2.2, 0.7);
   }
   if (heavy(w)) {
-    bleed(k, torsoSurf, 1.7, 33.6, 0.2, -1, 4.6, 1.1);
+    bleed(k, torsoSurf, 1.7, 33.6, 0.35, -1, 3.4, 1.0);
     runDown(k, torsoSurf, 1.2, 30.2, 3.4, 0.45);
     bleed(k, torsoSurf, -1.4, 28.2, -0.2, -1, 2.6, 0.8);
     for (const [x, y, r] of [[2.6, 35.8, 0.25], [-0.6, 33.0, 0.2], [3.6, 29.6, 0.22]] as const) k.decal(ell(x, y, r, r, 6), BLOOD, torsoSurf);
@@ -765,16 +797,19 @@ function face(k: Kit, w: Wear): void {
   k.add(g, SKIN, sm({ hull: 0 }));
   const s = ellSurf(HEAD_C, HEAD_R);
   if (w.scarred && !bloody(w, 1)) {
-    k.line([-1.95, -0.1, -1.6, -2.0], 0.32, SCAR_PALE, s);
-    for (const t of [0.3, 0.7]) { const y = -0.1 - 1.9 * t, x = -1.95 + 0.35 * t; k.line([x - 0.35, y, x + 0.35, y], 0.14, SCAR_DARK, s); }
+    // A long pale scar down the cheek, across where the blood ran, with the marks of its stitches.
+    k.line([-2.1, -0.6, -1.85, -1.5, -1.5, -2.7], 0.42, SCAR_PALE, s);
+    k.line([-2.05, -0.75, -1.9, -1.4, -1.6, -2.5], 0.14, SCAR_LINE, s);
+    for (const t of [0.25, 0.55, 0.85]) { const y = -0.6 - 2.1 * t, x = -2.1 + 0.6 * t; k.line([x - 0.38, y + 0.05, x + 0.38, y - 0.05], 0.12, SCAR_DARK, s); }
   }
   if (bloody(w, 1)) {
-    bleed(k, s, -1.9, -0.2, 0.1, -1, 1.6, 0.55);
-    runDown(k, s, -1.7, -1.6, 0.9, 0.25);
+    bleed(k, s, -2.0, -0.6, 0.15, -1, 2.2, 0.75);
+    runDown(k, s, -1.6, -2.2, 0.9, 0.3);
   }
   if (heavy(w)) {
-    bleed(k, s, -1.25, -0.9, 0.15, -1, 1.8, 0.5);
-    runDown(k, s, -2.2, -1.6, 1.2, 0.25);
+    bleed(k, s, -1.2, -1.0, 0.1, -1, 2.2, 0.65);
+    runDown(k, s, -2.4, -1.8, 1.2, 0.3);
+    k.decal(ell(-1.7, -1.4, 0.55, 0.4, 7), BLOOD, s);
     bleed(k, torsoSurf, -1.5, 38.8, 0.05, -1, 3.6, 0.8);
   }
 }

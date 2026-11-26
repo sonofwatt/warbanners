@@ -15,6 +15,19 @@ float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a
 export const LIGHT = /* glsl */ `
 uniform vec3 uLightDir, uLightColor, uShadowColor, uTint, uVeilColor;
 uniform float uTime;
+// Gritty (uGritty 1): the 2D board's overcast grade (art/palette.ts grade): half the colour, 78 percent of the light
+// and a cold cast. The unit figures (UNIT_FIGURE) have their own Gritty looks and skip it.
+uniform float uGritty;
+vec3 gritGrade(vec3 c) {
+#ifdef UNIT_FIGURE
+  return c;
+#else
+  if (uGritty < 0.5) return c;
+  float l = dot(c, vec3(0.299, 0.587, 0.114));
+  vec3 m = (vec3(l) + (c - vec3(l)) * 0.5) * 0.78;
+  return m * 0.86 + vec3(0.2745, 0.3294, 0.3843) * 0.14;
+#endif
+}
 // Three soft bands: shade, half light, full light.
 float toon(vec3 n) {
   float d = dot(normalize(n), uLightDir);
@@ -22,7 +35,7 @@ float toon(vec3 n) {
 }
 vec3 lightUp(vec3 albedo, float band) { return albedo * mix(uShadowColor, uLightColor, band); }
 // The last step for every lit colour: a time of day grade, then the veil over tiles no unit sees now.
-vec3 finish(vec3 col, float veil) { return mix(col * uTint, uVeilColor, veil); }
+vec3 finish(vec3 col, float veil) { return mix(gritGrade(col) * uTint, uVeilColor, veil); }
 `;
 
 
@@ -130,6 +143,8 @@ void main() {
   if (terrain == 5) {
     // Fog: today's flat fog tile exactly (art/palette.ts GROUND.fog), unlit: top, its thin rim, left and right walls.
     vec3 top = vec3(0.9137, 0.9333, 0.9490), left = vec3(0.7961, 0.8275, 0.8549), right = vec3(0.7255, 0.7608, 0.7922);
+    // Gritty's fog is a near-black murk (art/palette.ts GROUND_GRITTY.fog).
+    if (uGritty > 0.5) { top = vec3(0.1725, 0.1922, 0.2118); left = vec3(0.1373, 0.1529, 0.1686); right = vec3(0.1176, 0.1294, 0.1451); }
     col = wall ? (n.x < 0.0 ? left : right) : (edge < 0.35 ? left : top);
     gl_FragColor = vec4(col, 1.0);
     return;
@@ -212,6 +227,8 @@ void main() {
     lit *= mix(mix(0.84, 0.95, onRoad), 1.0, smoothstep(0.25, 1.1, edge));
     lit *= 1.0 + 0.05 * (smoothstep(1.0, 1.6, edge) - smoothstep(1.6, 3.0, edge));
   }
+  // Gritty's grounds are darker than its graded props, as on the 2D board (GROUND_GRITTY).
+  if (uGritty > 0.5) lit *= 0.74;
   gl_FragColor = vec4(finish(lit, vVeil), 1.0);
 }`;
 
@@ -264,22 +281,28 @@ vec3 mute(vec3 c) { return c; }
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
 void main() {
 #ifdef GRITTY_LIGHT
-  if (uIsOutline) { gl_FragColor = vec4(shade(finish(mute(vColor) * vec3(0.12, 0.12, 0.13), vVeil)), ALPHA); return; }
+  if (uIsOutline) { gl_FragColor = vec4(shade(finish(vColor * vec3(0.10, 0.09, 0.09), vVeil)), ALPHA); return; }
   vec3 gn = normalize(vNormal);
   if (!gl_FrontFacing) gn = -gn;
   vec3 gKey = normalize(vec3(-0.72, 0.5, 0.48));
   vec3 gView = normalize(vec3(0.0, 0.62, 0.785));
   float gd = dot(gn, gKey);
-  // A wrapped, soft key (no bands): full on the faces toward it, easing into the fill well past the terminator.
-  float gDiff = smoothstep(-0.35, 1.0, gd);
-  gDiff *= gDiff * (3.0 - 2.0 * gDiff);
-  vec3 gAmb = mix(vec3(0.24, 0.21, 0.19), vec3(0.33, 0.38, 0.47), gn.y * 0.5 + 0.5);
-  vec3 gAlb = mute(vColor) * (0.96 + 0.08 * noise(vWorld.xz * 0.9 + vWorld.y * 0.45));
-  vec3 gLit = gAlb * (gAmb + vec3(1.0, 0.92, 0.80) * 1.05 * gDiff);
-  float gSpec = pow(max(dot(reflect(-gKey, gn), gView), 0.0), 16.0);
-  gLit += vec3(1.0, 0.9, 0.74) * max(vGloss, 0.0) * gSpec * 0.6;
-  float gRim = pow(1.0 - max(dot(gn, gView), 0.0), 3.0);
-  gLit += vec3(0.5, 0.58, 0.7) * gRim * 0.1;
+  // A strong, low key from the upper left with little wrap, so the lit side of each muscle is bright and the hollows
+  // fall into deep, cool shade; the colours are the figure's own (no mute: it is made for Gritty).
+  float gDiff = smoothstep(-0.12, 0.95, gd);
+  vec3 gAmb = mix(vec3(0.13, 0.11, 0.10), vec3(0.20, 0.23, 0.30), gn.y * 0.5 + 0.5);
+  vec3 gAlb = vColor * (0.95 + 0.1 * noise(vWorld.xz * 0.9 + vWorld.y * 0.45));
+  vec3 gLit = gAlb * (gAmb + vec3(1.0, 0.9, 0.76) * 1.32 * gDiff);
+  // Sheen: tight and bright on bronze and iron, broad and soft on oiled skin.
+  float gGl = max(vGloss, 0.0);
+  float gSpec = pow(max(dot(reflect(-gKey, gn), gView), 0.0), mix(8.0, 36.0, gGl));
+  gLit += vec3(1.0, 0.88, 0.68) * gGl * gSpec * mix(0.35, 1.5, gGl);
+  // A warm rim from behind on the right, so the figure's edge glows against the dull ground.
+  vec3 gRimDir = normalize(vec3(0.75, 0.35, -0.55));
+  float gRim = pow(1.0 - max(dot(gn, gView), 0.0), 2.2) * smoothstep(-0.1, 0.7, dot(gn, gRimDir));
+  gLit += vec3(1.0, 0.66, 0.4) * gRim * 0.5 * (0.4 + gAlb);
+  // A gentle S curve: deeper darks, brighter lights.
+  gLit = mix(gLit, gLit * gLit * (3.0 - 2.0 * min(gLit, vec3(1.0))), 0.45);
   gl_FragColor = vec4(shade(finish(gLit, vVeil)), ALPHA);
   return;
 #endif

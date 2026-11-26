@@ -196,7 +196,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
   });
   // The figures turn (facing.ts), so their normals are taken to world space for the light, which stays put.
-  const defines = (style: Style, more: Record<string, string> = {}): Record<string, string> => ({ WORLD_NORMAL: '', ...STYLE_DEFINES[style], ...more });
+  const defines = (style: Style, more: Record<string, string> = {}): Record<string, string> => ({ WORLD_NORMAL: '', UNIT_FIGURE: '', ...STYLE_DEFINES[style], ...more });
   const plainMat = (outline: boolean, style: Style): ShaderMaterial => new ShaderMaterial({
     uniforms: uniforms(outline, style), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
     side: outline ? BackSide : undefined, defines: defines(style),

@@ -46,6 +46,11 @@ export interface Terrain3d {
   borderTriangles(): number;
   /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
   readonly units: Units3d | null;
+  /**
+   * Gritty's grade (the 2D board's GROUND_GRITTY and grade(), palette.ts): the terrain and its props muted, cooled
+   * and darkened, the fog near black. The unit figures have their own Gritty looks and are not graded. Off by default.
+   */
+  setGritty(on: boolean): void;
   /** Free every GPU resource and the context. */
   dispose(): void;
   /** Triangles and draw calls of the last frame, for tests and tuning. */
@@ -81,6 +86,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uLightColor: { value: new Color(1.05, 1.02, 0.96) }, // warm key
     uShadowColor: { value: new Color(0.68, 0.70, 0.80) }, // cool shade: the toon dark band
     uTint: { value: new Color(1, 1, 1) }, // a time of day grade, multiplied in last
+    uGritty: { value: 0 }, // 1 in Gritty: the overcast grade (shaders.ts gritGrade); the figures skip it
     uVeilColor: { value: new Color('#1E2833') }, // theme.css .veil
     uTime: { value: 0 },
   };
@@ -231,6 +237,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
 
   return {
     setMap, setVeil, draw, drawUnits, tick, animating, dispose, units, falls: () => falls.count(),
+    setGritty: (on: boolean) => { shared.uGritty.value = on ? 1 : 0; },
     lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow() }), borderTriangles: () => borders.triangles(),
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, tiles: tileCount }),
   };

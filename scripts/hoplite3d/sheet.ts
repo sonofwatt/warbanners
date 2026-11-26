@@ -1,12 +1,15 @@
 // Shots of Gritty's realistic 3D Hoplite (scripts/hoplite3d-shots.ts drives it in Chromium through Vite's dev server).
 // Not part of the app: it draws the figures straight from units3d on a plain overcast ground with hex outlines,
 // exactly as the board hands them over (GlUnit with `gritty` and `wear`).
-import { Color, Vector3 } from 'three';
+import { Color, ColorManagement, Vector3 } from 'three';
 import type { FactionId, UnitTypeId } from '../../src/engine';
 import { ACCENT, playerColour } from '../../src/ui/art/palette';
 import { R, SQUASH } from '../../src/ui/board/layout';
 import type { GlUnit } from '../../src/ui/terrain3d/unitsInput';
 import { createUnits3d } from '../../src/ui/terrain3d/units/units3d';
+
+// As the game's terrain does (terrain3d.ts): every colour is a display value, used as written.
+ColorManagement.enabled = false;
 
 const shared = {
   uLightDir: { value: new Vector3(-0.55, 0.8, 0.28).normalize() },

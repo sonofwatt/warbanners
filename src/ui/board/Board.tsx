@@ -681,6 +681,7 @@ export function Board(p: BoardProps): ReactElement {
           ambient.current.cover(coveredRef.current);
         }
         t.tick(performance.now(), ambient.current.level());
+        t.setGritty(grittyRef.current);
         const d = glLatest.current;
         if (d !== null) {
           t.setMap(d.map);
@@ -731,6 +732,15 @@ export function Board(p: BoardProps): ReactElement {
   // ones), rebuilt only when what they show or where they stand changes, before the browser paints.
   // In Gritty the figures carry their battle wear and Gritty's own looks (the realistic Hoplite, muted colours).
   const gritty = artLook === 'gritty';
+  // The 3D terrain takes Gritty's grade too (it is set when the terrain is made, and again when the mode changes).
+  const grittyRef = useRef(gritty);
+  grittyRef.current = gritty;
+  useLayoutEffect(() => {
+    const t = terrain.current;
+    if (!glReady || t === null) return;
+    t.setGritty(gritty);
+    write();
+  }, [glReady, gritty, write]);
   const unitsData = useMemo(() => (glWanted ? glUnitsOf(p.items, p.factions, gritty) : null), [glWanted, p.items, p.factions, gritty]);
   const unitsLatest = useRef(unitsData);
   useLayoutEffect(() => {
