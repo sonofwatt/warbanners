@@ -379,6 +379,7 @@ Left out on purpose: feathered war bonnets, sacred pipes, totem poles and dreamc
 3. The hard AI fallback (section 7): not yet. Use it only if the sims show balance problems.
 4. Starting Trapper: yes, try a Skirmisher and a Trapper (section 2).
 5. Order of work: the Woodland Nations come before the Spartans against Mongols balance session and rules 10.
+   (Rules 10 shipped in 0.8.0 the same day, so the faction becomes rules 11.)
 
 Also changed on 2026-11-26: the Woodland Hunter sees 2 tiles on a forest, not 3, and its range 3 shot needs a spotter
 (section 4, forestEye).
