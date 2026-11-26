@@ -14,8 +14,9 @@ move to the bottom.
 - Catch: surplus growth carries over, so with 3 banked the Spartan capital reaches level 2 on its first harvest and
   level 3 on its second (rules 8: level 2 on the first, level 3 on the third). Any head start levels it on its first
   harvest. Other Spartan cities pay full price. The card would show 3/2 growth on turn 1.
-- Options: A, ship it (my pick); B, head start 2 plus a different second lever, so level 3 takes three harvests (needs
-  another tuning round); C, back to the tuned two-lever form.
+- Options: A, ship it (David: no, 2026-11-25); B, head start 2 plus a different second lever, so level 3 takes three
+  harvests (needs another tuning round); C, back to the tuned two-lever form (it is the 2, 1, 2, 3 curve David
+  turned down: a free growth point at level 2, then 1 less from level 3).
 - Separately: the slow Adaptive AI check now misses by one seed (11 of 16 above 0, bound 12; mean 0.18, bound 0.15).
   I will look at it before 0.7.0 ships.
 
