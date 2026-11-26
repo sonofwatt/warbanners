@@ -153,7 +153,7 @@ function radiusAt(profile: readonly (readonly [number, number])[], y: number): n
 }
 
 /** The front of a lathe (x, y in the figure's frame), for marks. */
-function onLathe(at: V3, profile: readonly (readonly [number, number])[], sz: number): (x: number, y: number) => SurfacePoint | null {
+export function onLathe(at: V3, profile: readonly (readonly [number, number])[], sz: number): (x: number, y: number) => SurfacePoint | null {
   return (x, y) => {
     const r = radiusAt(profile, y);
     const dx = x - at[0];
@@ -243,7 +243,7 @@ function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, step: numb
 
 // ---- a shell on a grid: a front surface, an optional back surface (its inside) and walls where it is broken ----
 
-interface Shell {
+export interface Shell {
   nu: number; nv: number; wrapU?: boolean;
   /** The outer surface and the inner one at grid point (i, j), i across (0..nu), j along (0..nv). */
   front: (i: number, j: number) => Vector3;
@@ -257,7 +257,7 @@ interface Shell {
   tint?: (i: number, j: number) => readonly [number, number, number];
 }
 
-function shell(k: Kit, sh: Shell, colour: string, backColour: string, edge: string, o: PartOpts = {}): void {
+export function shell(k: Kit, sh: Shell, colour: string, backColour: string, edge: string, o: PartOpts = {}): void {
   const { nu, nv } = sh;
   const cols = sh.wrapU ? nu : nu + 1;
   const idx = (i: number, j: number): number => j * cols + (sh.wrapU ? ((i % nu) + nu) % nu : i);
@@ -693,12 +693,12 @@ function chipped(x: number, y: number, cuts: readonly Cut[], jag: number): [numb
 }
 
 /** The realistic shield in its own frame (face toward +z), with its wear: also lent to the toon comparison Hoplite. */
-export function realShield(k: Kit, c: Look, w: Wear): void {
+export function realShield(k: Kit, c: Look, w: Wear, sectors = SNU): void {
   fineCount = 0;
-  shield(k, c, w);
+  shield(k, c, w, sectors);
 }
 
-function shield(k: Kit, c: Look, w: Wear): void {
+function shield(k: Kit, c: Look, w: Wear, nu = SNU): void {
   const broken = worn(w, 4);
   const cuts: Cut[] = [];
   if (worn(w, 3) && !broken) cuts.push({ from: 285, to: 318, inner: SR * 0.62 });
@@ -711,10 +711,10 @@ function shield(k: Kit, c: Look, w: Wear): void {
   if (!broken) {
     // Whole (or chipped): a disc in rings, the outer ring at the rim's edge.
     const pt = (i: number, j: number, back: boolean): Vector3 => {
-      const a = (i / SNU) * Math.PI * 2, r = SRINGS[j]! * SR;
+      const a = (i / nu) * Math.PI * 2, r = SRINGS[j]! * SR;
       return at(Math.cos(a) * r, Math.sin(a) * r, back, (i % 2 ? 0.35 : -0.25) * (j / (SRINGS.length - 1)));
     };
-    shell(k, { nu: SNU, nv: SRINGS.length - 1, wrapU: true, front: (i, j) => pt(i, j, false), back: (i, j) => pt(i, j, true), inside: new Vector3(0, 0, -6) },
+    shell(k, { nu, nv: SRINGS.length - 1, wrapU: true, front: (i, j) => pt(i, j, false), back: (i, j) => pt(i, j, true), inside: new Vector3(0, 0, -6) },
       BRONZE, SHIELD_BACK, BRONZE_DARK, { gloss: 0.5 });
   } else {
     // Broken: about half is gone. What is left runs from a jagged break near the middle to the right rim, in rows.

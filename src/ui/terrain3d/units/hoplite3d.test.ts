@@ -126,8 +126,14 @@ describe('the toon closed-helm Hoplite (comparison shots only)', () => {
     const closed = buildFigure('hoplite', { look: RED, wear: CLEAN, variant: 'toonClosedHelm' });
     expect(closed.real).toBe(false);
     expect(positions(closed)).not.toEqual(positions(buildFigure('hoplite', { look: RED, wear: CLEAN })));
+    // The game reaches it only through the developer's storage switch, which nothing in the game sets.
     const { readFileSync } = await import('node:fs');
-    for (const f of ['src/ui/terrain3d/unitsInput.ts', 'src/ui/board/Board.tsx']) expect(readFileSync(f, 'utf8')).not.toMatch(/variant:/);
+    for (const f of ['src/ui/terrain3d/unitsInput.ts', 'src/ui/board/Board.tsx']) expect(readFileSync(f, 'utf8')).not.toMatch(/variant: '/);
+    const { devHopliteVariant } = await import('../unitsInput');
+    expect(devHopliteVariant()).toBeUndefined();
+    // In Gritty it stays the toon figure (the realistic build does not take its place).
+    expect(buildFigure('hoplite', { look: RED, wear: CLEAN, gritty: true, variant: 'toonClosedHelm' }).real).toBe(false);
+    expect(buildFigure('hoplite', { look: RED, wear: { stage: 4, blood: 2 }, variant: 'toonClosedHelm' }).triangles).toBeLessThanOrEqual(3800);
   });
 });
 

@@ -62,6 +62,13 @@ try {
     hop('Gritty realistic', wear),
   ];
   await run('g-three-hoplites.png', [...three(w(0)), ...three(w(4, 2))], 7, 3, { cellW: 44, rowH: 74 });
+  const toon = (name: string, wear: W) => ({ type: 'hoplite', faction: 'spartans', gritty: false, wear, variant: 'toonClosedHelm', name });
+  await run('k-detailed-toon-large.png', [toon('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('k2-detailed-toon-broken.png', [toon('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('k3-detailed-toon-stages.png', [
+    toon('clean', w(0)), toon('scuffed', w(1)), toon('dented', w(2)), toon('battered', w(3)), toon('battered + blood', w(3, 1)),
+    toon('broken + blood', w(4, 1)), toon('broken + more blood', w(4, 2)), toon('healed, scarred', w(1, 0, true)), toon('scarred, wounded again', w(3, 1, true)),
+  ], 4.2, 9, { cellW: 40, rowH: 76 });
   await run('f-phone-scale.png', [
     hop('', w(0)), hop('', w(2), 'mongols'), hop('', w(4, 2)), { type: 'warrior', faction: 'mongols', gritty: true, wear: w(3, 1), name: '' }, { type: 'archer', faction: 'spartans', gritty: true, wear: w(1), name: '' },
   ], 1.6, 5, { cellW: 30, rowH: 70 });

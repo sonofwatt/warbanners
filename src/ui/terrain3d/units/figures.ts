@@ -8,12 +8,13 @@ import type { BuiltFigure, Surface, V3 } from './kit';
 import {
   arm, BLACK_HORSE, BLACK_HORSE_DARK, BLOOD, bloody, BOOT, BRONZE_RIM, crack, dent, dirt, discPoly, discWear, DUN,
   DUN_DARK, ell, faceWear, FELT, FUR, GOLD, GREY_HORSE, GREY_HORSE_DARK, groundDrops, HAIR, head, helmBroken,
-  horse, HORSE, HORSE_DARK, SCAR, HORSE_HAIR, LEAF, legsAndBoots, MANE, NECK, NECK_AT, onView, PALE_HORSE, PALE_HORSE_DARK, PIEBALD, PIPE, rider, roundShield,
+  horse, HORSE, HORSE_DARK, HORSE_HAIR, LEAF, legsAndBoots, MANE, NECK, NECK_AT, onView, PALE_HORSE, PALE_HORSE_DARK, PIEBALD, PIPE, rider, roundShield,
   scratches, SCRATCH, splitPoly, SCRATCH_DARK, setYaw, shieldCuts, shieldFrame, SKIN, smear, spear, standingBody, STEEL,
   STEEL_DARK, STONE, STRING, sword, tearPolys, TUNIC, tunicSurf, tunicWear, viewSphere, VISOR, WOOD, WOOD_DARK, worn,
 } from './parts';
 import type { Cut, Look, Wear } from './parts';
-import { realHoplite, realShield } from './hoplite3d';
+import { realHoplite } from './hoplite3d';
+import { detailedToonHoplite } from './toonHoplite';
 import { realCatapult } from './catapult3d';
 
 export type UnitType =
@@ -572,53 +573,6 @@ function hoplite(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   return NARROW;
 }
 
-/**
- * For comparison only (David, second pass; the game never builds it): the toon Hoplite in a closed bronze helmet with
- * a T-shaped opening, in the toon kit, carrying the realistic Hoplite's shield (hoplite3d.ts realShield).
- */
-function closedHelmHoplite(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
-  turned(k, STAND_YAW, () => {
-    k.pivot(WEAPON, [13, H(-11), 2.4], () => {
-      spear(k, [12, 0.6, 2.4], [14.4, H(-30), 2.4], (36 - 30) / 0.785 + 0.8, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood });
-    }, { axis: TIP_FORWARD });
-    arm(k, [5.4, H(-15.6), 0], [13, H(-11), 2.8], c.main);
-    standingBody(k, c, w);
-    const hd = head(k, 0, -22.4);
-    // The helm closes over the whole head, down past the chin.
-    const r = 7.2;
-    const hc: V3 = [hd.c[0], hd.c[1] + 0.5, hd.c[2]];
-    k.dome(hc, r, c.accent, { to: 2.35, seg: 14, gloss: 0.35 });
-    const s = viewSphere(hc, r + 0.05);
-    // The T: eye slits either side of the nose guard, the slot between the cheek plates below it. Built of small
-    // pieces so the marks follow the dome.
-    const slit = (x0: number, x1: number, y0: number, y1: number): void => {
-      for (let x = x0; x < x1 - 0.01; x += 0.9) k.decal([x, y0, Math.min(x1, x + 0.95), y0, Math.min(x1, x + 0.95), y1, x, y1], '#120D09', s);
-    };
-    // The eye slits sit over the head's eyes, which show dark through them.
-    for (const sd of [-1, 1]) {
-      slit(sd > 0 ? 0.75 : -4.6, sd > 0 ? 4.6 : -0.75, -3.2, -1.5);
-      slit(sd > 0 ? 0.75 : -1.5, sd > 0 ? 1.5 : -0.75, -4.6, -3.2);
-    }
-    for (let y = -4.6; y > -6.9; y -= 0.8) k.decal([-0.75, y, 0.75, y, 0.8, y - 0.85, -0.8, y - 0.85], '#120D09', s);
-    k.line([-4.8, -0.9, -2.4, -0.4, 0, -0.7, 2.4, -0.4, 4.8, -0.9], 0.55, mix(c.accent, '#FFFFFF', 0.3), s);
-    if (worn(w, 1)) scratches(k, s, [[-3.8, 4.4, -1.6, 5.6], [1.6, 5.2, 3.6, 4.2]], SCRATCH, 0.7);
-    if (worn(w, 2)) dent(k, s, 2.8, 3.4, 1.1, c.accent);
-    if (helmBroken(w)) {
-      // The near cheek plate broken away: the face shows in the gap, with blood (or, healed, a scar).
-      const gap = [-6.2, -3.6, -2.0, -3.7, -1.6, -4.6, -2.1, -5.4, -1.9, -6.6, -4.6, -6.2, -6.4, -5.0];
-      k.decal(gap.map((v, i) => (i % 2 ? v - 0.1 : v + (v < -3 ? -0.15 : 0.15))), mix(c.accent, '#000000', 0.55), s);
-      k.decal(gap, SKIN, s);
-      if (w.scarred && w.blood === 0) k.line([-4.4, -3.9, -3.6, -6.0], 0.7, SCAR, s);
-      if (w.blood >= 1) smear(k, s, -4.2, -3.9, 0.1, -1, 2.2, 1.1);
-      if (w.blood >= 2) { smear(k, s, -2.8, -4.0, -0.1, -1, 2.2, 0.9); k.decal(ell(-3.5, -5.8, 0.6, 0.5, 6), BLOOD, s); }
-    }
-    crest(k, [0, hc[1] + 6.4, -0.6], 17, 8.2, c.main, c.dark, w, false, 2.2);
-    k.pivot(SHIELD, [-5.4, H(-15.6), 0], () => k.frame([-6.2, H(-9.6) + 1.4, 8.2], [-0.36, 0, 0], () => realShield(k, c, w)), { axis: TIP_FORWARD });
-    feetBlood(k, w, 3, 9);
-  });
-  return NARROW;
-}
-
 function kingsGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [13, H(-12.6), 1.6], () => {
@@ -951,10 +905,10 @@ export const FIGURES: Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; 
 export function buildFigure(type: UnitType, o: FigureOpts): Figure {
   const k = new Kit();
   if (o.hero) heroMark(k, o.look.accent);
-  const realBuild = o.gritty === true ? REAL_BUILDERS[type] : undefined;
-  const real = realBuild !== undefined;
   const closed = o.variant === 'toonClosedHelm' && type === 'hoplite';
-  const shadow = realBuild !== undefined ? realBuild(k, o) : closed ? closedHelmHoplite(k, o) : FIGURES[type](k, o);
+  const realBuild = o.gritty === true && !closed ? REAL_BUILDERS[type] : undefined;
+  const real = realBuild !== undefined;
+  const shadow = realBuild !== undefined ? realBuild(k, o) : closed ? detailedToonHoplite(k, o) : FIGURES[type](k, o);
   setYaw(0);
   return { ...k.build(), shadow, real };
 }
