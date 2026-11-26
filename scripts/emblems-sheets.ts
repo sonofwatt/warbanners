@@ -51,7 +51,7 @@ const GROUPS: { title: string; faction: FactionId | null; types: [UnitTypeId, st
     title: 'Mongols', faction: 'mongols', types: [
       ['horseArcher', 'Horse head with plume and throat tassel; recurve bow'],
       ['khansGuard', 'Spiked steppe helmet, fur brim, mail neck guard; horsetail standard'],
-      ['skyCaller', 'Fringe over the eyes, feathers above; frame drum with a bolt'],
+      ['skyCaller', 'Antlered shaman, fringe over the eyes; frame drum with a bolt'],
       ['camp', 'Felt tent roof and smoke ring; campfire'],
     ],
   },
@@ -131,7 +131,7 @@ function optionB(type: UnitTypeId, colour: { main: string; dark: string }, small
 const MONGOL: UnitTypeId[] = ['horseArcher', 'khansGuard', 'skyCaller', 'camp'];
 const BANNER_TYPES: UnitTypeId[] = ['hoplite', 'archer', 'horseArcher', 'catapult', 'kingsGuard', 'camp', 'knight', 'scout'];
 const COLS: [string, (t: UnitTypeId, c: { main: string; dark: string }, hp: number) => ReactElement][] = [
-  ['today', (t, c, hp) => h(WarBanner, { type: t, colour: c, hp, maxHp: UNITS[t].hp, spent: false, fresh: false, taunted: false, blinded: false })],
+  ['in game', (t, c, hp) => h(WarBanner, { type: t, colour: c, hp, maxHp: UNITS[t].hp, spent: false, fresh: false, taunted: false, blinded: false })],
   ['A full', (t, c, hp) => optionA(t, c, false, hp)],
   ['A small', (t, c, hp) => optionA(t, c, true, hp)],
   ['B full', (t, c, hp) => optionB(t, c, false, hp)],
