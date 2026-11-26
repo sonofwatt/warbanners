@@ -13,6 +13,8 @@ import type { ClockView } from './clock';
 import { aiSeatToPlay, hostMove } from './host';
 import { applyLocal, follow, fromSnapshot, rebuildFrom, replay } from './sync';
 import type { Followed, Step } from './sync';
+import { advancedPart } from '../app/advanced';
+import type { Advanced } from '../app/advanced';
 import { factionsFor, liveDesync, SCHEMA, TIMEOUT_RETRY_MS } from './wire';
 import type { ClockSec, Head, Presence, Room } from './wire';
 
@@ -49,7 +51,7 @@ export interface Session {
   join(name: string): Promise<true | Refusal>;
   takeOver(seat: PlayerId): Promise<true | Refusal>;
   setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): Promise<true | Refusal>;
-  start(seed: number): Promise<true | Refusal>;   // host only, both seats filled
+  start(seed: number, advanced?: Partial<Advanced>): Promise<true | Refusal>;   // host only, both seats filled
   wake(): void;                           // the page is visible again: the return runs, as after a long tick gap
   close(): void;
 }
@@ -656,9 +658,9 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
       return r;
     },
     setLobby: (patch) => net.setLobby(code, patch),
-    async start(seed) {
+    async start(seed, advanced) {
       if (!room || room.meta.hostId !== me || !room.seats[0] || !room.seats[1]) return 'refused';
-      const settings = { seed, factions: factionsFor(room.meta.hostFaction) };
+      const settings = { seed, factions: factionsFor(room.meta.hostFaction), ...advancedPart(advanced) };
       const r = await net.start(code, settings, hashState(createMatch(settings)));
       if (r !== true) { failure = r; emit(); }
       return r;

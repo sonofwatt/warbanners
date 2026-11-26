@@ -3,6 +3,7 @@ import type { Action, FactionId, MatchSettings, PlayerId } from '../engine';
 import type { AdaptState } from '../ai/adapt';
 import type { AiLevel } from '../ai/types';
 import type { Seat } from '../app/record';
+import { readAdvanced } from '../app/advanced';
 
 export const SCHEMA = 1; // mirrored as a literal in database.rules.json
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -113,7 +114,10 @@ export function decodeSettings(v: unknown): MatchSettings | null {
     if (!isObject(o) || !Number.isSafeInteger(o.seed) || (o.seed as number) < 0) return null;
     const f = o.factions;
     if (!Array.isArray(f) || f.length !== 2 || !isFaction(f[0]) || !isFaction(f[1]) || f[0] === f[1]) return null;
-    return { seed: o.seed as number, factions: [f[0], f[1]] };
+    // The advanced options (chests, weather, time of day) are optional; an unknown value refuses the settings.
+    const adv = readAdvanced(o);
+    if (adv === null) return null;
+    return { seed: o.seed as number, factions: [f[0], f[1]], ...adv };
   } catch {
     return null;
   }

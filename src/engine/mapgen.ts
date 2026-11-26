@@ -67,7 +67,9 @@ function shuffle<T>(items: T[], state: number): [T[], number] {
 
 // Place villages then treasures on the half-map `half` (terrain and resources already set).
 // Returns the chosen half-keys and the rng state, or null when too few could be placed.
-function placeFeatures(half: Map<HexKey, Tile>, halfOrder: Hex[], state: number, capitals: Hex[]): { villages: Hex[]; treasures: Hex[]; rng: number } | null {
+// `want` treasures are sought per half; an attempt fails when fewer than `need` fit (need is want, except that a
+// chest setting above the normal count needs only the normal count and keeps as many extra as fit).
+function placeFeatures(half: Map<HexKey, Tile>, halfOrder: Hex[], state: number, capitals: Hex[], want: number, need: number): { villages: Hex[]; treasures: Hex[]; rng: number } | null {
   const m = CONFIG.mapgen;
   const farFromCapitals = (h: Hex, min: number): boolean => capitals.every((c) => distance(h, c) >= min);
   const clear = (h: Hex, placed: Hex[], min: number): boolean =>
@@ -100,10 +102,10 @@ function placeFeatures(half: Map<HexKey, Tile>, halfOrder: Hex[], state: number,
   [shuffled, s] = shuffle(treasureCandidates, s);
   const treasures: Hex[] = [];
   for (const h of shuffled) {
-    if (treasures.length >= m.treasuresPerHalf) break;
+    if (treasures.length >= want) break;
     if (clear(h, [...villages, ...treasures], m.treasureMinFeatureDistance)) treasures.push(h);
   }
-  if (treasures.length < m.treasuresPerHalf) return null;
+  if (treasures.length < need) return null;
   for (const h of treasures) {
     const t = half.get(key(h))!;
     t.resource = null;
@@ -144,7 +146,9 @@ export function isConnected(tiles: Record<HexKey, Tile>, from: HexKey, targets: 
   return targets.every((t) => seen.has(t));
 }
 
-export function generateMap(seed: number, radius: number): GeneratedMap {
+// `perHalf` is the treasure count sought on each half of the map (the chest setting); the default is today's map.
+export function generateMap(seed: number, radius: number, perHalf: number = CONFIG.mapgen.treasuresPerHalf): GeneratedMap {
+  const need = Math.min(perHalf, CONFIG.mapgen.treasuresPerHalf);
   const capitals = CONFIG.capitals.map(parseKey);
   const halfOrder = range(CENTER, radius).filter(inHalf);
 
@@ -173,7 +177,7 @@ export function generateMap(seed: number, radius: number): GeneratedMap {
     }
     // The capital is a plain field: the draw above is kept so the stream is unchanged.
     half.get(key(capital))!.resource = null;
-    const placed = placeFeatures(half, halfOrder, s, capitals);
+    const placed = placeFeatures(half, halfOrder, s, capitals, perHalf, need);
     if (!placed) continue;
     const out = assemble(radius, half, placed.villages, placed.treasures);
     if (isConnected(out.tiles, CONFIG.capitals[0], [CONFIG.capitals[1], ...out.villages, ...out.treasures])) {
@@ -185,7 +189,7 @@ export function generateMap(seed: number, radius: number): GeneratedMap {
   const last = CONFIG.mapgen.maxAttempts - 1;
   const half = new Map<HexKey, Tile>();
   for (const h of halfOrder) half.set(key(h), makeTile('field', null));
-  const placed = placeFeatures(half, halfOrder, attemptSeed(seed, last), capitals);
+  const placed = placeFeatures(half, halfOrder, attemptSeed(seed, last), capitals, perHalf, need);
   const out = assemble(radius, half, placed?.villages ?? [], placed?.treasures ?? []);
   return { ...out, rng: placed?.rng ?? attemptSeed(seed, last), attempts: CONFIG.mapgen.maxAttempts };
 }

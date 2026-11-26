@@ -10,6 +10,9 @@ import { T, fill } from '../text';
 import { failureText } from './Join';
 import { NoticeLine } from './NoticeLine';
 import { clockName, ClockChips, SideChips } from './OnlineSetup';
+import { AdvancedSection } from './Advanced';
+import { DEFAULT_ADVANCED } from '../../app/advanced';
+import type { Advanced } from '../../app/advanced';
 
 const COPIED_MS = 2500;
 
@@ -61,6 +64,7 @@ export function Lobby(): ReactElement | null {
   const dismissNotice = useApp((s) => s.dismissNotice);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [advanced, setAdvanced] = useState<Advanced>(DEFAULT_ADVANCED);
   useEffect(() => {
     if (!copied) return undefined;
     const t = setTimeout(() => setCopied(false), COPIED_MS);
@@ -98,6 +102,7 @@ export function Lobby(): ReactElement | null {
             <span>{T.ui.clockLabel}</span>
             <ClockChips chosen={room.meta.clock} onPick={(c) => setLobby({ clock: c })} />
           </div>
+          <AdvancedSection value={advanced} onChange={setAdvanced} />
         </>
       ) : <p className="setup-line" data-testid="lobby-clock">{fill(T.ui.clockShort, { clock: clockName(room.meta.clock) })}</p>}
       {online.failure !== null ? <p className="notice" role="status"><InfoIcon /><span>{failureText(online.failure, online)}</span></p> : null}
@@ -105,7 +110,7 @@ export function Lobby(): ReactElement | null {
         {!full ? T.ui.waitingForGuest : host ? null : fill(T.ui.waitingForHost, { name: room.seats[0]?.name ?? '' })}
       </p>
       <div className="setup-row">
-        {host && full ? <button type="button" className="primary big" data-testid="start-online" onClick={startOnline}>{T.ui.startOnline}</button> : null}
+        {host && full ? <button type="button" className="primary big" data-testid="start-online" onClick={() => startOnline(advanced)}>{T.ui.startOnline}</button> : null}
         <button type="button" data-testid="lobby-home" onClick={goHome}><HomeIcon />{T.ui.home}</button>
       </div>
     </div>

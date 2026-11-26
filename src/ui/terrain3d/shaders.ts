@@ -16,6 +16,9 @@ float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a
 export const LIGHT = /* glsl */ `
 uniform vec3 uLightDir, uLightColor, uShadowColor, uTint, uVeilColor;
 uniform float uTime;
+// The match's look (sky.ts, a look only): snow dusting (0 to 1), wet ground (0 to 1), lit city windows (0 to 1).
+// All 0 by day in clear weather, and on the unit figures always, so they draw exactly as before.
+uniform float uSnow, uWet, uWindows;
 // Three soft bands: shade, half light, full light.
 float toon(vec3 n) {
   float d = dot(normalize(n), uLightDir);
@@ -24,6 +27,28 @@ float toon(vec3 n) {
 vec3 lightUp(vec3 albedo, float band) { return albedo * mix(uShadowColor, uLightColor, band); }
 // The last step for every lit colour: a time of day grade, then the veil over tiles no unit sees now.
 vec3 finish(vec3 col, float veil) { return mix(col * uTint, uVeilColor, veil); }
+`;
+
+// After NOISE and LIGHT, in the ground and prop shaders only.
+export const WEATHER_GLSL = /* glsl */ `
+// Weather on the ground's top faces: a light white dusting of snow in soft patches, thicker where the ground faces up,
+// or rain's darker ground with a faint wet sheen toward the light. Off (0) in clear weather.
+vec3 weatherOn(vec3 lit, vec3 n, vec2 p, bool skip) {
+  if (skip) return lit;
+  if (uSnow > 0.0) {
+    float patchy = fbm(p * 0.045 + 3.0) + 0.08 * noise(p * 0.6);
+    float dust = uSnow * smoothstep(0.5, 0.62, patchy + 0.12 * (n.y - 0.8)) * smoothstep(0.3, 0.7, n.y);
+    lit = mix(lit, vec3(0.94, 0.96, 1.0) * (0.55 + 0.45 * uLightColor), dust * 0.62);
+  }
+  if (uWet > 0.0) {
+    lit *= 1.0 - 0.2 * uWet;
+    vec3 view = normalize(vec3(0.0, 0.62, 0.785));
+    float spec = pow(max(dot(reflect(-uLightDir, n), view), 0.0), 18.0);
+    float puddle = smoothstep(0.58, 0.7, noise(p * 0.05 + 2.0));
+    lit += uWet * (0.05 + 0.18 * puddle) * smoothstep(0.2, 0.7, spec) * uLightColor;
+  }
+  return lit;
+}
 `;
 
 
@@ -42,6 +67,7 @@ void main() {
 export const groundFrag = /* glsl */ `
 ${NOISE}
 ${LIGHT}
+${WEATHER_GLSL}
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
 const float INR = ${INR.toFixed(4)};
 const float WALL = ${WALL.toFixed(4)};
@@ -132,7 +158,7 @@ void main() {
     // Fog: today's flat fog tile exactly (art/palette.ts GROUND.fog), unlit: top, its thin rim, left and right walls.
     vec3 top = vec3(0.9137, 0.9333, 0.9490), left = vec3(0.7961, 0.8275, 0.8549), right = vec3(0.7255, 0.7608, 0.7922);
     col = wall ? (n.x < 0.0 ? left : right) : (edge < 0.35 ? left : top);
-    gl_FragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col * uTint, 1.0); // the time of day's grade (1 by day)
     return;
   }
 
@@ -210,7 +236,7 @@ void main() {
     float top = terrain == 3 ? ${WATER_Y.toFixed(2)} : 0.0;
     col = side(terrain, top - vWorld.y, vWorld.x + vWorld.z * 0.7);
   }
-  vec3 lit = lightUp(col, band) * (wall ? 1.0 : vAO);
+  vec3 lit = weatherOn(lightUp(col, band) * (wall ? 1.0 : vAO), n, p, wall || terrain == 3);
   if (!wall) {
     // The hex grid stays readable: a soft darker line at the tile edge, a faint lit lip just inside it.
     lit *= mix(mix(0.84, 0.95, onRoad), 1.0, smoothstep(0.25, 1.1, edge));
@@ -247,6 +273,7 @@ void main() {
 export const propFrag = /* glsl */ `
 ${NOISE}
 ${LIGHT}
+${WEATHER_GLSL}
 uniform bool uIsOutline;
 // A fading fall's figure (units/units3d.ts) defines UNIT_ALPHA and sets uAlpha; everything else is opaque.
 #ifdef UNIT_ALPHA
@@ -266,7 +293,7 @@ vec3 shade(vec3 c) { return c; }
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
 #ifdef LAMP
 varying vec4 vLamp;
-uniform float uGlow0, uGlow1, uReach;
+uniform float uGlow0, uGlow1, uReach, uGlowBoost;
 #endif
 void main() {
   if (uIsOutline) { gl_FragColor = vec4(shade(finish(vColor * vec3(0.30, 0.32, 0.36), vVeil)), ALPHA); return; }
@@ -284,18 +311,25 @@ void main() {
   vec3 view = normalize(vec3(0.0, 0.62, 0.785));
   float spec = pow(max(dot(reflect(-uLightDir, n), view), 0.0), 10.0);
   lit = mix(lit, vec3(1.0), max(vGloss, 0.0) * smoothstep(0.55, 0.6, spec) * 0.85);
+  // Snow settles on the tops of trees, roofs and rocks (uSnow is 0 on the figures).
+  lit = weatherOn(lit, n, vWorld.xz, n.y < 0.5);
+  // The town's windows (their two paint colours, town.ts and buildings.ts) light up warm after dark, past the grade.
+  float window = uWindows * (1.0 - step(0.012, distance(vColor, vec3(0.3529, 0.2745, 0.1961)))) +
+    uWindows * (1.0 - step(0.012, distance(vColor, vec3(0.2902, 0.2196, 0.1569))));
 #ifdef LAMP
   // Warm lantern light, falling off from the lantern in two toon steps and breathing with its flicker. Faces turned
   // toward the lantern take more of it, so the frames' edges catch the light as they recede.
   vec3 toLamp = vLamp.xyz - vWorld;
   float dist = length(toLamp);
-  float glow = vLamp.w < 0.5 ? uGlow0 : uGlow1;
+  float glow = (vLamp.w < 0.5 ? uGlow0 : uGlow1) * uGlowBoost;
   float near = 1.0 - smoothstep(0.0, uReach, dist);
   float facing = 0.45 + 0.55 * max(dot(n, toLamp / max(dist, 0.001)), 0.0);
   float warm = glow * facing * (0.55 * near + 0.45 * near * near);
   lit = lit * (1.0 + 2.6 * warm * vec3(1.0, 0.78, 0.48)) + warm * vec3(0.30, 0.17, 0.05);
 #endif
-  gl_FragColor = vec4(shade(finish(lit, vVeil)), ALPHA);
+  vec3 done = finish(lit, vVeil);
+  done = mix(done, mix(vec3(1.0, 0.80, 0.42), uVeilColor, vVeil * 1.5), min(window, 1.0) * 0.9);
+  gl_FragColor = vec4(shade(done), ALPHA);
 }`;
 
 

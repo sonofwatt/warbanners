@@ -55,6 +55,8 @@ export const CONFIG = deepFreeze({
     // fish below 25. Placed only where the tree in play harvests them.
     jewels: 55, fish: 25,
     villagesPerHalf: 3, treasuresPerHalf: 2, maxAttempts: 50,
+    // the advanced chest setting: treasures per half for Few and Many (Normal is treasuresPerHalf)
+    treasuresFew: 1, treasuresMany: 4,
     rollRange: 100, villageMinDistance: 3, treasureMinCapitalDistance: 3, treasureMinFeatureDistance: 2,
   },
   techBase: [4, 6, 8],

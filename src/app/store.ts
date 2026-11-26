@@ -10,6 +10,8 @@ import { aiInputFor } from '../ai/input';
 import { LEVEL_DIAL } from '../ai/types';
 import type { AiLevel } from '../ai/types';
 import { watchMs } from '../ui/board/effects';
+import { advancedPart } from './advanced';
+import type { Advanced } from './advanced';
 import { movesWalk3d } from '../ui/terrain3d/option';
 import { afterAction, indexActions, isOffered, NONE, nextUnit as nextUnitOf, offered, tap as tapLogic } from '../ui/interaction';
 import type { Armed, Hit, Selection } from '../ui/interaction';
@@ -53,7 +55,7 @@ export interface Deps {
   onVisible?: (fn: () => void) => () => void;   // fn on each return of the page to view; returns the unsubscribe
 }
 export type SecondSeat = 'human' | AiLevel;
-export interface Setup { names: [string, string]; factions: [FactionId, FactionId]; second?: SecondSeat }   // second: 'human' if left out
+export interface Setup { names: [string, string]; factions: [FactionId, FactionId]; second?: SecondSeat; advanced?: Partial<Advanced> }   // second: 'human' if left out; advanced: the defaults if left out
 export type Screen = 'home' | 'setup' | 'stats' | 'pass' | 'match' | 'result' | 'onlineSetup' | 'lobby' | 'join';
 export type Notice = 'saveFailed' | 'saveRepaired' | 'saveDropped' | 'saveUnreadable' | 'saveOldVersion' | 'blockedUnseen' | 'aiPassed'
   | 'needsConnection' | 'notSetUp' | 'serverOutOfDate' | 'roomGone' | 'updateDuringOnline'
@@ -98,7 +100,7 @@ export interface AppState {
   joinAs(name: string): Promise<void>;
   takeSeat(seat: PlayerId): Promise<void>;
   setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): void;
-  startOnline(): void;
+  startOnline(advanced?: Partial<Advanced>): void;   // host only; advanced: the match options, the defaults if left out
   resignOnline(): void;             // on either player's turn: the Menu's Resign in online mode
   onlineBlocked(): 'notSetUp' | 'needsConnection' | null;   // why Home cannot offer online play now; never loads src/net
   forgetRoom(code: string): void;   // Home's remove: forget it here, and delete the room when made here and over
@@ -336,7 +338,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       startMatch: setup => {
         const second = setup.second ?? 'human';
         rememberTyped(second === 'human' ? setup.names : [setup.names[0]]);
-        const settings = { seed: deps.newSeed(), factions: setup.factions };
+        const settings = { seed: deps.newSeed(), factions: setup.factions, ...advancedPart(setup.advanced) };
         const state = createMatch(settings);
         const seats: [string | Seat, string | Seat] = second === 'human' ? setup.names : [setup.names[0], {
           name: T.ai.name[second], kind: 'ai', level: second, salt: deps.newSeed() >>> 0,

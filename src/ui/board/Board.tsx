@@ -1,11 +1,11 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactElement, ReactNode } from 'react';
+import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
-import { Border, CityGlow, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
+import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { WarBanner } from '../art/banner';
 import {
@@ -27,6 +27,8 @@ import type { AmbientLoop } from '../terrain3d/ambient';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { setUnits3dDrawing, webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
+import { svgGrade } from '../terrain3d/sky';
+import type { Look } from '../../app/advanced';
 import { livePose, liveTransform } from './livePose';
 import { hexesBetween, SLIDE_MS, slideFrames, slideMs3d } from './motion';
 
@@ -47,6 +49,8 @@ export interface BoardProps {
   seed?: number;
   // A sheet, menu or dialog covers the board: the 3D board's idle animation pauses until it is gone.
   covered?: boolean;
+  // The match's weather and time of day (a look only, app/advanced.ts lookOf); Clear and Day when left out.
+  look?: Look;
   // The attacks of the action just shown (its lunges, with their delays) and the units it killed: each new seq turns
   // the 3D figure of each attacker to face its target, in order, and forgets the facings of the dead. UI only; moves
   // and hunkers are seen in the scene itself.
@@ -214,7 +218,45 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
   );
 }
 
-function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined; gl: boolean }): ReactElement {
+// The time of day's grade on the SVG art (sky.ts svgGrade): the tile's art drawn again on top as one silhouette in the
+// grade's colour at a low opacity, as the veil is, so only the ground and what stands on it darken; marks, rings, the
+// ready glow and the units drawn after the tile keep their full contrast. `wx` lays a faint static rain or snow
+// texture over the tile's top face (the SVG look only: the 3D board has falling rain and snow).
+interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null }
+function Graded(p: { look: TileLook | undefined; children: ReactNode }): ReactElement | null {
+  if (p.look === undefined || p.look.opacity === 0) return null;
+  return <g className="grade" opacity={p.look.opacity} pointerEvents="none" style={{ '--grade': p.look.grade } as CSSProperties}>{p.children}</g>;
+}
+function Weathered({ look }: { look: TileLook | undefined }): ReactElement | null {
+  if (look?.wx == null) return null;
+  return <polygon className="wx" points={TOP_POINTS} fill={`url(#wx-${look.wx})`} pointerEvents="none" />;
+}
+const TOP_POINTS = pts(topCorners());
+
+// The look the 3D board draws, on its canvas for tests: weather, time and the weather's particles.
+function markLook(canvas: HTMLCanvasElement, t: Terrain3d): void {
+  const l = t.look();
+  canvas.setAttribute('data-look', `${l.weather} ${l.time} ${l.particles}`);
+}
+
+// The SVG look's static rain (short slanted streaks) and snow (scattered flakes on a pale dusting), in board units.
+function WeatherPatterns(): ReactElement {
+  return (
+    <defs>
+      <pattern id="wx-rain" width={13} height={17} patternUnits="userSpaceOnUse" patternTransform="rotate(12)">
+        <path d="M2 1v6M8.5 9v6" stroke="#E8F1FF" strokeOpacity={0.42} strokeWidth={0.7} strokeLinecap="round" />
+      </pattern>
+      <pattern id="wx-snow" width={16} height={14} patternUnits="userSpaceOnUse">
+        <rect width={16} height={14} fill="#FFFFFF" fillOpacity={0.16} />
+        <circle cx={3} cy={3} r={0.9} fill="#FFFFFF" fillOpacity={0.8} />
+        <circle cx={11} cy={6} r={0.7} fill="#FFFFFF" fillOpacity={0.7} />
+        <circle cx={6} cy={11} r={1} fill="#FFFFFF" fillOpacity={0.75} />
+      </pattern>
+    </defs>
+  );
+}
+
+function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: PlayerId | undefined; gl: boolean; look?: TileLook }): ReactElement {
   const { t } = p;
   const layers = svgLayers(t, p.gl);
   const mark = t.mark === null ? null : <g data-mark={t.mark}><Highlight mark={t.mark} /></g>;
@@ -225,6 +267,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
     return (
       <g data-hex={t.key} data-fog="true" transform={at}>
         {layers.base ? <TileBase ground="fog" /> : null}
+        {layers.base ? <Graded look={p.look}><TileBase ground="fog" /></Graded> : null}
         {glow}
         {mark}
         {centre}
@@ -242,6 +285,8 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
   return (
     <g data-hex={t.key} transform={at}>
       {body}
+      <Graded look={p.look}>{body}</Graded>
+      {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
       {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
         <Border edges={t.borderEdges} colour={playerColour(ownerFaction).main} />
@@ -309,7 +354,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
 // of svg nodes, and on a phone redrawing them all after every action held the screen still for over 100 ms.
 /** One tile as the board draws it, for tests. */
 export const BoardTile = TileViewOf;
-const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && sameData(a.factions, b.factions) && sameData(a.t, b.t));
+const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && a.look === b.look && sameData(a.factions, b.factions) && sameData(a.t, b.t));
 const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
@@ -365,6 +410,17 @@ export function Board(p: BoardProps): ReactElement {
     return () => setUnits3dDrawing(false);
   }, [units3d]);
   const bounds = useMemo(() => boardBounds(p.radius, gl ? THICK_3D : THICK), [p.radius, gl]);
+  // The look: one object per weather and time, so the tiles redraw only when it changes.
+  const weatherNow = p.look?.weather ?? 'clear', timeNow = p.look?.time ?? 'day';
+  const look = useMemo<Look>(() => ({ weather: weatherNow, time: timeNow }), [weatherNow, timeNow]);
+  const lookRef = useRef(look);
+  lookRef.current = look;
+  const tileLook = useMemo<TileLook | undefined>(() => {
+    const g = svgGrade(look);
+    const wx = !gl && (look.weather === 'rain' || look.weather === 'snow') ? look.weather : null;
+    if (g === null && wx === null) return undefined;
+    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx };
+  }, [look, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
   const cam = useRef<Camera | null>(null);
@@ -681,6 +737,8 @@ export function Board(p: BoardProps): ReactElement {
           ambient.current.cover(coveredRef.current);
         }
         t.tick(performance.now(), ambient.current.level());
+        t.setLook(lookRef.current);
+        markLook(canvas, t);
         const d = glLatest.current;
         if (d !== null) {
           t.setMap(d.map);
@@ -710,6 +768,15 @@ export function Board(p: BoardProps): ReactElement {
       setGlUnitsReady(false);
     };
   }, [glWanted, write]);
+  // A new look (rare: a match opens with its own) relights the 3D board and redraws it.
+  useEffect(() => {
+    const t = terrain.current;
+    if (t === null) return;
+    t.setLook(look);
+    if (canvasRef.current !== null) markLook(canvasRef.current, t);
+    write();
+    ambient.current?.kick();
+  }, [look, write]);
   // A new map (a road, a harvest, a building, fog lifting) rebuilds the tiles that changed; a new veil only repaints.
   // Before the browser paints, so the canvas and the svg change in the same frame.
   const shownGl = useRef<{ key: string; veilKey: string } | null>(null);
@@ -877,7 +944,7 @@ export function Board(p: BoardProps): ReactElement {
   const [drawn, overlay] = useMemo(() => {
     const view = (it: SceneItem): ReactElement =>
       it.kind === 'tile' ? (
-        <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} />
+        <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} look={tileLook} />
       ) : (
         <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} />
       );
@@ -890,13 +957,15 @@ export function Board(p: BoardProps): ReactElement {
     // With the 3D figures, the tile svg keeps the tiles and the svg above the figures takes the units.
     if (!units3d) return [all.map(view), null];
     return [all.filter((it) => it.kind === 'tile').map(view), all.filter((it) => it.kind === 'unit').map(view)];
-  }, [items, factions, viewer, settled, gl, units3d]);
+  }, [items, factions, viewer, settled, gl, units3d, tileLook]);
 
   const board = (
     <svg
       ref={svgRef} className="board" width="100%" height="100%" data-testid="board" data-terrain3d={gl ? 'on' : undefined}
+      data-weather={look.weather} data-time={look.time}
       style={glWanted ? { touchAction: 'none', position: 'relative' } : { touchAction: 'none' }}
     >
+      {tileLook?.wx != null ? <WeatherPatterns /> : null}
       {/* The camera ref holds the live transform; a render writes the same value back. */}
       <g ref={camRef} data-camera="true" transform={cameraTransform(cam.current, vp.current)}>
         {drawn}
