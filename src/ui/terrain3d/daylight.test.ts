@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { castShadow, daylight, DAYLIGHT_ROUNDS, MAX_REACH } from './daylight';
+import { CAST_MAX, castShadow, daylight, DAYLIGHT_ROUNDS, MAX_REACH } from './daylight';
 import { skyLight, svgGrade } from './sky';
 import type { TimeOfDay, Weather } from '../../app/advanced';
 
@@ -96,4 +96,13 @@ test('cast shadows: away from the light, long at a low sun (capped), short at a 
   expect(Math.hypot(...castShadow([1, 0.001, 0], 1).step)).toBeCloseTo(MAX_REACH);
   expect(castShadow([0, 1, 0], 0.3)).toEqual({ step: [0, 0], alpha: 0.3 });
   expect(castShadow(at('dusk', 20).dir, 0.2).step[0]).toBeLessThan(0); // a western sun throws shadows east
+});
+
+test('a low sun throws longer and darker shadows; a high sun and the high moon are unchanged', () => {
+  const day = castShadow([-0.55, 0.8, 0.28], 0.42);
+  expect(day.alpha).toBe(0.42);
+  const low = castShadow([-0.9, 0.3, 0.3], 0.42);
+  expect(low.alpha).toBeGreaterThan(0.5);
+  expect(low.alpha).toBeLessThanOrEqual(CAST_MAX);
+  expect(Math.hypot(...low.step)).toBeGreaterThan(1.3);
 });

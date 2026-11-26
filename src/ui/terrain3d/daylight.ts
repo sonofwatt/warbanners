@@ -74,10 +74,19 @@ export function lerpHex(a: string, b: string, t: number): string {
 /**
  * How far a shadow reaches for the light's slope, against a true one: shorter, as the board's figures are tall for
  * their tiles (about 42 world units on a tile 52 across), so the day's shadow stays near the feet. The longest reach
- * (a sun on the horizon) is capped so a shadow stays within about a tile.
+ * (a sun on the horizon) is capped so a shadow stays within about two tiles.
  */
 export const CAST_SCALE = 0.55;
-export const MAX_REACH = 1.3;
+export const MAX_REACH = 2.0;
+/**
+ * A low sun (dawn and dusk) throws longer, darker shadows, as David asked: below LOW_FROM of height the reach grows
+ * by up to LOW_LONGER and the darkness by up to LOW_DARKER (at the horizon), the darkness capped at CAST_MAX.
+ * The day's high sun and the night's high moon are untouched.
+ */
+export const LOW_FROM = 0.6;
+export const LOW_LONGER = 0.8;
+export const LOW_DARKER = 0.7;
+export const CAST_MAX = 0.62;
 /**
  * The cast shadow for a light direction (toward the light) and a strength: how far a figure's shadow reaches across
  * the ground per unit of its height (x and z in world space, pointing away from the light), and how dark it is.
@@ -86,6 +95,8 @@ export function castShadow(dir: Vec3, strength: number): { step: [number, number
   const [x, y, z] = norm(dir);
   const flat = Math.hypot(x, z);
   if (flat < 1e-6) return { step: [0, 0], alpha: strength };
-  const reach = Math.min(MAX_REACH, (CAST_SCALE * flat) / Math.max(y, 1e-3));
-  return { step: [(-x / flat) * reach, (-z / flat) * reach], alpha: strength };
+  const low = Math.min(1, Math.max(0, (LOW_FROM - y) / LOW_FROM));
+  const reach = Math.min(MAX_REACH, (CAST_SCALE * (1 + LOW_LONGER * low) * flat) / Math.max(y, 1e-3));
+  const alpha = low > 0 ? Math.min(Math.max(strength, CAST_MAX), strength * (1 + LOW_DARKER * low)) : strength;
+  return { step: [(-x / flat) * reach, (-z / flat) * reach], alpha };
 }

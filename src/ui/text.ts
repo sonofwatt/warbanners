@@ -257,8 +257,8 @@ const ui = {
   turnActions: 'Your turn',
   connectedToCapital: 'Connected to the capital', levelOf: 'Level {n}',
   // rules 8 (0.6.0) in two sentences, its numbers and names from CONFIG and the tables
-  // rules 9 (0.7.0) in three sentences, its numbers from CONFIG and FACTIONS
-  whatsNew: `New in rules 9: the Spartan capital starts at level ${FACTIONS.spartans.capitalStartLevel}, and from level ${CONFIG.growthExtraFrom} on a Spartan city needs ${-FACTIONS.spartans.growthExtra} growth less to level up; the gold level reward pays ${CONFIG.rewardGold}, a Market gives ${CONFIG.buildings.market.growth} growth, and a hunkered unit can Unhunker. The screen is steadier: the map stays still when you select something, the unit or city card pulls up from the bottom, and Tech, Next unit and End turn sit at the bottom, End turn turning red once every unit has acted. In the 3D look units turn to face their moves, walk, strike, block and crouch when hunkered, cities, villages and the mine are built in 3D, and every unit carries a war banner with its type and health, spent units shown darker.`,
+  // rules 10 (0.8.0) in three sentences
+  whatsNew: `New in rules 10: on their own land, Mongol riders pay the usual cost for the first tile they ride each turn, so they ride one tile less at home. A new Advanced menu on the match screen sets how many treasure chests the map holds, the weather and the time of day; dawn brightens and dusk darkens over the first 30 rounds. In the 3D look units now cast shadows that follow the light, and mist and smoke darken at night.`,
   relayRiding: 'Rides Mongol land',
   relayRidingBlurb: 'In Mongol territory the first tile it enters each turn costs the usual, and every later one only what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',
