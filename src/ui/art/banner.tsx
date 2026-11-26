@@ -1,21 +1,27 @@
 import type { ReactElement } from 'react';
 import type { UnitTypeId } from '../../engine';
+import { Emblem, EMBLEM_R, emblemPaint } from './emblems';
 import { Ink } from './features';
 
-// The war banner above a unit's head: a small flag in its owner's colour with the unit type's glyph on the left and
-// the green health pips beside it, and the status marks round it (taunted and blinded to its left, the "new" glint
-// or the hunker shield to its right, then a carried item's badge). Drawn in the figures' coordinates: feet near
-// (0, 4), the centre of the tile's top face at the origin, the banner centred on x 0 above the tallest head.
-// A hero's banner has a gold edge (the pennant stays on the figure too); an own hidden unit's banner carries a
-// slashed eye after its glyph: no enemy sees it unless one stands next to it.
+// The war banner above a unit's head: a small flag in its owner's colour with the unit type's round emblem badge
+// over its left end and the green health pips running out to its right, and the status marks round it (taunted and
+// blinded to its left, the "new" glint or the hunker shield to its right, then a carried item's badge). Drawn in the
+// figures' coordinates: feet near (0, 4), the centre of the tile's top face at the origin, the banner centred on
+// x 0 above the tallest head. A hero's banner has a gold edge and a gold ring round its badge (the pennant stays on
+// the figure too); an own hidden unit's banner carries a slashed eye after its badge: no enemy sees it unless one
+// stands next to it.
 
 /** The banner's middle, top to bottom; the marks beside it are centred on this line too. */
 export const BANNER_MID = -44;
 /** The banner's height (without its edge). */
 export const BANNER_H = 10;
 const EDGE = 0.8;
-/** The glyph's slot at the banner's left end, and the hidden eye's slot after it. */
-const ICON_SLOT = 9.6;
+/** The emblem badge over the banner's left end: 1.6 times the banner's height across, its middle a little above the
+ * banner's so its foot stays clear of the heads, and the gap before what follows it. */
+export const BADGE_D = 1.6 * BANNER_H;
+export const BADGE_Y = BANNER_MID - 1;
+const BADGE_GAP = 0.6;
+/** The hidden eye's slot after the badge. */
 const EYE_SLOT = 8.4;
 /** The swallowtail cut in the banner's right end. */
 const NOTCH = 2.4;
@@ -36,24 +42,25 @@ export const GLINT_GAP = 5;
 const PIP_FULL = '#7BD957';
 const PIP_EMPTY = '#5E5A52';
 export const PLATE = '#2B2B2A';
-/** The glyphs' colour: a warm white, clear on every faction colour. */
+/** The hidden eye's colour: a warm white, clear on every faction colour. */
 export const GLYPH = '#FFF4DE';
 const GOLD = '#FFDA4D';
 
+const r2 = (v: number, k = 100): number => Math.round(v * k) / k;
 const pipCount = (maxHp: number): number => Math.max(1, Math.ceil(maxHp / 5));
 const pipsWidth = (maxHp: number): number => pipCount(maxHp) * PIP_W + (pipCount(maxHp) - 1) * PIP_GAP;
-const bannerWidth = (maxHp: number, hidden: boolean): number => ICON_SLOT + (hidden ? EYE_SLOT : 0) + pipsWidth(maxHp) + 2 * INSET + END;
+const bannerWidth = (maxHp: number, hidden: boolean): number => BADGE_D + BADGE_GAP + (hidden ? EYE_SLOT : 0) + pipsWidth(maxHp) + 2 * INSET + END;
 
 /** The x of the banner's right end (its edge included), for a unit of this maximum health. */
 export function bannerRight(maxHp: number, hidden = false): number {
   return bannerWidth(maxHp, hidden) / 2 + EDGE;
 }
 
-// ---- the glyphs ----
+// ---- the hidden eye ----
 
 /**
- * One glyph, drawn into an 8 by 8 box centred on (cx, cy), in `fg` on a ground of `bg` (cut-outs are drawn in `bg`).
- * Coordinates are written about the box's centre and moved here, so the markup holds only absolute numbers.
+ * A small mark drawn into an 8 by 8 box centred on (cx, cy). Coordinates are written about the box's centre and moved
+ * here, so the markup holds only absolute numbers.
  */
 class At {
   constructor(private readonly ink: Ink, private readonly cx: number, private readonly cy: number) {}
@@ -75,139 +82,6 @@ class At {
   shape(path: string, fill: string): this { this.ink.shape(this.d(path), fill); return this; }
   stroke(path: string, stroke: string, w: number): this { this.ink.stroke(this.d(path), stroke, w); return this; }
 }
-
-type Glyph = (g: At, fg: string, bg: string) => void;
-
-const horseHead = (g: At, fg: string, bg: string): void => {
-  g.shape('M -3 4 L -2.6 0.6 Q -2.4 -2.6 0 -3.6 L 0.4 -4.4 L 1.2 -3.5 Q 2.8 -3 3.9 -0.6 L 3.6 0.8 L 2.2 0.9 Q 1 0.3 0.4 0.9 L 1.2 4 Z', fg);
-  g.circle(1.3, -2, 0.5, bg);
-  g.stroke('M -1.4 -2.9 Q -2.9 -1 -2.9 2.4', bg, 0.5);
-};
-
-/** One original glyph per unit type: what the unit fights with, or what it is. */
-export const GLYPHS: Record<UnitTypeId, Glyph> = {
-  // A hand axe.
-  warrior: (g, fg) => {
-    g.line(-1, 4, -1, -3.6, fg, 1.2);
-    g.shape('M -0.6 -3.6 L 1.8 -4.2 Q 4.4 -1.4 1.8 1.4 L -0.6 0.4 Z', fg);
-  },
-  // A spear, its leaf blade up.
-  spearman: (g, fg) => {
-    g.line(0, 4, 0, -1.4, fg, 1.1);
-    g.poly([0, -4.4, 1.6, -1.8, 0, -0.6, -1.6, -1.8], fg);
-    g.line(-1.3, -0.3, 1.3, -0.3, fg, 0.8);
-  },
-  // Two swords crossed, points up.
-  swordsman: (g, fg) => {
-    g.line(-2.6, 2.6, 3.2, -3.4, fg, 1.1);
-    g.line(2.6, 2.6, -3.2, -3.4, fg, 1.1);
-    g.line(-3, 0.6, -0.8, 2.8, fg, 0.9);
-    g.line(3, 0.6, 0.8, 2.8, fg, 0.9);
-    g.circle(-3.3, 3.3, 0.8, fg);
-    g.circle(3.3, 3.3, 0.8, fg);
-  },
-  // A tall shield with a band down its middle.
-  defender: (g, fg, bg) => {
-    g.shape('M -3.2 -4 L 3.2 -4 L 3.2 1.2 Q 3.2 3.4 0 4.4 Q -3.2 3.4 -3.2 1.2 Z', fg);
-    g.rect(-0.6, -3.2, 1.2, 6.6, bg, 0.4);
-  },
-  // A drawn bow with its arrow.
-  archer: (g, fg) => {
-    g.stroke('M -1.4 -4 Q 3.6 0 -1.4 4', fg, 1.1);
-    g.line(-1.4, -4, -1.4, 4, fg, 0.5);
-    g.line(-3.6, 0, 2.6, 0, fg, 0.8);
-    g.poly([4.2, 0, 2.4, -1.3, 2.4, 1.3], fg);
-    g.poly([-3.6, 0, -4.4, -1.2, -2.8, -0.3], fg);
-    g.poly([-3.6, 0, -4.4, 1.2, -2.8, 0.3], fg);
-  },
-  horseman: horseHead,
-  // A closed helm with a plume.
-  knight: (g, fg, bg) => {
-    g.poly([0.2, -3.4, 2.8, -4.6, 1.8, -2.6], fg);
-    g.shape('M -3.2 4 L -3.2 -1.2 Q -3.2 -3.8 0 -3.8 Q 3.2 -3.8 3.2 -1.2 L 3.2 4 Z', fg);
-    g.rect(-2.5, -1, 5, 1, bg, 0.3);
-    g.line(0, 1.2, 0, 3, bg, 0.6);
-  },
-  // A throwing engine: base, wheels, frame and the arm with its stone.
-  catapult: (g, fg) => {
-    g.rect(-4, 1, 8, 1.4, fg, 0.4);
-    g.circle(-2.4, 2.9, 1.1, fg);
-    g.circle(2.4, 2.9, 1.1, fg);
-    g.poly([-0.6, 1.2, 0.5, -1.2, 1.6, 1.2], fg);
-    g.line(3, 1, -2.4, -2.6, fg, 1);
-    g.circle(-2.8, -3.2, 1.2, fg);
-  },
-  // A round shield before a spear.
-  hoplite: (g, fg, bg) => {
-    g.line(-4, 4, 4, -4, fg, 0.9);
-    g.circle(0, 0, 3.6, fg);
-    g.circle(0, 0, 2.6, bg);
-    g.circle(0, 0, 1.2, fg);
-  },
-  // A crown.
-  kingsGuard: (g, fg, bg) => {
-    g.shape('M -3.9 3 L -3.9 -2.6 L -1.9 -0.4 L 0 -3.8 L 1.9 -0.4 L 3.9 -2.6 L 3.9 3 Z', fg);
-    g.circle(0, 1.4, 0.8, bg);
-    g.circle(-2.4, 1.4, 0.55, bg);
-    g.circle(2.4, 1.4, 0.55, bg);
-  },
-  // Twin pipes from one mouthpiece.
-  piper: (g, fg, bg) => {
-    g.line(-0.4, -3.6, -2.8, 3, fg, 1.2);
-    g.line(0.4, -3.6, 2.8, 3, fg, 1.2);
-    g.circle(-3, 3.4, 1, fg);
-    g.circle(3, 3.4, 1, fg);
-    g.rect(-0.9, -4.4, 1.8, 1.4, fg, 0.4);
-    for (const t of [0.35, 0.6]) {
-      g.circle(-0.4 - 2.4 * t, -3.6 + 6.6 * t, 0.3, bg);
-      g.circle(0.4 + 2.4 * t, -3.6 + 6.6 * t, 0.3, bg);
-    }
-  },
-  // A short dagger, point down: the Krypteia go unseen.
-  scout: (g, fg) => {
-    g.poly([0, 4.4, -1.2, -0.6, 1.2, -0.6], fg);
-    g.line(-2.4, -1, 2.4, -1, fg, 1);
-    g.line(0, -1.4, 0, -3.4, fg, 1.1);
-    g.circle(0, -3.9, 0.8, fg);
-  },
-  // An arrow through a horseshoe.
-  horseArcher: (g, fg) => {
-    g.stroke('M -3 -1 Q -3.4 3.6 0 3.6 Q 3.4 3.6 3 -1', fg, 1.4);
-    g.line(0, 2.6, 0, -2.8, fg, 0.8);
-    g.poly([0, -4.4, -1.4, -2.4, 1.4, -2.4], fg);
-    g.poly([0, 2.4, -1.2, 3.8, 0, 3.2], fg);
-    g.poly([0, 2.4, 1.2, 3.8, 0, 3.2], fg);
-  },
-  // A horsetail standard: a spear point, a disc and the hanging tail.
-  khansGuard: (g, fg) => {
-    g.line(0, 4.2, 0, -2.4, fg, 0.9);
-    g.poly([0, -4.6, 0.9, -2.6, -0.9, -2.6], fg);
-    g.shape('M -2 -1.9 L 2 -1.9 Q 3 1.4 1.6 3.2 L 0 2.2 L -1.6 3.2 Q -3 1.4 -2 -1.9 Z', fg);
-    g.ellipse(0, -2.1, 2.3, 0.7, fg);
-  },
-  // A storm cloud with its bolt.
-  skyCaller: (g, fg) => {
-    g.circle(-1.8, 0, 1.7, fg);
-    g.circle(0.4, -1.4, 2.3, fg);
-    g.circle(2.4, -0.1, 1.6, fg);
-    g.rect(-3.5, -0.2, 7.5, 1.7, fg, 0.8);
-    g.poly([0.9, 1.6, -0.8, 3.2, 0.2, 3.2, -0.6, 4.6, 1.8, 2.5, 0.8, 2.5, 1.6, 1.6], fg);
-  },
-  // A tent with its door.
-  camp: (g, fg, bg) => {
-    g.poly([-4, 3.8, 0, -3.8, 4, 3.8], fg);
-    g.poly([-1.2, 3.8, 0, 0.6, 1.2, 3.8], bg);
-    g.line(0, -3.8, 0, -4.6, fg, 0.6);
-  },
-  // A sword across a coin: a blade for hire.
-  sellsword: (g, fg, bg) => {
-    g.circle(0, 0.4, 3.5, fg);
-    g.circle(0, 0.4, 2.5, bg);
-    g.line(0, 3.6, 0, -2.8, fg, 1.1);
-    g.poly([0, -4.6, -0.6, -2.8, 0.6, -2.8], fg);
-    g.line(-1.8, 1.6, 1.8, 1.6, fg, 0.9);
-  },
-};
 
 /** The slashed eye on an own hidden unit's banner: its enemies see it only from next to it. */
 function hiddenEye(g: At, fg: string, bg: string): void {
@@ -235,7 +109,7 @@ export interface WarBannerProps {
   hidden?: boolean;
 }
 
-/** The banner over a unit: its glyph, one health pip per 5 health (full for health left), and its marks. */
+/** The banner over a unit: its emblem badge, one health pip per 5 health (full for health left), and its marks. */
 export function WarBanner(p: WarBannerProps): ReactElement {
   const hidden = p.hidden === true;
   const total = pipCount(p.maxHp);
@@ -247,16 +121,17 @@ export function WarBanner(p: WarBannerProps): ReactElement {
   const bottom = BANNER_MID + BANNER_H / 2;
   const flag = (l: number, t: number, r: number, b: number, notch: number): string =>
     `M ${l + 1.4} ${t} L ${r} ${t} L ${r - notch} ${BANNER_MID} L ${r} ${b} L ${l + 1.4} ${b} Q ${l} ${b} ${l} ${b - 1.4} L ${l} ${t + 1.4} Q ${l} ${t} ${l + 1.4} ${t} Z`;
+  // The badge's middle; the flag starts under it, so its left end is hidden behind the badge.
+  const bx = left + BADGE_D / 2;
   const body = new Ink();
   // The edge: the owner's dark colour, gold for a hero.
-  body.shape(flag(left - EDGE, top - EDGE, right + EDGE, bottom + EDGE, NOTCH), p.hero === true ? GOLD : p.colour.dark);
-  body.shape(flag(left, top, right, bottom, NOTCH), p.colour.main);
-  const glyph = new Ink();
-  GLYPHS[p.type](new At(glyph, left + ICON_SLOT / 2 + 0.2, BANNER_MID), GLYPH, p.colour.main);
+  body.shape(flag(bx - EDGE, top - EDGE, right + EDGE, bottom + EDGE, NOTCH), p.hero === true ? GOLD : p.colour.dark);
+  body.shape(flag(bx, top, right, bottom, NOTCH), p.colour.main);
+  const after = left + BADGE_D + BADGE_GAP;
   const eye = new Ink();
-  if (hidden) hiddenEye(new At(eye, left + ICON_SLOT + EYE_SLOT / 2 - 0.4, BANNER_MID), GLYPH, p.colour.main);
+  if (hidden) hiddenEye(new At(eye, after + EYE_SLOT / 2, BANNER_MID), GLYPH, p.colour.main);
   const pw = pipsWidth(p.maxHp);
-  const px = left + ICON_SLOT + (hidden ? EYE_SLOT : 0);
+  const px = after + (hidden ? EYE_SLOT : 0);
   body.rect(px, PIP_Y - INSET, pw + 2 * INSET, PIP_H + 2 * INSET, PLATE, 1.2);
   const pips: ReactElement[] = [];
   for (let i = 0; i < total; i++) {
@@ -308,7 +183,12 @@ export function WarBanner(p: WarBannerProps): ReactElement {
     <g>
       <g className={p.spent ? 'unit-shade spent' : 'unit-shade'} data-banner={p.type} data-hero-banner={p.hero === true ? '' : undefined}>
         {body.items}
-        <g data-glyph={p.type}>{glyph.items}</g>
+        <g data-glyph={p.type}>
+          {p.hero === true ? <circle cx={r2(bx)} cy={BADGE_Y} r={BADGE_D / 2 + 1.5} fill={GOLD} /> : null}
+          <g transform={`translate(${r2(bx)} ${BADGE_Y}) scale(${r2(BADGE_D / 2 / EMBLEM_R, 10000)})`}>
+            <Emblem type={p.type} paint={emblemPaint(p.colour)} small />
+          </g>
+        </g>
         {hidden ? <g data-hidden-eye="">{eye.items}</g> : null}
         {pips}
       </g>
