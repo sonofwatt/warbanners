@@ -13,7 +13,8 @@ test('Clear by day is the light the 3D board always had, and no SVG grade', () =
   expect(s.shadow).toEqual([0.68, 0.70, 0.80]);
   expect(s.tint).toEqual([1, 1, 1]);
   expect(s.unitTint).toEqual([1, 1, 1]);
-  expect(s).toMatchObject({ glow: 1, windows: 0, sea: '#3E80AE' });
+  expect(s).toMatchObject({ glow: 1, windows: 0, sea: '#3E80AE', cast: 0.42 });
+  expect(s.air).toEqual([1, 1, 1]); // mist and smoke exactly as before
   expect(svgGrade({ weather: 'clear', time: 'day' })).toBeNull();
 });
 
@@ -24,17 +25,17 @@ test('night is dark and blue, with warm lights brighter; the figures are graded 
   expect(night.tint[2]).toBeGreaterThan(night.tint[0]);
   expect(night.glow).toBeGreaterThan(day.glow);
   expect(night.windows).toBe(1);
-  for (const t of TIMES) for (const w of WEATHERS) {
-    const s = skyLight({ weather: w, time: t });
+  for (const t of TIMES) for (const w of WEATHERS) for (const round of [1, 8, 15, 23, 30]) {
+    const s = skyLight({ weather: w, time: t }, round);
     expect(luma(s.unitTint), `${w} ${t}`).toBeGreaterThanOrEqual(luma(s.tint));
     expect(luma(s.unitTint), `${w} ${t}`).toBeGreaterThan(0.8); // figures stay readable
     expect(s.sea).toMatch(/^#[0-9A-F]{6}$/);
   }
 });
 
-test('dawn and dusk are low and warm, from either side', () => {
-  const dawn = skyLight({ weather: 'clear', time: 'dawn' });
-  const dusk = skyLight({ weather: 'clear', time: 'dusk' });
+test('dawn and dusk are low and warm halfway through their change, from either side', () => {
+  const dawn = skyLight({ weather: 'clear', time: 'dawn' }, 12);
+  const dusk = skyLight({ weather: 'clear', time: 'dusk' }, 19);
   for (const s of [dawn, dusk]) {
     expect(s.dir[1]).toBeLessThan(0.5);
     expect(s.light[0]).toBeGreaterThan(s.light[2]);
@@ -55,9 +56,22 @@ test('cloud and rain flatten and grey the light', () => {
 
 test('the SVG grade: never so strong that the board goes black', () => {
   for (const t of TIMES) for (const w of WEATHERS) {
-    const g = svgGrade({ weather: w, time: t });
+    const g = svgGrade({ weather: w, time: t }, 15);
     if (t === 'day' && w !== 'cloudy' && w !== 'rain') { expect(g).toBeNull(); continue; }
     expect(g!.opacity).toBeGreaterThan(0);
     expect(g!.opacity).toBeLessThanOrEqual(0.6);
   }
+});
+
+test('mist and smoke take the light: dimmer and bluer at night, never brighter than by day', () => {
+  const night = skyLight({ weather: 'clear', time: 'night' });
+  expect(luma(night.air)).toBeLessThan(0.8);
+  expect(night.air[2]).toBeGreaterThan(night.air[0]);
+  for (const t of TIMES) for (const w of WEATHERS) expect(luma(skyLight({ weather: w, time: t }, 15).air)).toBeLessThanOrEqual(1.0001);
+});
+
+test('cast shadows: clear by day, faint at night and under cloud and rain', () => {
+  const day = skyLight({ weather: 'clear', time: 'day' }).cast;
+  expect(skyLight({ weather: 'clear', time: 'night' }).cast).toBeLessThanOrEqual(day / 2);
+  for (const w of ['cloudy', 'rain'] as const) expect(skyLight({ weather: w, time: 'day' }).cast).toBeLessThan(day / 2);
 });

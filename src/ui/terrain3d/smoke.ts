@@ -50,6 +50,7 @@ void main() {
 
 const frag = /* glsl */ `
 ${LIGHT}
+uniform vec3 uAir; // the time of day's light on smoke (sky.ts air): 1 by day, the moonlight's blue at night
 varying vec2 vCorner; varying float vAlpha; varying float vVeil; varying float vLife;
 void main() {
   float d = length(vCorner);
@@ -58,6 +59,9 @@ void main() {
   float a = mix(0.85, 0.45, smoothstep(0.5, 0.58, d)) * (1.0 - smoothstep(0.88, 1.0, d));
   float lit = 1.0 - 0.16 * smoothstep(-0.2, 0.6, vCorner.x - vCorner.y);
   vec3 c = mix(vec3(0.90, 0.89, 0.87), vec3(0.74, 0.74, 0.77), vLife) * lit;
+  // In the dark the smoke is lit only by the moon and reads as dark smoke, not as pale cloud.
+  float dark = clamp(1.0 - dot(uAir, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+  c *= uAir * (1.0 - 0.8 * dark);
   gl_FragColor = vec4(finish(c, vVeil), a * clamp(vAlpha, 0.0, 1.0));
 }`;
 

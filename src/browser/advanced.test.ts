@@ -127,6 +127,31 @@ describe.runIf(process.env.BROWSER === '1')('the Advanced match options', () => 
     }
   }, 60_000);
 
+  test('dawn opens on the night and dusk on the day (round 1 of the change over the match)', async () => {
+    const { page, close } = await openApp('?seed=7');
+    try {
+      await page.getByTestId('new-match').tap();
+      await pick(page, ['time-dawn']);
+      await intoMatch(page);
+      expect(await page.getByTestId('board').getAttribute('data-time')).toBe('dawn');
+      const slot = page.getByTestId('board-slot');
+      expect(await slot.evaluate((el) => (el as HTMLElement).style.getPropertyValue('--slot-sea'))).toBe('#18284A'); // the night's sea
+      expect(await page.locator('svg.board .grade').first().getAttribute('opacity')).toBe('0.5'); // the night's grade
+    } finally {
+      await close();
+    }
+    const dusk = await openApp('?seed=7');
+    try {
+      await dusk.page.getByTestId('new-match').tap();
+      await pick(dusk.page, ['time-dusk']);
+      await intoMatch(dusk.page);
+      expect(await dusk.page.getByTestId('board-slot').evaluate((el) => (el as HTMLElement).style.getPropertyValue('--slot-sea'))).toBe('#3E80AE'); // the day's sea
+      expect(await dusk.page.locator('svg.board .grade').count()).toBe(0); // no grade: full day
+    } finally {
+      await dusk.close();
+    }
+  }, 90_000);
+
   test('in 3D, night darkens the board and rain falls in the ambient loop', async () => {
     const { page, close } = await openApp('?seed=7', { webgl: true });
     try {

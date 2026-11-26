@@ -376,9 +376,9 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       <div
         className="board-slot" data-testid="board-slot" ref={slotRef}
         data-sea={look.weather === 'clear' && look.time === 'day' ? undefined : look.time}
-        style={look.weather === 'clear' && look.time === 'day' ? undefined : { '--slot-sea': skyLight(look).sea } as CSSProperties}
+        style={look.weather === 'clear' && look.time === 'day' ? undefined : { '--slot-sea': skyLight(look, roundOf(state)).sea } as CSSProperties}
       >
-        <Board look={look} items={items} radius={data.radius} factions={data.factions} seed={state?.seed ?? 0} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
+        <Board look={look} round={roundOf(state)} items={items} radius={data.radius} factions={data.factions} seed={state?.seed ?? 0} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
           terrain3d={terrain3d} attacks={attacks}
           covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
           onTap={peeked !== undefined ? noTap : tap}

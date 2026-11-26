@@ -28,6 +28,7 @@ import { startTerrain3d } from '../terrain3d/lifecycle';
 import { setUnits3dDrawing, webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
 import { svgGrade } from '../terrain3d/sky';
+import { DAYLIGHT_ROUNDS } from '../terrain3d/daylight';
 import type { Look } from '../../app/advanced';
 import { livePose, liveTransform } from './livePose';
 import { hexesBetween, SLIDE_MS, slideFrames, slideMs3d } from './motion';
@@ -51,6 +52,8 @@ export interface BoardProps {
   covered?: boolean;
   // The match's weather and time of day (a look only, app/advanced.ts lookOf); Clear and Day when left out.
   look?: Look;
+  // The round both players share (app/record.ts roundOf): dawn and dusk change their light over the match (a look only).
+  round?: number;
   // The attacks of the action just shown (its lunges, with their delays) and the units it killed: each new seq turns
   // the 3D figure of each attacker to face its target, in order, and forgets the facings of the dead. UI only; moves
   // and hunkers are seen in the scene itself.
@@ -413,14 +416,16 @@ export function Board(p: BoardProps): ReactElement {
   // The look: one object per weather and time, so the tiles redraw only when it changes.
   const weatherNow = p.look?.weather ?? 'clear', timeNow = p.look?.time ?? 'day';
   const look = useMemo<Look>(() => ({ weather: weatherNow, time: timeNow }), [weatherNow, timeNow]);
-  const lookRef = useRef(look);
-  lookRef.current = look;
+  // The round only matters at dawn and dusk, and only until the light is full day or night (daylight.ts).
+  const lightRound = timeNow === 'dawn' || timeNow === 'dusk' ? Math.min(DAYLIGHT_ROUNDS, Math.max(1, Math.floor(p.round ?? 1))) : 1;
+  const lookRef = useRef({ look, round: lightRound });
+  lookRef.current = { look, round: lightRound };
   const tileLook = useMemo<TileLook | undefined>(() => {
-    const g = svgGrade(look);
+    const g = svgGrade(look, lightRound);
     const wx = !gl && (look.weather === 'rain' || look.weather === 'snow') ? look.weather : null;
     if (g === null && wx === null) return undefined;
     return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx };
-  }, [look, gl]);
+  }, [look, lightRound, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
   const cam = useRef<Camera | null>(null);
@@ -737,7 +742,7 @@ export function Board(p: BoardProps): ReactElement {
           ambient.current.cover(coveredRef.current);
         }
         t.tick(performance.now(), ambient.current.level());
-        t.setLook(lookRef.current);
+        t.setLook(lookRef.current.look, lookRef.current.round);
         markLook(canvas, t);
         const d = glLatest.current;
         if (d !== null) {
@@ -772,11 +777,11 @@ export function Board(p: BoardProps): ReactElement {
   useEffect(() => {
     const t = terrain.current;
     if (t === null) return;
-    t.setLook(look);
+    t.setLook(look, lightRound);
     if (canvasRef.current !== null) markLook(canvasRef.current, t);
     write();
     ambient.current?.kick();
-  }, [look, write]);
+  }, [look, lightRound, write]);
   // A new map (a road, a harvest, a building, fog lifting) rebuilds the tiles that changed; a new veil only repaints.
   // Before the browser paints, so the canvas and the svg change in the same frame.
   const shownGl = useRef<{ key: string; veilKey: string } | null>(null);

@@ -72,8 +72,11 @@ export interface Terrain3d {
   borderTriangles(): number;
   /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
   readonly units: Units3d | null;
-  /** The match's weather and time of day (a look only). Takes effect on the next frame drawn. */
-  setLook(look: Look): void;
+  /**
+   * The match's weather and time of day (a look only), at the round both players share (dawn and dusk change over
+   * the match: daylight.ts). Takes effect on the next frame drawn.
+   */
+  setLook(look: Look, round?: number): void;
   /** The look in use and its weather's particles and triangles, for tests and tuning. */
   look(): Look & { particles: number; triangles: number; clock: number };
   /** Free every GPU resource and the context. */
@@ -115,6 +118,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uTime: { value: 0 },
     // The match's look (sky.ts): snow dusting, wet ground, lit windows, and the lanterns' brightness.
     uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uGlowBoost: { value: 1 },
+    // The light on mist and smoke (1 by day), and how dark the figures' cast shadows are (units3d.ts).
+    uAir: { value: new Color(1, 1, 1) }, uCast: { value: 0.42 },
   };
   // The unit figures draw on a second canvas, above the tile svg (cities, villages and marks) and below the svg
   // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders,
@@ -316,9 +321,9 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   // light the board always had.
   let lookNow: Look = { weather: 'clear', time: 'day' };
   const setRgb = (u: { value: unknown }, c: readonly [number, number, number]): void => { (u.value as Color).setRGB(c[0], c[1], c[2]); };
-  function setLook(look: Look): void {
+  function setLook(look: Look, round = 1): void {
     lookNow = look;
-    const sky = skyLight(look);
+    const sky = skyLight(look, round);
     (shared.uLightDir.value).set(sky.dir[0], sky.dir[1], sky.dir[2]).normalize();
     setRgb(shared.uLightColor, sky.light);
     setRgb(shared.uShadowColor, sky.shadow);
@@ -326,6 +331,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     setRgb(unitShared.uTint, sky.unitTint);
     shared.uGlowBoost.value = sky.glow;
     shared.uWindows.value = sky.windows;
+    setRgb(shared.uAir, sky.air);
+    shared.uCast.value = sky.cast;
     shared.uSnow.value = look.weather === 'snow' ? 1 : 0;
     shared.uWet.value = look.weather === 'rain' ? 1 : 0;
     weather.setWeather(look.weather);
