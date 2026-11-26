@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 9;
+export const RULES_VERSION = 10;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -67,6 +67,9 @@ export interface Unit {
   // rules 9: stamp of the turn it last unhunkered (absent until it first does, so older states hash as before); a unit
   // that unhunkered this turn may not hunker again this turn; public
   unhunkeredTurn?: number;
+  // rules 10: stamp of the turn it entered its first relay tile (absent until it first does, so older states hash as
+  // before); from then on that turn every relay tile costs CONFIG.relayCost; public
+  relayTurn?: number;
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {
