@@ -33,15 +33,15 @@ try {
     console.log(join(out, name));
   };
   // Gritty's Hoplite (the detailed toon): large, broken, its stages, its head close up, beside the Bright one.
-  await run('k-detailed-toon-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('k2-detailed-toon-broken.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('k3-detailed-toon-stages.png', [
+  await run('m-plume-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('m2-broken-face.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('m3-stages.png', [
     hop('clean', w(0)), hop('scuffed', w(1)), hop('dented', w(2)), hop('battered', w(3)), hop('battered + blood', w(3, 1)),
     hop('broken + blood', w(4, 1)), hop('broken + more blood', w(4, 2)), hop('healed, scarred', w(1, 0, true)), hop('scarred, wounded again', w(3, 1, true)),
   ], 4.2, 9, { cellW: 40, rowH: 76 });
-  await run('k5-helmet-close.png', [
-    { ...hop('front', w(0)), aim: [-4, 30] }, hop('three-quarter', w(0)), { ...hop('broken, front', w(4, 2)), aim: [-4, 30] }, hop('scarred', w(1, 0, true)),
-  ], 22, 4, { cellW: 22, rowH: 24, dy: -21 });
+  await run('m5-helmet-close.png', [
+    { ...hop('clean, front', w(0)), aim: [-4, 30] }, hop('clean', w(0)), hop('broken, bleeding', w(4, 2)), hop('healed, scarred', w(1, 0, true)),
+  ], 22, 4, { cellW: 22, rowH: 26, dy: -21 });
   await run('g-bright-vs-gritty-hoplite.png', [hop('Bright', w(0), 'spartans', false), hop('Gritty', w(0)), hop('Bright, broken', w(4, 2), 'spartans', false), hop('Gritty, broken', w(4, 2))], 7, 2, { cellW: 44, rowH: 74 });
   await run('e-sides-and-crouch.png', [
     hop('Spartans', w(0)), hop('Mongols', w(0), 'mongols'), hop('hunkered', w(0), 'spartans', true, true), hop('broken, hunkered', w(4, 2), 'mongols', true, true),

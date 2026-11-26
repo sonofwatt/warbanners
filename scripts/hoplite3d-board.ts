@@ -79,7 +79,7 @@ for (const look of ['svg', '3d'] as const) {
     }
     await cameraStill(page);
     await frames(page);
-    await page.screenshot({ path: join(out, look === '3d' ? 'k4-detailed-toon-board.png' : 'd-board-gritty-svg-412x915.png') });
+    await page.screenshot({ path: join(out, look === '3d' ? 'm4-board.png' : 'd-board-gritty-svg-412x915.png') });
     console.log('wrote', look);
   } finally {
     await app.close();

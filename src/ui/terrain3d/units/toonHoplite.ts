@@ -51,8 +51,6 @@ const PT = {
   FO: [4.25, 0.05, 2.85], CO: [5.0, -0.15, 1.9], CB: [4.6, -3.4, 1.3], CP: [1.3, -5.7, 3.45], CI: [1.3, -1.35, 4.8],
 } as const satisfies Record<string, P3>;
 const at = (p: P3, side: number): V3 => [HELM[0] + p[0] * side, HELM[1] + p[1], HELM[2] + p[2]];
-/** The near cheek blade snapped off along a jagged line (broken), from its outer edge to its inner one. */
-const SNAP: readonly P3[] = [[4.85, -1.4, 1.85], [3.7, -1.0, 2.6], [2.7, -2.0, 3.5], [1.8, -1.5, 4.4]];
 
 /** A flat-faced plate through `pts` (a ring of corners), faceted, its face turned away from the helm's centre. */
 function plate(k: Kit, pts: readonly V3[], colour: string, o: { gloss?: number; hull?: number } = {}): void {
@@ -83,78 +81,168 @@ function onPlane(a: V3, b: V3, c: V3): Surface {
 }
 
 function helm(k: Kit, c: Look, w: Wear): void {
-  const broken = helmBroken(w);
-  // Inside: the face in deep shadow; broken, the face itself, seen in the gap.
-  const faceC: V3 = [HELM[0], HELM[1] - 0.7, HELM[2] + 0.4];
-  k.ball(faceC, 4.0, broken ? SKIN : DARK_IN, { detail: broken ? 1 : 0, hull: 0, s: [1.18, 1.18, 1.0] });
-  // The shadow inside the gap between the cheek blades, down to their points, so the Y stays dark to the chin.
-  plate(k, [at([1.4, -0.6, 3.6], 1), at([1.4, -5.6, 2.9], 1), at([1.4, -5.6, 2.9], -1), at([1.4, -0.6, 3.6], -1)], DARK_IN, { gloss: 0, hull: 0 });
-  // The dome: a cap over the crown, and a band round the sides and back (open at the front, where the plates are).
+  // Broken (and still, once healed: the engine's scarred), the whole face plate is gone: the nose guard, both cheek
+  // blades and the faceted front round the eyes. The bowl, its crest and the back stay, torn along the brow, and the
+  // man's face shows under it.
+  const open = helmBroken(w);
+  const faceC: V3 = [HELM[0], HELM[1] - 0.9, HELM[2] + 0.5];
+  if (open) face(k, faceC, w);
+  else {
+    // Inside: the face in deep shadow, and the shadow in the gap between the cheek blades down to their points.
+    k.ball(faceC, 4.0, DARK_IN, { detail: 0, hull: 0, s: [1.18, 1.18, 1.0] });
+    plate(k, [at([1.4, -0.6, 3.6], 1), at([1.4, -5.6, 2.9], 1), at([1.4, -5.6, 2.9], -1), at([1.4, -0.6, 3.6], -1)], DARK_IN, { gloss: 0, hull: 0 });
+  }
+  // The bowl: a cap over the crown, and a band round the sides and back (open at the front, where the plates are).
   const cap = new SphereGeometry(5.2, 11, 3, 0, Math.PI * 2, 0, 1.0);
   const band = new SphereGeometry(5.2, 10, 3, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 1.0, 1.05);
   for (const g of [cap, band]) { g.translate(HELM[0], HELM[1] + 0.4, HELM[2] - 0.9); k.add(g, AGED, { gloss: 0.4, smooth: true }); }
   // The neck guard flaring at the back.
   k.frustum([HELM[0], 0, HELM[2] - 0.9], HELM[1] - 3.4, HELM[1] - 1.9, 5.6, 4.7, AGED_DARK, { arc: [Math.PI * 0.62, Math.PI * 0.76], seg: 10, sz: 1, gloss: 0.4 });
-  // The front plates, both sides: the brow, the nose guard, the temple and the cheek blade.
-  for (const side of [1, -1]) {
-    const q = (n: keyof typeof PT): V3 => at(PT[n], side);
-    const snapped = broken && side < 0;
-    plate(k, [q('R0'), q('R1'), q('G1'), q('EI'), q('EO'), q('B'), q('T')], AGED);
-    plate(k, [q('R1'), q('N'), q('G2'), q('G1')], AGED);
-    plate(k, [q('B'), q('EO'), q('FO'), q('CO')], AGED_DARK);
-    if (!snapped) plate(k, [q('CI'), q('FI'), q('FO'), q('CO'), q('CB'), q('CP')], AGED);
-    else {
-      const jag = SNAP.map((p) => at(p, side));
-      plate(k, [q('CI'), q('FI'), q('FO'), q('CO'), ...jag], AGED);
-      // The torn edge, bright fresh bronze.
-      edge(k, [q('CO'), ...jag, q('CI')], 0.3, '#F7E2A6');
+  // Rivets at the temples.
+  for (const side of [1, -1]) k.ball(at([4.75, 2.6, 1.6], side), 0.36, GOLD_EDGE, { detail: 0, hull: 0, gloss: 0.6 });
+  if (open) {
+    // The torn edge of the bowl where the plate came away: jagged, bright fresh bronze, across the brow and down the
+    // sides, with a ragged lip of the brow plate still hanging on.
+    const rim = (x: number, y: number, z: number): V3 => at([x, y, z], 1);
+    const tear: V3[] = [rim(-4.4, 0.4, 2.2), rim(-3.6, 2.4, 2.6), rim(-2.6, 2.0, 3.6), rim(-1.6, 3.0, 3.9), rim(-0.6, 2.5, 4.3), rim(0.4, 3.2, 4.2), rim(1.4, 2.3, 4.0), rim(2.4, 2.9, 3.6), rim(3.4, 2.1, 2.9), rim(4.4, 0.5, 2.2)];
+    plate(k, [rim(-4.8, 3.6, 1.6), rim(4.8, 3.6, 1.6), ...[...tear].reverse()], AGED);
+    edge(k, tear, 0.3, '#F7E2A6');
+    edge(k, [rim(-4.4, 0.4, 2.2), rim(-4.6, -1.8, 1.5)], 0.3, '#F7E2A6');
+    edge(k, [rim(4.4, 0.5, 2.2), rim(4.6, -1.8, 1.5)], 0.3, '#F7E2A6');
+  } else {
+    // The front plates, both sides: the brow, the nose guard, the temple and the cheek blade, gold on the edges.
+    for (const side of [1, -1]) {
+      const q = (n: keyof typeof PT): V3 => at(PT[n], side);
+      plate(k, [q('R0'), q('R1'), q('G1'), q('EI'), q('EO'), q('B'), q('T')], AGED);
+      plate(k, [q('R1'), q('N'), q('G2'), q('G1')], AGED);
+      plate(k, [q('B'), q('EO'), q('FO'), q('CO')], AGED_DARK);
+      plate(k, [q('CI'), q('FI'), q('FO'), q('CO'), q('CB'), q('CP')], AGED);
+      edge(k, [q('T'), q('R0')]);
+      edge(k, [q('G1'), q('EI'), q('EO')]);
+      edge(k, [q('FI'), q('FO')], 0.16);
+      edge(k, [q('CI'), q('CP'), q('CB')]);
     }
-    // Gold on the edges and the ridge; a rivet at the temple.
-    edge(k, [q('T'), q('R0')]);
-    edge(k, [q('G1'), q('EI'), q('EO')]);
-    edge(k, [q('FI'), q('FO')], 0.16);
-    if (!snapped) edge(k, [q('CI'), q('CP'), q('CB')]);
-    k.ball(at([4.75, 2.6, 1.6], side), 0.36, GOLD_EDGE, { detail: 0, hull: 0, gloss: 0.6 });
-  }
-  edge(k, [at(PT.R0, 1), at(PT.R1, 1), at(PT.N, 1)], 0.26);
-  // Wear on the right brow and blade: scratches, dents, a crack.
-  const brow = onPlane(at(PT.R1, 1), at(PT.B, 1), at(PT.T, 1));
-  const blade = onPlane(at(PT.CI, 1), at(PT.CO, 1), at(PT.CP, 1));
-  if (worn(w, 1)) scratches(k, brow, [[HELM[0] + 1.4, HELM[1] + 3.6, HELM[0] + 3.0, HELM[1] + 2.6]], SCRATCH, 0.3);
-  if (worn(w, 1)) scratches(k, blade, [[HELM[0] + 2.0, HELM[1] - 2.0, HELM[0] + 3.2, HELM[1] - 3.2]], SCRATCH, 0.3);
-  if (worn(w, 2)) { dent(k, brow, HELM[0] + 3.0, HELM[1] + 3.3, 0.6, AGED); dent(k, blade, HELM[0] + 2.6, HELM[1] - 1.2, 0.55, AGED); }
-  if (worn(w, 3)) crack(k, blade, [HELM[0] + 3.6, HELM[1] - 0.4, HELM[0] + 3.0, HELM[1] - 1.8, HELM[0] + 3.4, HELM[1] - 3.0], 0.3);
-  if (broken) {
-    // The face in the gap: blood from the cheek down to the jaw (or, healed, a pale scar).
-    const s = viewSphere(faceC, 4.4);
-    if (w.scarred && w.blood === 0) {
-      k.line([-3.0, -0.6, -2.4, -3.0], 0.6, SCAR, s);
-      for (const t of [0.3, 0.7]) { const x = -3.0 + 0.6 * t, y = -0.6 - 2.4 * t; k.line([x - 0.5, y, x + 0.5, y], 0.24, '#A8735B', s); }
-    }
-    if (w.blood >= 1) smear(k, s, -2.8, -0.8, 0.1, -1, 2.6, 1.1);
-    if (w.blood >= 2) { smear(k, s, -1.8, -1.4, -0.1, -1, 2.4, 0.9); k.decal(ell(-2.4, -3.2, 0.6, 0.45, 6), BLOOD, s); }
+    edge(k, [at(PT.R0, 1), at(PT.R1, 1), at(PT.N, 1)], 0.26);
+    // Wear on the right brow and blade: scratches, dents, a crack.
+    const brow = onPlane(at(PT.R1, 1), at(PT.B, 1), at(PT.T, 1));
+    const blade = onPlane(at(PT.CI, 1), at(PT.CO, 1), at(PT.CP, 1));
+    if (worn(w, 1)) scratches(k, brow, [[HELM[0] + 1.4, HELM[1] + 3.6, HELM[0] + 3.0, HELM[1] + 2.6]], SCRATCH, 0.3);
+    if (worn(w, 1)) scratches(k, blade, [[HELM[0] + 2.0, HELM[1] - 2.0, HELM[0] + 3.2, HELM[1] - 3.2]], SCRATCH, 0.3);
+    if (worn(w, 2)) { dent(k, brow, HELM[0] + 3.0, HELM[1] + 3.3, 0.6, AGED); dent(k, blade, HELM[0] + 2.6, HELM[1] - 1.2, 0.55, AGED); }
+    if (worn(w, 3)) crack(k, blade, [HELM[0] + 3.6, HELM[1] - 0.4, HELM[0] + 3.0, HELM[1] - 1.8, HELM[0] + 3.4, HELM[1] - 3.0], 0.3);
   }
   plume(k, c, w);
 }
 
-/** The crest: a tall square post on the crown holding a full, soft plume; torn short from battered. */
+const BROW_HAIR = '#3A2418';
+const BEARD = '#4A2E1C';
+const SCAR_PALE = '#FFF1E2';
+const SCAR_EDGE = '#7A3A2A';
+
+/**
+ * The man's face, bare once the face plate has gone: heavy brows drawn down, eyes, a nose, a short dark beard over the
+ * jaw and a grimace of teeth. Bleeding, blood from a cut over the near eye runs down the cheek and jaw; healed, a bold
+ * pale scar with its stitches runs where the blood ran, and no blood.
+ */
+function face(k: Kit, c: V3, w: Wear): void {
+  k.ball(c, 3.9, SKIN, { detail: 1, hull: 0, s: [1.12, 1.18, 1.0] });
+  const s = viewSphere(c, 4.0);
+  const on = (x: number, y: number, lift = 0): V3 => { const p = s(x, y); return [p.p[0] + p.n[0] * lift, p.p[1] + p.n[1] * lift, p.p[2] + p.n[2] * lift]; };
+  // The beard over the jaw and chin, under the face's lower half.
+  k.ball([c[0], c[1] - 2.4, c[2] + 0.7], 1, BEARD, { detail: 1, hull: 0, s: [3.6, 2.2, 3.3] });
+  // Brows drawn down toward the nose: a scowl.
+  for (const sd of [-1, 1]) k.rod(on(sd * 0.6, 1.15, 0.2), on(sd * 2.4, 1.75, 0.2), 0.42, BROW_HAIR, { seg: 4, hull: 0 });
+  // The eyes: whites and dark pupils, set under the brows.
+  for (const sd of [-1, 1]) {
+    k.decal(ell(sd * 1.5, 0.45, 0.72, 0.42, 8), '#F3ECE0', s);
+    k.decal(ell(sd * 1.42, 0.42, 0.32, 0.32, 6), '#1C130D', s);
+  }
+  // The nose, and the grimace: a dark mouth with a bar of teeth.
+  k.ball(on(0, -0.55, -0.2), 1, mix(SKIN, '#000000', 0.12), { detail: 0, hull: 0, s: [0.55, 0.95, 0.7] });
+  k.decal([-1.3, -1.7, 1.3, -1.7, 1.0, -2.45, -1.0, -2.45], '#2A1510', s);
+  k.decal([-1.0, -1.82, 1.0, -1.82, 0.85, -2.1, -0.85, -2.1], '#EFE6D6', s);
+  if (w.scarred && w.blood === 0) {
+    // Healed: a bold pale scar from the brow through the near eye down the cheek, outlined, with its stitches.
+    k.line([-2.8, 2.3, -2.0, 0.2, -1.3, -2.2], 1.35, SCAR_EDGE, s);
+    k.line([-2.8, 2.3, -2.0, 0.2, -1.3, -2.2], 0.8, SCAR_PALE, s);
+    for (const t of [0.15, 0.42, 0.7, 0.92]) { const x = -2.8 + 1.5 * t, y = 2.3 - 4.5 * t; k.line([x - 0.75, y - 0.12, x + 0.75, y + 0.12], 0.26, SCAR_EDGE, s); }
+  }
+  if (w.blood >= 1) {
+    // A cut over the near eye, the blood running down the cheek into the beard and off the jaw onto the neck.
+    smear(k, s, -2.0, 1.5, 0.12, -1, 3.6, 1.2);
+    smear(k, s, -1.2, 0.0, 0.05, -1, 2.6, 0.8);
+  }
+  if (w.blood >= 2) {
+    smear(k, s, 1.2, 1.2, -0.1, -1, 2.8, 0.9);
+    k.decal(ell(-1.6, -2.9, 0.7, 0.5, 6), BLOOD, s);
+    k.decal(ell(0.6, -0.4, 0.35, 0.35, 6), BLOOD, s);
+  }
+}
+
+/**
+ * The crest: a tall square post on the crown holding a long brush of horsehair, fanned front to back in layers of
+ * tapered, curving fins (crimson, darker at the roots and lighter at the tips), its trailing edge ragged and hanging
+ * down at the back. Battered, the back of it is shorn away, the cut ends blunt.
+ */
 function plume(k: Kit, c: Look, w: Wear): void {
   const top = HELM[1] + 5.6;
   k.box([HELM[0], top + 1.6, HELM[2] - 0.8], [1.5, 3.6, 1.5], AGED, { gloss: 0.45 });
   k.box([HELM[0], top + 3.5, HELM[2] - 0.8], [1.8, 0.4, 1.8], GOLD_EDGE, { hull: 0, gloss: 0.6 });
-  const red = vivid(c.main), deep = mix(red, '#000000', 0.32), light = mix(red, '#FFFFFF', 0.14);
-  const torn = worn(w, 3);
-  // Tufts along an arc from front to back, big and overlapping, so it reads as one soft mass.
-  const TUFTS: readonly [number, number, number, number][] = [
-    [3.0, 1.0, 1.8, 0], [1.8, 3.2, 2.3, 1], [0.0, 4.6, 2.6, 0], [-2.0, 5.0, 2.6, 2], [-4.0, 4.2, 2.4, 0], [-5.6, 2.4, 2.1, 1],
-    [-6.4, 0.2, 1.7, 0], [-6.6, -1.8, 1.3, 2], [0.9, 2.0, 1.9, 2], [-1.2, 2.8, 2.0, 1], [-3.4, 2.2, 1.9, 2], [-5.0, 0.4, 1.7, 1],
+  const red = vivid(c.main), deep = mix(red, '#000000', 0.3), light = mix(red, '#FFFFFF', 0.16);
+  const shorn = worn(w, 3);
+  const root: V3 = [HELM[0], top + 3.6, HELM[2] - 0.8];
+  // The fins: (fan angle from straight ahead, up over the top to hanging behind; length; layer side to side; tone).
+  const FINS: readonly [number, number, number, number][] = [
+    [0.35, 4.8, 1, 1], [0.55, 6.4, -1, 0], [0.75, 7.6, 1, 2], [0.95, 8.4, -1, 0], [1.15, 8.8, 1, 1], [1.35, 9.0, -1, 2],
+    [1.55, 9.1, 1, 0], [1.75, 8.8, -1, 2], [1.95, 8.5, 1, 1], [2.15, 8.2, -1, 0], [2.35, 8.0, 1, 2], [2.55, 8.1, -1, 0],
+    [2.75, 7.8, 1, 1], [2.95, 7.2, -1, 2], [3.15, 6.6, 1, 0], [3.4, 5.6, -1, 1], [3.6, 4.8, 1, 2],
   ];
-  TUFTS.forEach(([z, y, r, tone], i) => {
-    if (torn && z < -0.8) return;
-    const col = tone === 0 ? red : tone === 1 ? deep : light;
-    k.ball([HELM[0] + (i % 2 ? 0.3 : -0.3), top + 3.8 + y, HELM[2] - 0.8 + z], r, col, { detail: i >= 1 && i <= 4 ? 1 : 0, s: [0.9, 0.92, 1.0], hull: 0.6 });
+  // A dark core under the fins: it holds the silhouette (and its outline) together as one bold crest.
+  const corePts: number[] = [];
+  const along = (a: number, l: number): [number, number] => [Math.cos(a) * l, Math.sin(a) * l];
+  for (const [a, l] of FINS) { if (shorn && a > 1.7) continue; const [dz, dy] = along(a, (shorn ? Math.min(l, 5.2) : l) * 0.86); corePts.push(root[2] + dz, root[1] + dy); }
+  corePts.push(root[2] - 0.4, root[1] - 0.4, root[2] + 0.5, root[1] - 0.3);
+  k.slab(corePts, 2.2, red, [0, 0, 0], [0, -Math.PI / 2, 0], { hull: 0.6 });
+  FINS.forEach(([a, len, x, tone], i) => {
+    if (shorn && a > 1.7) return;
+    const l = shorn ? Math.min(len, 5.2) : len * (1 + (i % 3 === 1 ? 0.06 : i % 3 === 2 ? -0.05 : 0));
+    fin(k, [root[0] + x * 0.75, root[1], root[2] + 0.25 - (a / 3.6) * 0.9], a, l, x, tone === 0 ? red : tone === 1 ? deep : light, !shorn);
   });
-  if (torn) for (const [dz, dy] of [[-1.4, 2.6], [-1.8, 1.2]] as const) k.rod([HELM[0], top + 3.8 + dy, HELM[2] - 0.8 - 0.6], [HELM[0] + 0.2, top + 3.8 + dy + 0.4, HELM[2] - 0.8 + dz - 0.8], 0.45, deep, { r1: 0.1, seg: 4, hull: 0 });
+}
+
+/**
+ * One fin of horsehair: a flat tapered blade from `r`, leaving at angle `a` in the figure's front-to-back plane
+ * (0 ahead, pi/2 up, pi behind) and bending down under its own weight toward the tip, splayed a little to `splay`
+ * side; darker at the root, lighter at the tip. Both faces are drawn.
+ */
+function fin(k: Kit, r: V3, a: number, len: number, splay: number, colour: string, pointed: boolean): void {
+  const N = 4;
+  const pts: Vector3[] = [], sides: Vector3[] = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    // The angle droops toward the back as it goes out, the more so for fins that already lean back.
+    const ang = a + t * 0.35 * Math.max(0, a - 0.9);
+    const l = len * t;
+    pts.push(new Vector3(r[0] + splay * 0.7 * t, r[1] + Math.sin(ang) * l, r[2] + Math.cos(ang) * l));
+    const wdt = (pointed ? 1.25 * (1 - t) + 0.1 : 1.1 * (1 - 0.6 * t)) * (i === 0 ? 0.6 : 1);
+    // The blade turns its flat partly toward the side it splays to, so the brush has body seen from the front too.
+    sides.push(new Vector3(0.8 * Math.sign(splay || 1), Math.cos(ang) * 0.6, -Math.sin(ang) * 0.6).normalize().multiplyScalar(wdt));
+  }
+  const pos: number[] = [], col: number[] = [];
+  const shade = (t: number): number => 0.62 + 0.5 * t;
+  for (let i = 0; i < N; i++) {
+    const a0 = pts[i]!.clone().add(sides[i]!), a1 = pts[i]!.clone().sub(sides[i]!);
+    const b0 = pts[i + 1]!.clone().add(sides[i + 1]!), b1 = pts[i + 1]!.clone().sub(sides[i + 1]!);
+    const t0 = shade(i / N), t1 = shade((i + 1) / N);
+    for (const [v, t] of [[a0, t0], [b0, t1], [b1, t1], [a0, t0], [b1, t1], [a1, t0], [a0, t0], [b1, t1], [b0, t1], [a0, t0], [a1, t0], [b1, t1]] as const) {
+      pos.push(v.x, v.y, v.z);
+      col.push(t, t * 0.96, t * 0.96);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new Float32BufferAttribute(col, 3));
+  k.add(g, colour, { hull: 0 });
 }
 
 // ---- the body ----
