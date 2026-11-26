@@ -111,10 +111,13 @@ inside of the tunnel. And the light should flicker a bit in the tunnel, illumina
 
 ### The mine's lantern inside the tunnel, lighting it (`townLayout.ts` `LANTERN`, `town.ts` `worksPieces`, `lanterns.ts`, `shaders.ts`)
 
-- The lantern now hangs deep in the tunnel, 5.6 units in (the tunnel is 9 deep), on a chain from the far frame's
-  lintel, low enough that the camera sees it under the mouth's lintel (tested with the camera's elevation). Before,
-  it hung on the first inner post, 3 units in, by the entrance.
-- The light lights the tunnel's inside: its lining, floor, back wall, both inner frames, the lantern and the rails
+- The lantern is fixed to the tunnel's left wall, deep inside (4.8 units into the 9 unit tunnel, between the two
+  inner frames): an iron plate on the rock, an arm out 1.4 units with a scroll under it, and the lantern hanging from
+  the arm's end. David's second note: "The mine lantern should be in the wall." (A first follow-up had it hanging on
+  a chain from the far lintel; before that it hung on the first inner post by the entrance.) Tests check it is
+  inside, on the wall, clear of the rock, and that the camera sees its glass under the mouth's lintel and past the
+  inner frame's post.
+- The light lights the tunnel's inside, centred on the lantern by the wall, so that wall glows most: its lining, floor, back wall, both inner frames, the lantern and the rails
   get a warm light that falls off from the lantern (to 9.5 units, in two soft steps, stronger on faces turned to it)
   and breathes with the existing `lanternFlicker` value of the lantern's voice. The timber frames recede into the
   glow.
@@ -214,8 +217,8 @@ Bundle (`GITHUB_PAGES_BASE=/warbanners/ npx vite build`, gzip -9, the branch's s
   - `chests.test.ts`: the smoke is one mesh on the motion clock and holds still at level 0; the lantern's lit tunnel
     and its depth-only front are built with a units canvas and not without one; the three sets of the mine add up to
     the whole and everything lit lies inside the tunnel.
-  - `townLayout.test.ts`: the lantern hangs deep inside the tunnel, between its walls, and the camera sees its glass
-    under the mouth's lintel.
+  - `townLayout.test.ts`: the lantern is fixed to the tunnel's wall deep inside, a bracket's reach from the rock, and
+    the camera sees its glass under the mouth's lintel and past the inner frame's post.
 
 Results (2026-11-25, this branch):
 
@@ -230,6 +233,8 @@ Results (2026-11-25, this branch):
   on a second run (52 passed, 2 skipped), so it reads as a timing flake under load; see Concerns.
 - After the follow-ups: tsc and lint clean, the sub-path build ok, `npm run test:browser`: AI suite 6 passed, the
   rest 52 passed and 2 skipped (no flake this time).
+- After the lantern moved to the wall: tsc and lint clean; vitest 1345 passed, 126 skipped; the sub-path build ok;
+  `npm run test:browser`: AI suite 6 passed, the rest 52 passed and 2 skipped.
 - `npm run test:emu`: not run; nothing in `src/net`, `src/online` or `database.rules.json` changed.
 
 ## Shots (`shots/buildings3d/`)
@@ -249,15 +254,15 @@ Taken by `scripts/buildings3d-shots.ts` on the built app with software WebGL (Sw
   find's words show above. `claim-closeup.gif` is the chest alone from the tap on, and `claim-closeup-frames.png` its
   frames at 160, 240, 320, 480, 600, 760 and 920 ms. Stills: `claim-<ms>ms.png`, `claim-closeup-<ms>ms.png`.
 - The wheel's turn is not filmed (it is a slow turn; the tests check it).
-- The sheets, boards and chest shots above were taken before the follow-ups: their mines still have the lantern by
-  the entrance and the foundry its still smoke balls, and the camp and mill have no smoke.
+- The sheets, boards and chest shots above were taken before the follow-ups: their mines still have the lantern on
+  the entrance post and the foundry its still smoke balls, and the camp and mill have no smoke.
 - Follow-ups (the real app, motion on, the page's clock held and stepped 50 ms a frame, so each GIF is at real pace,
   20 fps, 3 s):
   - `camp-life.gif`, `camp-life-<ms>ms.png`: the lumber camp's stovepipe wisp drifting right.
   - `mill-life.gif`, `mill-life-<ms>ms.png`: the lumber mill's chimney smoke (and its wheel turning).
   - `foundry-life.gif`, `foundry-life-<ms>ms.png`: the foundry's chimney smoke, now drifting, and its lit tunnel.
-  - `mine-life.gif`, `mine-life-<ms>ms.png`: the mine close up, the lantern deep in the tunnel and its flicker
-    lighting the lining, floor and frames.
+  - `mine-life.gif`, `mine-life-<ms>ms.png`: the mine close up, the lantern on the tunnel's wall deep inside and its
+    flicker lighting the wall, lining, floor and frames.
   - `mine-board-3d.png`, `foundry-board-3d.png` (crops) and `-full.png` (the whole screen): the mine and foundry at
     the phone's default zoom, 412 x 915.
 
