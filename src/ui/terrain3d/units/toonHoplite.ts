@@ -46,13 +46,13 @@ const DARK_IN = '#20150C';
 type P3 = readonly [number, number, number];
 /** The front plates' corners, the figure's right half (x positive); the left half mirrors it. */
 const PT = {
-  R0: [0, 5.3, 3.4], R1: [0, 1.7, 5.4], N: [0, -3.1, 5.05], G1: [0.95, 1.15, 5.05], G2: [0.5, -1.7, 4.95],
-  T: [4.7, 4.1, 0.9], B: [5.0, 1.9, 1.7], EO: [4.3, 1.55, 2.75], EI: [1.1, 0.75, 4.9], FI: [1.1, -0.65, 4.85],
-  FO: [4.2, 0.35, 2.85], CO: [5.0, 0.15, 1.9], CB: [4.6, -3.3, 1.3], CP: [0.95, -5.7, 3.5], CI: [1.15, -0.95, 4.8],
+  R0: [0, 5.3, 3.4], R1: [0, 1.9, 5.4], N: [0, -3.2, 5.05], G1: [0.7, 1.35, 5.1], G2: [0.38, -1.8, 4.98],
+  T: [4.7, 4.1, 0.9], B: [5.0, 2.1, 1.7], EO: [4.35, 1.85, 2.7], EI: [1.15, 0.95, 4.9], FI: [1.2, -1.05, 4.85],
+  FO: [4.25, 0.05, 2.85], CO: [5.0, -0.15, 1.9], CB: [4.6, -3.4, 1.3], CP: [1.3, -5.7, 3.45], CI: [1.3, -1.35, 4.8],
 } as const satisfies Record<string, P3>;
 const at = (p: P3, side: number): V3 => [HELM[0] + p[0] * side, HELM[1] + p[1], HELM[2] + p[2]];
 /** The near cheek blade snapped off along a jagged line (broken), from its outer edge to its inner one. */
-const SNAP: readonly P3[] = [[4.85, -1.1, 1.85], [3.7, -0.7, 2.6], [2.7, -1.7, 3.5], [1.7, -1.1, 4.4]];
+const SNAP: readonly P3[] = [[4.85, -1.4, 1.85], [3.7, -1.0, 2.6], [2.7, -2.0, 3.5], [1.8, -1.5, 4.4]];
 
 /** A flat-faced plate through `pts` (a ring of corners), faceted, its face turned away from the helm's centre. */
 function plate(k: Kit, pts: readonly V3[], colour: string, o: { gloss?: number; hull?: number } = {}): void {
@@ -87,6 +87,8 @@ function helm(k: Kit, c: Look, w: Wear): void {
   // Inside: the face in deep shadow; broken, the face itself, seen in the gap.
   const faceC: V3 = [HELM[0], HELM[1] - 0.7, HELM[2] + 0.4];
   k.ball(faceC, 4.0, broken ? SKIN : DARK_IN, { detail: broken ? 1 : 0, hull: 0, s: [1.18, 1.18, 1.0] });
+  // The shadow inside the gap between the cheek blades, down to their points, so the Y stays dark to the chin.
+  plate(k, [at([1.4, -0.6, 3.6], 1), at([1.4, -5.6, 2.9], 1), at([1.4, -5.6, 2.9], -1), at([1.4, -0.6, 3.6], -1)], DARK_IN, { gloss: 0, hull: 0 });
   // The dome: a cap over the crown, and a band round the sides and back (open at the front, where the plates are).
   const cap = new SphereGeometry(5.2, 11, 3, 0, Math.PI * 2, 0, 1.0);
   const band = new SphereGeometry(5.2, 10, 3, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 1.0, 1.05);
