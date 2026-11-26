@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { GlMap, GlTile, GlTown } from './input';
 import { COS_E, edgeDist, SQUASH, tileSetup } from './layout';
 import {
-  housesFor, LANTERN, LANTERN_SWING, lanternFlicker, lanternSpots, MAX_HOUSES, MINE, pieceFits, tallFor, towersFor, townPlan,
+  housesFor, LANTERN, LANTERN_SWING, LANTERN_WALL, lanternFlicker, lanternSpots, MAX_HOUSES, MINE, pieceFits, tallFor, towersFor, townPlan,
   villagePlan, WALL_R,
 } from './townLayout';
 
@@ -163,15 +163,20 @@ test('the lantern flickers gently on the ambient clock, never strobes, and holds
   expect(lanternFlicker(1000.05, 1)).toBeCloseTo(lanternFlicker(0.05, 1), 6);
 });
 
-test('buildings3d: the lantern hangs deep inside the tunnel, and the camera sees it under the mouth\'s lintel', () => {
-  // Inside: well behind the mouth, between the tunnel's walls, under its roof.
+test('buildings3d: the lantern is fixed to the tunnel\'s wall deep inside, and the camera sees it under the mouth\'s lintel', () => {
+  // Inside: well behind the mouth, under the tunnel's roof.
   expect(LANTERN.z).toBeLessThan(MINE.z - MINE.depth / 2);
   expect(LANTERN.z).toBeGreaterThan(MINE.z - MINE.depth);
-  expect(Math.abs(LANTERN.x - MINE.x)).toBeLessThan(MINE.openW - 1);
   expect(LANTERN.y + 1).toBeLessThan(MINE.openH - 2);
+  // On the wall: the tunnel's left wall, a short bracket's reach from it, not hanging in the middle.
+  expect(LANTERN_WALL).toBe(MINE.x - MINE.openW);
+  expect(LANTERN.x - LANTERN_WALL).toBeGreaterThan(0.6); // the lantern clears the rock
+  expect(LANTERN.x - LANTERN_WALL).toBeLessThan(2);
   // Seen: the camera looks down at the elevation whose sine is SQUASH, so the line from the lantern's glass toward it
-  // climbs SQUASH / COS_E per unit toward the viewer; at the front of the mouth's lintel it must still pass beneath.
+  // climbs SQUASH / COS_E per unit toward the viewer; at the front of the mouth's lintel it must still pass beneath,
+  // and it passes the inner frame's post in front (inset 0.6, 1.2 wide) on the tunnel's side.
   const lintelFront = MINE.z + 0.4 + 0.7, lintelBottom = MINE.openH - 1.4;
-  const glassTop = LANTERN.y;
-  expect(glassTop + (lintelFront - LANTERN.z) * (SQUASH / COS_E)).toBeLessThan(lintelBottom);
+  expect(LANTERN.y + (lintelFront - LANTERN.z) * (SQUASH / COS_E)).toBeLessThan(lintelBottom);
+  const postInner = MINE.x - (MINE.openW - 0.6) - 0.5 + 0.6;
+  expect(LANTERN.x - 0.63).toBeGreaterThan(postInner);
 });

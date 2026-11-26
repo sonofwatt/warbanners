@@ -10,7 +10,7 @@ import type { FactionId } from '../../engine';
 import { ACCENT, PLAYER_COLOURS } from '../art/palette';
 import { coloured, repaint } from './geom';
 import { hash2 } from './layout';
-import { FURNACE, LANTERN, MINE } from './townLayout';
+import { FURNACE, LANTERN, LANTERN_WALL, MINE } from './townLayout';
 import type { TownPiece, TownPlan, WallPlan } from './townLayout';
 
 const TOWN = {
@@ -460,10 +460,17 @@ export function worksPieces(kind: 'mine' | 'foundry', cx: number, cz: number, se
   front.box(1.0, 2.4, 1.0, fx - openW - 0.5, openH - 2.6, fz + 0.4, TOWN.timberDark, 0.2, 0.8); // a brace
   frame(inside, fz - 3, 0.6, 0);
   frame(inside, fz - 6, 0.6, 0);
-  // The lantern, deep in the tunnel: an iron frame round warm glass, hanging on a chain from the far frame's lintel.
+  // The lantern, deep in the tunnel, fixed to its left wall: an iron plate on the rock, an arm out from it with a
+  // scroll under it, and the lantern hanging from the arm's end: an iron frame round warm glass.
   const L = LANTERN;
-  const lintel = openH - 1.4 - 0.6;
-  inside.box(0.22, lintel - (L.y + 1.25), 0.22, L.x, L.y + 1.25, L.z, TOWN.iron, 0);
+  const wall = LANTERN_WALL;
+  inside.box(0.3, 1.8, 1.0, wall + 0.15, L.y + 0.6, L.z, TOWN.iron, 0);
+  inside.box(L.x - wall, 0.28, 0.28, (wall + L.x) / 2, L.y + 1.75, L.z, TOWN.iron, 0);
+  const scroll = new BoxGeometry(0.22, 1.4, 0.22);
+  scroll.rotateZ(-0.75);
+  scroll.translate(wall + 0.55, L.y + 1.3, L.z);
+  inside.add(scroll, TOWN.iron, 0);
+  inside.box(0.16, 0.45, 0.16, L.x, L.y + 1.3, L.z, TOWN.iron, 0);
   inside.box(1.25, 1.6, 1.25, L.x, L.y - 0.8, L.z, TOWN.iron, 0);
   inside.box(0.95, 1.25, 1.5, L.x, L.y - 0.62, L.z, TOWN.glass, 0);
   inside.box(1.5, 1.25, 0.95, L.x, L.y - 0.62, L.z, TOWN.glass, 0);

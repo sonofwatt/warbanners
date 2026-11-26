@@ -341,7 +341,7 @@ if (what === 'life' || what === 'mineboard') {
     const { page } = app;
     await on3d(page);
     if (!phone) await zoom(page, 4);
-    const names = phone ? ['mine', 'foundry'] : ['camp', 'mill', 'foundry', 'mine'];
+    const names = phone ? ['mine', 'foundry'] : (process.env.ONLY ?? 'camp,mill,foundry,mine').split(',');
     for (const name of names) {
       const k = keys.get(name)!;
       await bring(page, k, W / 2, H / 2 + (phone ? 0 : 60));
