@@ -31,6 +31,8 @@ If this file and the engine's data files disagree, the data files are wrong.
 A unit with movement `M` has `2M` half-points each turn (a mounted Mongol unit 1 more:
 see 13). A unit that has not moved
 yet this turn may always enter one adjacent enterable tile, whatever it costs.
+In their own territory mounted Mongol units pay 1 per tile after the first such tile
+each turn (relay riders, section 13).
 
 ## 3. Map generation
 
@@ -49,7 +51,12 @@ centre `(0,0)` is always a plain field.
    from every village already chosen and from every mirrored village. A village
    tile becomes a field with no resource.
 5. Treasures: 2 in `H` (4 on the map), chosen the same way from tiles at least 3
-   from both capitals and at least 2 from every village and treasure.
+   from both capitals and at least 2 from every village and treasure. The match's
+   chest setting (the new match screen's Advanced section, `MatchSettings.chests`)
+   changes the count: Few 1 in `H` (2 on the map), Normal 2 (the default, also when
+   the setting is absent), Many 4 (8 on the map). With Many an attempt needs only 2
+   in `H` and keeps as many more as fit, up to 4 (4 fitted on every seed from 0 to
+   1999 checked). The rest of the map is drawn from the same rolls whatever the count.
 6. Check: from capital 0, walking over non-water tiles, capital 1 and every village
    and treasure must be reachable. If not, try again with attempt number + 1. The
    seed for attempt `n` is `(seed + n * 0x9E3779B9) >>> 0`. After 50 failed attempts
@@ -463,10 +470,18 @@ Mongols
 - Entering a forest costs mounted Mongol units the normal forest cost and then uses
   up the rest of their move.
 - Relay riders: for mounted Mongol units (since rules 8; every Mongol unit before),
-  entering any tile inside Mongol territory costs 1 half-point, the cost of a road,
-  whether the move started inside it or is riding in. Mongol foot units pay the
-  normal terrain costs there (or a road's, where a road is). The mountain rule
-  (section 9) still comes first.
+  entering a tile inside Mongol territory costs 1 half-point, the cost of a road,
+  whether the move started inside it or is riding in, except that each turn the
+  first such tile costs what it would without relay riders (since rules 10). So at
+  home a Horseman, Horse Archer or Sky Caller rides 3 field tiles and a Knight or
+  Khan's Guard 5, one fewer than rules 8 and 9 (4 and 6). The first tile is counted
+  per turn, not per move: a split move, and the move a `retreat` unit makes after
+  attacking, pay the normal cost only once between them, and the next turn pays it
+  again. A tile relay riding would not make cheaper (a road between road or city
+  tiles, at 1) is not that first tile, and a forest as that first tile stops a mounted
+  Mongol as any forest does. Hasten (+2 half-points) and roads are unchanged. Mongol
+  foot units pay the normal terrain costs there (or a road's, where a road is). The
+  mountain rule (section 9) still comes first.
 - Mongols build no roads (since rules 8). They still research `riding`, which opens
   the Camp and leads to `chivalry`. Roads already on the map, built by anyone, work
   for every unit.
@@ -580,3 +595,13 @@ This list, the one above and the one below are the file's changelog.
   Unhunker button for a hunkered unit (section 11).
 - A Market gives 3 growth (was 2). Its cost (6), its +2 income and the one per city
   are unchanged (section 6).
+
+## Rules 10 changes
+
+- Relay riders ride one tile less at home (David, 2026-11-26): each turn, the first
+  tile of Mongol territory a mounted Mongol unit enters costs what it would without
+  relay riders, and every later one costs 1 half-point, as before. A Horseman, Horse
+  Archer or Sky Caller rides 3 field tiles at home (was 4), a Knight or Khan's Guard 5
+  (was 6). The first tile is counted per turn, so a split move or the retreat move
+  after an attack does not pay it twice. Foot units, Spartans, roads and Hasten are
+  unchanged (section 13).

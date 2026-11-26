@@ -46,6 +46,19 @@ test('settings survive the database', () => {
     expect(decodeSettings(v)).toBeNull();
   }
 });
+test('the advanced options travel in the settings; a default match writes exactly what it always did', () => {
+  const plain: MatchSettings = { seed: 9, factions: ['spartans', 'mongols'] };
+  expect(encodeSettings(plain)).toBe('{"factions":["spartans","mongols"],"seed":9}');
+  const s: MatchSettings = { ...plain, chests: 'many', weather: 'random', time: 'night' };
+  const wire = encodeSettings(s);
+  expect(wire.length).toBeLessThan(512); // database.rules.json: match/settings is a string of at most 512
+  expect(decodeSettings(wire)).toEqual(s);
+  // An explicit default reads as no field at all.
+  expect(decodeSettings('{"chests":"normal","factions":["spartans","mongols"],"seed":9,"time":"day","weather":"clear"}')).toEqual(plain);
+  for (const bad of ['{"chests":"heaps","factions":["spartans","mongols"],"seed":9}', '{"factions":["spartans","mongols"],"seed":9,"weather":"fog"}']) {
+    expect(decodeSettings(bad)).toBeNull();
+  }
+});
 test('the action list comes back as an array or an object', () => {
   expect(readActions(['a', 'b'])).toEqual(['a', 'b']);
   expect(readActions({ 0: 'a', 1: 'b', 2: 'c' })).toEqual(['a', 'b', 'c']);

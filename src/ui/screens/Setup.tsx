@@ -10,6 +10,9 @@ import { TileBase } from '../art/tiles';
 import { HomeIcon, SwapIcon } from '../icons';
 import { MAX_NAME } from '../../online/wire';
 import { NameChips } from './NameChips';
+import { AdvancedSection } from './Advanced';
+import { DEFAULT_ADVANCED } from '../../app/advanced';
+import type { Advanced } from '../../app/advanced';
 import { T, fill } from '../text';
 
 // Each people shown by one of its own soldiers, in its colours.
@@ -45,6 +48,7 @@ export function Setup(): ReactElement {
   const [second, setSecond] = useState('');
   const [seat, setSeat] = useState<SecondSeat>('human');
   const [swapped, setSwapped] = useState(false);
+  const [advanced, setAdvanced] = useState<Advanced>(DEFAULT_ADVANCED);
 
   const a = first.trim() === '' ? T.ui.playerOne : first.trim();
   const b = seat !== 'human' ? T.ai.name[seat] : second.trim() === '' ? T.ui.playerTwo : second.trim();
@@ -88,8 +92,9 @@ export function Setup(): ReactElement {
       </div>
       <p className="vh" data-testid="spartans-line" aria-live="polite">{fill(T.ui.spartansPlay, { name: spartanName })}</p>
       <p className="setup-line">{setupLine(a, b, extra)}</p>
+      <AdvancedSection value={advanced} onChange={setAdvanced} />
       <div className="setup-row">
-        <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions, second: seat })}>{T.ui.start}</button>
+        <button type="button" className="primary big" data-testid="start" onClick={() => startMatch({ names: [a, b], factions, second: seat, advanced })}>{T.ui.start}</button>
         <button type="button" data-testid="setup-back" onClick={goHome}><HomeIcon />{T.ui.home}</button>
       </div>
     </div>

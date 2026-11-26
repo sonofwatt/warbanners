@@ -186,6 +186,15 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
 });
 
+test('setup has an Advanced section, closed at first, that opens in place', () => {
+  const { store } = fakeStore();
+  const html = render(store, <Setup />);
+  expect(html).toMatch(/<button[^>]*data-testid="advanced-toggle"[^>]*aria-expanded="false"/);
+  expect(html).toContain(`>${T.ui.advanced}<`);
+  expect(html).not.toContain('data-testid="advanced-body"');
+  // Opening it, the choices and what Start passes: src/browser/advanced.test.ts taps them in a real browser.
+});
+
 test('setup tells the second seat\'s extra start gold; with equal gold it says only who moves first', () => {
   const { store } = fakeStore();
   const html = render(store, <Setup />);

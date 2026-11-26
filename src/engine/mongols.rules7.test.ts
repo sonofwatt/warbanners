@@ -6,7 +6,12 @@ import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
 
 // Rules 6 and 7 Mongol riding: a half-point riding bonus, ridden by territory, and relay riding for every Mongol unit.
 // Rules 8 sets the bonus to 0, turns territoryRiding off and limits relay riding to mounted units; the code stays, and
-// these tests drive it with the rules 7 faction data. This file is alone because vi.mock binds a whole file.
+// these tests drive it with the rules 7 faction data, and with rules 10's first relay tile at the normal cost off
+// (CONFIG.relayFirstFull false). This file is alone because vi.mock binds a whole file.
+vi.mock('./data/config', async (orig) => {
+  const m = await orig<typeof import('./data/config')>();
+  return { CONFIG: { ...m.CONFIG, relayFirstFull: false } };
+});
 vi.mock('./data/factions', async (orig) => {
   const m = await orig<typeof import('./data/factions')>();
   return { FACTIONS: { ...m.FACTIONS, mongols: { ...m.FACTIONS.mongols, mountedMoveBonus: 1, territoryRiding: true, relayMountedOnly: false, canBuildRoads: true } } };

@@ -6,9 +6,10 @@
 // materials are shared by all. Units are rebuilt only when the scene's units change; a move or a lunge only moves
 // a unit's group for the frames it plays.
 import {
-  BackSide, CircleGeometry, Group, LinearSRGBColorSpace, Mesh, MeshBasicMaterial, OrthographicCamera, Quaternion,
-  Scene, ShaderMaterial, Vector3, WebGLRenderer,
+  BackSide, CircleGeometry, CustomBlending, DoubleSide, Group, LinearSRGBColorSpace, MaxEquation, Mesh, MeshBasicMaterial,
+  OrthographicCamera, Quaternion, Scene, ShaderMaterial, Vector3, WebGLRenderer,
 } from 'three';
+import { castShadow } from '../daylight';
 import type { Material } from 'three';
 import type { GlUnit } from '../unitsInput';
 import { COS_E, R, SQ3, SQUASH } from '../layout';
@@ -135,8 +136,41 @@ const TILE_STEP = R * SQ3;
 const EASE_OUT_MS = 150;
 /** The figure's body stands this far toward the viewer from the tile centre: its feet are 4 board units lower on screen. */
 const FEET_Z = 4 / SQUASH;
-/** The ground shadow sits this far right of the figure's own centre (the light is from the upper left) and back. */
-const SHADOW_DX = 1.2, SHADOW_DZ = -0.6;
+/**
+ * The soft blob under a figure sits this far from its own centre, away from the light: the cast shadow's reach per
+ * unit of height (daylight.ts castShadow) times BLOB_REACH, at most BLOB_MAX. By day that is about 1.2 right and 0.6
+ * back, where it always sat.
+ */
+const BLOB_REACH = 2.85, BLOB_MAX = 1.8;
+/** The cast shadow's layer: only the figures' opaque fills are on it (not their hulls, the blobs or the extras). */
+const CAST_LAYER = 1;
+/** The ground the figures stand on (world y), where their shadows lie, as the blob does. */
+const CAST_PLANE = 0.15;
+/** The cast shadow fades toward its tip, by up to CAST_FADE, over the height of a figure (world units). */
+const CAST_FADE = 0.35, CAST_HEIGHT = 45;
+
+// The cast shadow: each figure's opaque fill drawn again, squashed onto the ground along the light (a planar
+// projection, in the vertex shader, so it follows every pose: a walk, a turn, a crouch, a strike) in flat black.
+// Blended by MAX, so where parts or neighbours overlap the shadow is no darker; it lightens toward its tip.
+const castVert = /* glsl */ `
+uniform vec2 uStep;
+varying float vH;
+void main() {
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  float h = max(w.y - ${CAST_PLANE.toFixed(2)}, 0.0);
+  vH = h;
+  w.xz += uStep * h;
+  w.y = ${CAST_PLANE.toFixed(2)};
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+const castFrag = /* glsl */ `
+uniform float uAlpha;
+varying float vH;
+void main() {
+  gl_FragColor = vec4(0.0, 0.0, 0.0, uAlpha * (1.0 - ${CAST_FADE.toFixed(2)} * smoothstep(0.0, ${CAST_HEIGHT.toFixed(1)}, vH)));
+}`;
+/** MAX blending, for shadows laid on the clear canvas: overlaps keep the darker, never add up. */
+const MAX_BLEND = { blending: CustomBlending, blendEquation: MaxEquation, blendEquationAlpha: MaxEquation } as const;
 
 /** A unit's facing, kept by id across rebuilds (a unit seen again keeps the way it stood), with its crouch and shade. */
 interface Facing {
@@ -161,11 +195,11 @@ function reducedMotion(): boolean {
   }
 }
 
-/** Turn the figure's body and its ground shadow to yaw `yaw` from rest (radians about the vertical). */
-function placeShadow(b: Pick<Built, 'shadow' | 'shadowX'>, yaw: number): void {
+/** Turn the figure's ground shadow (the blob) to yaw `yaw` from rest (radians about the vertical), `off` from the light. */
+function placeShadow(b: Pick<Built, 'shadow' | 'shadowX'>, yaw: number, off: { dx: number; dz: number }): void {
   // The footprint turns with the figure; the light's offset does not.
   b.shadow.rotation.set(-Math.PI / 2, 0, yaw);
-  b.shadow.position.set(b.shadowX * Math.cos(yaw) + SHADOW_DX, 0.15, FEET_Z - b.shadowX * Math.sin(yaw) + SHADOW_DZ);
+  b.shadow.position.set(b.shadowX * Math.cos(yaw) + off.dx, CAST_PLANE, FEET_Z - b.shadowX * Math.sin(yaw) + off.dz);
 }
 
 export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, { value: unknown }>): Units3d | null {
@@ -177,6 +211,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
   renderer.outputColorSpace = LinearSRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
+  // Two passes a frame (the cast shadows, then the figures), cleared once and counted together.
+  renderer.autoClear = false;
+  renderer.info.autoReset = false;
 
   const uniforms = (outline: boolean, alpha?: number): Record<string, { value: unknown }> => ({
     ...shared, uOutline: { value: outline ? UNIT_OUTLINE : 0 }, uIsOutline: { value: outline }, ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
@@ -185,7 +222,34 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   const fillMat = new ShaderMaterial({ uniforms: uniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, defines: { WORLD_NORMAL: '' } });
   const hullMat = new ShaderMaterial({ uniforms: uniforms(true), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, side: BackSide, defines: { WORLD_NORMAL: '' } });
   const shadowGeo = new CircleGeometry(1, 20);
-  const shadowMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA, depthWrite: false });
+  const shadowMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA, depthWrite: false, ...MAX_BLEND });
+  const castMat = new ShaderMaterial({
+    uniforms: { uStep: { value: [0, 0] }, uAlpha: { value: 0 } }, vertexShader: castVert, fragmentShader: castFrag,
+    transparent: true, depthTest: false, depthWrite: false, side: DoubleSide, ...MAX_BLEND,
+  });
+  // The light as last read from the shared uniforms (the terrain's setLook changes them): the blob's offset and
+  // strength, and the cast shadow's reach and darkness. By day the blob is where and as dark as it always was.
+  const blobOff = { dx: 1.2, dz: -0.6 };
+  let blobK = 1, castOn = true, lightKey = '';
+  function readLight(): void {
+    const d = shared.uLightDir?.value as Vector3 | undefined;
+    const strength = typeof shared.uCast?.value === 'number' ? shared.uCast.value : 0.42;
+    const key = d === undefined ? `-|${strength}` : `${d.x}|${d.y}|${d.z}|${strength}`;
+    if (key === lightKey) return;
+    lightKey = key;
+    const c = castShadow(d === undefined ? [-0.55, 0.8, 0.28] : [d.x, d.y, d.z], strength);
+    const len = Math.hypot(c.step[0], c.step[1]);
+    const k = len > 0 ? Math.min(BLOB_MAX, len * BLOB_REACH) / len : 0;
+    blobOff.dx = c.step[0] * k; blobOff.dz = c.step[1] * k;
+    (castMat.uniforms.uStep as { value: number[] }).value = [c.step[0], c.step[1]];
+    (castMat.uniforms.uAlpha as { value: number }).value = c.alpha;
+    castOn = c.alpha > 0.004;
+    // The blob is the figure's contact shade: it stays under every light, a little fainter when the light is.
+    blobK = Math.min(1, 0.4 + 0.6 * (c.alpha / 0.42));
+    shadowMat.opacity = SHADOW_ALPHA * blobK;
+    for (const g of fallen.values()) setDimAlpha(g.dim, (g.dim.fill.uniforms.uAlpha as { value: number }).value);
+    for (const p of placed.values()) placeShadow(p, p.shadow.rotation.z, blobOff);
+  }
 
   // A fading fall is see-through as one piece, as the svg group opacity draws it: a depth-only pass first, then the
   // colour pass blends only the nearest surface, once. (No standing unit is ever see-through.)
@@ -198,13 +262,13 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     });
     return {
       depthFill: mk(false, false), depthHull: mk(true, false), fill: mk(false, true), hull: mk(true, true),
-      shadow: new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA * a, depthWrite: false }),
+      shadow: new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA * blobK * a, depthWrite: false, ...MAX_BLEND }),
     };
   }
   /** A fading figure's own materials take a new opacity in place: nothing is rebuilt while it fades. */
   function setDimAlpha(d: Dim, a: number): void {
     for (const m of [d.fill, d.hull]) (m.uniforms.uAlpha as { value: number }).value = a;
-    d.shadow.opacity = SHADOW_ALPHA * a;
+    d.shadow.opacity = SHADOW_ALPHA * blobK * a;
   }
   const disposeDim = (d: Dim): void => { for (const m of [d.depthFill, d.depthHull, d.fill, d.hull, d.shadow]) m.dispose(); };
   /** The shared opaque materials of each shade step (step 0 is the plain pair), made when first needed. */
@@ -258,6 +322,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       meshes.push(new Mesh(f.hull, d.depthHull), new Mesh(f.fill, d.depthFill), new Mesh(f.hull, d.hull), new Mesh(f.fill, d.fill));
     } else {
       const hull = new Mesh(f.hull, hullMat), fill = new Mesh(f.fill, fillMat);
+      fill.layers.enable(CAST_LAYER);
       meshes.push(hull, fill);
       paint.push({ mesh: hull, hull: true }, { mesh: fill, hull: false });
     }
@@ -280,7 +345,10 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const ms = dim !== null
         ? [new Mesh(pc.hull, dim.depthHull), new Mesh(pc.fill, dim.depthFill), new Mesh(pc.hull, dim.hull), new Mesh(pc.fill, dim.fill)]
         : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
-      if (dim === null) paint.push({ mesh: ms[0]!, hull: true }, { mesh: ms[1]!, hull: false });
+      if (dim === null) {
+        paint.push({ mesh: ms[0]!, hull: true }, { mesh: ms[1]!, hull: false });
+        ms[1]!.layers.enable(CAST_LAYER);
+      }
       for (const m of ms) { m.frustumCulled = false; inner.add(m); }
       at.add(inner);
       const carrier = pc.parent === null ? null : piece(pc.parent);
@@ -306,7 +374,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     g.add(body);
     g.add(sh);
     const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x, paint };
-    placeShadow(built, 0);
+    placeShadow(built, 0, blobOff);
     return built;
   }
 
@@ -502,7 +570,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         const at = spot(f.type, f.x, f.y);
         const yaw = fallStrikes.get(at)?.yaw ?? gone.get(at)?.yaw ?? 0;
         b.body.quaternion.setFromAxisAngle(Y, yaw);
-        placeShadow(b, yaw);
+        placeShadow(b, yaw, blobOff);
         g = { group: b.group, dim, pieces: b.pieces, spot: at };
         scene.add(g.group);
         fallen.set(k, g);
@@ -577,7 +645,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         .multiply(qc.setFromAxisAngle(sideA, sp.lean));
       if (rp.lean !== 0) qw.premultiply(qc.setFromAxisAngle(knockAxis.set(rdz, 0, -rdx), rp.lean));
       p.body.quaternion.copy(qw).multiply(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, face + ip.yaw));
-      placeShadow(p, face);
+      placeShadow(p, face, blobOff);
       p.body.scale.set(1, (1 + ip.breathe) * (1 - g.squash * cr), 1);
       // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too); the rest of
       // the pieces hold their guard.
@@ -640,6 +708,17 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     camera.up.set(0, COS_E, -SQUASH);
     camera.lookAt(target);
     camera.updateProjectionMatrix();
+    readLight();
+    renderer.info.reset();
+    renderer.clear();
+    // The cast shadows first, on the clear canvas, so the figures and everything else are drawn over them.
+    if (castOn) {
+      camera.layers.set(CAST_LAYER);
+      scene.overrideMaterial = castMat;
+      renderer.render(scene, camera);
+      scene.overrideMaterial = null;
+      camera.layers.set(0);
+    }
     renderer.render(scene, camera);
   }
 
@@ -656,7 +735,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       for (const pc of Object.values(f.pieces)) { pc.fill.dispose(); pc.hull.dispose(); }
     }
     looks.clear();
-    const mats: Material[] = [fillMat, hullMat, shadowMat];
+    const mats: Material[] = [fillMat, hullMat, shadowMat, castMat];
     for (const m of shades.values()) mats.push(m.fill, m.hull);
     shades.clear();
     for (const m of mats) m.dispose();

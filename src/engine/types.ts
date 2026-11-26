@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 9;
+export const RULES_VERSION = 10;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -67,6 +67,9 @@ export interface Unit {
   // rules 9: stamp of the turn it last unhunkered (absent until it first does, so older states hash as before); a unit
   // that unhunkered this turn may not hunker again this turn; public
   unhunkeredTurn?: number;
+  // rules 10: stamp of the turn it entered its first relay tile (absent until it first does, so older states hash as
+  // before); from then on that turn every relay tile costs CONFIG.relayCost; public
+  relayTurn?: number;
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {
@@ -82,7 +85,16 @@ export interface MatchState {
   nextUnitId: number; nextCityId: number;
   winner: PlayerId | null;
 }
-export interface MatchSettings { seed: number; factions: [FactionId, FactionId]; }
+// The advanced match options. Each is optional and its absence means the default (today's game), so older records,
+// saves and replays read the same. Only `chests` is a rule (mapgen reads it); weather and time of day are looks the
+// engine never reads, kept here so a resumed or online match keeps them. 'random' is resolved by the app from the seed.
+export type ChestSetting = 'few' | 'normal' | 'many';
+export type WeatherSetting = 'clear' | 'cloudy' | 'rain' | 'snow' | 'random';
+export type TimeSetting = 'day' | 'dawn' | 'dusk' | 'night' | 'random';
+export interface MatchSettings {
+  seed: number; factions: [FactionId, FactionId];
+  chests?: ChestSetting; weather?: WeatherSetting; time?: TimeSetting;
+}
 
 export type Action =
   | { type: 'move'; unit: number; to: HexKey }

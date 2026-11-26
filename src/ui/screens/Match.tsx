@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 import {
   DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
 import { roundOf } from '../../app/record';
+import { lookOf } from '../../app/advanced';
+import { skyLight } from '../terrain3d/sky';
 import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { formatClock } from '../../online/clock';
@@ -362,6 +364,8 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
   const peeked = peek !== null ? digest[peek] : undefined;
   const showLine = (i: number): void => { setPeek(i); setCentred((n) => n + 1); };
+  // The match's weather and time of day, a look only: Random was picked from the seed, the same on every phone.
+  const look = lookOf(record.settings);
 
   return (
     <div className={`screen match${side ? ' has-side' : ''}${peeked !== undefined ? ' peeking' : ''}`} data-testid="match">
@@ -372,8 +376,12 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         status={status} statusName={statusName} statusShort={statusShort} clock={clock} clockPaused={online?.clock.kind === 'paused'}
         onOpenMenu={() => setSheet('menu')}
       />
-      <div className="board-slot" data-testid="board-slot" ref={slotRef}>
-        <Board items={items} radius={data.radius} factions={data.factions} seed={state?.seed ?? 0} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
+      <div
+        className="board-slot" data-testid="board-slot" ref={slotRef}
+        data-sea={look.weather === 'clear' && look.time === 'day' ? undefined : look.time}
+        style={look.weather === 'clear' && look.time === 'day' ? undefined : { '--slot-sea': skyLight(look, roundOf(state)).sea } as CSSProperties}
+      >
+        <Board look={look} round={roundOf(state)} items={items} radius={data.radius} factions={data.factions} seed={state?.seed ?? 0} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
           terrain3d={terrain3d} attacks={attacks}
           covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
           onTap={peeked !== undefined ? noTap : tap}

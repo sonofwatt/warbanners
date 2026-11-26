@@ -306,7 +306,7 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
     joinAs: async name => { if (session !== null) await session.join(name); },
     takeSeat: async seat => { if (session !== null) await session.takeOver(seat); },
     setLobby: patch => { if (session !== null) void session.setLobby(patch); },
-    startOnline: () => { if (session !== null) void session.start(deps.newSeed()); },
+    startOnline: advanced => { if (session !== null) void session.start(deps.newSeed(), advanced); },
 
     resignOnline: () => {
       if (session === null || get().mode !== 'online') return;

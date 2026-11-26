@@ -288,7 +288,10 @@ describe('matches between two AIs end', () => {
     // so the rules moved which matches stall more than how many; the AI is unchanged. At hard the list is unchanged.
     // Rules 9 as released (the Market's growth 3 and the Spartan capital starting at level 2): all 16 end within 60
     // rounds, the longest, '7 spartans', in 54.
-    const KNOWN_NORMAL: string[] = [];
+    // Rules 10 (the first relay tile of each turn at the normal cost): '7 mongols' does not end within 60 rounds; it
+    // ends in 76, the Mongols winning with every city. Only the engine changed, so the rule moved which match runs long.
+    // At hard all 16 end.
+    const KNOWN_NORMAL: string[] = ['7 mongols'];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);

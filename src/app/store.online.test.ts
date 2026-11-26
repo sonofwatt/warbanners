@@ -1,5 +1,7 @@
 import { expect, test, vi } from 'vitest';
-import { hashState, legalActions, RULES_VERSION } from '../engine';
+import { createMatch, hashState, legalActions, RULES_VERSION } from '../engine';
+import type { MatchState } from '../engine';
+import { lookOf } from './advanced';
 import type { AiLevel } from '../ai/types';
 import { fakeServer } from '../net/fakeNet';
 import type { FakeServer } from '../net/fakeNet';
@@ -111,6 +113,21 @@ test('host: create, wait, start, and play with no curtain', async () => {
   host.get().run({ type: 'endTurn' }); await settle(server);
   expect(host.get().screen).toBe('match'); expect(host.get().viewer).toBe(0); expect(host.get().online!.myTurn).toBe(false);
   expect(guest.get()).toMatchObject({ screen: 'match', viewer: 1 }); expect(guest.get().online!.myTurn).toBe(true);
+});
+test('the host\'s advanced choices reach both phones: the same chests, weather and time, the same map', async () => {
+  const { host, guest, server } = twoStores();
+  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  guest.get().openRoom(host.get().online!.code); await settle(server); await guest.get().joinAs('Ben');
+  host.get().startOnline({ chests: 'many', weather: 'random', time: 'night' }); await settle(server);
+  expect(host.get().screen).toBe('match'); expect(guest.get().screen).toBe('match');
+  const hs = host.get().record!.settings, gs = guest.get().record!.settings;
+  expect(hs).toMatchObject({ chests: 'many', weather: 'random', time: 'night' });
+  expect(gs).toEqual(hs);
+  expect(lookOf(gs)).toEqual(lookOf(hs));
+  const chests = (st: MatchState): string[] => Object.keys(st.tiles).filter((k) => st.tiles[k]!.treasure).sort();
+  expect(chests(host.get().state!)).toHaveLength(8);
+  expect(chests(guest.get().state!)).toEqual(chests(host.get().state!));
+  expect(hashState(createMatch(gs))).toBe(hashState(createMatch(hs)));
 });
 test('the waiting player can look but not act', async () => {
   const { guest } = await startedPair();

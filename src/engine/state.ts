@@ -109,9 +109,15 @@ export function foundCity(s: MatchState, owner: PlayerId, pos: HexKey, capital: 
   return c;
 }
 
+// The chest setting as treasures per half of the map; absent or 'normal' is today's count.
+export function treasuresPerHalf(chests: MatchSettings['chests']): number {
+  const m = CONFIG.mapgen;
+  return chests === 'few' ? m.treasuresFew! : chests === 'many' ? m.treasuresMany! : m.treasuresPerHalf!;
+}
+
 export function createMatch(settings: MatchSettings): MatchState {
   const seed = settings.seed >>> 0;                    // -1 and 4294967295 are the same match
-  const map = generateMap(seed, CONFIG.mapRadius);
+  const map = generateMap(seed, CONFIG.mapRadius, treasuresPerHalf(settings.chests));
   const s: MatchState = {
     rulesVersion: RULES_VERSION, seed, rng: map.rng, radius: CONFIG.mapRadius,
     tiles: map.tiles, cities: [], units: [],

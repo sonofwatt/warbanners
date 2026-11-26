@@ -63,7 +63,24 @@ function budgetOf(s: MatchState, u: Unit): number {
 export function reachable(s: MatchState, unitId: number): Record<HexKey, number> {
   const u = unitById(s, unitId);
   if (u === undefined) return {};
-  if (u.fresh || u.turnEnded || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
+  const out: Record<HexKey, number> = {};
+  for (const [k, v] of explore(s, u)) out[k] = v.left;
+  return out;
+}
+
+// rules 10: has this unit already entered its first relay tile this turn (or does the rule not apply)? From then on
+// every relay tile costs CONFIG.relayCost; until then a relay tile costs what it would without relay riders.
+function relayOpen(s: MatchState, u: Unit): boolean {
+  return !CONFIG.relayFirstFull || u.relayTurn === s.stamp;
+}
+
+interface Step { cost: number; forced: boolean }
+
+// The search behind reachable: tile it may stop on -> half-points left, and whether the best way there has opened
+// relay riding for the rest of the turn (rules 10). The search runs over (tile, relay open) pairs.
+function explore(s: MatchState, u: Unit): Map<HexKey, { left: number; open: boolean }> {
+  const result = new Map<HexKey, { left: number; open: boolean }>();
+  if (u.fresh || u.turnEnded || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return result;
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
   const relays = faction.relayRiders && (mounted || !faction.relayMountedOnly);   // rules 8: mounted units only
@@ -72,17 +89,31 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
   // rules 3 to 5 only: a move could end on one unexplored tile, and mounted Mongol riders kept moving after it
   const keepsMoveInFog = !CONFIG.closedFog && mounted && s.players[u.owner]!.faction === 'mongols';
   const entersFog = !CONFIG.closedFog || hasTrait(u, 'pathfinder');
-  const fog = new Set<HexKey>();                            // unexplored tiles reached: ends of moves only
-  const best = new Map<HexKey, number>([[u.pos, budgetOf(s, u)]]);
-  const done = new Set<HexKey>();
-  for (;;) {
-    let from: HexKey | null = null;
-    let left = 0;
-    for (const [k, v] of best) {
-      if (!done.has(k) && !fog.has(k) && v > 0 && (from === null || v > left)) { from = k; left = v; }
+  const node = (k: HexKey, open: boolean): string => `${k}|${open ? 1 : 0}`;
+  const fog = new Set<string>();                            // unexplored tiles reached: ends of moves only
+  const startOpen = relayOpen(s, u);
+  const best = new Map<string, { k: HexKey; open: boolean; left: number }>([[node(u.pos, startOpen), { k: u.pos, open: startOpen, left: budgetOf(s, u) }]]);
+  const done = new Set<string>();
+  // What a step costs without relay riders (null: it may not be taken).
+  const plainStep = (from: HexKey, to: HexKey, terrain: string, left: number, firstStep: boolean): Step | null => {
+    if (hasRoadOrCity(s, from) && hasRoadOrCity(s, to)) return { cost: CONFIG.roadCost, forced: false };
+    if (terrain === 'mountain') return firstStep ? { cost: left, forced: true } : null;
+    if (mounted && faction.forestStopsMounted && terrain === 'forest') {
+      // the normal forest cost, unless it is the first step; then the rest of the move is gone
+      if (!firstStep && left < (CONFIG.terrain.forest.enterCost ?? 0)) return null;
+      return { cost: left, forced: true };
     }
-    if (from === null) break;
-    done.add(from);
+    return { cost: CONFIG.terrain[terrain as keyof typeof CONFIG.terrain].enterCost ?? left, forced: false };
+  };
+  for (;;) {
+    let cur: { k: HexKey; open: boolean; left: number } | null = null;
+    let curNode = '';
+    for (const [n, v] of best) {
+      if (!done.has(n) && !fog.has(n) && v.left > 0 && (cur === null || v.left > cur.left)) { cur = v; curNode = n; }
+    }
+    if (cur === null) break;
+    done.add(curNode);
+    const { k: from, left } = cur;
     const firstStep = from === u.pos && !u.moved;
     const offMountain = CONFIG.mountain.endsTurn && tileAt(s, from)?.terrain === 'mountain';
     for (const d of DIRS) {
@@ -91,27 +122,26 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
       if (tile === undefined || tile.terrain === 'water' || isEnemyAt(s, u.owner, to)) continue;
       if (!entersFog && !explored.has(to)) continue;
       if (!climbs && tile.terrain === 'mountain') continue;   // rules 8: climbing needs CONFIG.mountain.tech
-      let cost: number;
-      let forced = false;                                   // costs everything that is left
+      let step: Step | null;
+      let open = cur.open;
       if (offMountain || (CONFIG.mountain.endsTurn && tile.terrain === 'mountain')) {
         // rules 8: onto or off a mountain only as the first step, for everything left; it ends the turn (moveHandler).
         // Before the road and relay costs, should a city or road ever stand on a mountain.
         if (!firstStep) continue;
-        cost = left; forced = true;
+        step = { cost: left, forced: true };
       } else if (relays && tile.cityId !== null && cityById(s, tile.cityId)?.owner === u.owner) {
-        cost = CONFIG.relayCost;
-      } else if (hasRoadOrCity(s, from) && hasRoadOrCity(s, to)) {
-        cost = CONFIG.roadCost;
-      } else if (tile.terrain === 'mountain') {
-        if (!firstStep) continue;
-        cost = left; forced = true;
-      } else if (mounted && faction.forestStopsMounted && tile.terrain === 'forest') {
-        // the normal forest cost, unless it is the first step; then the rest of the move is gone
-        if (!firstStep && left < (CONFIG.terrain.forest.enterCost ?? 0)) continue;
-        cost = left; forced = true;
+        if (open) step = { cost: CONFIG.relayCost, forced: false };
+        else {
+          // rules 10: the first relay tile of the turn costs what it would without relay riders. A tile relay riding
+          // would not make cheaper (a road) does not count as that first tile.
+          step = plainStep(from, to, tile.terrain, left, firstStep);
+          if (step === null || step.forced || step.cost > CONFIG.relayCost) open = true;
+        }
       } else {
-        cost = CONFIG.terrain[tile.terrain].enterCost ?? left;
+        step = plainStep(from, to, tile.terrain, left, firstStep);
       }
+      if (step === null) continue;
+      const { cost, forced } = step;
       let after = left - cost;
       if (forced) after = 0;
       else if (cost > left) {
@@ -119,18 +149,21 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
         after = 0;
       }
       if (nextToEnemy(s, u.owner, to)) after = 0;
+      const n = node(to, open);
       if (!explored.has(to)) {
-        fog.add(to);
+        fog.add(n);
         if (!keepsMoveInFog) after = 0;
       }
-      if (after > (best.get(to) ?? -1)) best.set(to, after);
+      if (after > (best.get(n)?.left ?? -1)) best.set(n, { k: to, open, left: after });
     }
   }
-  const out: Record<HexKey, number> = {};
-  for (const [k, v] of best) {
-    if (k !== u.pos && unitAt(s, k) === undefined) out[k] = v;
+  for (const v of best.values()) {
+    if (v.k === u.pos || unitAt(s, v.k) !== undefined) continue;
+    const had = result.get(v.k);
+    // the most movement left; on a tie, the way that has opened relay riding (it is never worse later in the turn)
+    if (had === undefined || v.left > had.left || (v.left === had.left && v.open && !had.open)) result.set(v.k, { left: v.left, open: v.open });
   }
-  return out;
+  return result;
 }
 
 // rules 8: may units of `player` step onto a mountain? Only once the player has researched CONFIG.mountain.tech (none
@@ -175,9 +208,11 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const u = unitById(s, a.unit);
   if (u === undefined) return 'no such unit';
   if (u.owner !== s.current) return 'not your unit';
-  const options = reachable(s, u.id);
-  if (!hasOwn(options, a.to)) return 'cannot reach that tile';
-  const left = options[a.to]!;
+  const option = explore(s, u).get(a.to);
+  if (option === undefined) return 'cannot reach that tile';
+  const left = option.left;
+  // rules 10: the move entered its first relay tile of the turn, so later relay tiles this turn cost CONFIG.relayCost
+  if (option.open && !relayOpen(s, u)) u.relayTurn = s.stamp;
   const from = u.pos;
   const intoFog = !s.players[u.owner]!.explored.includes(a.to);
   // rules 6: spending comes out of the riding bonus first; a move from enemy territory forfeits what was left of it

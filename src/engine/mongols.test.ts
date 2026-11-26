@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CONFIG } from './data/config';
 import { TECHS } from './data/techs';
-import { UNITS } from './data/units';
 import { abilityTargets } from './abilities';
 import { applyAction, legalActions } from './apply';
 import { attackOf, attackTargets, lureApplies } from './combat';
@@ -219,16 +218,7 @@ test('the Camp refuses to train onto water or onto an occupied neighbour', () =>
 // rules 8: relay riding for mounted Mongol units only, onto any tile of their own territory; no riding bonus.
 describe('rules 8 Mongol riding', () => {
   const home = () => { const s = mongols(); claimTerritory(s, addCity(s, 0, 0, 0, { radius: 2 })); return s; };
-  test('a mounted unit pays the relay cost for every step onto its own territory, inside or riding in', () => {
-    const s = home(); setTile(s, 1, 0, { terrain: 'forest' });
-    const h = addUnit(s, 'horseman', 0, -1, 0);
-    expect(h.mp).toBe(2 * UNITS.horseman.move);                                 // no half-point bonus
-    const r = reachable(s, h.id);
-    expect(r['1,0']).toBe(h.mp - 2 * CONFIG.relayCost);                         // two territory steps, the forest one too
-    expect(r['2,0']).toBe(h.mp - 3 * CONFIG.relayCost);
-    const out = addUnit(s, 'horseman', 0, 4, 0);                                // starts outside, rides in
-    expect(reachable(s, out.id)['2,0']).toBe(out.mp - CONFIG.terrain.field.enterCost! - CONFIG.relayCost);
-  });
+  // every relay tile at the relay cost (rules 8 and 9): mongols.rules9.test.ts; the first relay tile (rules 10): relay.test.ts
   test('outside its territory a mounted unit pays normal costs', () => {
     const s = mongols(); const h = addUnit(s, 'horseman', 0, 0, 0);
     const r = reachable(s, h.id);

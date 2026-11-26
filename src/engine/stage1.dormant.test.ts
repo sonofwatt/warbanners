@@ -10,7 +10,7 @@ import type { Action, MatchState } from './types';
 // three outcomes, since rules 7 every momentum price is 0 so a chain kill costs nothing, and since rules 6 the old fog rule, the flat Mongol move
 // bonus of a whole tile and endless chains are back through CONFIG and the faction data, and since rules 7 no connection
 // growth, no capital moves, a growth of 1 for a Lumber camp, equal start gold, no Spartan growth discount, and a Market, the Lumber camp's old cost of 3, and the Scout's sight of 3 and no Hunker through CONFIG and
-// the unit data, and since rules 8 no mountain range bonus and no mountain turn end through CONFIG.mountain, and the rules 7 tech tree through CONFIG.techTree, and since rules 9 the reward gold of 6 and the faction growth extra on every level through CONFIG.rewardGold and CONFIG.growthExtraFrom), the current rules must replay every recorded rules 3 playout hash for hash. CONFIG is deep-frozen, so the factories build new objects. This file is
+// the unit data, and since rules 8 no mountain range bonus and no mountain turn end through CONFIG.mountain, and the rules 7 tech tree through CONFIG.techTree, and since rules 9 the reward gold of 6 and the faction growth extra on every level through CONFIG.rewardGold and CONFIG.growthExtraFrom, and since rules 10 every relay tile at the relay cost through CONFIG.relayFirstFull), the current rules must replay every recorded rules 3 playout hash for hash. CONFIG is deep-frozen, so the factories build new objects. This file is
 // alone because vi.mock binds a whole file.
 vi.mock('./data/config', async (orig) => {
   const m = await orig<typeof import('./data/config')>();
@@ -26,6 +26,7 @@ vi.mock('./data/config', async (orig) => {
       capitalMoves: false,
       rewardGold: 6,
       growthExtraFrom: 1,
+      relayFirstFull: false,
       hunker: { ...m.CONFIG.hunker, on: false }, mountain: { ...m.CONFIG.mountain, rangeBonus: 0, endsTurn: false, tech: null }, citySightExtra: 1, techTree: 'rules7', blockade: { ...m.CONFIG.blockade, on: false },
       buildings: {
         ...m.CONFIG.buildings,
