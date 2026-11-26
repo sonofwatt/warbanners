@@ -13,7 +13,7 @@ const seeAll = (s: MatchState) => { for (const p of s.players) p.explored = Obje
 test('the index groups what the engine allows', () => {
   expect([...IX.moves[0]!].sort()).toEqual(['-1,3', '-1,4', '-1,5', '-1,6', '-2,4', '-2,6', '-3,5', '-3,6', '-4,5', '-4,6', '0,3']);   // the starting Krypteia Scout moves 2
   expect(IX.build['-2,4']).toBeUndefined();                                    // rules 8: the Mine waits on Mining
-  expect(IX.research).toEqual(['foraging', 'trapping', 'spears', 'mining', 'gathering', 'fishing']);
+  expect(IX.research).toEqual(['defence', 'orchards', 'trapping', 'spears', 'mining', 'gathering', 'fishing']);   // rules 9: the Spartans start with Foraging
   expect(IX.activeUnits).toEqual([0]);
   expect(IX.train[0]).toBeUndefined();          // the capital tile is occupied
 });

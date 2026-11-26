@@ -5,7 +5,7 @@ import { neighbors } from './hex';
 import { addGrowth, cityIncome, growthNeeded, playerIncome, unitCapacity } from './economy';
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
-import { cityById, claimTerritory, unitAt } from './state';
+import { cityById, claimTerritory, createMatch, unitAt } from './state';
 import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import type { Action, BuildingId, GameEvent, TechId, Tile } from './types';
 
@@ -13,25 +13,22 @@ test('income', () => {
   const s = blankMatch(); const cap = addCity(s, 0, 0, 0, { capital: true }); addCity(s, 0, 3, 0, { level: 2, incomeBonus: 1, market: true });
   expect(cityIncome(s, cap)).toBe(2); expect(playerIncome(s, 0)).toBe(2 + 5);
 });
-test('growth levels a city and queues the reward; Spartan cities level faster from level 2 on', () => {
+test('growth levels a city and queues the reward; Spartan and Mongol cities level at the same pace', () => {
   const s = blankMatch(); const c = addCity(s, 0, 0, 0); const ev: GameEvent[] = [];
-  expect(CONFIG.growthExtraFrom).toBe(2);
-  expect(growthNeeded(s, c)).toBe(2);                                // rules 9: no Spartan discount on leaving level 1 (1 before)
+  expect(FACTIONS.spartans.growthExtra).toBe(0);                     // rules 9 (-1 in rules 7 and 8)
+  expect(growthNeeded(s, c)).toBe(2);
   addGrowth(s, c, 1, ev);
   expect(c).toMatchObject({ level: 1, growth: 1, pendingRewards: [] }); expect(ev).toEqual([]);
   addGrowth(s, c, 1, ev);
   expect(c).toMatchObject({ level: 2, growth: 0, pendingRewards: [2] });
   expect(ev).toContainEqual({ type: 'cityLevel', city: c.id, level: 2 });
-  expect(FACTIONS.spartans.growthExtra).toBe(-2);
-  expect(growthNeeded(s, c)).toBe(1);                                // rules 9: from level 2 a Spartan city leaves level L on L - 1 growth
-  addGrowth(s, c, 1, []); expect(c).toMatchObject({ level: 3, growth: 0 });
-  expect(growthNeeded(s, c)).toBe(2);
-  addGrowth(s, c, 2, []); expect(c).toMatchObject({ level: 4, growth: 0 });
   expect(growthNeeded(s, c)).toBe(3);
+  addGrowth(s, c, 4, []); expect(c).toMatchObject({ level: 3, growth: 1 });
+  expect(growthNeeded(s, c)).toBe(4);
   const m = addCity(s, 1, 3, 0);                                     // a Mongol city needs L + 1 since rules 8 (L + 2 before)
   expect(growthNeeded(s, m)).toBe(2); addGrowth(s, m, 1, []);
   expect(m).toMatchObject({ level: 1, growth: 1 });
-  addGrowth(s, m, 1, []); expect(m).toMatchObject({ level: 2, growth: 0 });   // no level 2 growth for the Mongols
+  addGrowth(s, m, 1, []); expect(m).toMatchObject({ level: 2, growth: 0 });
   expect(growthNeeded(s, m)).toBe(3);
   addGrowth(s, m, 2, []); expect(m).toMatchObject({ level: 2, growth: 2 });
   addGrowth(s, m, 1, []); expect(m).toMatchObject({ level: 3, growth: 0 });
@@ -63,9 +60,9 @@ test('scout reward explores every tile within 3, sorted and without duplicates',
   expect(r.ok && r.events).toContainEqual({ type: 'reward', city: c.id, reward: 'scout' });
 });
 test('growth reward can level the city again and queue another reward', () => {
-  const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 4, growth: 2, pendingRewards: [4] });
+  const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 4, growth: 4, pendingRewards: [4] });
   const t = must(applyAction(s, { type: 'chooseReward', city: c.id, choice: 1 }));
-  expect(cityById(t, c.id)).toMatchObject({ level: 5, growth: 1, pendingRewards: [5] });   // a Spartan level 4 needs 3 since rules 9
+  expect(cityById(t, c.id)).toMatchObject({ level: 5, growth: 1, pendingRewards: [5] });   // level 4 needs 5, Spartan or not, since rules 9
 });
 test('reward unit steps aside when the city is occupied, and becomes gold when boxed in', () => {
   const s = blankMatch({ radius: 1 }); const c = addCity(s, 0, 0, 0, { level: 5, pendingRewards: [5] }); addUnit(s, 'warrior', 0, 0, 0);
@@ -95,13 +92,24 @@ test('harvest and build', () => {
   expect(t.tiles['1,0']).toMatchObject({ resource: 'orchard', harvested: true }); expect(t.players[0]!.gold).toBe(18);
   expect(applyAction(t, { type: 'harvest', at: '1,0' })).toEqual({ ok: false, reason: 'nothing to harvest' }); expect(cityById(t, c.id)).toMatchObject({ level: 1, growth: 1 });   // rules 9: a Spartan level 1 bar needs 2, like anyone's
   t = must(applyAction(t, { type: 'build', at: '0,1', building: 'farm' }));
-  expect(t.tiles['0,1']!.building).toBe('farm'); expect(cityById(t, c.id)).toMatchObject({ level: 3, growth: 0 });   // the farm's 2 growth fills level 1, 1 carries over and the level 2 growth (rules 9) fills level 2
+  expect(t.tiles['0,1']!.building).toBe('farm'); expect(cityById(t, c.id)).toMatchObject({ level: 2, growth: 1 });   // the farm's 2 growth fills level 1, 1 carried into level 2
   expect(applyAction(t, { type: 'build', at: '0,1', building: 'farm' }).ok).toBe(false);     // already built
   expect(applyAction(t, { type: 'build', at: '-1,0', building: 'farm' }).ok).toBe(false);    // wrong tile
   t = must(applyAction(t, { type: 'build', at: '0,-1', building: 'market' }));
   expect(cityById(t, c.id)!.market).toBe(true);
   expect(applyAction(t, { type: 'build', at: '1,-1', building: 'market' }).ok).toBe(false);  // one per city
   expect(applyAction(s, { type: 'harvest', at: '3,0' }).ok).toBe(false);                     // outside territory
+});
+test('rules 9: the Spartan capital starts with its head start banked, still level 1, and levels on its first growth', () => {
+  const s = createMatch({ seed: 1, factions: ['spartans', 'mongols'] });
+  expect(FACTIONS.spartans.capitalStartGrowth).toBeGreaterThan(0); expect(FACTIONS.mongols.capitalStartGrowth).toBe(0);
+  expect(s.cities[0]).toMatchObject({ capital: true, level: 1, growth: FACTIONS.spartans.capitalStartGrowth, pendingRewards: [] });
+  expect(s.cities[1]).toMatchObject({ capital: true, level: 1, growth: 0 });
+  // A head start that fills the bar is banked, not spent at setup: the first growth the owner adds levels the city.
+  const c = { ...s.cities[0]!, growth: 2, pendingRewards: [] as number[] }; const ev: GameEvent[] = [];
+  expect(c.level).toBe(1);
+  addGrowth(s, c, 1, ev);
+  expect(c).toMatchObject({ level: 2, growth: 1, pendingRewards: [2] });
 });
 test('build: mine on ore, resource stays; market refused on a resource tile', () => {
   const s = blankMatch(); addCity(s, 0, 0, 0); give(s, 0, 'mining', 'granary');

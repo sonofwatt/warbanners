@@ -1,4 +1,4 @@
-import { RULES_VERSION, startTech, key, mirror, parseKey, playerView, range } from '../engine';
+import { RULES_VERSION, startTechs, key, mirror, parseKey, playerView, range } from '../engine';
 import type { HexKey, MatchState, Player, PlayerId, Tile } from '../engine';
 import type { AiInput, Rival } from './types';
 
@@ -30,7 +30,7 @@ export function believedState(input: AiInput): MatchState {
   players[input.me] = structuredClone(input.self);
   for (const r of input.rivals) {
     players[r.id] = {
-      id: r.id, faction: r.faction, gold: 0, techs: [startTech(r.faction)], explored: [],
+      id: r.id, faction: r.faction, gold: 0, techs: startTechs(r.faction), explored: [],
       alive: r.alive, turnsTaken: r.turnsTaken,
     };
   }

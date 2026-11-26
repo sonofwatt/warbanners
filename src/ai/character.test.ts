@@ -293,7 +293,10 @@ describe('matches between two AIs end', () => {
     // Scout on it, and the Mongols' 64 units stand round it, four of them beside it and seeing it, but their plans hold
     // no attack on it (an AI matter, not yet looked into; the same match was already unended at 150 before the tuning). Over 200 fresh normal matches stalls are 8.5% (seeds 1 to 100) and 3.5%
     // (1001 to 1100), against 8.0% untuned, so this is which matches stall.
-    const KNOWN_NORMAL: string[] = ['4 spartans', '5 spartans', '7 mongols'];
+    // Rules 9's Spartan head start (no Spartan growth discount, the capital starting with 3 growth banked, Foraging from
+    // the start), replacing the two-lever tuning: all 16 end within 60 rounds, '4 spartans' included (29, the Mongols
+    // winning); the longest, '7 spartans', in 53.
+    const KNOWN_NORMAL: string[] = [];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
     }, 600_000);
@@ -304,7 +307,7 @@ describe('matches between two AIs end', () => {
     // ends, the longest in 52); over 200 fresh hard matches stalls fell from 9.5% to 5.5%, so this is which match
     // stalls, not more stalling. Measured each in its own process and in the full SLOW file: the same list.
     // Rules 9's Spartan tuning and the Market's growth 3: all 16 end again ('5 spartans' in 33, the longest '4 mongols'
-    // in 49).
+    // in 49), and still with the Spartan head start that replaced it ('6 spartans', the longest, in 54).
     const KNOWN_HARD: string[] = [];
     test(`at hard, every match${but(KNOWN_HARD)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);

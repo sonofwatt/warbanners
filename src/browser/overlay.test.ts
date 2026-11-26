@@ -4,10 +4,10 @@ import { frames, openApp } from './harness';
 
 // While a card that asks for an answer is up (the turn digest, a city's reward choice), the Hud behind it is
 // dimmed and taps on it do nothing, as before the chrome was restyled; and the card itself stays clear of the
-// Hud. Seed 16: harvesting the fruit at -2,6 and -3,6 beside the Spartan capital levels the city, so the reward
-// choice opens on the first turn of the match (Foraging first, 4 gold, then the two harvests, 2 each). Since rules 9 a
-// level 1 city needs 2 growth; before that seed 7's one orchard at -2,6 did it, and before rules 8's tree a mine on
-// -2,4. The digest uses the same overlay.
+// Hud. Seed 7: harvesting the fruit at -2,6 beside the Spartan capital levels the city at once, so the reward
+// choice opens on the first turn of the match (rules 9: the Spartans start with Foraging and the capital with 3 growth
+// banked, so one harvest, 2 gold, fills the bar; under rules 9's first growth change seed 16's two orchards did it,
+// before that Foraging and one harvest, and before rules 8's tree a mine on -2,4). The digest uses the same overlay.
 
 async function tapAt(page: Page, x: number, y: number): Promise<void> {
   await page.touchscreen.tap(x, y);
@@ -32,20 +32,9 @@ async function toReward(page: Page): Promise<void> {
   const tile = await page.locator('[data-centre="-2,6"]').boundingBox();
   if (tile === null) throw new Error('no fruit tile');
   await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
-  // The harvest waits on Foraging: tapping it opens the tech sheet there.
-  await page.getByTestId('cmd-harvest').tap();
-  await page.getByTestId('research-foraging').tap();
-  if (await page.locator('.tech-sheet').count() > 0) await page.getByTestId('close-sheet').tap();
-  await frames(page);
-  if (await page.getByTestId('cmd-harvest').count() === 0) await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
-  await page.getByTestId('cmd-harvest').tap();
-  await frames(page);
-  // The second fruit, -3,6. The view may still be settling after the first harvest, so the tile is found again and
-  // tapped until its card offers the harvest.
+  // The view may still be settling after the Escape, so the tile is tapped until its card offers the harvest.
   for (let tries = 0; tries < 5 && await page.getByTestId('cmd-harvest').count() === 0; tries++) {
-    const second = await page.locator('[data-centre="-3,6"]').boundingBox();
-    if (second === null) throw new Error('no second fruit tile');
-    await tapAt(page, second.x + second.width / 2, second.y + second.height / 2);
+    await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
   }
   await page.getByTestId('cmd-harvest').tap();
   await page.getByTestId('reward-0').waitFor();
@@ -55,7 +44,7 @@ async function toReward(page: Page): Promise<void> {
 describe.runIf(process.env.BROWSER === '1')('a card that asks for an answer', () => {
   for (const [w, h] of [[412, 915], [568, 320]] as const) {
     test(`blocks the Hud behind it and stays clear of it at ${w} by ${h}`, async () => {
-      const { page, close } = await openApp('?seed=16', { width: w, height: h });
+      const { page, close } = await openApp('?seed=7', { width: w, height: h });
       try {
         await page.getByTestId('new-match').waitFor();
         await toReward(page);

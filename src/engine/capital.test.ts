@@ -28,7 +28,7 @@ test('a Lumber camp adds 2 growth and a Market 3 (rules 9; 2 in rules 7 and 8)',
   const a = must(applyAction(s, { type: 'build', at: '1,0', building: 'lumberCamp' }));
   expect(cityById(a, c.id)).toMatchObject({ level: 5, growth: 2 });
   const b = must(applyAction(a, { type: 'build', at: '0,1', building: 'market' }));
-  expect(cityById(b, c.id)).toMatchObject({ level: 6, growth: 1 });   // 2 + 3 fills the Spartan level 5 bar (4 since rules 9)
+  expect(cityById(b, c.id)).toMatchObject({ level: 5, growth: 5 });   // level 5 needs 6
 });
 
 test('a captured capital is an ordinary city for its captor: no capital income, and it can connect once', () => {
