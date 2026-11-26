@@ -93,19 +93,10 @@ test('rules 8: the mountain text names every ranged type from the unit data and 
   expect(T.ui.mountainBlurb).toContain(`${Math.round(CONFIG.mountain.longShotScale * 100)}% of the damage`);
   for (const t of (Object.keys(UNITS) as UnitTypeId[]).filter((x) => UNITS[x].range < 2)) expect(T.ui.mountainBlurb).not.toContain(`${T.unit[t].name},`);
 });
-test('rules 8 additions: whatsNew names the climbing tech, the Scout, Mongol riding and the hunker heal', () => {
-  expect(T.ui.whatsNew).toContain(T.tech[CONFIG.mountain.tech!]);
-  expect(T.ui.whatsNew).toContain(`${T.unit.scout.name} sees ${UNITS.scout.sight} tiles`);
-  expect(T.ui.whatsNew).toContain('build no roads');
-  expect(T.ui.whatsNew).toContain('heals at the end of its turn');
-  expect(T.unit.scout.blurb).not.toContain('fog');
-});
-test('rules 8: whatsNew is three sentences and names the new tree and the blockade from the data', () => {
+test('rules 9 (0.7.0): whatsNew is three sentences and reads its numbers from the data', () => {
   expect(T.ui.whatsNew.match(/[.!?](\s|$)/g)).toHaveLength(3);
-  expect(T.ui.whatsNew).toContain(`enemy units on ${CONFIG.blockade.minTiles} or more of the tiles around it`);
-  expect(T.ui.whatsNew).toContain(`${Math.round(100 * CONFIG.blockade.cut)}% of its income for that turn`);
-  expect(T.ui.whatsNew).toContain(techName('walls', 'spartans'));
-  expect(T.ui.whatsNew).toContain(`${BRANCHES.length} branches`);
-  expect(T.ui.whatsNew).toContain(`${CONFIG.mountain.rangeBonus} tile`);
-  for (const r of ['jewels', 'fish'] as const) expect(T.ui.whatsNew).toContain(T.resource[r].toLowerCase());
+  expect(T.ui.whatsNew).toContain(`Spartan capital starts at level ${FACTIONS.spartans.capitalStartLevel}`);
+  expect(T.ui.whatsNew).toContain(`pays ${CONFIG.rewardGold}`);
+  expect(T.ui.whatsNew).toContain(`Market gives ${CONFIG.buildings.market.growth} growth`);
+  expect(T.ui.whatsNew).toContain('Unhunker');
 });
