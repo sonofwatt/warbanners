@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { chromium } from 'playwright';
 import { UNITS } from '../src/engine';
 import type { FactionId, UnitTypeId } from '../src/engine';
-import { BANNER_H, BANNER_MID, PIP_H, PLATE, WarBanner } from '../src/ui/art/banner';
+import { BANNER_H, BANNER_MID, BannerPlace, PIP_H, PLATE, WarBanner } from '../src/ui/art/banner';
 import { Emblem, EMBLEM_R, GOLD_PAINT, emblemPaint } from '../src/ui/art/emblems';
 import type { EmblemPaint } from '../src/ui/art/emblems';
 import { FIGURES } from '../src/ui/art/factionUnits';
@@ -132,7 +132,7 @@ function optionB(type: UnitTypeId, colour: { main: string; dark: string }, small
 const MONGOL: UnitTypeId[] = ['horseArcher', 'khansGuard', 'skyCaller', 'camp'];
 const BANNER_TYPES: UnitTypeId[] = ['hoplite', 'archer', 'horseArcher', 'catapult', 'kingsGuard', 'camp', 'knight', 'scout'];
 const COLS: [string, (t: UnitTypeId, c: { main: string; dark: string }, hp: number) => ReactElement][] = [
-  ['in game', (t, c, hp) => h(WarBanner, { type: t, colour: c, hp, maxHp: UNITS[t].hp, spent: false, fresh: false, taunted: false, blinded: false })],
+  ['in game', (t, c, hp) => h(BannerPlace, { type: t, maxHp: UNITS[t].hp, look: 'svg' }, h(WarBanner, { type: t, colour: c, hp, maxHp: UNITS[t].hp, spent: false, fresh: false, taunted: false, blinded: false }))],
   ['A full', (t, c, hp) => optionA(t, c, false, hp)],
   ['A small', (t, c, hp) => optionA(t, c, true, hp)],
   ['B full', (t, c, hp) => optionB(t, c, false, hp)],

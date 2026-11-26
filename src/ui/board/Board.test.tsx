@@ -273,4 +273,8 @@ test('a hunkered unit crouches in the svg look and keeps its hunker mark; a plai
   // The banner and its mark stay outside the crouch: only the figure sinks.
   const crouch = groupAt(html, html.indexOf('<g class="unit-crouch hunkered"'));
   expect(crouch).not.toContain('data-hunker-mark');
+  // The banner drops with the head instead: it is placed behind the crouched head.
+  const place = (m: string): string => /data-banner-place="svg" style="transform:([^"]*)"/.exec(m)![1]!;
+  expect(place(html)).not.toBe(place(standing));
+  expect(groupAt(html, html.lastIndexOf('<g', html.indexOf('data-banner-place')))).toContain('data-hunker-mark');
 });

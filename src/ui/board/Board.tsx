@@ -7,7 +7,7 @@ import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, Terrain
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
-import { WarBanner } from '../art/banner';
+import { BannerPlace, WarBanner } from '../art/banner';
 import {
   cameraBetween, centreOn, easeInOut, followAction, keepCorner, keepInView, NO_INSETS, panMs, refit, screenToBoard, slackFor, startCamera, panBy, zoomAt,
 } from './camera';
@@ -265,6 +265,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
   const maxHp = maxHpOf(unit);
   // Spent: darker, never see-through (theme.css .unit-shade); hidden: the eye on the banner (unitsInput.ts).
   const shown = unitShown({ mine: p.u.mine, spent: p.u.spent, hidden: UNITS[unit.type].traits.includes('hidden') });
+  const look = p.figure === false ? '3d' : 'svg';
   return (
     <g
       data-unit={unit.id}
@@ -283,22 +284,26 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
             </g>
           </g>
         )}
-        <WarBanner
-          type={unit.type}
-          colour={playerColour(faction)}
-          hp={unit.hp}
-          maxHp={maxHp}
-          spent={shown.shaded}
-          fresh={unit.fresh}
-          taunted={unit.taunted}
-          blinded={unit.blinded}
-          hunkered={unit.hunkered}
-          hero={isHero(unit)}
-          hidden={shown.eye}
-        />
-        {unit.item !== null ? (
-          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered, shown.eye))} 0)`}><ItemBadge item={unit.item} /></g>
-        ) : null}
+        {/* The banner (and the item badge) sits behind the head, and drops with it when the unit hunkers. */}
+        <BannerPlace type={unit.type} maxHp={maxHp} hidden={shown.eye} look={look} hunkered={unit.hunkered}>
+          <WarBanner
+            type={unit.type}
+            colour={playerColour(faction)}
+            hp={unit.hp}
+            maxHp={maxHp}
+            spent={shown.shaded}
+            fresh={unit.fresh}
+            taunted={unit.taunted}
+            blinded={unit.blinded}
+            hunkered={unit.hunkered}
+            hero={isHero(unit)}
+            hidden={shown.eye}
+            look={look}
+          />
+          {unit.item !== null ? (
+            <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered, shown.eye))} 0)`}><ItemBadge item={unit.item} /></g>
+          ) : null}
+        </BannerPlace>
       </g>
     </g>
   );

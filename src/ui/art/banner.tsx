@@ -1,25 +1,31 @@
-import type { ReactElement } from 'react';
+import { useId } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import type { UnitTypeId } from '../../engine';
 import { Emblem, EMBLEM_R, emblemPaint } from './emblems';
 import { Ink } from './features';
 
 // The war banner above a unit's head: a small flag in its owner's colour with the unit type's round emblem badge
 // over its left end and the green health pips running out to its right, and the status marks round it (taunted and
-// blinded to its left, the "new" glint or the hunker shield to its right, then a carried item's badge). Drawn in the
-// figures' coordinates: feet near (0, 4), the centre of the tile's top face at the origin, the banner centred on
-// x 0 above the tallest head. A hero's banner has a gold edge and a gold ring round its badge (the pennant stays on
-// the figure too); an own hidden unit's banner carries a slashed eye after its badge: no enemy sees it unless one
-// stands next to it.
+// blinded to its left, the "new" glint or the hunker shield to its right, then a carried item's badge). A hero's
+// banner has a gold edge and a gold ring round its badge (the pennant stays on the figure too); an own hidden unit's
+// banner carries a slashed eye after its badge: no enemy sees it unless one stands next to it.
+//
+// WarBanner draws in its own frame, the flag centred on x 0 with its middle at BANNER_MID. BannerPlace then moves
+// it (and the item badge with it) so the badge sits just behind the unit's head: centred over the head, low enough
+// that the head hides about 5 percent of it. The head is not drawn over the badge: the badge has a head-shaped bite
+// cut out of its foot, so whatever is drawn under the banner shows there (the svg figure, or in the 3D look the
+// units canvas under the overlay svg). Each unit type's head, in each look, is in HEADS; when the unit hunkers the
+// banner drops (and in the 3D look, where a rider hunches forward, moves) with the head.
 
 /** The banner's middle, top to bottom; the marks beside it are centred on this line too. */
 export const BANNER_MID = -44;
 /** The banner's height (without its edge). */
 export const BANNER_H = 10;
 const EDGE = 0.8;
-/** The emblem badge over the banner's left end: 1.6 times the banner's height across, its middle a little above the
- * banner's so its foot stays clear of the heads, and the gap before what follows it. */
-export const BADGE_D = 1.6 * BANNER_H;
-export const BADGE_Y = BANNER_MID - 1;
+/** The emblem badge over the banner's left end: 1.3 times the banner's height across, its middle a little below the
+ * banner's so the flag's foot is clear of the head that bites into the badge's, and the gap before what follows it. */
+export const BADGE_D = 1.3 * BANNER_H;
+export const BADGE_Y = BANNER_MID + 1;
 const BADGE_GAP = 0.6;
 /** The hidden eye's slot after the badge. */
 const EYE_SLOT = 8.4;
@@ -54,6 +60,104 @@ const bannerWidth = (maxHp: number, hidden: boolean): number => BADGE_D + BADGE_
 /** The x of the banner's right end (its edge included), for a unit of this maximum health. */
 export function bannerRight(maxHp: number, hidden = false): number {
   return bannerWidth(maxHp, hidden) / 2 + EDGE;
+}
+
+// ---- where the banner goes: behind the head ----
+
+/** Which figures the banner stands over: the svg figures or the 3D ones (each has its own heads). */
+export type Look = 'svg' | '3d';
+
+/**
+ * A head, in the figures' coordinates, standing: `x` its middle, `top` the top of its head and headgear (the
+ * broad part: a thin spike, a plume tip or a camp's pennant is left out) and `r` the radius of the round of it
+ * that bites into the badge.
+ */
+export interface Head { x: number; top: number; r: number }
+
+/** The badge's outer radius as drawn: the disc's, out to the outside of its ink rim (2.3 emblem units more). */
+export const BADGE_R = r2((BADGE_D / 2) * ((EMBLEM_R + 2.3) / EMBLEM_R));
+
+/**
+ * How far the head reaches up into the badge, from its foot as drawn. With the badge's radius of 6.94 and a head's of
+ * 6 to 14 the head hides 4.9 to 5.8 percent of the badge (the catapult's stone, radius 4: 4.3); banner.test.tsx
+ * works it out. Measured on screen, soft edges included, it is 5 to 7.5 percent.
+ */
+export const OVERLAP = 1.7;
+
+const hd = (x: number, top: number, r = 7): Head => ({ x, top, r });
+
+/**
+ * The heads of the svg figures (art/units.tsx, art/factionUnits.tsx), measured from the drawings. The catapult has
+ * no head: the stone in its cup stands for one.
+ */
+export const HEADS_SVG: Readonly<Record<UnitTypeId, Head>> = {
+  warrior: hd(0, -30.2), spearman: hd(0, -30.4), swordsman: hd(1, -32.6), defender: hd(1, -31), archer: hd(0, -31.4),
+  horseman: hd(0, -32.2, 6), knight: hd(0.5, -33.6, 6), catapult: hd(-12, -31.1, 4), sellsword: hd(0, -31.7, 9),
+  hoplite: hd(0, -33.5, 9), kingsGuard: hd(0, -37.6, 11), piper: hd(0, -30.5), scout: hd(2.2, -22.2, 6),
+  horseArcher: hd(0, -32.6, 6), khansGuard: hd(0, -37.4, 6), skyCaller: hd(0, -34, 10), camp: hd(0, -28.8, 14),
+};
+
+/**
+ * The heads of the 3D figures (terrain3d/units/figures.ts) in their rest pose, as they come out on screen, measured
+ * from renders. The trebuchet's head is the top of its arm.
+ */
+export const HEADS_3D: Readonly<Record<UnitTypeId, Head>> = {
+  warrior: hd(0, -31.2), spearman: hd(0, -31.9), swordsman: hd(0, -33.6), defender: hd(1, -32.4), archer: hd(-0.5, -31),
+  horseman: hd(0, -32.4, 6), knight: hd(0, -35, 6), catapult: hd(-4, -24.5, 6), sellsword: hd(0, -33.9, 9),
+  hoplite: hd(0, -35, 8), kingsGuard: hd(0, -38.6, 11), piper: hd(0, -31.2), scout: hd(1, -22.2, 6),
+  horseArcher: hd(0, -33.2, 6), khansGuard: hd(0, -36.4, 6), skyCaller: hd(0, -36.3, 10), camp: hd(0, -30.6, 14),
+};
+
+/**
+ * The svg crouch (theme.css .unit-crouch.hunkered): the figure scaled by CROUCH_SX across and CROUCH_SY down about
+ * the origin, then lowered CROUCH_DY. A head at (x, y) goes to (x * CROUCH_SX, y * CROUCH_SY + CROUCH_DY).
+ */
+export const CROUCH_SX = 1.06;
+export const CROUCH_SY = 0.8;
+export const CROUCH_DY = 0.8;
+
+/**
+ * How a 3D head moves when the unit hunkers (terrain3d/units/crouch.ts), measured from renders: foot figures sink,
+ * riders hunch forward over the horse's neck, the scout and the siege engines barely move.
+ */
+export const HUNKER_3D: Readonly<Record<UnitTypeId, { dx: number; dy: number }>> = {
+  warrior: { dx: 1, dy: 8.2 }, spearman: { dx: 1, dy: 8.3 }, swordsman: { dx: 1.5, dy: 8.9 }, defender: { dx: 1.5, dy: 8.3 },
+  archer: { dx: -0.5, dy: 8.6 }, horseman: { dx: 7, dy: 5.4 }, knight: { dx: 8.5, dy: 7.4 }, catapult: { dx: 0, dy: 0 },
+  sellsword: { dx: 1, dy: 8.2 }, hoplite: { dx: 1.5, dy: 8.8 }, kingsGuard: { dx: 2, dy: 9.4 }, piper: { dx: 1.5, dy: 8.3 },
+  scout: { dx: 1, dy: 1.5 }, horseArcher: { dx: 8, dy: 5.9 }, khansGuard: { dx: 7, dy: 5.3 }, skyCaller: { dx: 9.5, dy: 6.8 },
+  camp: { dx: 0, dy: 1.6 },
+};
+
+/** Where a unit's head is in a look, standing or hunkered. */
+export function headOf(type: UnitTypeId, look: Look, hunkered = false): Head {
+  if (look === '3d') {
+    const h = HEADS_3D[type];
+    if (!hunkered) return h;
+    const m = HUNKER_3D[type];
+    return { ...h, x: h.x + m.dx, top: h.top + m.dy };
+  }
+  const h = HEADS_SVG[type];
+  return hunkered ? { ...h, x: h.x * CROUCH_SX, top: h.top * CROUCH_SY + CROUCH_DY } : h;
+}
+
+/** The badge's middle in the banner's own frame. */
+export function badgeX(maxHp: number, hidden = false): number {
+  return -bannerWidth(maxHp, hidden) / 2 + BADGE_D / 2;
+}
+
+/** How far BannerPlace moves the banner: its badge centred over the head, the head OVERLAP up into its foot. */
+export function bannerShift(type: UnitTypeId, maxHp: number, hidden: boolean, look: Look, hunkered = false): { x: number; y: number } {
+  const h = headOf(type, look, hunkered);
+  return { x: r2(h.x - badgeX(maxHp, hidden)), y: r2(h.top + OVERLAP - BADGE_R - BADGE_Y) };
+}
+
+/**
+ * The banner (and the item badge) moved behind the unit's head. A css transform, so a hunker eases it down with the
+ * figure's crouch (theme.css .banner-place).
+ */
+export function BannerPlace(p: { type: UnitTypeId; maxHp: number; hidden?: boolean; look: Look; hunkered?: boolean; children?: ReactNode }): ReactElement {
+  const s = bannerShift(p.type, p.maxHp, p.hidden === true, p.look, p.hunkered === true);
+  return <g className="banner-place" data-banner-place={p.look} style={{ transform: `translate(${s.x}px, ${s.y}px)` }}>{p.children}</g>;
 }
 
 // ---- the hidden eye ----
@@ -93,6 +197,25 @@ function hiddenEye(g: At, fg: string, bg: string): void {
 
 // ---- the banner and its marks ----
 
+/**
+ * The badge with a head's bite out of its foot, as a clip path filled even-odd: a square round the whole emblem (its
+ * top and weapon reach past the disc: the emblem box is 56 of the disc's 34 units up, 54 across) less the lens where
+ * the head's round (radius `r`, its top OVERLAP above the badge's foot) overlaps the disc (or a hero's ring, radius
+ * `outer`). Only the disc is bitten: a weapon hanging below it stays whole.
+ */
+export function badgeCut(bx: number, r: number, outer = BADGE_R): string {
+  const half = (BADGE_D / 2) * (60 / EMBLEM_R);
+  // A little past the drawn edge, so its soft edge goes too.
+  const R = outer + 0.3;
+  const d = BADGE_R - OVERLAP + r;
+  const yi = (d * d + R * R - r * r) / (2 * d);
+  const w = Math.sqrt(Math.max(0, R * R - yi * yi));
+  const x = r2(bx);
+  const y = r2(BADGE_Y + yi);
+  return `M ${r2(x - half)} ${r2(BADGE_Y - half)} H ${r2(x + half)} V ${r2(BADGE_Y + half)} H ${r2(x - half)} Z `
+    + `M ${r2(x - w)} ${y} A ${r} ${r} 0 0 1 ${r2(x + w)} ${y} A ${r2(R)} ${r2(R)} 0 0 1 ${r2(x - w)} ${y} Z`;
+}
+
 export interface WarBannerProps {
   type: UnitTypeId;
   colour: { main: string; dark: string };
@@ -107,10 +230,13 @@ export interface WarBannerProps {
   hero?: boolean;
   /** An own unit that enemies see only from next to it (the hidden trait): the slashed eye. Never set for an enemy. */
   hidden?: boolean;
+  /** Whose head bites into the badge: the svg figure's (the default) or the 3D one's. */
+  look?: Look;
 }
 
 /** The banner over a unit: its emblem badge, one health pip per 5 health (full for health left), and its marks. */
 export function WarBanner(p: WarBannerProps): ReactElement {
+  const cutId = `badge-cut${useId().replace(/[^\w-]/g, '')}`;
   const hidden = p.hidden === true;
   const total = pipCount(p.maxHp);
   const full = Math.min(total, Math.max(0, Math.ceil(p.hp / 5)));
@@ -184,9 +310,15 @@ export function WarBanner(p: WarBannerProps): ReactElement {
       <g className={p.spent ? 'unit-shade spent' : 'unit-shade'} data-banner={p.type} data-hero-banner={p.hero === true ? '' : undefined}>
         {body.items}
         <g data-glyph={p.type}>
-          {p.hero === true ? <circle cx={r2(bx)} cy={BADGE_Y} r={BADGE_D / 2 + 1.5} fill={GOLD} /> : null}
-          <g transform={`translate(${r2(bx)} ${BADGE_Y}) scale(${r2(BADGE_D / 2 / EMBLEM_R, 10000)})`}>
-            <Emblem type={p.type} paint={emblemPaint(p.colour)} small />
+          {/* The head's bite out of the badge's foot: what is under the banner (the head) shows there. */}
+          <clipPath id={cutId}>
+            <path d={badgeCut(bx, headOf(p.type, p.look ?? 'svg').r, p.hero === true ? BADGE_D / 2 + 1.5 : BADGE_R)} clipRule="evenodd" />
+          </clipPath>
+          <g clipPath={`url(#${cutId})`} data-badge-cut="">
+            {p.hero === true ? <circle cx={r2(bx)} cy={BADGE_Y} r={BADGE_D / 2 + 1.5} fill={GOLD} /> : null}
+            <g transform={`translate(${r2(bx)} ${BADGE_Y}) scale(${r2(BADGE_D / 2 / EMBLEM_R, 10000)})`}>
+              <Emblem type={p.type} paint={emblemPaint(p.colour)} small />
+            </g>
           </g>
         </g>
         {hidden ? <g data-hidden-eye="">{eye.items}</g> : null}

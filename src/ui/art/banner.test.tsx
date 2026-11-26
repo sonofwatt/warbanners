@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
 import { UNITS } from '../../engine';
 import type { UnitTypeId } from '../../engine';
-import { BADGE_D, BADGE_Y, BANNER_H, BANNER_MID, bannerRight, GLYPH, WarBanner } from './banner';
+import { readFileSync } from 'node:fs';
+import { BADGE_D, BADGE_R, BADGE_Y, BANNER_H, BANNER_MID, BannerPlace, badgeX, bannerRight, bannerShift, CROUCH_DY, CROUCH_SX, CROUCH_SY, GLYPH, HEADS_3D, HEADS_SVG, headOf, HUNKER_3D, OVERLAP, WarBanner } from './banner';
 import { EMBLEM_R, emblemPaint } from './emblems';
 import type { WarBannerProps } from './banner';
 import { playerColour } from './palette';
@@ -71,8 +72,9 @@ test('every unit type wears its own emblem badge on its banner, the small form i
   expect(new Set(badges).size, 'no two types share an emblem').toBe(TYPES.length);
 });
 
-test('the badge is 1.6 times the banner\'s height, over the banner\'s left end, its foot near the banner\'s', () => {
-  expect(BADGE_D).toBeCloseTo(1.6 * BANNER_H);
+test('the badge is 1.3 times the banner\'s height, over the banner\'s left end, its foot near the banner\'s', () => {
+  // Deliberately smaller than the first badge (1.6), so a crowded board is less busy.
+  expect(BADGE_D).toBeCloseTo(1.3 * BANNER_H);
   for (const t of TYPES) {
     for (const hp of [5, 10, 20]) {
       for (const hidden of [false, true]) {
@@ -87,7 +89,71 @@ test('the badge is 1.6 times the banner\'s height, over the banner\'s left end, 
   }
   // The emblem box reaches 56 units up and 52 down from its middle: the badge stays within a few units of the banner.
   expect(BADGE_Y - 56 * (BADGE_D / 2 / EMBLEM_R)).toBeGreaterThan(BANNER_MID - BANNER_H / 2 - 10);
-  expect(BADGE_Y + 52 * (BADGE_D / 2 / EMBLEM_R)).toBeLessThan(-32);
+  expect(BADGE_Y + 52 * (BADGE_D / 2 / EMBLEM_R)).toBeLessThan(BANNER_MID + BANNER_H / 2 + 6);
+});
+
+/** The area two circles share, radii a and b, centres c apart. */
+function lens(a: number, b: number, c: number): number {
+  if (c >= a + b) return 0;
+  if (c <= Math.abs(a - b)) return Math.PI * Math.min(a, b) ** 2;
+  return a * a * Math.acos((c * c + a * a - b * b) / (2 * c * a)) + b * b * Math.acos((c * c + b * b - a * a) / (2 * c * b))
+    - 0.5 * Math.sqrt((-c + a + b) * (c + a - b) * (c - a + b) * (c + a + b));
+}
+
+test('the banner sits behind the head: the badge centred over it, the head hiding about 5 percent of the badge', () => {
+  for (const look of ['svg', '3d'] as const) {
+    for (const t of TYPES) {
+      for (const hunkered of [false, true]) {
+        const h = headOf(t, look, hunkered);
+        for (const [hp, hidden] of [[5, false], [20, false], [5, true]] as const) {
+          const s = bannerShift(t, hp, hidden, look, hunkered);
+          expect(badgeX(hp, hidden) + s.x, `${look} ${t}`).toBeCloseTo(h.x, 1);
+          // The head's top is OVERLAP up into the badge's foot as drawn.
+          expect(BADGE_Y + s.y + BADGE_R - h.top, `${look} ${t}`).toBeCloseTo(OVERLAP, 1);
+          // The flag (and its edge) is clear of the head: only the badge is bitten.
+          expect(BANNER_MID + BANNER_H / 2 + 0.8 + s.y, `${look} ${t}`).toBeLessThan(h.top);
+        }
+        const share = lens(BADGE_R, h.r, BADGE_R + h.r - OVERLAP) / (Math.PI * BADGE_R * BADGE_R);
+        expect(share, `${look} ${t}`).toBeGreaterThan(0.04);
+        expect(share, `${look} ${t}`).toBeLessThan(0.06);
+      }
+    }
+  }
+});
+
+test('a hunkered unit\'s banner drops (and in 3D moves) with its head, keeping its place behind it', () => {
+  // The svg crouch is the one theme.css draws.
+  const css = readFileSync('src/ui/theme.css', 'utf8');
+  expect(css).toContain(`.unit-crouch.hunkered { transform: translate(0px, ${CROUCH_DY}px) scale(${CROUCH_SX}, ${CROUCH_SY}); }`);
+  expect(css).toMatch(/\.banner-place \{ transition: transform 230ms ease-in-out; \}/);
+  for (const t of TYPES) {
+    const h = HEADS_SVG[t];
+    const svg = { up: bannerShift(t, 10, false, 'svg'), down: bannerShift(t, 10, false, 'svg', true) };
+    expect(svg.down.y - svg.up.y, t).toBeCloseTo(h.top * CROUCH_SY + CROUCH_DY - h.top, 1);
+    expect(svg.down.x - svg.up.x, t).toBeCloseTo(h.x * CROUCH_SX - h.x, 1);
+    const gl = { up: bannerShift(t, 10, false, '3d'), down: bannerShift(t, 10, false, '3d', true) };
+    expect(gl.down.y - gl.up.y, t).toBeCloseTo(HUNKER_3D[t].dy, 1);
+    expect(gl.down.x - gl.up.x, t).toBeCloseTo(HUNKER_3D[t].dx, 1);
+    // A crouch never lifts a head.
+    expect(HUNKER_3D[t].dy, t).toBeGreaterThanOrEqual(0);
+    expect(HEADS_3D[t].top, t).toBeLessThan(-20);
+  }
+  const placed = html(<BannerPlace type="hoplite" maxHp={10} look="3d" hunkered />);
+  const s = bannerShift('hoplite', 10, false, '3d', true);
+  expect(placed).toContain(`class="banner-place" data-banner-place="3d" style="transform:translate(${s.x}px, ${s.y}px)"`);
+});
+
+test('the badge has the head\'s bite cut from its foot, its own clip on every banner', () => {
+  const a = banner({ type: 'knight' });
+  const id = /<clipPath id="([^"]+)"/.exec(a)![1]!;
+  expect(a).toContain(`clip-path="url(#${id})"`);
+  expect(a).toMatch(/clip-rule="evenodd"/);
+  // Two banners on one board never share a clip's id.
+  const two = html(<>{[1, 2].map((k) => <WarBanner key={k} type="knight" colour={RED} hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} />)}</>);
+  const ids = [...two.matchAll(/<clipPath id="([^"]+)"/g)].map((m) => m[1]);
+  expect(new Set(ids).size).toBe(2);
+  // The bite follows the look's head: the 3D hoplite's helmet is rounder than the svg one's crest.
+  expect(banner({ type: 'hoplite', look: '3d' })).not.toBe(banner({ type: 'hoplite' }));
 });
 
 test('the banner is the owner\'s colour, a hero\'s has a gold edge and a gold ring round its badge', () => {
@@ -115,7 +181,7 @@ test('health pips beside the badge: one per 5 health, full for health left', () 
   for (const m of b.matchAll(/<rect data-pip="\w+" x="([-\d.]+)"/g)) expect(Number(m[1])).toBeGreaterThan(badgeRight);
 });
 
-test('the marks are all still there round the banner, above the head', () => {
+test('the marks are all still there round the banner, above its foot (BannerPlace sets it behind the head)', () => {
   const plain = banner();
   const all = [plain, banner({ taunted: true }), banner({ blinded: true }), banner({ fresh: true }), banner({ hunkered: true }), banner({ hidden: true })];
   expect(new Set(all).size).toBe(all.length);
