@@ -43,7 +43,7 @@ wide, strike and vanish). **[David]**
 | Rule | Value | Notes |
 |---|---|---|
 | Starting tech | `trapping` | Hunting branch, which leads to `archery`. **[Claude's call]** |
-| Starting unit | Skirmisher | on the capital tile, as for the others. **[David]** |
+| Starting units | a Skirmisher and a Trapper | both on or next to the capital tile, as the builder places a second start unit. **[David, 2026-11-26]** to try in the sims; drop the Trapper if Woodland wins too often |
 | Capital start level | 1 | **[Claude's call]** |
 | City cover | 1.5 (2 with walls) | as the Mongols. **[Claude's call]** |
 | Walls | yes, shown and named as a Palisade (`techFor` name for `walls`: Palisade) | **[Claude's call]** |
@@ -72,7 +72,7 @@ The existing fields, plus new ones the other two factions set to off. Names are 
 
 ```ts
 woodland: {
-  startUnit: 'skirmisher', champion: 'warChief', support: 'smokeKeeper',
+  startUnit: 'skirmisher', extraStartUnit: 'trapper', champion: 'warChief', support: 'smokeKeeper',
   cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartLevel: 1,
   forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true,
   blockadeStores: false, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: false, mythTouch: false,
@@ -104,7 +104,7 @@ Unit roles **[David]**; stats **[Claude's call]** except where section 4 says Da
 Unit blurbs (one plain sentence each, for `src/ui/text.ts`) **[Claude's call]**:
 
 - Skirmisher: A quick fighter who strikes hard up close and, once Archery is known, shoots or makes a Dash-strike from two tiles away.
-- Woodland Hunter: A patient archer who shoots three tiles from a forest when it has not moved.
+- Woodland Hunter: A patient archer who shoots three tiles from a forest when it has not moved and a friend spots the target.
 - War Chief: The Woodland Nations champion, a hard fighter with a gunstock war club who strikes twice each turn.
 - Smoke Keeper: A Woodland helper who heals friends, guides them past enemies and hides them in smoke.
 - Trapper: A woodsman who hides snares that hurt and stop the enemies who step on them.
@@ -174,10 +174,11 @@ field, but that shot gets no +1. (Without this, nearly every shot at sight 1 uni
 
 ### forestEye and noMountainRange (Woodland Hunter) **[David]**
 
-- Standing on a forest it sees 1 tile farther (sight 3), as a unit on a mountain does, so it can spot its own long
-  shots. **[Claude's call]**
+- Its sight stays 2 on a forest. **[David, 2026-11-26]**
 - Standing on a forest, if it has **not moved or attacked this turn**, it has range 3. A shot at distance 3 is a long
   shot: `max(1, round(damage * 0.8))`, as the mountain long shot (stage1 10). The counter keeps range 2.
+- A distance 3 shot needs a spotter: the target must be seen this turn by another unit or city of the Hunter's
+  player, since the Hunter cannot see that far itself. **[David, 2026-11-26]**
 - It gets no range bonus on a mountain: range 2 there.
 
 ### doubleStrike (War Chief)
@@ -322,14 +323,16 @@ it ships.
   rule holds.
 - Playing the Woodland Nations: keep archers in forests, Dash-strike Hoplite lines and wounded targets, set snares on
   the paths into its land, smoke a group that is about to be hit, harvest early for gold.
-- Fallback, only with David's yes: if the sims show the AI still blundering into ambushes, the hard AI may be told
-  which hidden units stand within 2 of its own units. That would be an exception to the rule in `CLAUDE.md` that the
+- Fallback, not used for now **[David, 2026-11-26]**: only if the sims show balance problems from the AI blundering
+  into ambushes, and then with David's yes, the hard AI may be told which hidden units stand within 2 of its own units. That would be an exception to the rule in `CLAUDE.md` that the
   planner sees only what its player sees.
 
 ## 8. Balance targets and how to measure **[Claude's call]**
 
 - `simai.ts` needs a third faction and a faction pair option. Run each pair (Woodland against Spartans, Woodland
-  against Mongols) for 200 matches per AI level (100 seeds, both seatings), as the rules 7 work did.
+  against Mongols, and the Woodland mirror) for 200 matches per AI level (100 seeds, both seatings), as the rules 7
+  work did. Once biomes exist, repeat the Woodland pairs on each of the four biomes (arid, snow, grasslands, jungle)
+  and name the best biome from the results. **[David, 2026-11-26]**
 - Target: Woodland share of wins 40% to 60% in each pair at normal and hard; median rounds at most 40; stalls at 60
   rounds at most 20%. The Spartans against Mongols numbers must not move.
 - Levers, in the order to try: `harvestGold`, the Skirmisher's cost, the Dash-strike shares, `championFromLevel`,
@@ -363,16 +366,21 @@ Left out on purpose: feathered war bonnets, sacred pipes, totem poles and dreamc
 
 - Field and trait names in code; how hidden and veiled units, snares and the Dash-strike are drawn and animated.
 - Where the faction picker goes in New match setup, and how the AI faction is chosen with three factions.
-- The rules version number (after rules 10) and the rules file text, written from this spec. The faction exists
+- The rules version number and the rules file text, written from this spec. The faction exists
   only in the rules 8 tech tree and the new rules version; older replays and online rooms never see it (the rules 7
   tree's `start` record needs a placeholder entry only to satisfy the type).
 - Whether the AI may assume a rival knows `archery` (Skirmisher range 2) once the rival has had the turns to research
   it, since rival techs are not shown today.
 
-## 12. Open questions for David
+## 12. Decisions on the open questions **[David, 2026-11-26]**
 
-1. Mirror matches: may both players pick the Woodland Nations (or the same faction) once there are three?
-2. Best biome (design spec 5.12): Snow Taiga (forest-rich) or Jungle Verdant for the Woodland Nations?
-3. The hard AI fallback in section 7: allowed if the sims need it?
-4. Should the Woodland Nations get a starting Trapper too, or only the Skirmisher?
-5. Order of work: before or after the Spartans against Mongols balance session and rules 10?
+1. Mirror matches: allowed. Both players may pick the same faction.
+2. Best biome: try all four biomes in the sims (section 8) and pick from the results.
+3. The hard AI fallback (section 7): not yet. Use it only if the sims show balance problems.
+4. Starting Trapper: yes, try a Skirmisher and a Trapper (section 2).
+5. Order of work: the Woodland Nations come before the Spartans against Mongols balance session and rules 10.
+
+Also changed on 2026-11-26: the Woodland Hunter sees 2 tiles on a forest, not 3, and its range 3 shot needs a spotter
+(section 4, forestEye).
+
+No open questions remain.
