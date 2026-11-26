@@ -27,8 +27,8 @@ test('an unseen blocker is missing from the believed state, so its tile looks op
   const { state, rider, scout } = hiddenScout();
   const b = believedState(aiInputFor(state, 1));
   expect(b.units.some(u => u.id === scout)).toBe(false);
-  expect(Object.keys(reachable(state, rider)).length).toBe(23);   // rules 6: 23 and 24 (was 37 and 41; fog closed, half-point bonus)
-  expect(Object.keys(reachable(b, rider)).length).toBe(24);
+  expect(Object.keys(reachable(state, rider)).length).toBe(20);   // rules 10: 20 and 21 (the rider's first tile of Mongol land costs a field's 2); rules 6: 23 and 24 (was 37 and 41; fog closed, half-point bonus)
+  expect(Object.keys(reachable(b, rider)).length).toBe(21);
   expect(Object.keys(reachable(b, rider)).filter(k => !(k in reachable(state, rider))).sort()).toEqual(['2,0']);
   expect(reachable(state, rider)['1,0']).toBe(0);   // engaged by the unseen scout
   expect(reachable(b, rider)['1,0']).toBe(3);

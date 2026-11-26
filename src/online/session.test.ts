@@ -188,7 +188,9 @@ test('a rebuild after a lost race yields between chunks and blocks play while it
   server.write('rooms/ABC234/head', { ...headOf(server), n: n + 1, seat: 1, hash: hashState(ended), turnAt: server.now() });
   await settle(server);
   pauses = 0; stall = true;
-  const move = legalActions(again.view().followed!.state).find(x => x.type === 'move')!;
+  // Ann's own action at n: any but endTurn and resign (since rules 10 this playout leaves both her units hunkered, so
+  // the first one is an unhunker, not a move)
+  const move = legalActions(again.view().followed!.state).find(x => x.type !== 'endTurn' && x.type !== 'resign')!;
   expect(again.act(move)).not.toBeNull();
   await settle(server);
   server.release('u0'); await settle(server);

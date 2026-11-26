@@ -19,6 +19,9 @@ export const CONFIG = deepFreeze({
     water: { enterCost: null, cover: 0 },
   },
   roadCost: 1, relayCost: 1, wallsCover: 2, mountainSightBonus: 1,
+  // rules 10: the first relay tile a unit enters each turn costs what it would without relay riders, and only the later
+  // ones cost relayCost. false replays rules 6 to 9 (every relay tile costs relayCost); only provenance tests turn it off.
+  relayFirstFull: true,
   // rules 8: a ranged unit (range 2 or more) on a mountain has +rangeBonus range for its own attacks (never its
   // counter), and a shot at a target beyond its normal range does longShotScale of the damage, rounded, never below 1.
   // With endsTurn, a step onto or off a mountain ends the unit's turn, and a unit leaves a mountain only as the first
@@ -145,7 +148,7 @@ export const CONFIG = deepFreeze({
 } as const satisfies {
   mapRadius: number; techTree: TechTreeId; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
-  roadCost: number; relayCost: number; wallsCover: number; mountainSightBonus: number;
+  roadCost: number; relayCost: number; relayFirstFull: boolean; wallsCover: number; mountainSightBonus: number;
   mountain: { rangeBonus: number; longShotScale: number; endsTurn: boolean; tech: TechId | null };
   closedFog: boolean; levelUpEndsChain: boolean; connectGrowth: number; capitalMoves: boolean;
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
