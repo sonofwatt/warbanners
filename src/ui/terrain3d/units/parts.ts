@@ -232,18 +232,38 @@ export function arm(k: Kit, shoulder: V3, hand: V3, sleeve: string, r = 1.5): vo
 export const TUNIC = { y0: H(-2), y1: H(-16.6), r0: 7.0, r1: 5.4, sz: 0.68 };
 export const tunicSurf = (z = 0): Surface => onFrustum([0, 0, z], TUNIC.y0, TUNIC.y1, TUNIC.r0, TUNIC.r1, TUNIC.sz);
 
+/**
+ * The moving pieces of a crouch (units/crouch.ts): the legs (shins turning forward about the ankles, so the knees
+ * come out in front when the body sinks), the feet (which stay on the ground), a horse's neck and head (lowered about
+ * the withers) and a horse's legs (which stay on the ground while the body settles).
+ */
+export const LEGS = 'legs';
+export const FEET = 'feet';
+export const NECK = 'neck';
+/** Where the shins turn: the ankles, above the boots. */
+export const ANKLE: V3 = [0, 2.2, 0];
+/** Where a horse's neck turns: its base, at the withers (in the mount's own frame). */
+export const NECK_AT: V3 = [6.4, H(-10.5), 0];
+
+/** Legs and boots as the crouch's pieces: the shins (about the ankles, tipping forward) and the boots. */
+export function legsAndBoots(k: Kit, legs: () => void, boots: () => void): void {
+  k.pivot(LEGS, ANKLE, legs, { axis: [1, 0, 0] });
+  k.pivot(FEET, [0, 0, 0], boots);
+}
+
 export function standingBody(k: Kit, c: Look, w: Wear, o: { tunic?: string; hem?: string; legs?: boolean } = {}): void {
   if (o.legs !== false) {
-    for (const s of [-1, 1]) {
-      k.rod([s * 2.8, 2.2, 0], [s * 2.8, TUNIC.y0 + 1.5, 0], 1.75, SKIN, { seg: 6 });
-      k.box([s * 3, 1.3, 0.6], [3.9, 2.6, 4.8], BOOT);
-    }
-  }
-  if (heavy(w) && o.legs !== false) {
-    // Blood run down the legs from the wounds above.
-    const leg = flat(1.85);
-    drip(k, leg, -2.6, TUNIC.y0 + 0.8, 5.0, 1.1);
-    drip(k, leg, 3.2, TUNIC.y0 + 0.6, 3.6, 0.9);
+    legsAndBoots(k, () => {
+      for (const s of [-1, 1]) k.rod([s * 2.8, 2.2, 0], [s * 2.8, TUNIC.y0 + 1.5, 0], 1.75, SKIN, { seg: 6 });
+      if (heavy(w)) {
+        // Blood run down the legs from the wounds above.
+        const leg = flat(1.85);
+        drip(k, leg, -2.6, TUNIC.y0 + 0.8, 5.0, 1.1);
+        drip(k, leg, 3.2, TUNIC.y0 + 0.6, 3.6, 0.9);
+      }
+    }, () => {
+      for (const s of [-1, 1]) k.box([s * 3, 1.3, 0.6], [3.9, 2.6, 4.8], BOOT);
+    });
   }
   const tunic = o.tunic ?? c.main;
   k.frustum([0, 0, 0], TUNIC.y0, TUNIC.y1, TUNIC.r0, TUNIC.r1, tunic, { sz: TUNIC.sz });
@@ -477,24 +497,29 @@ export function horse(k: Kit, hc: HorseColours, w: Wear): V3 {
   const bodyY = H(-6.5);
   // Legs: far pair a shade darker, near pair in the coat.
   const legs: [number, number, string][] = [[-7.5, -3.2, hc.shade], [7.2, -3.2, hc.shade], [-10.2, 3.2, hc.coat], [4.4, 3.2, hc.coat]];
-  for (const [x, z, col] of legs) {
-    const kx = x > 0 ? 0.9 : -0.5;
-    k.rod([x, bodyY - 2, z], [x + kx, 5.2, z], 1.5, col, { r1: 1.2 });
-    k.rod([x + kx, 5.2, z], [x + kx * 0.7, 1.6, z], 1.2, col, { r1: 1.05 });
-    k.box([x + kx * 0.7, 0.8, z], [2.6, 1.6, 2.6], hc.hoof ?? MANE);
-  }
+  // The legs stand on the ground while the body settles (a crouch lowers the body over them).
+  k.pivot(LEGS, [0, 0, 0], () => {
+    for (const [x, z, col] of legs) {
+      const kx = x > 0 ? 0.9 : -0.5;
+      k.rod([x, bodyY - 2, z], [x + kx, 5.2, z], 1.5, col, { r1: 1.2 });
+      k.rod([x + kx, 5.2, z], [x + kx * 0.7, 1.6, z], 1.2, col, { r1: 1.05 });
+      k.box([x + kx * 0.7, 0.8, z], [2.6, 1.6, 2.6], hc.hoof ?? MANE);
+    }
+  });
   // Body, chest and rump.
   k.ball([-2, bodyY, 0], 1, hc.coat, { s: [12.6, 6.8, 5.2], detail: 1 });
-  // Neck and head.
-  const neck0: V3 = [6.4, H(-10.5), 0], neck1: V3 = [11.2, H(-19.5), 0];
-  k.rod(neck0, neck1, 3.7, hc.coat, { r1: 2.7, seg: 7 });
-  const head0: V3 = [11.2, H(-20.5), 0], head1: V3 = [18.4, H(-16.4), 0];
-  k.rod(head0, head1, 2.7, hc.coat, { r1: 1.9, seg: 7 });
-  k.ball(head0, 2.8, hc.coat, { detail: 0 });
-  for (const s of [-1, 1]) k.rod([12.0, H(-22.4), s * 1.2], [12.4, H(-25.8), s * 1.4], 0.9, hc.coat, { r1: 0.15, seg: 4 });
-  for (const s of [-1, 1]) k.ball([15.0, H(-19.8), s * 2.0], 0.55, EYE, { hull: 0, detail: 0 });
-  // Mane down the neck and a forelock, tail.
-  k.slab([0, 0, 2.2, 0.4, 1.4, 11.6, -0.4, 11], 1.2, hc.mane, [5.2, H(-11.5), 0], [0, 0, -0.55]);
+  // Neck and head, with the mane down the neck: one piece, so the head can be lowered about the withers.
+  k.pivot(NECK, NECK_AT, () => {
+    const neck0: V3 = NECK_AT, neck1: V3 = [11.2, H(-19.5), 0];
+    k.rod(neck0, neck1, 3.7, hc.coat, { r1: 2.7, seg: 7 });
+    const head0: V3 = [11.2, H(-20.5), 0], head1: V3 = [18.4, H(-16.4), 0];
+    k.rod(head0, head1, 2.7, hc.coat, { r1: 1.9, seg: 7 });
+    k.ball(head0, 2.8, hc.coat, { detail: 0 });
+    for (const s of [-1, 1]) k.rod([12.0, H(-22.4), s * 1.2], [12.4, H(-25.8), s * 1.4], 0.9, hc.coat, { r1: 0.15, seg: 4 });
+    for (const s of [-1, 1]) k.ball([15.0, H(-19.8), s * 2.0], 0.55, EYE, { hull: 0, detail: 0 });
+    k.slab([0, 0, 2.2, 0.4, 1.4, 11.6, -0.4, 11], 1.2, hc.mane, [5.2, H(-11.5), 0], [0, 0, -0.55]);
+  });
+  // The tail.
   k.rod([-13.6, H(-8), 0], [-16.8, H(-0.6), 0], 1.5, hc.mane, { r1: 0.7 });
   // Wear on the near flank: dirt, then scratches and a cut.
   const flank = (x: number, y: number): { p: V3; n: V3 } => {

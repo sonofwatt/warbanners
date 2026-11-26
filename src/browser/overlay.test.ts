@@ -1,12 +1,13 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp } from './harness';
+import { frames, openApp, tapTile } from './harness';
 
 // While a card that asks for an answer is up (the turn digest, a city's reward choice), the Hud behind it is
 // dimmed and taps on it do nothing, as before the chrome was restyled; and the card itself stays clear of the
-// Hud. Seed 7: harvesting the fruit at -2,6 beside the Spartan capital levels the city at once, so the reward
-// choice opens on the first turn of the match (rules 8: Foraging first, 4 gold, then the harvest, 2; before rules 8's
-// tree this built a mine on -2,4, which now waits on Mining). The digest uses the same overlay.
+// Hud. Seed 16: harvesting the fruit at -2,6 and -3,6 beside the Spartan capital levels the city, so the reward
+// choice opens on the first turn of the match (Foraging first, 4 gold, then the two harvests, 2 each). Since rules 9
+// the Spartan capital starts at level 2 and needs 2 growth to reach level 3; before that seed 7's one orchard at -2,6
+// took a level 1 capital to level 2, and before rules 8's tree a mine on -2,4. The digest uses the same overlay.
 
 async function tapAt(page: Page, x: number, y: number): Promise<void> {
   await page.touchscreen.tap(x, y);
@@ -25,18 +26,22 @@ async function toReward(page: Page): Promise<void> {
   await page.getByTestId('ready').tap();
   await page.locator('[data-centre]').first().waitFor({ state: 'attached' });
   await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
-  // The turn opens with the Scout selected, and -2,6 is a tile it could move to: let it go first.
-  await page.keyboard.press('Escape');
-  await frames(page);
-  const tile = await page.locator('[data-centre="-2,6"]').boundingBox();
-  if (tile === null) throw new Error('no fruit tile');
-  await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await tapTile(page, '-2,6');
   // The harvest waits on Foraging: tapping it opens the tech sheet there.
   await page.getByTestId('cmd-harvest').tap();
   await page.getByTestId('research-foraging').tap();
   if (await page.locator('.tech-sheet').count() > 0) await page.getByTestId('close-sheet').tap();
   await frames(page);
-  if (await page.getByTestId('cmd-harvest').count() === 0) await tapAt(page, tile.x + tile.width / 2, tile.y + tile.height / 2);
+  if (await page.getByTestId('cmd-harvest').count() === 0) await tapTile(page, '-2,6');
+  await page.getByTestId('cmd-harvest').tap();
+  await frames(page);
+  // The second fruit, -3,6. The view may still be settling after the first harvest, so the tile is found again and
+  // tapped until its card offers the harvest.
+  for (let tries = 0; tries < 5 && await page.getByTestId('cmd-harvest').count() === 0; tries++) {
+    const second = await page.locator('[data-centre="-3,6"]').boundingBox();
+    if (second === null) throw new Error('no second fruit tile');
+    await tapAt(page, second.x + second.width / 2, second.y + second.height / 2);
+  }
   await page.getByTestId('cmd-harvest').tap();
   await page.getByTestId('reward-0').waitFor();
   await page.waitForTimeout(250); // the overlay's fade
@@ -45,7 +50,7 @@ async function toReward(page: Page): Promise<void> {
 describe.runIf(process.env.BROWSER === '1')('a card that asks for an answer', () => {
   for (const [w, h] of [[412, 915], [568, 320]] as const) {
     test(`blocks the Hud behind it and stays clear of it at ${w} by ${h}`, async () => {
-      const { page, close } = await openApp('?seed=7', { width: w, height: h });
+      const { page, close } = await openApp('?seed=16', { width: w, height: h });
       try {
         await page.getByTestId('new-match').waitFor();
         await toReward(page);
@@ -57,7 +62,10 @@ describe.runIf(process.env.BROWSER === '1')('a card that asks for an answer', ()
         expect(hud).not.toBeNull(); expect(card).not.toBeNull();
         expect(card!.y).toBeGreaterThanOrEqual(hud!.y + hud!.height - 0.5);
 
+        // The harvested tile is still selected, so its card holds the bottom bar's place: End turn and Tech are not on
+        // screen to be tapped at all. Menu is, under the overlay.
         for (const id of ['end-turn', 'open-tech', 'open-menu']) {
+          if (id !== 'open-menu' && await page.getByTestId(id).count() === 0) continue;
           const c = await centreOf(page, id);
           const top = await page.evaluate(([x, y, tid]) => {
             const el = document.elementFromPoint(x as number, y as number);

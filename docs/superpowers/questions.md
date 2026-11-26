@@ -54,3 +54,9 @@ No open questions.
   selection is fine.
 - Q1 (rules 9 balance swing), 2026-11-25 (David): A; find out why one growth point swings it so far, then tune the
   Spartans back to 45 to 55% keeping the slower first level-up.
+- Q1 (rules 9 Spartan levers), 2026-11-25 (David): no free growth point; lower the cost to reach level 3 instead.
+  Spartan costs to leave each level become 2, 1, 2, 3, 4 (everyone else 2, 3, 4, 5, 6); re-measured before release.
+- Q1 (Spartan growth curve), 2026-11-25 (David): Spartan growth costs the same as everyone's; the Spartan capital
+  gets a head start of banked growth (size tuned by sims; at most one more non-growth Spartan lever if needed).
+- Q1 (Spartan head start), 2026-11-25 (David): the Spartan capital starts at level 2, and Spartan levels from there are
+  1 growth cheaper. Ship it; balance testing later.

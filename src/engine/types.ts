@@ -1,5 +1,5 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 8;
+export const RULES_VERSION = 9;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
@@ -64,6 +64,9 @@ export interface Unit {
   hunkered: boolean;                     // rules 7: dug in until it moves or acts of its own accord; public
   momentum: number;                      // rules 7: a chain unit's momentum left this turn (0 for any other unit); public
   turnEnded: boolean;                    // rules 8: a step onto or off a mountain ended its turn; nothing, not even haste, lets it move again; public
+  // rules 9: stamp of the turn it last unhunkered (absent until it first does, so older states hash as before); a unit
+  // that unhunkered this turn may not hunker again this turn; public
+  unhunkeredTurn?: number;
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {
@@ -89,6 +92,7 @@ export type Action =
   | { type: 'claimTreasure'; unit: number }
   | { type: 'useItem'; unit: number }
   | { type: 'hunker'; unit: number }
+  | { type: 'unhunker'; unit: number }                               // rules 9: the owner ends a unit's hunker
   | { type: 'train'; city: number; unitType: UnitTypeId }
   | { type: 'campTrain'; unit: number; unitType: UnitTypeId; to: HexKey }
   | { type: 'harvest'; at: HexKey }
@@ -117,7 +121,7 @@ export type GameEvent =
   | { type: 'treasure'; at: HexKey; outcome: TreasureOutcome; trait?: HeroTraitId; found?: HexKey; unit?: number }
   | { type: 'usedItem'; unit: number; item: ItemId }
   | { type: 'hunkered'; unit: number }                              // rules 7
-  | { type: 'hunkerEnded'; unit: number }                           // rules 7: it moved, acted or was lured
+  | { type: 'hunkerEnded'; unit: number }                           // rules 7: it moved, acted or was lured; rules 9: or its owner unhunkered it
   | { type: 'restHealed'; unit: number; hp: number }                // rules 8: a hunkered unit healed hp at the end of its owner's turn
   | { type: 'blockaded'; city: number; enemies: number; gold: number }  // rules 8: the city's income was cut by gold as its owner's turn began
   | { type: 'connected'; city: number; capital: number }           // rules 7: roads first joined the city to the capital

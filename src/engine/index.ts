@@ -10,7 +10,7 @@ export { momentumStart } from './state';
 export { abilityTargets } from './abilities';
 export { canCapture, canClaimTreasure } from './capture';
 export { canUseItem, useItemRefusal } from './items';
-export { canHunker, hunkerRefusal } from './hunker';
+export { canHunker, canUnhunker, hunkerRefusal, unhunkerRefusal } from './hunker';
 export { restHealAt } from './turn';
 export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, maxHpOf, mythTouched } from './heroes';
 export { trainable, unitCost } from './training';

@@ -10,7 +10,7 @@ import { hashState } from '../engine';
 import type { MatchState } from '../engine';
 import { randomPlayout } from '../engine/testkit';
 import { T } from '../ui/text';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // Solo play in a real browser: with the network cut, and a hard AI turn on a crowded board with the CPU slowed.
 // Seed 7 facts (see flow.test.ts): the person (Player 1) moves first with one Warrior (unit 0) on -2,5, which can
@@ -96,7 +96,7 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(3, 82);   // 25 units (re-picked for rules 8's tuning pass, as speed.test.ts)
+  const { entries, state } = savedHardMatch(7, 56);   // 25 units (re-picked for rules 9's level 2 Spartan capital, as speed.test.ts; (7, 66) for the unhunker action; (3, 82) for rules 8's tuning pass)
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {
@@ -194,6 +194,8 @@ describe.runIf(process.env.BROWSER === '1')('solo play in the browser', () => {
       await tapTile(page, '-2,5');
       await tapTile(page, '-1,4');
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
+      // The Scout can still act, so it stays selected and its card holds the bar's place: deselect to reach End turn.
+      await deselect(page);
       await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
       await page.getByTestId('end-turn').tap();
 

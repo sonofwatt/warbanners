@@ -12,7 +12,7 @@ import { cityCommands, techRows, tileCommands, unitCommands } from './commands';
 import { CityPanel } from './CityPanel';
 import { CommandList } from './CommandList';
 import { DigestCard } from './DigestCard';
-import { Hud } from './Hud';
+import { ActionBar, Hud } from './Hud';
 import { versionLine } from '../Version';
 import { Menu } from './Menu';
 import { RewardSheet } from './RewardSheet';
@@ -37,24 +37,31 @@ function lone(type: 'horseArcher' | 'khansGuard' | 'horseman' | 'warrior' | 'kni
   return panelOf(s, addUnit(s, type, 0, 0, 0, patch), mine, myth);
 }
 
-test('the Hud shows who, gold, turn and an end turn button', () => {
-  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
+test('the Hud shows the Menu button first, then who, gold and turn; the turn buttons are not in it', () => {
+  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} onOpenMenu={noop} />);
   expect(html).toContain('Ann'); expect(html).toContain('>8<'); expect(html).toContain('Turn 1'); expect(html).toContain('+2');
-  expect(html).toContain('data-testid="end-turn"'); expect(html).toContain('data-testid="open-tech"'); expect(html).toContain('data-testid="tech-dot"');
-  expect(html).toContain('1 unit to act');
+  expect(html.indexOf('data-testid="open-menu"')).toBeGreaterThan(0);
+  expect(html.indexOf('data-testid="open-menu"')).toBeLessThan(html.indexOf('data-testid="who"'));
+  for (const id of ['end-turn', 'open-tech', 'next-unit']) expect(html).not.toContain(`data-testid="${id}"`);
 });
-test('the Hud has a Next unit button beside End turn, greyed when asked', () => {
-  const hud = (nextDisabled?: boolean) => renderToStaticMarkup(
-    <Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={1} unitsToAct={1} techReady={false}
-      nextDisabled={nextDisabled} onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
+test('the bar has Tech with its dot, Next unit with its words and count, and End turn last, greyed when asked', () => {
+  const bar = (p: { nextDisabled?: boolean; unitsToAct?: number } = {}) => renderToStaticMarkup(
+    <ActionBar colour="#c33" faction="spartans" unitsToAct={p.unitsToAct ?? 2} techReady nextDisabled={p.nextDisabled}
+      onOpenTech={noop} onEndTurn={noop} onNextUnit={noop} />);
   const button = (html: string) => /<button[^>]*data-testid="next-unit"[^>]*>/.exec(html)?.[0] ?? '';
-  const html = hud();
-  expect(button(html)).toContain(`aria-label="${T.ui.nextUnit}"`);
-  expect(button(html)).not.toContain('disabled');
+  const html = bar();
+  expect(html).toContain('data-testid="tech-dot"');
+  expect(html).toContain(`>${T.ui.techs}<`);
   expect(html).toContain(`>${T.ui.nextUnit}<`);
+  expect(html).toContain('data-testid="units-to-act"');
+  expect(html).toContain('2 units to act');
+  expect(button(html)).not.toContain('disabled');
+  expect(html.indexOf('data-testid="open-tech"')).toBeLessThan(html.indexOf('data-testid="next-unit"'));
   expect(html.indexOf('data-testid="next-unit"')).toBeLessThan(html.indexOf('data-testid="end-turn"'));
-  expect(html.slice(html.indexOf('class="hud-end"')).indexOf('data-testid="next-unit"')).toBeGreaterThan(0);   // in End turn's group
-  expect(button(hud(true))).toContain('disabled=""');
+  expect(button(bar({ nextDisabled: true }))).toContain('disabled=""');
+  const none = bar({ unitsToAct: 0 });
+  expect(none).not.toContain('data-testid="units-to-act"');
+  expect(none).toContain(T.ui.noUnitsCanAct);
 });
 test('the unit panel shows the card and its commands', () => {
   const u = open.units[0]!;
@@ -89,6 +96,24 @@ test('the city panel shows growth, units and a row of units to train', () => {
   // nothing is picked yet, so no train button shows until a unit in the row is tapped
   expect(html).not.toContain('data-testid="cmd-train-warrior"');
   expect(html).toContain(T.ui.shopHint);
+});
+test('the city card: the level on the picture\'s corner, not in the row; the road badge only on a connected city', () => {
+  const card = (p: { connected?: boolean; capital?: boolean }) => renderToStaticMarkup(
+    <CityPanel faction="spartans" level={3} capital={p.capital} connected={p.connected} growth={1} growthNeeded={3} walls={false} commands={[]} onCommand={noop} />);
+  const linked = card({ connected: true });
+  expect(linked).toContain('data-testid="city-connected"');
+  expect(linked).toContain(`aria-label="${T.ui.connectedToCapital}"`);
+  expect(linked).toContain(`title="${T.ui.connectedToCapital}"`);
+  expect(linked).toMatch(/data-testid="city-level"[^>]*aria-label="Level 3"/);
+  expect(linked).not.toContain(`>${T.ui.level}<`);
+  expect(linked).toContain(`>${T.ui.growth}<`);
+  // Both badges sit in the picture's frame.
+  const frame = linked.slice(linked.indexOf('class="picture-frame"'), linked.indexOf('class="card-title"'));
+  expect(frame).toContain('city-connected'); expect(frame).toContain('city-level');
+  expect(card({ connected: false })).not.toContain('city-connected');
+  expect(card({})).not.toContain('city-connected');
+  // A capital never shows it, whatever it is told.
+  expect(card({ connected: true, capital: true })).not.toContain('city-connected');
 });
 test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
@@ -240,6 +265,12 @@ test('rules 8: the hunker button and the Hunkered line say the unit heals at the
   expect(T.ui.hunkeredBlurb).toContain('heals at the end of each of its turns');
   const html = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.hunkerHint }]} onCommand={noop} />);
   expect(html).toContain(`title="${T.ui.hunkerHint}"`);
+});
+test('rules 9: the Unhunker button is drawn pressed in, with its hint', () => {
+  const html = renderToStaticMarkup(<CommandList commands={[{ id: 'unhunker', label: T.ui.unhunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.unhunkerHint, pressed: true }]} onCommand={noop} />);
+  expect(html).toContain('aria-pressed="true"'); expect(html).toContain('class="pressed"'); expect(html).toContain(T.ui.unhunker);
+  const plain = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null }]} onCommand={noop} />);
+  expect(plain).not.toContain('aria-pressed'); expect(plain).not.toContain('pressed');
 });
 test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
   for (const own of [true, false]) {

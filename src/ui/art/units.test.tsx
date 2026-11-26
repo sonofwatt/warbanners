@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
 import { ACCENT, playerColour } from './palette';
-import { SHARED_FIGURES, Shadow, StatusOverlay } from './units';
+import { SHARED_FIGURES, Shadow } from './units';
 import type { FigureProps } from './units';
 
 const P: FigureProps = { colour: playerColour('spartans'), accent: ACCENT.spartans };
@@ -78,24 +78,4 @@ test('the shadow is a soft black blob, wider for a wide figure', () => {
   }
   const rx = (h: string) => Number(/rx="([\d.]+)"/.exec(h)?.[1]);
   expect(rx(wide)).toBeGreaterThan(rx(narrow));
-});
-
-test('health pips', () => {
-  const pips = (hp: number, maxHp: number) =>
-    html(<StatusOverlay hp={hp} maxHp={maxHp} spent={false} fresh={false} taunted={false} blinded={false} />);
-  expect((pips(15, 15).match(/data-pip="full"/g) ?? []).length).toBe(3);
-  expect((pips(6, 15).match(/data-pip="full"/g) ?? []).length).toBe(2);
-  expect((pips(1, 10).match(/data-pip="full"/g) ?? []).length).toBe(1);
-  expect((pips(6, 15).match(/data-pip=/g) ?? []).length).toBe(3);
-  expect((pips(0, 10).match(/data-pip="full"/g) ?? []).length).toBe(0);
-});
-
-test('the overlay marks taunted, blinded and fresh, sits above the head, and ignores spent', () => {
-  const o = (x: Partial<Parameters<typeof StatusOverlay>[0]>) =>
-    html(<StatusOverlay hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} {...x} />);
-  const plain = o({});
-  expect(new Set([plain, o({ taunted: true }), o({ blinded: true }), o({ fresh: true }), o({ hunkered: true })]).size).toBe(5);
-  for (const p of extents(o({ taunted: true, blinded: true, hunkered: true }))) expect(p.y, p.where).toBeLessThan(-36);
-  expect(o({ spent: true })).toBe(plain);
-  for (const p of extents(o({ taunted: true, blinded: true, fresh: true }))) expect(p.y, p.where).toBeLessThan(-36);
 });

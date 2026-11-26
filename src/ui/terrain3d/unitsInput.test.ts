@@ -4,7 +4,7 @@ import type { MatchState, PlayerId, Unit } from '../../engine';
 import { ACCENT, playerColour } from '../art/palette';
 import { buildScene } from '../board/scene';
 import type { SceneUnit } from '../board/scene';
-import { glUnitsOf, unitAlpha } from './unitsInput';
+import { glUnitsOf, unitShown } from './unitsInput';
 
 // The state-to-figure mapping of the 3D units: exactly the units the svg board draws for this viewer, in their
 // owner's colours, heroes marked, and nothing the viewer cannot see.
@@ -44,20 +44,32 @@ test('a unit the viewer cannot see is not a figure: fog hides it from the 3D sce
   expect(new Set(seen.map((u) => u.id))).toEqual(new Set([own.id, enemy.id]));
 });
 
-test('heroes carry the pennant; spent and hidden own units dim as the svg figure does', () => {
+test('heroes carry the pennant; own spent units are marked spent (darker), nothing is see-through', () => {
   const s = clone(base);
   const own = s.units.find((u) => u.owner === 0)!;
   own.heroTraits = ['fierce', 'tireless', 'hardy', 'watchful'];
   expect(isHero(own as Unit)).toBe(true);
   const [u] = glUnitsOf(scene(s, 0, new Set([own.id])), ['spartans', 'mongols']).units;
   expect(u!.hero).toBe(true);
-  expect(u!.alpha).toBe(0.55);
+  expect(u!.spent).toBe(true);
+  expect(u).not.toHaveProperty('alpha');
   const plain = glUnitsOf(scene(base, 0), ['spartans', 'mongols']).units[0]!;
   expect(plain.hero).toBe(false);
-  const hidden = UNITS[plain.type].traits.includes('hidden');
-  expect(plain.alpha, plain.type).toBe(hidden ? 0.7 : 1);
-  expect(unitAlpha({ mine: true, spent: false, hidden: true })).toBe(0.7);
-  expect(unitAlpha({ mine: false, spent: true, hidden: true }), 'an enemy figure is never dimmed').toBe(1);
+  expect(plain.spent).toBe(false);
+  expect(UNITS.scout.traits).toContain('hidden');
+  expect(unitShown({ mine: true, spent: false, hidden: true })).toEqual({ shaded: false, eye: true });
+  expect(unitShown({ mine: true, spent: true, hidden: true })).toEqual({ shaded: true, eye: true });
+  expect(unitShown({ mine: false, spent: true, hidden: true }), 'an enemy is never darkened nor shows its eye').toEqual({ shaded: false, eye: false });
+});
+
+test('an enemy unit is never spent in the 3D figures, whatever the set holds', () => {
+  const s = clone(base);
+  const own = s.units.find((u) => u.owner === 0)!;
+  const enemy = s.units.find((u) => u.owner === 1)!;
+  const [q, r] = own.pos.split(',').map(Number) as [number, number];
+  enemy.pos = `${q + 1},${r}`;
+  const units = glUnitsOf(scene(s, 0, new Set([enemy.id])), ['spartans', 'mongols']).units;
+  expect(units.find((u) => u.id === enemy.id)!.spent).toBe(false);
 });
 
 test('the signature changes when a unit moves, changes or goes, and only then', () => {
@@ -74,4 +86,6 @@ test('the signature changes when a unit moves, changes or goes, and only then', 
   expect(none.units).toEqual([]);
   expect(none.key).not.toBe(a.key);
   expect(glUnitsOf(scene(base, 0), ['mongols', 'spartans']).key, 'a new owner colour rebuilds').not.toBe(a.key);
+  const own0 = base.units.find((u) => u.owner === 0)!;
+  expect(glUnitsOf(scene(base, 0, new Set([own0.id])), ['spartans', 'mongols']).key, 'spent changes it').not.toBe(a.key);
 });

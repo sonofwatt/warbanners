@@ -66,5 +66,5 @@ test('references resolve', () => {
   }
   expect(CONFIG.rewards[5]).toEqual(['champion', 'support']);
   expect(CONFIG.buildings.lumberCamp).toMatchObject({ cost: 4, growth: 2, on: 'forest', income: 0 });   // rules 7: cost 4 (was 3), growth 2 (was 1)
-  expect(CONFIG.buildings.market).toMatchObject({ cost: 6, growth: 2, on: 'field', income: 2 });   // rules 7: growth 2 (was 1)
+  expect(CONFIG.buildings.market).toMatchObject({ cost: 6, growth: 3, on: 'field', income: 2 });   // rules 9: growth 3 (2 in rules 7 and 8, 1 before)
 });

@@ -29,7 +29,7 @@ describe('hunker: who may', () => {
     if (!r.ok) return;
     expect(r.events).toEqual([{ type: 'hunkered', unit: u.id }]);
     expect(unitById(r.state, u.id)).toMatchObject({ hunkered: true, mp: 0, attacks: 0, moved: false, acted: false });
-    expect(legalActions(r.state).filter((a) => 'unit' in a && a.unit === u.id)).toEqual([]);
+    expect(legalActions(r.state).filter((a) => 'unit' in a && a.unit === u.id)).toEqual([{ type: 'unhunker', unit: u.id }]);   // rules 9: only Unhunker
   });
   test('refused after moving, attacking or using an ability, when fresh, already hunkered, or for a siege unit; a drink is fine (rules 8)', () => {
     const s = field();

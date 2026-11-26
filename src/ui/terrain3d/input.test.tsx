@@ -3,7 +3,7 @@ import { expect, test } from 'vitest';
 import type { City, HexKey, Terrain, Tile } from '../../engine';
 import { BuildingMark, CityMark, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { playerColour } from '../art/palette';
-import { Border, borderLines, groundFor, Highlight, ReadyGlow, TileBase } from '../art/tiles';
+import { Border, borderLines, CityGlow, groundFor, Highlight, ReadyGlow, TileBase } from '../art/tiles';
 import { BoardTile } from '../board/Board';
 import { hexToBoard } from '../board/layout';
 import type { SceneTile } from '../board/scene';
@@ -14,7 +14,7 @@ const tile = (p: Partial<Tile> = {}): Tile => ({
 });
 const scene = (key: HexKey, t: Tile | null, p: Partial<SceneTile> = {}): SceneTile => ({
   kind: 'tile', key, at: hexToBoard(key), fog: t === null, tile: t, veiled: false, city: null, owner: null,
-  borderEdges: [], roadLinks: [], mark: null, ready: false, occupied: false, ...p,
+  borderEdges: [], cityEdges: null, roadLinks: [], mark: null, ready: false, occupied: false, ...p,
 });
 const html = (t: SceneTile, gl: boolean): string =>
   renderToStaticMarkup(<svg><BoardTile t={t} factions={['spartans', 'mongols']} viewer={0} gl={gl} /></svg>);
@@ -190,6 +190,20 @@ test('borders go to the 3D map with their owner\'s colour, and a change of borde
   const line = part(<Border edges={[0, 2]} colour={playerColour('mongols').main} />);
   expect(html(t, false)).toContain(line);
   expect(html(t, true)).not.toContain(line);
+});
+
+test('a selected city\'s land glow stays in the svg over the 3D ground, while its border goes to the 3D scene only', () => {
+  const t = scene('0,0', tile(), { owner: 0, borderEdges: [0, 2], cityEdges: [0, 2] });
+  const glow = part(<CityGlow id="land-0_0" edges={[0, 2]} colour={playerColour('spartans').main} />);
+  const line = part(<Border edges={[0, 2]} colour={playerColour('spartans').main} />);
+  // Off: the svg draws both. On: the glow only (the border is drawn once, by the terrain scene).
+  expect(html(t, false)).toContain(glow);
+  expect(html(t, false)).toContain(line);
+  expect(html(t, true)).toContain(glow);
+  expect(html(t, true)).not.toContain(line);
+  expect(glMapOf([t], 3, ['spartans', 'mongols']).map.borders?.map((b) => b.key)).toEqual(['0,0']);
+  // The glow is not part of the 3D map, so selecting a city never rebuilds the terrain.
+  expect(glMapOf([t], 3, ['spartans', 'mongols']).key).toBe(glMapOf([{ ...t, cityEdges: null }], 3, ['spartans', 'mongols']).key);
 });
 
 test('a city level, walls or owner change changes the map signature, so the city is rebuilt', () => {

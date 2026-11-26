@@ -282,6 +282,12 @@ describe('matches between two AIs end', () => {
     // the engine changed in that step, so the rule moved which matches stall. At hard all 16 end.
     // Rules 8's tuning pass (blockade, Mongol growth and tribute, supports capped, the AI pressing on): all 16 end at
     // normal, the longest '5 spartans' in 54 (each measured in its own process; the same list as the full SLOW file).
+    // Rules 9 (no Spartan growth discount on leaving level 1, level 2 gold reward 5): four of 16 do not end within 60
+    // rounds. '7 mongols' and '8 mongols' end in 66 and 69, the Mongols winning; '3 mongols' and '4 spartans' are still
+    // unended at 150. Over 200 fresh normal matches stalls went from 9.0% to 10.5% (5.5% with the growth change alone),
+    // so the rules moved which matches stall more than how many; the AI is unchanged. At hard the list is unchanged.
+    // Rules 9 as released (the Market's growth 3 and the Spartan capital starting at level 2): all 16 end within 60
+    // rounds, the longest, '7 spartans', in 54.
     const KNOWN_NORMAL: string[] = [];
     test(`at normal, every match${but(KNOWN_NORMAL)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.normal, 60).filter((m) => !KNOWN_NORMAL.includes(m))).toEqual([]);
@@ -292,7 +298,9 @@ describe('matches between two AIs end', () => {
     // Rules 8's tuning pass: '5 spartans' does not end within 60 rounds, the first hard stall of these 16 (every other
     // ends, the longest in 52); over 200 fresh hard matches stalls fell from 9.5% to 5.5%, so this is which match
     // stalls, not more stalling. Measured each in its own process and in the full SLOW file: the same list.
-    const KNOWN_HARD: string[] = ['5 spartans'];
+    // Rules 9 as released (the Market's growth 3 and the Spartan capital starting at level 2): all 16 end, '5 spartans'
+    // included; the longest, '7 spartans', in 53.
+    const KNOWN_HARD: string[] = [];
     test(`at hard, every match${but(KNOWN_HARD)} ends within 60 rounds`, () => {
       expect(unended(LEVEL_DIAL.hard, 60).filter((m) => !KNOWN_HARD.includes(m))).toEqual([]);
     }, 600_000);

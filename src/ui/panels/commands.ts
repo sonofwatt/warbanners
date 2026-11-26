@@ -19,6 +19,8 @@ export interface Command {
   hint?: string;
   /** Set when a missing tech is all that stands in the way: tapping the command opens the tech tree at it. */
   tech?: TechId;
+  /** rules 9: a toggle that is on now (Unhunker on a hunkered unit): drawn pressed in, with aria-pressed. */
+  pressed?: boolean;
 }
 
 const needs = (t: TechId): string => `${T.ui.needs} ${T.tech[t]}`;
@@ -68,6 +70,10 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
   // rules 7: last, so a unit's own moves and abilities come first
   if (ix.hunkers.includes(unit.id)) {
     out.push({ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: { type: 'hunker', unit: unit.id }, arm: null, hint: T.ui.hunkerHint });
+  }
+  // rules 9: a hunkered unit shows Unhunker in the same place, drawn pressed in, so the card says it is hunkered
+  if (ix.unhunkers.includes(unit.id)) {
+    out.push({ id: 'unhunker', label: T.ui.unhunker, cost: null, enabled: true, why: null, action: { type: 'unhunker', unit: unit.id }, arm: null, hint: T.ui.unhunkerHint, pressed: true });
   }
   return out;
 }

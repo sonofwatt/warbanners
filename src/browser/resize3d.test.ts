@@ -1,9 +1,10 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { cameraStill, frames, openApp } from './harness';
+import { cameraStill, frames, openApp, tapTile } from './harness';
 
-// The 3D look keeps every layer of the board aligned when the board's slot changes size: a card opening, changing
-// height or closing under it (0.6.2's portrait layout), a rotation, a browser bar showing or hiding. The canvases
+// The 3D look keeps every layer of the board aligned when the board's slot changes size: a rotation, a browser bar
+// showing or hiding (and, in 0.6.2's portrait layout, a card opening, changing height or closing under it; since
+// 0.7.0 the cards lie over a slot that keeps its size, which this test also checks). The canvases
 // resize their drawing buffers only when they draw, and CSS stretches a canvas that keeps its old buffer to its new
 // box, so a resize that is not redrawn at once leaves the 3D terrain squashed or stretched off the svg marks above
 // it (0.6.2 on a phone: a selection ring a tile away from the city it marks, blurry ground, ghosted figures).
@@ -109,13 +110,8 @@ describe.runIf(process.env.BROWSER === '1')('the 3D layers when the board slot c
       expect(await page.evaluate(() => (window as unknown as { __bad: string[] }).__bad), `${what}: every frame painted is aligned`).toEqual([]);
       return c;
     };
-    const tap = async (hex: string): Promise<void> => {
-      await cameraStill(page);
-      const b = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-      if (b === null) throw new Error(`tile ${hex} has no box`);
-      await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
-      await frames(page);
-    };
+    // A tap as a player would make it: when the card or the bar lies over the tile, the board is dragged first.
+    const tap = (hex: string): Promise<void> => tapTile(page, hex);
     try {
       await page.addInitScript(RECORD_DRAWS);
       await page.reload();
@@ -133,7 +129,7 @@ describe.runIf(process.env.BROWSER === '1')('the 3D layers when the board slot c
       const open = await step('none');
 
       // A tile in the middle of the slot (no pan needed) and the capital's cycle: unit, city, closed. Each opens,
-      // changes or closes the card under the board.
+      // changes or closes the card over the board, which keeps its slot's size throughout.
       const middle = await page.evaluate(() => {
         const s = document.querySelector('[data-testid=board-slot]')!.getBoundingClientRect();
         return [...document.querySelectorAll('svg.board [data-hex]:not([data-fog]) [data-centre]')]
@@ -143,13 +139,13 @@ describe.runIf(process.env.BROWSER === '1')('the 3D layers when the board slot c
       });
       await tap(middle);
       const tile = await step('tile');
-      expect(tile.slot, 'the tile card takes room from the board').toBeLessThan(open.slot);
+      expect(tile.slot, 'the tile card lies over the board: the slot keeps its size').toBe(open.slot);
       await tap('-2,5');
       const unit = await step('unit');
-      expect(unit.slot).not.toBe(tile.slot);
+      expect(unit.slot).toBe(open.slot);
       await tap('-2,5');
       const city = await step('city');
-      expect(city.slot).not.toBe(unit.slot);
+      expect(city.slot).toBe(open.slot);
       await tap(middle);
       await step('tile-again');
       await tap(middle);
@@ -159,6 +155,7 @@ describe.runIf(process.env.BROWSER === '1')('the 3D layers when the board slot c
       // With a selection: a rotation, back, and a browser bar showing and hiding.
       await tap(middle);
       await step('tile-before-turn');
+      const slots: Record<string, number> = {};
       for (const [w, h, what] of [[915, 412, 'landscape'], [412, 915, 'portrait'], [412, 860, 'bar'], [412, 915, 'no-bar']] as const) {
         // The sampler pauses for the change itself: the new viewport is applied between frames, so a sample taken
         // before the next frame would see the new layout over a canvas that has not had a frame to redraw in.
@@ -166,8 +163,13 @@ describe.runIf(process.env.BROWSER === '1')('the 3D layers when the board slot c
         await page.setViewportSize({ width: w, height: h });
         await frames(page);
         await page.evaluate(() => { (window as unknown as { __sampling: boolean }).__sampling = true; });
-        await step(what);
+        slots[what] = (await step(what)).slot;
       }
+      // These do resize the slot, so the redraw-at-once path is what kept the layers aligned.
+      expect(slots['landscape']).toBeLessThan(open.slot);
+      expect(slots['portrait']).toBe(open.slot);
+      expect(slots['bar']).toBeLessThan(open.slot);
+      expect(slots['no-bar']).toBe(open.slot);
     } finally {
       await close();
     }

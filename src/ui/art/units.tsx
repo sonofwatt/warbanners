@@ -2,8 +2,8 @@ import type { ReactElement } from 'react';
 import { Ink } from './features';
 import { SKIN } from './palette';
 
-// The eight unit figures every faction shares, and the status marks drawn
-// above one. A figure stands with its feet near (0, 4), the centre of the
+// The unit figures every faction shares (the war banner above one is in
+// banner.tsx). A figure stands with its feet near (0, 4), the centre of the
 // tile's top face being the origin, and stays inside x -20..20, y -36..8.
 // Everything in the owner's colour comes from props; the rest is neutral.
 
@@ -314,91 +314,3 @@ export const SHARED_FIGURES: Record<SharedFigure, (p: FigureProps) => ReactEleme
   catapult,
   sellsword,
 };
-
-// ---- status ----
-
-const PIP_W = 4;
-export const PIP_H = 2.6;
-const PIP_GAP = 1;
-export const PIP_Y = -42;
-/** The spacing of the marks beside the plate, centre to centre. */
-export const MARK_STEP = 7.6;
-/** The radius of the round marks (taunted, blinded) and of the glint; the hunker shield is about as big. */
-export const MARK_R = 3.4;
-/** Where the "new" glint sits, right of the plate's right end. */
-export const GLINT_GAP = 5;
-const PIP_FULL = '#7BD957';
-const PIP_EMPTY = '#5E5A52';
-export const PLATE = '#2B2B2A';
-
-const pipCount = (maxHp: number): number => Math.max(1, Math.ceil(maxHp / 5));
-const plateWidth = (maxHp: number): number => pipCount(maxHp) * PIP_W + (pipCount(maxHp) - 1) * PIP_GAP;
-
-/** The x of the pips' right end, for a unit of this maximum health; the plate is centred on x 0. */
-export function plateRight(maxHp: number): number {
-  return plateWidth(maxHp) / 2;
-}
-
-/**
- * Drawn above a figure: one health pip per 5 health, full for health left.
- * `spent` is not drawn here: the caller dims the whole figure.
- */
-export function StatusOverlay(p: { hp: number; maxHp: number; spent: boolean; fresh: boolean; taunted: boolean; blinded: boolean; hunkered?: boolean }): ReactElement {
-  const total = pipCount(p.maxHp);
-  const full = Math.min(total, Math.max(0, Math.ceil(p.hp / 5)));
-  const w = plateWidth(p.maxHp);
-  const left = -w / 2;
-  const ink = new Ink();
-  ink.rect(left - 1.2, PIP_Y - 1.2, w + 2.4, PIP_H + 2.4, PLATE, 1.6);
-  const pips: ReactElement[] = [];
-  for (let i = 0; i < total; i++) {
-    const on = i < full;
-    pips.push(
-      <rect
-        key={`p${i}`}
-        data-pip={on ? 'full' : 'empty'}
-        x={left + i * (PIP_W + PIP_GAP)}
-        y={PIP_Y}
-        width={PIP_W}
-        height={PIP_H}
-        rx={0.8}
-        fill={on ? PIP_FULL : PIP_EMPTY}
-      />,
-    );
-  }
-  // Marks sit in a row to the left of the plate, the "new" spark to its right.
-  let x = left - 5.2;
-  const marks = new Ink();
-  if (p.taunted) {
-    // A red badge with an exclamation mark: this unit has been provoked.
-    marks.circle(x, PIP_Y + 1.3, MARK_R, '#E0563F');
-    marks.rect(x - 0.6, PIP_Y - 0.9, 1.2, 2.8, '#FFFFFF', 0.5);
-    marks.circle(x, PIP_Y + 3.1, 0.7, '#FFFFFF');
-    x -= MARK_STEP;
-  }
-  if (p.blinded) {
-    // A grey badge with a shut eye: this unit cannot see far.
-    marks.circle(x, PIP_Y + 1.3, MARK_R, '#6F6A80');
-    marks.stroke(`M ${x - 2} ${PIP_Y + 0.8} Q ${x} ${PIP_Y + 2.8} ${x + 2} ${PIP_Y + 0.8}`, '#FFFFFF', 0.8);
-    marks.line(x - 1, PIP_Y + 2, x - 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
-    marks.line(x + 1, PIP_Y + 2, x + 1.5, PIP_Y + 3.2, '#FFFFFF', 0.5);
-  }
-  if (p.fresh) marks.glint(left + w + GLINT_GAP, PIP_Y + 0.4, MARK_R, '#FFC93C');
-  const shield = new Ink();
-  if (!p.fresh && p.hunkered === true) {
-    // A steel shield in the glint's slot (a hunkered unit is never fresh): this unit is dug in.
-    const cx = left + w + GLINT_GAP;
-    const top = PIP_Y + 1.3 - MARK_R;
-    shield.shape(`M ${cx - 3} ${top} L ${cx + 3} ${top} L ${cx + 3} ${top + 2.8} Q ${cx + 3} ${top + 5.6} ${cx} ${top + 6.8} Q ${cx - 3} ${top + 5.6} ${cx - 3} ${top + 2.8} Z`, '#FFFFFF');
-    shield.shape(`M ${cx - 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 0.7} L ${cx + 2.2} ${top + 2.8} Q ${cx + 2.2} ${top + 5} ${cx} ${top + 5.9} Q ${cx - 2.2} ${top + 5} ${cx - 2.2} ${top + 2.8} Z`, '#7B8C9A');
-    shield.line(cx, top + 1.4, cx, top + 5, '#FFFFFF', 0.6);
-  }
-  return (
-    <g>
-      {ink.items}
-      {pips}
-      {marks.items}
-      {shield.items.length > 0 ? <g data-hunker-mark="">{shield.items}</g> : null}
-    </g>
-  );
-}

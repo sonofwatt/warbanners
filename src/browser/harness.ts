@@ -108,11 +108,92 @@ export async function cameraStill(page: Page): Promise<void> {
   })`);
 }
 
-/** Taps a tile at the centre of its data-centre marker, as a finger would, once the view has stopped moving. */
+/**
+ * Taps a tile at the centre of its data-centre marker, as a finger would, once the view has stopped moving. When the
+ * selection's card or the bar of turn buttons lies over that spot (both lie over the board), the board is first
+ * dragged, as a player would, until the tile is clear of it.
+ */
 export async function tapTile(page: Page, hex: string): Promise<void> {
   await cameraStill(page);
-  const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
-  if (box === null) throw new Error(`tile ${hex} has no box`);
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  const at = async (): Promise<{ x: number; y: number }> => {
+    const box = await page.locator(`[data-centre="${hex}"]`).boundingBox();
+    if (box === null) throw new Error(`tile ${hex} has no box`);
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  let p = await at();
+  const blocker = await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    const over = el?.closest('[data-testid="selection"], [data-testid="action-bar"]');
+    if (over === null || over === undefined) return null;
+    const r = over.getBoundingClientRect(), s = document.querySelector('[data-testid="board-slot"]')!.getBoundingClientRect();
+    const side = r.top <= s.top + 1 && r.left > s.left + 40;
+    return { side, top: r.top, left: r.left, slot: { x: s.left, y: s.top, w: s.width, h: s.height } };
+  }, p);
+  if (blocker !== null) {
+    const from = blocker.side
+      ? { x: blocker.slot.x + 40, y: blocker.slot.y + blocker.slot.h / 2 }
+      : { x: blocker.slot.x + blocker.slot.w / 2, y: Math.min(p.y, blocker.top) - 30 };
+    const dx = blocker.side ? blocker.left - 50 - p.x : 0;
+    const dy = blocker.side ? 0 : blocker.top - 50 - p.y;
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + dx, from.y + dy, { steps: 8 });
+    await page.mouse.up();
+    await frames(page);
+    p = await at();
+  }
+  await page.touchscreen.tap(p.x, p.y);
   await frames(page);
+}
+
+/**
+ * The part of the board's slot the selection card (or, with nothing selected, the bar of turn buttons) leaves
+ * uncovered: both lie over the slot (the slot keeps its size), the card at the bottom in portrait (only its collapsed
+ * top counts) and in the side column in landscape, the bar at the bottom.
+ */
+export async function uncoveredBox(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
+  return page.evaluate(() => {
+    const s = document.querySelector('[data-testid="board-slot"]')!.getBoundingClientRect();
+    const card = document.querySelector<HTMLElement>('[data-testid="selection"]');
+    if (card === null) {
+      // Nothing selected: the bar of turn buttons lies over the bottom.
+      const bar = document.querySelector('[data-testid="action-bar"]')?.getBoundingClientRect();
+      return { x: s.x, y: s.y, width: s.width, height: (bar === undefined ? s.bottom : Math.min(s.bottom, bar.top)) - s.y };
+    }
+    const c = card.getBoundingClientRect();
+    if (card.dataset.sheet === 'side') return { x: s.x, y: s.y, width: c.left - s.x, height: s.height };
+    // Measure with the card collapsed: what the camera counts is the collapsed card.
+    if (card.dataset.sheet !== 'collapsed') throw new Error('uncoveredBox needs the card collapsed');
+    return { x: s.x, y: s.y, width: s.width, height: c.top - s.y };
+  });
+}
+
+/**
+ * Clears the selection, as a player would to reach the turn buttons (the selection's card takes their place): a tap
+ * on the sea past the map's edge, or failing that, taps on the selected tile until it cycles to nothing.
+ */
+export async function deselect(page: Page): Promise<void> {
+  for (let i = 0; i < 4 && (await page.locator('[data-testid="selection"]').count()) > 0; i += 1) {
+    await cameraStill(page);
+    const sea = await page.evaluate(() => {
+      const s = document.querySelector('[data-testid="board-slot"]')!.getBoundingClientRect();
+      const card = document.querySelector('[data-testid="selection"]')?.getBoundingClientRect();
+      const bottom = card !== undefined && card.top > s.top + 40 ? card.top : s.bottom;
+      const right = card !== undefined && card.left > s.left + 40 && card.top <= s.top + 1 ? card.left : s.right;
+      for (let y = s.top + 12; y < bottom - 12; y += 16) {
+        for (let x = s.left + 12; x < right - 12; x += 16) {
+          const el = document.elementFromPoint(x, y);
+          if (el !== null && el.matches('svg.board')) return { x, y };
+        }
+      }
+      return null;
+    });
+    if (sea !== null) await page.touchscreen.tap(sea.x, sea.y);
+    else {
+      const sel = await page.locator('[data-mark="selected"]').first().evaluate((el) => el.closest('[data-hex]')?.getAttribute('data-hex') ?? null).catch(() => null);
+      if (sel === null) break;
+      await tapTile(page, sel);
+    }
+    await frames(page);
+  }
 }

@@ -20,6 +20,11 @@ test('factions follow the host', () => {
   expect(factionsFor('mongols')).toEqual(['mongols', 'spartans']);
   expect(factionsFor('spartans')).toEqual(['spartans', 'mongols']);
 });
+test('rules 9: an unhunker action round-trips', () => {
+  const a: Action = { type: 'unhunker', unit: 4 };
+  expect(encodeAction(a)).toBe('{"type":"unhunker","unit":4}');
+  expect(decodeAction(encodeAction(a))).toEqual(a);
+});
 test('actions are canonical strings the rules can match', () => {
   expect(encodeAction({ type: 'endTurn' })).toBe('{"type":"endTurn"}');
   expect(encodeAction({ type: 'resign', player: 1 })).toBe('{"player":1,"type":"resign"}');

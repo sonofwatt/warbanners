@@ -23,15 +23,16 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
   const riding = FACTIONS[faction].relayRiders && (def.traits.includes('mounted') || !FACTIONS[faction].relayMountedOnly);
   const rows = thresholds !== null && canEarnTraits(unit) && unit.heroTraits.length < CONFIG.heroes.maxTraits
     ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
+  // The top of the card (what a collapsed card shows): the name, the actions and the numbers. The rest (what it is,
+  // its traits, its deeds) shows when the card is pulled up.
   return (
     <section className="panel unit-panel">
+      <div className="card-peek">
       <CardHead
         picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}
         badge={isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
         actions={<CommandList commands={commands} onCommand={onCommand} />}
-      >
-        <p className="blurb">{T.unit[type].blurb}</p>
-      </CardHead>
+      />
       <Stats stats={[
         { icon: <HeartIcon />, label: T.ui.health, value: `${unit.hp}/${stats.maxHp}` },
         { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },
@@ -39,6 +40,9 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
         { icon: <BootIcon />, label: T.ui.movement, value: stats.move },
         { icon: <RangeIcon />, label: T.ui.range, value: stats.range > def.range ? T.ui.rangeOnMountain(stats.range) : stats.range },   // rules 8
       ]} />
+      </div>
+      <div className="card-more">
+      <p className="blurb">{T.unit[type].blurb}</p>
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>
           {def.traits.map((t) => <li key={t}><strong>{T.trait[t].name}</strong><span>{T.trait[t].blurb}</span></li>)}
@@ -90,6 +94,7 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
           })}
         </ul>
       ) : null}
+      </div>
     </section>
   );
 }

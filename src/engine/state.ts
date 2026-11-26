@@ -122,6 +122,8 @@ export function createMatch(settings: MatchSettings): MatchState {
     current: 0, stamp: 0, nextUnitId: 0, nextCityId: 0, winner: null,
   };
   for (const p of s.players) foundCity(s, p.id, CONFIG.capitals[p.id]!, true);
+  // rules 9: a capital may start above level 1 (the Spartans' at 2), set directly: no level-up, so no reward
+  for (const p of s.players) s.cities[p.id]!.level = FACTIONS[p.faction].capitalStartLevel;
   for (const p of s.players) {
     const city = s.cities[p.id]!;
     const type = FACTIONS[p.faction].startUnit;

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from 'react';
+import type { CSSProperties, ReactElement, Ref } from 'react';
 import type { FactionId } from '../../engine';
 import { ACCENT, playerColour } from '../art/palette';
 import { BannerMark, ClockIcon, CoinIcon, FlaskIcon, HourglassIcon, MenuIcon, NextUnitIcon } from '../icons';
@@ -8,13 +8,18 @@ export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
   /** rules 8: the gold blockades will cut from the next income (0 or absent: none). */
   blockade?: number;
-  unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean; thinking?: boolean;
-  // Online: whose turn it is, in place of the units-to-act line, and the turn clock as m:ss (or Paused).
+  thinking?: boolean;
+  // Online: whose turn it is, and the turn clock as m:ss (or Paused).
   // `statusName`, when the status names a player, is drawn on a line of its own and cut with an ellipsis if it is
   // long, so the rest of the sentence ("'s turn") is never cut.
   // `statusShort` stands in for the status where the Hud is short of room (the full words stay for screen readers).
   status?: string; statusName?: string; statusShort?: string; clock?: string; clockPaused?: boolean;
-  onOpenTech: () => void; onOpenMenu: () => void; onEndTurn: () => void; onNextUnit: () => void;
+  onOpenMenu: () => void;
+}
+
+/** The player's colour and its shade, for the buttons drawn in it (End turn). */
+function playerStyle(colour: string, faction: FactionId): CSSProperties {
+  return { '--player': colour, '--player-dark': playerColour(faction).dark } as CSSProperties;
 }
 
 // The status with the player's name in a span of its own: one line, cut at its end when there is no room.
@@ -28,17 +33,18 @@ function statusParts(status: string, name: string | undefined): ReactElement | s
   );
 }
 
-// One strip: who is playing (their banner, name and people), their purse and the turn, then the buttons, with
-// Next unit beside End turn and End turn the boldest thing on it. Wraps to two rows at most on a narrow phone.
+// The top bar: the Menu button on the far left, then who is playing (their banner, name and people), their purse
+// and the turn, and on the right the line about whose turn it is online or that the AI is thinking. The buttons
+// for playing the turn (Tech, Next unit, End turn) sit at the bottom of the screen (ActionBar).
 export function Hud(p: HudProps): ReactElement {
-  const act = p.unitsToAct === 0 ? T.ui.noUnitsCanAct : p.unitsToAct === 1 ? T.ui.oneUnitCanAct : fill(T.ui.unitsCanAct, { n: p.unitsToAct });
-  // The player's colour comes from the caller; its shade for the button's edge, from the palette.
   const colour = { main: p.colour, dark: playerColour(p.faction).dark };
-  const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
-    <header className={p.clock !== undefined ? 'hud has-clock' : 'hud'} style={style}>
+    <header className={p.clock !== undefined ? 'hud has-clock' : 'hud'} style={playerStyle(p.colour, p.faction)}>
       <div className="hud-status">
         <div className="hud-who">
+          <button type="button" className="tool menu-button" data-testid="open-menu" aria-label={T.ui.menu} onClick={p.onOpenMenu}>
+            <MenuIcon />
+          </button>
           <BannerMark colour={colour} accent={ACCENT[p.faction]} />
           <span className="hud-name">
             <strong data-testid="who">{p.name}</strong>
@@ -69,18 +75,7 @@ export function Hud(p: HudProps): ReactElement {
           ) : null}
         </div>
       </div>
-      <div className="hud-actions">
-        <div className="hud-buttons">
-          <button type="button" className="tool" data-testid="open-tech" aria-label={T.ui.techs} onClick={p.onOpenTech}>
-            <FlaskIcon />
-            <span className="tool-label" aria-hidden="true">{T.ui.techs}</span>
-            {p.techReady ? <span className="dot" data-testid="tech-dot" aria-hidden="true" /> : null}
-          </button>
-          <button type="button" className="tool" data-testid="open-menu" aria-label={T.ui.menu} onClick={p.onOpenMenu}>
-            <MenuIcon />
-            <span className="tool-label" aria-hidden="true">{T.ui.menu}</span>
-          </button>
-        </div>
+      {p.status !== undefined || p.thinking === true ? (
         <div className="hud-end">
           {p.status !== undefined
             ? (
@@ -97,21 +92,45 @@ export function Hud(p: HudProps): ReactElement {
                   </small>
                 )
             )
-            : p.thinking === true
-            ? <small data-testid="thinking" className="can-act some" role="status">{T.ai.thinking}</small>
-            : <small data-testid="can-act" className={p.unitsToAct > 0 ? 'can-act some' : 'can-act'}>{act}</small>}
-          <button
-            type="button" className="tool next-unit" data-testid="next-unit" disabled={p.nextDisabled === true}
-            aria-label={T.ui.nextUnit} onClick={p.onNextUnit}
-          >
-            <NextUnitIcon />
-            <span className="tool-label" aria-hidden="true">{T.ui.nextUnit}</span>
-          </button>
-          <button type="button" className="player end-turn" data-testid="end-turn" disabled={p.endDisabled === true} onClick={p.onEndTurn}>
-            {T.ui.endTurn}
-          </button>
+            : <small data-testid="thinking" className="can-act some" role="status">{T.ai.thinking}</small>}
         </div>
-      </div>
+      ) : null}
     </header>
+  );
+}
+
+export interface ActionBarProps {
+  barRef?: Ref<HTMLElement>;
+  colour: string; faction: FactionId;
+  unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean;
+  onOpenTech: () => void; onEndTurn: () => void; onNextUnit: () => void;
+}
+
+// The buttons for playing the turn, in one row along the bottom of the screen, each the shape of End turn: Tech
+// (with a dot when a tech can be researched), Next unit (with how many units can still act) and End turn, the
+// boldest, on the right. A selection's card takes this place while something is selected.
+export function ActionBar(p: ActionBarProps): ReactElement {
+  const act = p.unitsToAct === 0 ? T.ui.noUnitsCanAct : p.unitsToAct === 1 ? T.ui.oneUnitCanAct : fill(T.ui.unitsCanAct, { n: p.unitsToAct });
+  return (
+    <nav ref={p.barRef} className="action-bar" data-testid="action-bar" aria-label={T.ui.turnActions} style={playerStyle(p.colour, p.faction)}>
+      <button type="button" className="bar-button paper" data-testid="open-tech" onClick={p.onOpenTech}>
+        <FlaskIcon />
+        <span className="bar-label">{T.ui.techs}</span>
+        {p.techReady ? <span className="dot" data-testid="tech-dot" aria-hidden="true" /> : null}
+      </button>
+      <button type="button" className="bar-button paper next-unit" data-testid="next-unit" disabled={p.nextDisabled === true} onClick={p.onNextUnit}>
+        <NextUnitIcon />
+        <span className="bar-label">{T.ui.nextUnit}</span>
+        <span className="vh">{`, ${act}`}</span>
+        {p.unitsToAct > 0 ? <span className="unit-count" data-testid="units-to-act" aria-hidden="true">{p.unitsToAct}</span> : null}
+      </button>
+      {/* End turn stays neutral while a unit can still act, and lights up in the player's colour once none can. */}
+      <button
+        type="button" className={`bar-button end-turn ${p.unitsToAct > 0 ? 'paper' : 'player'}`} data-testid="end-turn" data-ready={p.unitsToAct > 0 ? undefined : 'true'}
+        disabled={p.endDisabled === true} onClick={p.onEndTurn}
+      >
+        {T.ui.endTurn}
+      </button>
+    </nav>
   );
 }

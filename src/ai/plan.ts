@@ -404,6 +404,8 @@ class TurnPlanner {
     return this.seen.set;
   }
 
+  // rules 9 adds an unhunker action (the owner ends a hunker). The planner never uses it: a hunkered unit that should
+  // move or act just does, which ends its hunker by itself. Not taught yet, by David's ruling (2026-11-25).
   private hunkers(id: number, c: Cand | null): boolean {
     if (c !== null && c.action.type !== 'move') return false;
     const u = unitIn(this.b, id);
