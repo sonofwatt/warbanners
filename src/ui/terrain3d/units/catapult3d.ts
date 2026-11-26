@@ -137,10 +137,59 @@ function gouge(k: Kit, s: Surface, x: number, y: number, r: number): void {
   k.decal(ell(x + 0.05, y, r * 0.18, r * 0.95, 6, 0.2), '#1A130D', s);
 }
 
-/** A small fire: tongues of flame standing on a timber or the ground at p. */
-function flames(k: Kit, p: V3, size: number): void {
-  for (const [dx, dz, h, r, col] of [[0, 0, 2.6, 0.75, FLAME], [0.6, 0.3, 1.8, 0.5, FLAME], [-0.5, -0.2, 1.6, 0.45, FLAME], [0.1, 0.15, 1.3, 0.35, FLAME_HOT]] as const) {
-    k.rod([p[0] + dx * size, p[1], p[2] + dz * size], [p[0] + dx * size * 0.6, p[1] + h * size, p[2] + dz * size], r * size, col, { r1: 0.02, seg: 5, hull: 0 });
+/** Fire colours, from the cool outside of a flame to its white-hot heart, and the smoke over it. */
+const FIRE = ['#8E1A0C', '#D9480F', '#F59A23', '#FFE7A8'] as const;
+const SMOKE = ['#3A3735', '#4E4B48', '#625F5B'] as const;
+/** Glowing parts give their own light (shaders.ts GRITTY_LIGHT: gloss below -0.5 is unlit). */
+const GLOW: PartOpts = { gloss: -1, hull: 0 };
+
+/**
+ * The outline of a flame: a ragged base `w` wide rising into tongues of uneven height, flickering in its edges
+ * (`seed` makes each one its own), as (x, y) from the base's middle.
+ */
+function flameShape(w: number, h: number, seed: number): number[] {
+  const tips = [[-0.3, 0.62], [-0.05, 1.0], [0.24, 0.78], [0.38, 0.5]] as const;
+  const r = (n: number): number => (Math.sin(seed * 12.9898 + n * 78.233) * 43758.5453) % 1;
+  const pts: number[] = [-w / 2, 0];
+  pts.push(-w * 0.48, h * 0.22);
+  tips.forEach(([x, t], i) => {
+    const th = h * t * (0.85 + 0.3 * Math.abs(r(i)));
+    // A valley, then the tip leaning a little with the draught.
+    pts.push(w * (x - 0.1), h * (0.32 + 0.12 * Math.abs(r(i + 5))));
+    pts.push(w * x + h * 0.08 * r(i + 9), th);
+  });
+  pts.push(w * 0.48, h * 0.25, w / 2, 0, w * 0.2, -h * 0.04, -w * 0.2, -h * 0.04);
+  return pts;
+}
+
+/**
+ * A fire at p: layered flame cards (deep red outside, orange, amber, a yellow-white core) crossed so it has body from
+ * any side, embers glowing at its foot, and dark smoke curling up and drifting off above it.
+ */
+function flames(k: Kit, p: V3, size: number, seed = 1): void {
+  const w = 2.6 * size, h = 4.2 * size;
+  for (const [turn, layer0] of [[-YAW, 0], [-YAW + 1.25, 1]] as const) {
+    k.frame(p, [0, turn, 0], () => {
+      FIRE.forEach((col, i) => {
+        if (layer0 === 1 && i === 3) return;
+        const f = [1, 0.8, 0.58, 0.36][i]!;
+        k.slab(flameShape(w * f, h * f * (i === 0 ? 1 : 0.95), seed + i * 1.7 + layer0 * 3.1), 0.06, col, [0, 0, 0.07 * i], [0, 0, 0], GLOW);
+      });
+    });
+  }
+  // Embers at the foot.
+  for (const [dx, dz, r] of [[-0.9, 0.5, 0.22], [0.7, 0.8, 0.18], [0.2, -0.6, 0.2], [-0.4, 1.1, 0.14], [1.1, -0.2, 0.15]] as const) {
+    k.ball([p[0] + dx * size, p[1] + 0.12, p[2] + dz * size], r * size, dx > 0 ? FIRE[2] : FIRE[1], { ...GLOW, detail: 0 });
+  }
+  // Smoke: two thin wisps curling up from the tips and drifting off to the right, thinning as they go.
+  for (const [ox, phase] of [[-0.25, 0], [0.2, 1.9]] as const) {
+    let prev: V3 = [p[0] + ox * w, p[1] + h * 0.85, p[2] - 0.2];
+    for (let n = 1; n <= 5; n++) {
+      const t = n / 5;
+      const next: V3 = [p[0] + ox * w + t * 2.6 * size + Math.sin(phase + t * 5) * 0.55 * size, p[1] + h * (0.85 + 1.05 * t), p[2] - 0.2 - t * 0.6];
+      k.rod(prev, next, (0.62 - 0.05 * n) * size, SMOKE[Math.min(2, Math.floor(n / 2))]!, { r1: (0.56 - 0.05 * n) * size, seg: 5, hull: 0 });
+      prev = next;
+    }
   }
 }
 
@@ -173,7 +222,7 @@ export function realCatapult(k: Kit, { look: c, wear: w }: RealOpts): { rx: numb
         if (worn(w, 1)) k.decal(ell(0.5, len * 0.62, 0.7, 2.2, 8), mix(TIMBER, MUD, 0.7), s);
         if (worn(w, 2)) { gouge(k, s, -0.2, 9.0, 0.9); gouge(k, s, 0.3, 21.5, 0.75); }
         if (fire) scorch(k, s, 0.1, 13.0, 2.4);
-        if (fierce) scorch(k, s, -0.2, 24.0, 2.2);
+        if (fierce) scorch(k, s, -0.2, 5.0, 2.2);
       } : undefined);
       bands(k, a, b, 2.2, 2.0, [0.06, 0.94]);
     }
@@ -313,8 +362,8 @@ export function realCatapult(k: Kit, { look: c, wear: w }: RealOpts): { rx: numb
     k.slab(pen, 0.35, own, [-12.8, 31.0, -4.3], [0, 0, 0], { hull: 0.5 });
     k.slab(pen.map((v, i) => (i % 2 ? v * 0.3 : v * 0.96)), 0.4, ownDark, [-12.8, 31.0, -4.3], [0, 0, 0], { hull: 0 });
     // Fire: flames on the near rail and the arm's frame, scorch on the ground, then burnt wreckage still burning.
-    if (fire) flames(k, [-1.0, RAIL_Y + 1.1, 4.6], 1.7);
-    if (fierce) { flames(k, [-9.0, RAIL_Y + 1.1, 4.6], 1.9); flames(k, [5.2, RAIL_Y + 2.6, 3.9], 1.3); }
+    if (fire) flames(k, [-1.0, RAIL_Y + 1.1, 4.6], 1.1, 1);
+    if (fierce) { flames(k, [-9.0, RAIL_Y + 1.1, 4.6], 1.25, 2); flames(k, [5.2, RAIL_Y + 2.6, 3.9], 0.85, 3); }
     const g = ground(0.06);
     if (fire) { k.decal(ell(4.0, 9.5, 2.6, 1.3, 10, 0.2), SCORCH, g); k.decal(ell(4.4, 9.6, 0.8, 0.4, 7), EMBER, g); }
     if (fierce) {
@@ -324,7 +373,7 @@ export function realCatapult(k: Kit, { look: c, wear: w }: RealOpts): { rx: numb
         k.frame([x, 0.5, z], [0, rot, 0], () => k.box([0, 0, 0], [l, 0.8, 0.9], SCORCH, { hull: 0.4 }));
         k.frame([x, 0.95, z], [0, rot, 0], () => k.box([l * 0.2, 0, 0], [l * 0.35, 0.12, 0.6], EMBER, { hull: 0 }));
       }
-      flames(k, [-5.4, 0.9, 11.0], 1.5);
+      flames(k, [-5.4, 0.9, 11.0], 0.95, 4);
     }
   }, [SIZE, SIZE, SIZE]);
   setYaw(0);

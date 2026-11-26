@@ -74,12 +74,12 @@ function label(text: string, x: number, y: number): void {
 interface Cell { type: UnitTypeId; faction: FactionId; gritty: boolean; wear?: GlUnit['wear']; name: string; hunkered?: boolean; variant?: GlUnit['variant'] }
 
 /** A row (or rows) of figures, `perRow` to a row, at `scale` pixels per board unit; `bright` draws a Bright ground. */
-function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { bright?: boolean; rowH?: number; cellW?: number } = {}): void {
+function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { bright?: boolean; rowH?: number; cellW?: number; dy?: number } = {}): void {
   if (o.bright === true) { bg = '#6f8f4e'; tile = '#8aa860'; edge = '#5d7a3e'; } else { bg = '#4f5a47'; tile = '#6a7558'; edge = '#3c4535'; }
   const CW = o.cellW ?? STEP + 6, RH = o.rowH ?? 92;
   const rows = Math.ceil(cells.length / perRow);
   const cols = Math.min(perRow, cells.length);
-  const u = fresh({ w: Math.round((cols * CW + 10) * scale), h: Math.round((rows * RH + 24) * scale), scale, cx: (cols * CW) / 2 - CW / 2, cy: (rows * RH) / 2 - RH / 2 - 14 });
+  const u = fresh({ w: Math.round((cols * CW + 10) * scale), h: Math.round((rows * RH + 24) * scale), scale, cx: (cols * CW) / 2 - CW / 2, cy: (rows * RH) / 2 - RH / 2 - 14 + (o.dy ?? 0) });
   const list: GlUnit[] = [];
   cells.forEach((c, i) => {
     const x = (i % perRow) * CW, y = Math.floor(i / perRow) * RH;

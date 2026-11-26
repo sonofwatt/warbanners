@@ -282,6 +282,8 @@ varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vW
 void main() {
 #ifdef GRITTY_LIGHT
   if (uIsOutline) { gl_FragColor = vec4(shade(finish(vColor * vec3(0.10, 0.09, 0.09), vVeil)), ALPHA); return; }
+  // Fire and embers (gloss below -0.5) give their own light: drawn at full colour, unlit.
+  if (vGloss < -0.5) { gl_FragColor = vec4(shade(finish(vColor, vVeil)), ALPHA); return; }
   vec3 gn = normalize(vNormal);
   if (!gl_FrontFacing) gn = -gn;
   vec3 gKey = normalize(vec3(-0.72, 0.5, 0.48));

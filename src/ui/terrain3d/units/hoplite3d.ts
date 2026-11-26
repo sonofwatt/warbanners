@@ -27,14 +27,16 @@ import type { Cut, Look, Wear } from './parts';
 
 // ---- palette: realistic and a little muted already (the Gritty shader mutes every figure further) ----
 
-const SKIN = '#A3725A';
-const SKIN_DARK = '#6E4A37';
+const SKIN = '#987049';
+const SKIN_DARK = '#624629';
 const BRONZE = '#5F4420';
 const BRONZE_DARK = '#4A3618';
 const BRONZE_LIT = '#E2C27A';
 const BRONZE_IN = '#2A1E12';
 /** A fresh scratch in bronze: bright metal, not paint. */
 const WORN_BRONZE = '#D8C49A';
+/** The torn edge of the bronze where a cheek plate broke away: bright fresh metal. */
+const BRONZE_TORN = '#F0D896';
 const SLIT = '#0A0806';
 const LEATHER = '#6A4A33';
 const LEATHER_DARK = '#3A281B';
@@ -85,7 +87,7 @@ const HEAD_R: V3 = [2.6, 3.3, 2.95];
 const sm = (o: PartOpts = {}): PartOpts => ({ ...o, smooth: true });
 
 /** A smooth ellipsoid at c with radii r, turned by rot (YXZ), `w` x `h` segments. */
-function blob(k: Kit, c: V3, r: V3, colour: string, o: PartOpts & { w?: number; h?: number; rot?: V3; cavity?: V3 } = {}): void {
+function blob(k: Kit, c: V3, r: V3, colour: string, o: PartOpts & { w?: number; h?: number; rot?: V3; cavity?: V3; dusty?: boolean } = {}): void {
   const g = new SphereGeometry(1, o.w ?? 8, o.h ?? 6);
   if (o.cavity) {
     // A muscle: darker where it turns away from its own front and meets the body, so the hollows between muscles
@@ -101,18 +103,35 @@ function blob(k: Kit, c: V3, r: V3, colour: string, o: PartOpts & { w?: number; 
   g.scale(...r);
   if (o.rot) g.applyQuaternion(new Quaternion().setFromEuler(new Euler(o.rot[0], o.rot[1], o.rot[2], 'YXZ')));
   g.translate(...c);
+  if (o.dusty) {
+    // Dust over the muscle's own shading: multiply into the tint it has.
+    const had = g.attributes.color;
+    dust(g);
+    if (had) { const now = g.attributes.color!; for (let i = 0; i < now.count; i++) now.setXYZ(i, now.getX(i) * had.getX(i), now.getY(i) * had.getY(i), now.getZ(i) * had.getZ(i)); }
+  }
   k.add(g, colour, sm(o));
 }
 
 /** A smooth tapered limb from a (radius r0) to b (radius r1), open ended (its joints are blobs). */
-function limb(k: Kit, a: V3, b: V3, r0: number, r1: number, colour: string, o: PartOpts & { seg?: number } = {}): void {
+function limb(k: Kit, a: V3, b: V3, r0: number, r1: number, colour: string, o: PartOpts & { seg?: number; dusty?: boolean } = {}): void {
   const va = new Vector3(...a), vb = new Vector3(...b);
   const len = va.distanceTo(vb);
-  const g = new CylinderGeometry(r1, r0, len, o.seg ?? 8, 1, true);
+  const g = new CylinderGeometry(r1, r0, len, o.seg ?? 8, o.dusty ? 3 : 1, true);
   g.translate(0, len / 2, 0);
   g.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), vb.clone().sub(va).normalize()));
   g.translate(...a);
+  if (o.dusty) dust(g);
   k.add(g, colour, sm(o));
+}
+
+/** Dust of the field on the lower legs: duller and paler toward the ground (by height in the figure frame). */
+function dust(g: { attributes: { position?: { count: number; getY(i: number): number } }; setAttribute(n: string, a: Float32BufferAttribute): unknown }): void {
+  const pos = g.attributes.position!, tint: number[] = [];
+  for (let i = 0; i < pos.count; i++) {
+    const t = Math.min(1, Math.max(0, (pos.getY(i) - 1) / 13));
+    tint.push(0.8 + 0.2 * t, 0.78 + 0.22 * t, 0.74 + 0.26 * t);
+  }
+  g.setAttribute('color', new Float32BufferAttribute(tint, 3));
 }
 
 /** A smooth solid of revolution about the vertical through (x, z): profile [r, y] from the bottom up, depth squashed by sz. */
@@ -381,25 +400,42 @@ function tOpening(): number[] {
 
 /** The cells of the helmet broken out when it is broken: the whole near cheek plate (the figure's left, toward the viewer). */
 const HELM_GAP = new Set([
-  '10,6', '10,7', '10,8', '10,9', '9,6', '9,7', '9,8', '9,9', '8,5', '8,6', '8,7', '8,8', '8,9', '7,5', '7,6', '7,7', '7,8', '7,9',
-  '6,7', '6,8', '6,9',
+  '10,4', '10,5', '10,6', '10,7', '10,8', '10,9', '9,4', '9,5', '9,6', '9,7', '9,8', '9,9', '8,4', '8,5', '8,6', '8,7', '8,8', '8,9',
+  '7,5', '7,6', '7,7', '7,8', '7,9', '6,6', '6,7', '6,8', '6,9', '5,8', '5,9',
 ]);
+/** Whether helmet grid point (i, j) lies on the edge of the broken gap (a corner of a gap cell and of a kept one). */
+function onGapEdge(i: number, j: number): boolean {
+  let gap = 0, kept = 0;
+  for (const [a, b] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]] as const) {
+    if (b < 0 || b >= HNV) continue;
+    if (HELM_GAP.has(`${(a + HNU) % HNU},${b}`)) gap++; else kept++;
+  }
+  return gap > 0 && kept > 0;
+}
+/** A torn edge: the points along the gap pushed in and out a little, so the break is jagged, not a staircase. */
+const TEAR = [0.09, -0.07, 0.12, -0.1, 0.05, 0.11, -0.08, 0.07];
 
 function helmet(k: Kit, c: Look, w: Wear): void {
   const broken = helmBroken(w);
   const th = (i: number): number => (i / HNU - 0.5) * Math.PI * 2;
   const v = (j: number): number => j / HNV;
+  const tornPoint = (i: number, j: number, inset: number): Vector3 => {
+    if (!broken || !onGapEdge(i, j) || j >= HNV) return helmPoint(th(i), v(j), inset);
+    const n = (i * 5 + j * 3) % TEAR.length;
+    return helmPoint(th(i) + TEAR[n]! * 1.6, Math.min(1, v(j) + TEAR[(n + 3) % TEAR.length]! * 0.5), inset);
+  };
   shell(k, {
     nu: HNU, nv: HNV, wrapU: true,
-    front: (i, j) => helmPoint(th(i), v(j)),
-    back: (i, j) => helmPoint(th(i), v(j), 0.32),
+    front: (i, j) => tornPoint(i, j, 0),
+    back: (i, j) => tornPoint(i, j, 0.42),
     keep: (i, j) => !(broken && HELM_GAP.has(`${i},${j}`)),
-    backKeep: (_i, j) => j >= 5,
+    backKeep: (i, j) => j >= 5 || (broken && j >= 3 && i >= 4 && i <= 11),
     inside: new Vector3(...HELM_C),
-  }, BRONZE, BRONZE_IN, BRONZE_LIT, { gloss: 0.55 });
+  }, BRONZE, BRONZE_IN, BRONZE_TORN, { gloss: 0.55 });
   // The opening, dark inside; a brow ridge over each eye; the rim's darker edge.
-  fineDecal(k, tOpening(), SLIT, helmSurf, 0.9, 0.06);
-  for (const s of [-1, 1]) k.line([s * 0.28, 1.1, s * 1.1, 1.14, s * 1.85, 0.94, s * 2.35, 0.55], 0.16, mix(BRONZE, BRONZE_LIT, 0.55), helmSurf);
+  // Broken, the near half of the opening went with the cheek plate: only the strip beside the nose guard keeps it.
+  fineDecal(k, broken ? tOpening().map((v, i) => (i % 2 === 0 ? Math.max(v, -0.7) : v)) : tOpening(), SLIT, helmSurf, 0.9, 0.06);
+  for (const s of broken ? [1] : [-1, 1]) k.line([s * 0.28, 1.1, s * 1.1, 1.14, s * 1.85, 0.94, s * 2.35, 0.55], 0.16, mix(BRONZE, BRONZE_LIT, 0.55), helmSurf);
   k.line([-2.6, -3.5, -1.2, -3.58, 1.2, -3.58, 2.6, -3.5], 0.2, BRONZE_DARK, helmSurf);
   // The crest's holder along the top.
   k.box([0, HELM_C[1] + HB - 0.05, HELM_C[2] - 0.6], [0.9, 0.7, 4.6], BRONZE_DARK);
@@ -442,7 +478,7 @@ function crest(k: Kit, c: Look, w: Wear): void {
   for (let n = NC; n >= 0; n--) { const [rz, ry] = along(root, (n / NC) * reach); core.push(rz, ry); }
   k.slab(core, 1.15, red, at, [0, -Math.PI / 2, 0], { hull: 0.4 });
   // The hair: strands fanned from the root out to the edge, some longer, some shorter, a little apart side to side.
-  const N = 30;
+  const N = 22;
   const JIT = [0.06, -0.08, 0.12, -0.02, 0.09, -0.11, 0.03, 0.1, -0.06, 0.0, 0.13, -0.09, 0.05];
   for (let n = 0; n < N; n++) {
     const t = ((n + 0.5) / N) * reach;
@@ -480,14 +516,14 @@ const torsoSurf: Surface = frontmost(
 );
 
 function torso(k: Kit): void {
-  lathe(k, [0, 0, 0], TORSO, SKIN_DARK, { sz: TORSO_SZ, seg: 14, gloss: 0.25 });
-  for (const m of PECS) blob(k, m.c, m.r, SKIN, { w: 9, h: 6, hull: 0, rot: m.rot, gloss: 0.3, cavity: [0, 0.35, 0.94] });
-  for (const m of ABS) blob(k, m.c, m.r, SKIN, { w: 6, h: 4, hull: 0, gloss: 0.3, cavity: [0, 0, 1] });
+  lathe(k, [0, 0, 0], TORSO, SKIN_DARK, { sz: TORSO_SZ, seg: 14, gloss: 0.12 });
+  for (const m of PECS) blob(k, m.c, m.r, SKIN, { w: 9, h: 6, hull: 0, rot: m.rot, gloss: 0.12, cavity: [0, 0.35, 0.94] });
+  for (const m of ABS) blob(k, m.c, m.r, SKIN, { w: 6, h: 4, hull: 0, gloss: 0.12, cavity: [0, 0, 1] });
   // The obliques over the hips, the slope of the shoulders and the shoulders themselves.
   for (const s of [-1, 1]) {
-    blob(k, [s * 3.5, 26.6, 1.0], [1.3, 2.4, 1.6], SKIN, { w: 6, h: 5, hull: 0, cavity: [s * 0.5, 0, 0.87] });
+    blob(k, [s * 3.5, 26.6, 1.0], [1.3, 2.4, 1.6], SKIN, { w: 5, h: 4, hull: 0, cavity: [s * 0.5, 0, 0.87] });
     blob(k, [s * 2.9, 37.9, -0.6], [2.5, 1.0, 1.8], SKIN, { w: 8, h: 5, hull: 0, cavity: [0, 1, 0] });
-    blob(k, [s * 5.75, 36.3, -0.05], [1.8, 2.3, 1.9], SKIN, { w: 8, h: 6, gloss: 0.3, cavity: [s * 0.8, 0.45, 0.4] });
+    blob(k, [s * 5.75, 36.3, -0.05], [1.8, 2.3, 1.9], SKIN, { w: 8, h: 6, gloss: 0.12, cavity: [s * 0.8, 0.45, 0.4] });
   }
   // The neck, mostly inside the helmet.
   limb(k, [0, 38.4, -0.3], [0, 42.4, 0.05], 1.6, 1.35, SKIN, { seg: 8 });
@@ -515,7 +551,7 @@ function arm(k: Kit, shoulder: V3, elbow: V3, hand: V3): void {
   g.scale(1.3, ev.distanceTo(sv) * 0.3, 1.35);
   g.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir));
   g.translate(bi.x, bi.y, bi.z + 0.15);
-  k.add(g, SKIN, sm({ gloss: 0.3 }));
+  k.add(g, SKIN, sm({ gloss: 0.12 }));
   blob(k, elbow, [1.02, 1.02, 1.02], SKIN, { w: 6, h: 5, hull: 0 });
   limb(k, elbow, hand, 1.1, 0.78, SKIN_DARK);
   const fa = ev.clone().lerp(hv, 0.3);
@@ -525,7 +561,7 @@ function arm(k: Kit, shoulder: V3, elbow: V3, hand: V3): void {
   f.scale(1.18, ev.distanceTo(hv) * 0.3, 1.12);
   f.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), fd));
   f.translate(fa.x, fa.y, fa.z);
-  k.add(f, SKIN, sm({ hull: 0, gloss: 0.3 }));
+  k.add(f, SKIN, sm({ hull: 0, gloss: 0.12 }));
   blob(k, hand, [0.95, 1.1, 0.95], SKIN_DARK, { w: 6, h: 5 });
 }
 
@@ -554,9 +590,9 @@ function legs(k: Kit, w: Wear): void {
     for (const s of [-1, 1]) {
       limb(k, hip(s), knee(s), 2.45, 1.5, SKIN_DARK);
       // The front of the thigh, and the knee with its cap.
-      blob(k, [s * 2.7, 18.0, 0.9], [2.1, 4.3, 1.9], SKIN, { w: 8, h: 6, hull: 0, gloss: 0.3, cavity: [s * 0.2, 0.1, 0.97] });
+      blob(k, [s * 2.7, 18.0, 0.9], [2.1, 4.3, 1.9], SKIN, { w: 8, h: 6, hull: 0, gloss: 0.12, cavity: [s * 0.2, 0.1, 0.97] });
       blob(k, knee(s), [1.4, 1.45, 1.35], SKIN_DARK, { w: 7, h: 5 });
-      blob(k, [knee(s)[0], KNEE_Y + 0.3, knee(s)[2] + 1.0], [0.85, 0.95, 0.6], SKIN, { w: 6, h: 5, hull: 0, gloss: 0.3, cavity: [0, 0, 1] });
+      blob(k, [knee(s)[0], KNEE_Y + 0.3, knee(s)[2] + 1.0], [0.85, 0.95, 0.6], SKIN, { w: 6, h: 5, hull: 0, gloss: 0.12, cavity: [0, 0, 1] });
     }
     if (bloody(w, 1)) runDown(k, onUpright(-2.7, 0.85, 1.9), -2.1, 21.0, 4.2, 0.45);
     if (heavy(w)) { runDown(k, onUpright(2.7, 0.85, 1.9), 2.2, 20.6, 5.2, 0.5); runDown(k, onUpright(-2.7, 0.85, 1.9), -3.1, 19.8, 3.0, 0.4); }
@@ -564,9 +600,9 @@ function legs(k: Kit, w: Wear): void {
   k.pivot(LEGS, [0, ANKLE_Y + 0.2, 0], () => {
     for (const s of [-1, 1]) {
       const kn = knee(s), an = ankle(s);
-      limb(k, an, kn, 0.95, 1.4, SKIN_DARK);
+      limb(k, an, kn, 0.95, 1.4, SKIN_DARK, { dusty: true });
       // The calf behind, full at the top and tapering to the ankle.
-      blob(k, [s * 2.95, 8.6, -0.7], [1.45, 3.3, 1.55], SKIN, { w: 7, h: 5, hull: 0, gloss: 0.25, cavity: [0, 0, -1] });
+      blob(k, [s * 2.95, 8.6, -0.7], [1.45, 3.3, 1.55], SKIN, { w: 7, h: 5, hull: 0, gloss: 0.1, cavity: [0, 0, -1], dusty: true });
       // The greave: bronze shaped to the shin and the calf, from the ankle to just under the knee.
       const at: V3 = [an[0] + (kn[0] - an[0]) * 0.45, 0, 0.3];
       lathe(k, at, [[1.15, ANKLE_Y + 0.7], [1.3, 3.6], [1.75, 6.4], [2.0, 8.4], [1.85, 10.2], [1.6, 11.3], [1.45, 11.8]], BRONZE, { sz: 0.92, seg: 10, from: -2.2, arc: 4.4, gloss: 0.9 });
@@ -762,6 +798,11 @@ function spear(k: Kit, butt: V3, top: V3, w: Wear): void {
 
 /** Blood on skin: a redder smear than on bronze or earth, so it reads on the tan (a dark core where it is thickest). */
 const BLOOD_SKIN = '#7E1E17';
+/** Darker, older blood where it runs thick. */
+const BLOOD_DEEP = '#5A0E0B';
+/** The face, out of the sun under the helmet: a shade lighter than the body's oiled tan so it reads in the gap. */
+const FACE = '#A88262';
+const BEARD = '#2B1E15';
 function bleed(k: Kit, s: Surface, x: number, y: number, dx: number, dy: number, len: number, wd: number): void {
   k.decal(smearPoly(x, y, dx, dy, len, wd), BLOOD_SKIN, s);
   const l = Math.hypot(dx, dy);
@@ -793,30 +834,42 @@ function face(k: Kit, w: Wear): void {
   if (!helmBroken(w)) return;
   // The face under the gap: a cheek and jaw, a little drawn in the dark of the helmet.
   // The face is in the helmet's shadow toward the top: a per-corner tint, so the gap reads as a hole with a face in it.
-  const g = new SphereGeometry(1, 10, 8);
+  const g = new SphereGeometry(1, 9, 7);
   const pos = g.attributes.position!;
   const tint: number[] = [];
-  for (let i = 0; i < pos.count; i++) { const t = 0.42 + 0.58 * Math.min(1, Math.max(0, (0.35 - pos.getY(i)) / 1.1)); tint.push(t, t * 0.97, t * 0.95); }
+  for (let i = 0; i < pos.count; i++) { const t = 0.62 + 0.38 * Math.min(1, Math.max(0, (0.35 - pos.getY(i)) / 1.1)); tint.push(t, t * 0.97, t * 0.95); }
   g.setAttribute('color', new Float32BufferAttribute(tint, 3));
   g.scale(...HEAD_R);
   g.translate(...HEAD_C);
-  k.add(g, SKIN, sm({ hull: 0 }));
+  k.add(g, FACE, sm({ hull: 0, gloss: 0.1 }));
+  // A dark beard over the jaw and chin, and a shadow under the cheekbone: what makes the gap read as a face.
+  blob(k, [HEAD_C[0], HEAD_C[1] - 1.75, HEAD_C[2] + 0.05], [2.45, 1.6, 2.7], BEARD, { w: 7, h: 5, hull: 0 });
   const s = ellSurf(HEAD_C, HEAD_R);
+  k.line([-2.35, -0.35, -1.6, -0.75, -0.9, -0.65], 0.28, mix(FACE, '#000000', 0.4), s);
+  // The eye, deep under the brow, and the brow's shadow over it.
+  k.decal(ell(-1.15, 0.75, 0.62, 0.34, 8), mix(FACE, '#000000', 0.55), s);
+  k.decal(ell(-1.1, 0.68, 0.36, 0.22, 7), '#E4D8C4', s);
+  k.decal(ell(-1.05, 0.68, 0.17, 0.17, 6), '#1C130D', s);
   if (w.scarred && !bloody(w, 1)) {
     // A long pale scar down the cheek, across where the blood ran, with the marks of its stitches.
-    k.line([-2.1, -0.6, -1.85, -1.5, -1.5, -2.7], 0.42, SCAR_PALE, s);
-    k.line([-2.05, -0.75, -1.9, -1.4, -1.6, -2.5], 0.14, SCAR_LINE, s);
-    for (const t of [0.25, 0.55, 0.85]) { const y = -0.6 - 2.1 * t, x = -2.1 + 0.6 * t; k.line([x - 0.38, y + 0.05, x + 0.38, y - 0.05], 0.12, SCAR_DARK, s); }
+    // It runs from the cheekbone down through the beard, which grows no hair along it.
+    k.line([-2.25, -0.2, -1.95, -1.2, -1.55, -2.9], 0.55, SCAR_PALE, s);
+    k.line([-2.2, -0.35, -1.95, -1.25, -1.62, -2.7], 0.16, SCAR_LINE, s);
+    for (const t of [0.2, 0.45, 0.7, 0.92]) { const y = -0.2 - 2.7 * t, x = -2.25 + 0.7 * t; k.line([x - 0.45, y + 0.06, x + 0.45, y - 0.06], 0.13, SCAR_DARK, s); }
   }
   if (bloody(w, 1)) {
-    bleed(k, s, -2.0, -0.6, 0.15, -1, 2.2, 0.75);
-    runDown(k, s, -1.6, -2.2, 0.9, 0.3);
+    // From the cut on the cheek down the jaw, the neck and onto the chest.
+    bleed(k, s, -2.0, -0.6, 0.15, -1, 2.6, 0.85);
+    runDown(k, s, -1.6, -2.2, 1.1, 0.4);
+    const neck = onUpright(0, -0.15, 1.5);
+    k.decal([-1.25, 41.6, -0.65, 41.6, -0.75, 38.6, -1.15, 38.6], BLOOD_DEEP, neck);
+    bleed(k, torsoSurf, -1.2, 38.6, 0.08, -1, 3.4, 0.9);
   }
   if (heavy(w)) {
     bleed(k, s, -1.2, -1.0, 0.1, -1, 2.2, 0.65);
     runDown(k, s, -2.4, -1.8, 1.2, 0.3);
     k.decal(ell(-1.7, -1.4, 0.55, 0.4, 7), BLOOD, s);
-    bleed(k, torsoSurf, -1.5, 38.8, 0.05, -1, 3.6, 0.8);
+    bleed(k, torsoSurf, -2.1, 37.4, -0.15, -1, 3.0, 0.7);
   }
 }
 

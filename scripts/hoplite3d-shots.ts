@@ -35,6 +35,8 @@ try {
   await run('a-gritty-hoplite-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
   await run('a2-broken-large.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
   await run('a3-scarred-large.png', [hop('', w(1, 0, true))], 14, 1, { cellW: 46, rowH: 72 });
+  // Head close-ups, broken with heavy blood and healed with a scar.
+  await run('a4-head-close.png', [hop('broken, more blood', w(4, 2)), hop('scarred', w(1, 0, true))], 26, 2, { cellW: 16, rowH: 16, dy: -22 });
   await run('b-wear-stages.png', [
     hop('clean', w(0)), hop('scuffed', w(1)), hop('dented', w(2)), hop('battered', w(3)), hop('battered + blood', w(3, 1)),
     hop('broken + blood', w(4, 1)), hop('broken + more blood', w(4, 2)), hop('healed, scarred', w(1, 0, true)), hop('scarred, wounded again', w(3, 1, true)),
