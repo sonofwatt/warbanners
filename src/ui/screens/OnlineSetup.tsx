@@ -6,6 +6,7 @@ import { CLOCK_CHOICES, DEFAULT_CLOCK, MAX_NAME } from '../../online/wire';
 import type { ClockSec } from '../../online/wire';
 import { ACCENT, playerColour } from '../art/palette';
 import { BannerMark, HomeIcon } from '../icons';
+import { NameChips } from './NameChips';
 import { T, fill } from '../text';
 import { NoticeLine } from './NoticeLine';
 
@@ -53,7 +54,8 @@ export function OnlineSetup(): ReactElement {
   const goHome = useApp((s) => s.goHome);
   const notice = useApp((s) => s.notice);
   const dismissNotice = useApp((s) => s.dismissNotice);
-  const [name, setName] = useState('');
+  const names = useApp((s) => s.names);
+  const [name, setName] = useState(() => names[0] ?? '');
   const [faction, setFaction] = useState<FactionId>('spartans');
   const [clock, setClock] = useState<ClockSec>(DEFAULT_CLOCK);
   const [busy, setBusy] = useState(false);
@@ -69,6 +71,7 @@ export function OnlineSetup(): ReactElement {
       <label>
         <span>{T.ui.yourName}</span>
         <input data-testid="online-name" type="text" maxLength={MAX_NAME} placeholder={T.ui.playerOne} value={name} onChange={(e) => setName(e.target.value)} />
+        <NameChips names={names} taken={[name.trim()]} onPick={setName} />
       </label>
       <div className="setup-seat">
         <span>{T.ui.yourFaction}</span>

@@ -7,15 +7,18 @@ import { trainable, unitCost, unitsOf } from './training';
 
 describe('training', () => {
   test('what each faction can train', () => {
-    const s = blankMatch(); give(s, 0, 'bronze'); give(s, 1, 'riding');
+    const s = blankMatch(); give(s, 0, 'spears'); give(s, 1, 'riding');
     expect(trainable(s, 0)).toEqual(['warrior', 'spearman', 'hoplite', 'scout']);
-    expect(trainable(s, 1)).toEqual(['warrior', 'horseman', 'horseArcher']);
+    expect(trainable(s, 1)).toEqual(['warrior', 'horseman', 'horseArcher', 'camp']);   // rules 8: the Camp comes with Riding
+    // rules 8: a faction's start tech alone trains no new unit
+    const f = blankMatch(); give(f, 0, 'prospecting'); give(f, 1, 'gathering');
+    expect(trainable(f, 0)).toEqual(['warrior', 'scout']); expect(trainable(f, 1)).toEqual(['warrior']);
     expect(unitCost(s, 1, 'horseman')).toBe(2); expect(unitCost(s, 0, 'horseman')).toBe(3);
     expect(unitCost(s, 0, 'kingsGuard')).toBeNull();
   });
 
   test('training', () => {
-    const s = blankMatch(); const c = addCity(s, 0, 0, 0); give(s, 0, 'bronze');
+    const s = blankMatch(); const c = addCity(s, 0, 0, 0); give(s, 0, 'spears');
     const r = applyAction(s, { type: 'train', city: c.id, unitType: 'hoplite' }); const t = must(r);
     expect(unitAt(t, '0,0')).toMatchObject({ type: 'hoplite', owner: 0, home: c.id, mp: 0, attacks: 0, hp: 15 });
     expect(t.players[0]!.gold).toBe(17);
@@ -43,7 +46,7 @@ describe('training', () => {
   });
 
   test('hostile input is refused and changes nothing', () => {
-    const s = blankMatch(); const c = addCity(s, 0, 0, 0); give(s, 0, 'bronze');
+    const s = blankMatch(); const c = addCity(s, 0, 0, 0); give(s, 0, 'spears');
     const h = hashState(s);
     for (const unitType of ['constructor', '__proto__', 'toString', 5, null]) {
       expect(applyAction(s, { type: 'train', city: c.id, unitType } as never).ok).toBe(false);

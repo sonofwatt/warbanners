@@ -1,6 +1,9 @@
 // What to train, what to research for it, and which level reward to take: scored from what the player can see.
-import { CONFIG, TECHS, UNITS, distance, growthNeeded, maxHpOf, parseKey, playerIncome, unitCapacity, unitCost, unitsOf } from '../engine';
-import type { City, FactionId, MatchState, PlayerId, TechId, UnitTypeId } from '../engine';
+import {
+  CONFIG, FACTIONS, TECHS, UNITS, blockadeLoss, blockadeOf, buildRefusal, buildingTech, distance, growthNeeded, harvestRefusal, harvestTech,
+  maxHpOf, parseKey, playerIncome, roadTech, unitCapacity, unitCost, unitTech, unitsOf, wallsTech,
+} from '../engine';
+import type { BuildingId, City, FactionId, MatchState, PlayerId, Resource, TechId, UnitTypeId } from '../engine';
 import type { Persona } from './types';
 
 const DEFICIT_WEIGHT = 10;     // per share point the army is short of the persona's target mix
@@ -11,6 +14,7 @@ const SAVE_ARMY = 4;           // never save while the army is smaller than this
 const TECH_ORDER_WEIGHT = 0.5; // per place earlier in the persona's techOrder
 const UNLOCK_WEIGHT = 3;       // per point of desire for a type the tech unlocks
 const PATH_WEIGHT = 1.5;       // per point of desire for a type a tech after it unlocks
+const BLOCKADE_TECH_WEIGHT = 5; // rules 8: per gold blockades now cut from the player's income, for the walls tech (half for the one before it)
 const SCOUT_REWARD_TILES = 8;  // unexplored tiles within the scout reward's radius that make it worth more than gold
 const BARRACKS_FREE = 1;       // free capacity at or below which barracks beats borders
 const WOUNDED_SHARE = 0.6;     // a unit below this share of its health counts as wounded
@@ -19,6 +23,7 @@ const STRONG_ATK = 5;          // a unit with at least this attack counts as str
 const CHAMPION_STRONG = 2;     // fewer strong units than this call for the champion
 const BIG_ARMY = 16;           // an army this big takes the support even when attacking
 const SUPPORT_ARMY = 8;        // and one this big when it is not attacking; otherwise the champion
+const SUPPORT_CAP = 2;         // with this many support units alive (Pipers, Sky Callers) the champion is taken instead
 const ATTACK_RANGE = 4;        // own units within this of a seen enemy city: the army is attacking
 
 const has = (t: UnitTypeId, trait: string): boolean => (UNITS[t].traits as readonly string[]).includes(trait);
@@ -44,7 +49,7 @@ export function factionTypes(f: FactionId): UnitTypeId[] {
 // The types the player can train now (the tech held), in data order.
 export function availableTypes(b: MatchState, me: PlayerId): UnitTypeId[] {
   const techs = b.players[me]!.techs;
-  return factionTypes(b.players[me]!.faction).filter((t) => UNITS[t].tech === null || techs.includes(UNITS[t].tech));
+  return factionTypes(b.players[me]!.faction).filter((t) => { const tech = unitTech(t); return tech === null || techs.includes(tech); });
 }
 
 // The score of each type in `types`: how far the army is short of the persona mix in it (shares taken over `types`),
@@ -91,6 +96,33 @@ export function chooseUnit(
   return army >= SAVE_ARMY && scores.get(top)! - scores.get(pick)! >= SAVE_MARGIN ? null : pick;
 }
 
+// rules 8: whether a tech gives the player anything now: a unit type its persona trains, a harvest or a building with a
+// tile for it in its territory, climbing, roads or walls its faction uses (the Spartans' Deep stores only while one of their
+// cities is blockaded or nearly: enemies on all but one of the tiles a blockade needs), or a tech after it that does. Fishing with no fish in the territory, or a column 3
+// upgrade before any improvement to upgrade, gives nothing yet, so its gold goes to units and buildings instead.
+export function techGivesSomething(b: MatchState, me: PlayerId, persona: Persona, tech: TechId, depth = 2): boolean {
+  const player = b.players[me]!;
+  const faction = FACTIONS[player.faction];
+  if (factionTypes(player.faction).some((t) => unitTech(t) === tech && (persona.mix[t] ?? 0) > 0)) return true;
+  if (CONFIG.mountain.tech === tech) return true;
+  if (roadTech() === tech && faction.canBuildRoads) return true;
+  if (wallsTech() === tech) {
+    if (faction.canBuildWalls) return true;
+    if (faction.blockadeStores && b.cities.some((c) => c.owner === me && blockadeOf(b, c).enemies >= CONFIG.blockade.minTiles - 1)) return true;
+  }
+  const resources = (Object.keys(CONFIG.harvest) as Resource[]).filter((r) => harvestTech(r) === tech);
+  const buildings = (Object.keys(CONFIG.buildings) as BuildingId[]).filter((x) => buildingTech(x) === tech);
+  if (resources.length > 0 || buildings.length > 0) {
+    // the same position with the tech known and gold to spare: is any harvest or building of it legal somewhere?
+    const s = { ...b, players: b.players.map((p) => (p.id === me ? { ...p, techs: [...p.techs, tech], gold: Number.MAX_SAFE_INTEGER } : p)) };
+    for (const [at, tile] of Object.entries(b.tiles)) {
+      if (tile.resource !== null && resources.includes(tile.resource) && harvestRefusal(s, at) === null) return true;
+      if (buildings.some((x) => buildRefusal(s, at, x) === null)) return true;
+    }
+  }
+  return depth > 0 && (Object.keys(TECHS) as TechId[]).some((x) => TECHS[x]!.requires === tech && techGivesSomething(b, me, persona, x, depth - 1));
+}
+
 // The tech to research among `allowed`: its place in the persona's order, plus the desire for the types it unlocks and
 // for those the techs after it unlock. Desire is a type's score above 0 over every type the faction could train.
 export function chooseTech(b: MatchState, me: PlayerId, persona: Persona, allowed: readonly TechId[]): TechId | null {
@@ -99,14 +131,17 @@ export function chooseTech(b: MatchState, me: PlayerId, persona: Persona, allowe
   const all = factionTypes(faction);
   const techs = b.players[me]!.techs;
   const scores = unitScores(b, me, persona, all);
-  const desire = (tech: TechId): number => all.filter((t) => UNITS[t].tech === tech && !techs.includes(tech))
+  const desire = (tech: TechId): number => all.filter((t) => unitTech(t) === tech && !techs.includes(tech))
     .reduce((a, t) => a + Math.max(0, scores.get(t)!), 0);
   const order = persona.techOrder;
   const score = (tech: TechId): number => {
     const idx = order.indexOf(tech);
-    const next = (Object.keys(TECHS) as TechId[]).filter((x) => TECHS[x].requires === tech);
+    const next = (Object.keys(TECHS) as TechId[]).filter((x) => TECHS[x]!.requires === tech);
+    const walls = wallsTech();
+    const blockade = tech === walls ? 1 : TECHS[walls]?.requires === tech ? 0.5 : 0;
     return TECH_ORDER_WEIGHT * (order.length - (idx < 0 ? order.length : idx))
-      + UNLOCK_WEIGHT * desire(tech) + PATH_WEIGHT * next.reduce((a, x) => a + desire(x), 0);
+      + UNLOCK_WEIGHT * desire(tech) + PATH_WEIGHT * next.reduce((a, x) => a + desire(x), 0)
+      + (blockade === 0 ? 0 : BLOCKADE_TECH_WEIGHT * blockade * blockadeLoss(b, me));
   };
   return [...allowed].sort((x, y) => score(y) - score(x) || order.indexOf(x) - order.indexOf(y))[0]!;
 }
@@ -130,7 +165,10 @@ export function chooseReward(b: MatchState, me: PlayerId, city: City, level: num
     // income, or growth when it brings the next level now
     return growthNeeded(b, city) - city.growth <= CONFIG.rewardGrowth ? 1 : 0;
   }
-  // champion or support
+  // champion or support. Supports barely fight and fill the city's room: a big army that took one at every level
+  // stood at home with a dozen Pipers and hundreds of gold it had no room to spend (stalled sims, 2026-11-24).
+  const support = FACTIONS[b.players[me]!.faction].support;
+  if (own.filter((u) => u.type === support).length >= SUPPORT_CAP) return 0;
   const wounded = own.filter((u) => u.hp < WOUNDED_SHARE * maxHpOf(u)).length;
   if (wounded >= SUPPORT_WOUNDED) return 1;
   const strong = own.filter((u) => UNITS[u.type].atk >= STRONG_ATK).length;

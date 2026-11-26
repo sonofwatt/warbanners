@@ -3,7 +3,7 @@ import type { AnimationEvent, ReactElement } from 'react';
 import type { FactionId, HexKey } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { ACCENT, playerColour } from '../art/palette';
-import { EFFECT_MS } from './effects';
+import { EFFECT_MS, effectMs } from './effects';
 import type { Effect } from './effects';
 import { FIGURE_H, hexToBoard } from './layout';
 
@@ -21,8 +21,8 @@ const place = (k: HexKey): string => {
   return `translate(${r2(p.x)} ${r2(p.y)})`;
 };
 
-/** What is drawn as its own shape: numbers always, falls and bursts only with motion. A lunge moves the unit itself. */
-const drawn = (f: Effect, still: boolean): boolean => f.kind === 'number' || (!still && f.kind !== 'lunge');
+/** What is drawn as its own shape: numbers always, falls and bursts only with motion. A lunge moves the unit itself, and a move is the board's slide. */
+const drawn = (f: Effect, still: boolean): boolean => f.kind === 'number' || (!still && f.kind !== 'lunge' && f.kind !== 'move');
 
 /**
  * Plays one action's effects inside the board's camera group, each removed when its
@@ -39,16 +39,19 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
   // A lunge nudges the attacker's figure toward its target and back. It animates the unit's
   // body, inside the group that places the unit, so it composes with a slide.
   useLayoutEffect(() => {
-    const cam = ref.current?.parentElement;
+    // The units may be in another svg than the effects (with the 3D terrain on the effects sit in the svg above the
+    // figures), so they are looked for in the board's container.
+    const cam = ref.current?.ownerSVGElement?.parentElement ?? ref.current?.parentElement;
     if (still || cam == null) return undefined;
     const running: Animation[] = [];
     for (const f of p.effects) {
       if (f.kind !== 'lunge') continue;
       const unit = cam.querySelector(`[data-unit="${f.unit}"]`);
       const body = unit?.querySelector('.unit-body');
-      const from = unit?.getAttribute('data-at');
-      if (body == null || from == null || typeof body.animate !== 'function') continue;
-      const a = hexToBoard(from);
+      if (body == null || typeof body.animate !== 'function') continue;
+      // From the tile it struck from, not the one it stands on now: a killer that then advances into its target's
+      // tile already stands there, and would otherwise lean nowhere.
+      const a = hexToBoard(f.from);
       const b = hexToBoard(f.toward);
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       if (len === 0) continue;
@@ -81,8 +84,8 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
   return (
     <g className="fx" pointerEvents="none" aria-hidden="true" ref={ref}>
       {p.effects.map((f, i) => {
-        if (!live.has(i) || f.kind === 'lunge') return null;
-        const style = { animationDelay: `${f.delay}ms`, animationDuration: `${EFFECT_MS}ms` };
+        if (!live.has(i) || f.kind === 'lunge' || f.kind === 'move') return null;
+        const style = { animationDelay: `${f.delay}ms`, animationDuration: `${effectMs(f)}ms` };
         let body: ReactElement | null = null;
         if (f.kind === 'number') {
           body = (
@@ -94,7 +97,7 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
           const faction = p.factions[f.owner];
           if (faction === undefined) return null;
           body = (
-            <g className="fx-fall" style={style} onAnimationEnd={end(i)}>
+            <g className="fx-fall" style={style} onAnimationEnd={end(i)} data-fall={f.unitType} data-fall-owner={f.owner} data-fall-at={f.at} data-fall-key={i}>
               {FIGURES[f.unitType]({ colour: playerColour(faction), accent: ACCENT[faction] })}
             </g>
           );

@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
-  CONFIG, FACTIONS, UNITS, attackOf, baseAttackOf, coverAt, damageFor, defenceOf, distance, isHero, key, maxHpOf, maxMp,
-  growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
+  CONFIG, FACTIONS, UNITS, attackOf, blockadeLoss, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp,
+  mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -18,6 +18,10 @@ const REST_SHARE = 0.5;           // share of the health a hurt unit would heal 
 const LATE_REST_SHARE = 0.5;      // part of that credit for a unit that moved or acted: it heals the turn after next
 const EXPLORED_WEIGHT = 0.1;
 const OBJECTIVE_PULL = 0.8;         // per tile nearer the most attractive objective (value less distance)
+const PRESS_SHARE = 3;            // own cities at least this many times the enemy's known ones: the army presses on
+const PRESS_PULL = 3;             // and the pull toward enemy cities is this many times as strong
+const LATE_ROUND = 25;            // from this round on every side presses a little more each round
+const LATE_PRESS = 0.15;          // per round past LATE_ROUND, so a deadlock at round 45 pulls four times as hard
 const NO_COST_WORTH = 8;
 const GARRISON_SHARE = 0.5;       // an enemy unit on its own city tile also carries this share of the city's worth
 const GARRISON_HOLD = 3;          // an own unit on an own city tile holds it at this many times persona.hold
@@ -26,6 +30,7 @@ const EXPOSED_SHARE = 0.5;        // share of an own city's worth lost while it 
 const FOLLOW_SHARE = 0.75;        // share of a broken bond's loss forgiven while the partner can still follow
 const BOND_CAP = 4;               // formation weight one unit can have: two hoplite partners, as the phalanx cap
 export const GOLD_WEIGHT = 0.25;  // valueOf's weight on gold (times skill.economy)
+const BLOCKADE_WEIGHT = 3;        // rules 8: per gold a blockade of an enemy city cuts (times skill.economy), as income is weighed
 const HERO_TRAIT_WORTH = 3;       // per trait a unit has earned or found
 const HERO_WORTH = 3;             // more again for a hero
 const LEVEL_WORTH = 10;           // per own city level, and per share of the way to the next, times skill.economy: a level
@@ -82,8 +87,11 @@ function strikeOf(b: MatchState, u: Unit): number {
   const atk = baseAttackOf(u) * healthFactor(u);
   let best = 0;
   for (const e of b.units) {
-    if (e.owner === u.owner || distance(at, parseKey(e.pos)) > def.range) continue;
-    const dmg = damageFor(atk, defenceOf(b, e), coverAt(b, e));
+    // the engine's reach: from a mountain a ranged unit has a tile more (rules 8), which is how the AI values a peak. A
+    // flat credit for standing on one (1, 0.5, or 1 only near a seen enemy) left one or two hard matches stalled at 60
+    // rounds in character.test.ts, so there is none.
+    if (e.owner === u.owner || distance(at, parseKey(e.pos)) > attackReach(b, u)) continue;
+    const dmg = strikeDamage(b, e, u, atk);   // the engine's damage, with the momentum cut (rules 7) and the long shot cut (rules 8)
     best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
   return STRIKE_SHARE * best;
@@ -131,12 +139,15 @@ export function objectives(b: MatchState, me: PlayerId, persona: Persona): Objec
     const id = `${o.kind}@${o.at}`;
     if ((found.get(id)?.value ?? -Infinity) < o.value) found.set(id, o);
   };
+  // A rival's capital: a seen city of theirs that is one, or their starting tile while it is unexplored. Since rules 7 a
+  // taken capital is an ordinary city and the loser's capital moves, so a seen start tile counts only while it is one.
   const capitals = new Set<HexKey>();
   for (const p of b.players) {
     if (p === undefined || p.id === me || !p.alive) continue;
     const at = CONFIG.capitals[p.id];
-    if (at !== undefined && b.tiles[at] !== undefined) capitals.add(at);
+    if (at !== undefined && b.tiles[at] !== undefined && !explored.has(at)) capitals.add(at);
   }
+  for (const c of b.cities) if (c.owner !== me && c.capital && b.players[c.owner]?.alive === true) capitals.add(c.pos);
 
   for (const k of explored) {
     const tile = b.tiles[k];
@@ -277,9 +288,11 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   }
 
   // A badly wounded unit keeps out of reach even at the skill levels that weigh danger little: it falls back to heal.
+  // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in.
   const threat = danger[u.pos] ?? 0;
   const care = hpShare <= BADLY_WOUNDED ? Math.max(skill.danger, WOUNDED_CARE * skill.focus) : skill.danger;
-  v -= care * worth * Math.min(1, threat / u.hp);
+  const met = u.hunkered && CONFIG.hunker.healAtTurnEnd ? Math.min(maxHp, u.hp + restHealAt(b, u, visible())) : u.hp;
+  v -= care * worth * Math.min(1, threat / met);
 
   // Hold: a garrison on an own city tile always; inside the territory or next to an own city only while
   // that city is threatened (has a defend objective). Elsewhere the army is free to march.
@@ -288,7 +301,9 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
     const threatened = (c: City): boolean => c.owner === me && goals.some((g) => g.kind === 'defend' && g.at === c.pos);
     if (b.cities.some((c) => threatened(c) && (c.id === tile?.cityId || distance(at, parseKey(c.pos)) <= 1))) v += persona.hold;
   }
-  if (isMounted(u) && u.acted && threat === 0) v += persona.raid;
+  // rules 8: a rider that climbed a mountain has acted only by climbing, so the climb alone is no raid
+  const climbed = u.turnEnded && tile?.terrain === 'mountain';
+  if (isMounted(u) && u.acted && !climbed && threat === 0) v += persona.raid;
   if (isMounted(u) && tile?.terrain === 'forest') v -= persona.forestPenalty;
   if (has(u, 'steady')) v += steadyCredit(b, u);
   v += strikeOf(b, u);
@@ -306,8 +321,19 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
   }
   // A badly wounded unit is pulled less toward its goals, more so as the skill rises, so it falls back to heal.
   const drive = hpShare <= BADLY_WOUNDED ? 1 - WOUNDED_PULL_CUT * skill.focus : 1;
-  if (pull > -Infinity) v += OBJECTIVE_PULL * drive * pull;
+  if (pull > -Infinity) v += OBJECTIVE_PULL * drive * pull * pressOf(b, me);
   return v;
+}
+
+// A side that holds PRESS_SHARE times the enemy's known cities presses on to finish the match: its pull toward its
+// goals outweighs the formation and garrison terms that otherwise keep a big army at home. Stalled sims (2026-11-24)
+// ended with 50 units spread over seven cities beside an enemy's last one. Past LATE_ROUND both sides press harder
+// each round, which breaks the even deadlocks (four cities each, armies at home) that made most of the other stalls.
+export function pressOf(b: MatchState, me: PlayerId): number {
+  let own = 0; let theirs = 0;
+  for (const c of b.cities) if (c.owner === me) own += 1; else theirs += 1;
+  const late = 1 + LATE_PRESS * Math.max(0, Math.floor(b.stamp / 2) - LATE_ROUND);
+  return Math.max(late, theirs > 0 && own >= PRESS_SHARE * theirs ? PRESS_PULL : 1);
 }
 
 // How good the believed state is for ctx.me; higher is better.
@@ -324,7 +350,10 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
       v -= exposureCost(b, ctx, c);
     } else v -= worth;
   }
-  v += skill.economy * (3 * playerIncome(b, me) + GOLD_WEIGHT * self.gold + 3 * self.techs.length + growth);
+  // rules 8: income is counted after the blockades of own cities, and every blockaded enemy city is worth its cut
+  let cut = 0;
+  for (const p of b.players) if (p.id !== me) cut += blockadeLoss(b, p.id);
+  v += skill.economy * (3 * (playerIncome(b, me) - blockadeLoss(b, me)) + BLOCKADE_WEIGHT * cut + GOLD_WEIGHT * self.gold + 3 * self.techs.length + growth);
   v += EXPLORED_WEIGHT * self.explored.length;
 
   const visible = lazyVisible(b, me);
@@ -341,7 +370,10 @@ export function valueOf(b: MatchState, ctx: Ctx): number {
 export function moveScore(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, mpLeft: number): number {
   const u = b.units.find((x) => x.id === unitId);
   if (u === undefined) throw new Error(`no unit ${unitId}`);
-  const moved: Unit = { ...u, pos: to, mp: mpLeft, moved: true };
+  // rules 8: a step onto or off a mountain ends the unit's turn as the engine ends it, so it cannot attack after it
+  const moved: Unit = mountainStep(b, u.pos, to)
+    ? { ...u, pos: to, mp: 0, bonusMp: 0, attacks: 0, moved: true, acted: true, itemTurn: b.stamp, turnEnded: true }
+    : { ...u, pos: to, mp: mpLeft, moved: true };
   const there = parseKey(to);
   const after = b.units.map((x) => (x.id === unitId ? moved : x));
   let score = unitTerms(b, ctx, moved, lazyVisible({ ...b, units: after }, ctx.me)) - unitTerms(b, ctx, u, lazyVisible(b, ctx.me));

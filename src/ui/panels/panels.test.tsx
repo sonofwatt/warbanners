@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
-import { CONFIG, FACTIONS, UNITS, createMatch, legalActions, statsOf, thresholdOf } from '../../engine';
-import type { DeedId, MatchState, Unit } from '../../engine';
-import { addCity, addUnit, blankMatch } from '../../engine/testkit';
+import { BRANCHES, CONFIG, FACTIONS, TECHS, UNITS, buildingTech, createMatch, isBraced, legalActions, statsOf, thresholdOf } from '../../engine';
+import type { DeedId, MatchState, TechId, Unit } from '../../engine';
+import { addCity, addUnit, blankMatch, setTile } from '../../engine/testkit';
 import type { DigestLine } from '../../app/digest';
 import { roundOf } from '../../app/record';
 import { App } from '../App';
@@ -10,8 +10,9 @@ import { indexActions } from '../interaction';
 import { T } from '../text';
 import { cityCommands, techRows, tileCommands, unitCommands } from './commands';
 import { CityPanel } from './CityPanel';
+import { CommandList } from './CommandList';
 import { DigestCard } from './DigestCard';
-import { Hud } from './Hud';
+import { ActionBar, Hud } from './Hud';
 import { versionLine } from '../Version';
 import { Menu } from './Menu';
 import { RewardSheet } from './RewardSheet';
@@ -36,24 +37,31 @@ function lone(type: 'horseArcher' | 'khansGuard' | 'horseman' | 'warrior' | 'kni
   return panelOf(s, addUnit(s, type, 0, 0, 0, patch), mine, myth);
 }
 
-test('the Hud shows who, gold, turn and an end turn button', () => {
-  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} unitsToAct={1} techReady onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
+test('the Hud shows the Menu button first, then who, gold and turn; the turn buttons are not in it', () => {
+  const html = renderToStaticMarkup(<Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={roundOf(open)} onOpenMenu={noop} />);
   expect(html).toContain('Ann'); expect(html).toContain('>8<'); expect(html).toContain('Turn 1'); expect(html).toContain('+2');
-  expect(html).toContain('data-testid="end-turn"'); expect(html).toContain('data-testid="open-tech"'); expect(html).toContain('data-testid="tech-dot"');
-  expect(html).toContain('1 unit to act');
+  expect(html.indexOf('data-testid="open-menu"')).toBeGreaterThan(0);
+  expect(html.indexOf('data-testid="open-menu"')).toBeLessThan(html.indexOf('data-testid="who"'));
+  for (const id of ['end-turn', 'open-tech', 'next-unit']) expect(html).not.toContain(`data-testid="${id}"`);
 });
-test('the Hud has a Next unit button beside End turn, greyed when asked', () => {
-  const hud = (nextDisabled?: boolean) => renderToStaticMarkup(
-    <Hud name="Ann" colour="#c33" faction="spartans" gold={8} income={2} round={1} unitsToAct={1} techReady={false}
-      nextDisabled={nextDisabled} onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop} />);
+test('the bar has Tech with its dot, Next unit with its words and count, and End turn last, greyed when asked', () => {
+  const bar = (p: { nextDisabled?: boolean; unitsToAct?: number } = {}) => renderToStaticMarkup(
+    <ActionBar colour="#c33" faction="spartans" unitsToAct={p.unitsToAct ?? 2} techReady nextDisabled={p.nextDisabled}
+      onOpenTech={noop} onEndTurn={noop} onNextUnit={noop} />);
   const button = (html: string) => /<button[^>]*data-testid="next-unit"[^>]*>/.exec(html)?.[0] ?? '';
-  const html = hud();
-  expect(button(html)).toContain(`aria-label="${T.ui.nextUnit}"`);
-  expect(button(html)).not.toContain('disabled');
+  const html = bar();
+  expect(html).toContain('data-testid="tech-dot"');
+  expect(html).toContain(`>${T.ui.techs}<`);
   expect(html).toContain(`>${T.ui.nextUnit}<`);
+  expect(html).toContain('data-testid="units-to-act"');
+  expect(html).toContain('2 units to act');
+  expect(button(html)).not.toContain('disabled');
+  expect(html.indexOf('data-testid="open-tech"')).toBeLessThan(html.indexOf('data-testid="next-unit"'));
   expect(html.indexOf('data-testid="next-unit"')).toBeLessThan(html.indexOf('data-testid="end-turn"'));
-  expect(html.slice(html.indexOf('class="hud-end"')).indexOf('data-testid="next-unit"')).toBeGreaterThan(0);   // in End turn's group
-  expect(button(hud(true))).toContain('disabled=""');
+  expect(button(bar({ nextDisabled: true }))).toContain('disabled=""');
+  const none = bar({ unitsToAct: 0 });
+  expect(none).not.toContain('data-testid="units-to-act"');
+  expect(none).toContain(T.ui.noUnitsCanAct);
 });
 test('the unit panel shows the card and its commands', () => {
   const u = open.units[0]!;
@@ -68,18 +76,18 @@ test('the unit panel movement includes the Mongol mounted bonus for every mounte
   expect(move('khansGuard', 'mongols')).toContain(`Movement</dt><dd>${UNITS.khansGuard.move + bonus}</dd>`);
   expect(move('horseman', 'spartans')).toContain(`Movement</dt><dd>${UNITS.horseman.move}</dd>`);
 });
-test("a Mongol rider's card names the riding by territory rule; a Spartan rider's and a Mongol foot unit's do not", () => {
+test("a Mongol rider's card names the relay riding rule; a Spartan rider's and a Mongol foot unit's do not (rules 8)", () => {
   const card = (type: 'horseman' | 'warrior', faction: 'mongols' | 'spartans') =>
     renderToStaticMarkup(<UnitPanel {...lone(type, faction)} commands={[]} onCommand={noop} />);
-  expect(card('horseman', 'mongols')).toContain(T.ui.ridingByTerritoryBlurb);
-  expect(card('horseman', 'mongols')).toContain(T.ui.ridingByTerritory);
-  expect(card('horseman', 'spartans')).not.toContain(T.ui.ridingByTerritory);
-  expect(card('warrior', 'mongols')).not.toContain(T.ui.ridingByTerritory);
+  expect(card('horseman', 'mongols')).toContain(T.ui.relayRidingBlurb);
+  expect(card('horseman', 'mongols')).toContain(T.ui.relayRiding);
+  expect(card('horseman', 'spartans')).not.toContain(T.ui.relayRiding);
+  expect(card('warrior', 'mongols')).not.toContain(T.ui.relayRiding);
   expect(T.trait.mounted.blurb).not.toContain('Mongol');
 });
-test("a Knight's card says a kill that earns a hero trait ends the chain", () => {
+test("a Knight's card says momentum pays for the chain and a kill that earns a hero trait ends it", () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans')} commands={[]} onCommand={noop} />);
-  expect(html).toContain('A kill that earns a hero trait ends the chain.');
+  expect(html).toContain('A kill costs momentum'); expect(html).toContain('as does a kill that earns a hero trait.');
 });
 test('the city panel shows growth, units and a row of units to train', () => {
   const c = open.cities[0]!;
@@ -89,13 +97,46 @@ test('the city panel shows growth, units and a row of units to train', () => {
   expect(html).not.toContain('data-testid="cmd-train-warrior"');
   expect(html).toContain(T.ui.shopHint);
 });
+test('the city card: the level on the picture\'s corner, not in the row; the road badge only on a connected city', () => {
+  const card = (p: { connected?: boolean; capital?: boolean }) => renderToStaticMarkup(
+    <CityPanel faction="spartans" level={3} capital={p.capital} connected={p.connected} growth={1} growthNeeded={3} walls={false} commands={[]} onCommand={noop} />);
+  const linked = card({ connected: true });
+  expect(linked).toContain('data-testid="city-connected"');
+  expect(linked).toContain(`aria-label="${T.ui.connectedToCapital}"`);
+  expect(linked).toContain(`title="${T.ui.connectedToCapital}"`);
+  expect(linked).toMatch(/data-testid="city-level"[^>]*aria-label="Level 3"/);
+  expect(linked).not.toContain(`>${T.ui.level}<`);
+  expect(linked).toContain(`>${T.ui.growth}<`);
+  // Both badges sit in the picture's frame.
+  const frame = linked.slice(linked.indexOf('class="picture-frame"'), linked.indexOf('class="card-title"'));
+  expect(frame).toContain('city-connected'); expect(frame).toContain('city-level');
+  expect(card({ connected: false })).not.toContain('city-connected');
+  expect(card({})).not.toContain('city-connected');
+  // A capital never shows it, whatever it is told.
+  expect(card({ connected: true, capital: true })).not.toContain('city-connected');
+});
 test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
   expect(html).toContain('Mountain'); expect(html).toContain('Ore');
 });
-test('the tech sheet lists all twelve techs and a research button on ready ones', () => {
+test('rules 8: the tile panel says a resource was harvested and can still be built on', () => {
+  const html = renderToStaticMarkup(<TilePanel terrain="field" resource="orchard" building={null} road={false} harvested commands={[]} onCommand={noop} />);
+  expect(html).toContain(`${T.resource.orchard} (${T.ui.harvestedTag})`); expect(html).toContain(T.ui.harvestedBlurb);
+  expect(html).toContain('data-harvested="true"');
+  const fresh = renderToStaticMarkup(<TilePanel terrain="mountain" resource="jewels" building={null} road={false} commands={[]} onCommand={noop} />);
+  expect(fresh).toContain(T.resource.jewels); expect(fresh).not.toContain(T.ui.harvestedTag); expect(fresh).not.toContain('data-harvested');
+});
+test('the tech sheet lists every tech of the tree in five branches and a research button on ready ones', () => {
   const html = renderToStaticMarkup(<TechSheet rows={techRows(open, ix)} onResearch={noop} onClose={noop} />);
-  for (const name of Object.values(T.tech)) expect(html).toContain(name);
+  for (const id of Object.keys(TECHS) as TechId[]) expect(html).toContain(`data-testid="tech-${id}"`);
+  for (const b of BRANCHES) expect(html).toContain(`data-testid="branch-${b}"`);
+  expect(html).not.toContain('data-testid="tech-bronze"');   // the rules 7 tree is not in play
+  // a branch: its column 1 tech, then a top row and a bottom row; Waters has only column 1 for now
+  expect(html).toMatch(/data-testid="branch-orchards".*tech-foraging.*class="rungs row top".*tech-defence.*tech-walls.*class="rungs row bottom".*tech-orchards.*tech-plantations/);
+  expect(html).toMatch(/data-testid="branch-waters".*tech-fishing.*branch-later/);
+  // the Spartans build no walls: their walls tech is Deep stores, and says what it does against a blockade
+  expect(html).toMatch(/data-testid="tech-walls".*?<strong>Deep stores<\/strong>/);
+  expect(html).toContain(T.ui.storesBlockade); expect(html).not.toContain(T.ui.unlocksNone);
   expect(html).toContain('data-testid="research-foraging"'); expect(html).not.toContain('data-testid="research-farming"');
 });
 test('a command that waits only on a tech names it and stays tappable; one short of gold does not', () => {
@@ -106,7 +147,7 @@ test('a command that waits only on a tech names it and stays tappable; one short
   expect(field).toBeDefined();
   const cmds = tileCommands(field!, open, ix);
   const farm = cmds.find((c) => c.id === 'build-farm')!;
-  expect(farm.enabled).toBe(false); expect(farm.tech).toBe(CONFIG.buildings.farm.tech);
+  expect(farm.enabled).toBe(false); expect(farm.tech).toBe(buildingTech('farm'));
   const html = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={cmds} onCommand={noop} />);
   const button = html.match(/<button[^>]*data-testid="cmd-build-farm"[^>]*>/)![0];
   expect(button).not.toContain('disabled'); expect(button).toContain('needs-tech');
@@ -127,6 +168,13 @@ test('the menu offers sound, resign and home', () => {
   const html = renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />);
   expect(html).toContain('Sound on'); expect(html).toContain('data-testid="resign"'); expect(html).not.toContain('Resign this match?');
 });
+test('the menu offers the 3D terrain, plainly labelled and showing whether it is on', () => {
+  const line = (html: string) => /<button[^>]*data-testid="toggle-terrain3d"[^>]*>.*?<\/button>/.exec(html)?.[0] ?? '';
+  const off = line(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} terrain3d={false} onToggleTerrain3d={noop} onResign={noop} onHome={noop} onClose={noop} />));
+  const on = line(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} terrain3d onToggleTerrain3d={noop} onResign={noop} onHome={noop} onClose={noop} />));
+  expect(off).toContain('aria-pressed="false"'); expect(off).toContain('3D terrain off');
+  expect(on).toContain('aria-pressed="true"'); expect(on).toContain('3D terrain on');
+});
 test('the menu greys Resign while the AI plays', () => {
   const button = (html: string) => /<button[^>]*data-testid="resign"[^>]*>/.exec(html)?.[0] ?? '';
   expect(button(renderToStaticMarkup(<Menu soundOn onToggleSound={noop} onResign={noop} onHome={noop} onClose={noop} />))).not.toContain('disabled');
@@ -141,9 +189,15 @@ test('the menu shows the same version line as Home', () => {
   expect(home).toContain(`>${line}</footer>`);
 });
 test('the digest card shows six lines and counts the rest', () => {
-  const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost' }));
+  const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost', at: '0,0' }));
   const html = renderToStaticMarkup(<DigestCard lines={lines} />);
-  expect(html.match(/<li>/g)).toHaveLength(6); expect(html).toContain('and 2 more');
+  expect(html.match(/<li>/g)).toHaveLength(6); expect(html.match(/data-testid="digest-line"/g)).toHaveLength(6); expect(html).toContain('and 2 more');
+});
+test('an own city under blockade shows the gold it will lose; one that is not shows no such line', () => {
+  const html = renderToStaticMarkup(<CityPanel level={3} walls={false} income={4} blockade={2} commands={[]} onCommand={noop} />);
+  expect(html).toContain(`${T.ui.blockaded}</dt><dd>${T.ui.blockadeCut(2)}`);
+  const free = renderToStaticMarkup(<CityPanel level={3} walls={false} income={4} commands={[]} onCommand={noop} />);
+  expect(free).not.toContain(T.ui.blockaded);
 });
 test('a city panel without own-city figures shows only level and walls', () => {
   const html = renderToStaticMarkup(<CityPanel level={3} walls commands={[]} onCommand={noop} />);
@@ -195,4 +249,68 @@ test('the draught line and the myth touch line', () => {
 test('a deed bar never overfills', () => {
   const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'mongols', { deeds: { fight: 9999, march: 0, survive: 0, rest: 0 } })} commands={[]} onCommand={noop} />);
   expect(html).toContain(`${CONFIG.heroes.thresholds.fight}/${CONFIG.heroes.thresholds.fight}`);
+});
+test('rules 7: a braced Hoplite shows a Braced line, any viewer; an unbraced one does not', () => {
+  const s = blankMatch({ factions: ['spartans', 'mongols'] });
+  const h = addUnit(s, 'hoplite', 0, 0, 0); addUnit(s, 'hoplite', 0, 1, 0);
+  const html = (mine: boolean) => renderToStaticMarkup(<UnitPanel {...panelOf(s, h, mine)} braced={isBraced(s, h)} commands={[]} onCommand={noop} />);
+  expect(html(true)).not.toContain(`aria-label="${T.ui.braced}"`);
+  addUnit(s, 'hoplite', 0, 0, 1);
+  for (const own of [true, false]) {
+    expect(html(own)).toContain(`aria-label="${T.ui.braced}"`); expect(html(own)).toContain(T.ui.bracedBlurb.replace(/'/g, '&#x27;'));
+  }
+});
+test('rules 8: the hunker button and the Hunkered line say the unit heals at the end of the turn', () => {
+  expect(T.ui.hunkerHint).toContain('heals at the end of this turn');
+  expect(T.ui.hunkeredBlurb).toContain('heals at the end of each of its turns');
+  const html = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.hunkerHint }]} onCommand={noop} />);
+  expect(html).toContain(`title="${T.ui.hunkerHint}"`);
+});
+test('rules 9: the Unhunker button is drawn pressed in, with its hint', () => {
+  const html = renderToStaticMarkup(<CommandList commands={[{ id: 'unhunker', label: T.ui.unhunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.unhunkerHint, pressed: true }]} onCommand={noop} />);
+  expect(html).toContain('aria-pressed="true"'); expect(html).toContain('class="pressed"'); expect(html).toContain(T.ui.unhunker);
+  const plain = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null }]} onCommand={noop} />);
+  expect(plain).not.toContain('aria-pressed'); expect(plain).not.toContain('pressed');
+});
+test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
+  for (const own of [true, false]) {
+    const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', { hunkered: true }, own)} commands={[]} onCommand={noop} />);
+    expect(html).toContain(`aria-label="${T.ui.hunkered}"`); expect(html).toContain(T.ui.hunkeredBlurb);
+  }
+  const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
+  expect(plain).not.toContain(`aria-label="${T.ui.hunkered}"`);
+});
+test('rules 7: a chain unit shows its momentum left of its start, any viewer; a unit without chain shows none', () => {
+  for (const own of [true, false]) {
+    const html = renderToStaticMarkup(<UnitPanel {...lone('knight', 'spartans', { momentum: 5 }, own)} commands={[]} onCommand={noop} />);
+    expect(html).toContain(`aria-label="${T.ui.momentum}"`); expect(html).toContain('Momentum 5 of 7');
+  }
+  const guard = renderToStaticMarkup(<UnitPanel {...lone('khansGuard', 'mongols', {})} commands={[]} onCommand={noop} />);
+  expect(guard).toContain('Momentum 8 of 8');
+  const plain = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', {})} commands={[]} onCommand={noop} />);
+  expect(plain).not.toContain(`aria-label="${T.ui.momentum}"`);
+});
+test('rules 8: a ranged unit on a mountain shows its range with the bonus; off it, or a melee unit on one, shows the plain range', () => {
+  const on = (type: 'horseArcher' | 'warrior', terrain: 'mountain' | 'field') => {
+    const s = blankMatch({ factions: ['mongols', 'spartans'] });
+    addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+    setTile(s, 0, 0, { terrain });
+    return renderToStaticMarkup(<UnitPanel {...panelOf(s, addUnit(s, type, 0, 0, 0), true)} commands={[]} onCommand={noop} />);
+  };
+  expect(on('horseArcher', 'mountain')).toContain('3 (mountain)');
+  expect(on('horseArcher', 'field')).not.toContain('(mountain)');
+  expect(on('warrior', 'mountain')).not.toContain('(mountain)');
+  // a blinded Horse Archer on a mountain shows the blinded reach, as the engine uses it
+  const s = blankMatch({ factions: ['mongols', 'spartans'] });
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  setTile(s, 0, 0, { terrain: 'mountain' });
+  const blind = renderToStaticMarkup(<UnitPanel {...panelOf(s, addUnit(s, 'horseArcher', 0, 0, 0, { blinded: true }), true)} commands={[]} onCommand={noop} />);
+  expect(blind).not.toContain('(mountain)');
+  expect(statsOf(s, s.units.at(-1)!).range).toBe(CONFIG.blindedReach);
+});
+test('rules 8: the mountain tile says what it does; a field says nothing of it', () => {
+  const peak = renderToStaticMarkup(<TilePanel terrain="mountain" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
+  expect(peak).toContain(T.ui.mountainBlurb.replace(/'/g, '&#x27;'));
+  const flat = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
+  expect(flat).not.toContain('whole turn');
 });

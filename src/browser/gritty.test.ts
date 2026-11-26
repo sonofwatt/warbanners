@@ -35,7 +35,7 @@ describe.runIf(process.env.BROWSER === '1')('gritty art style', () => {
       await page.getByTestId('ready').tap();
       await page.locator('[data-centre]').first().waitFor({ state: 'attached' });
       const fills = await page.evaluate(() => [...document.querySelectorAll('polygon')].map((p) => p.getAttribute('fill')));
-      expect(fills).toContain('#61784A');
+      expect(fills).toContain('#5A6B4C');
       expect(fills).not.toContain('#A9D975');
     } finally {
       await app.close();

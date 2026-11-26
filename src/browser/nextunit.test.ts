@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp, tapTile } from './harness';
+import { cameraStill, frames, openApp, tapTile, uncoveredBox } from './harness';
 
 // Next unit, and the tile under a unit of your own. Seed 7: Player 1's Warrior (unit 0) stands on the capital at
 // -2,5 and can move to -1,4; once it has moved it has nothing left to do this turn.
@@ -67,7 +67,7 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
 
       await tapTile(page, '0,3');                   // the starting Scout's whole move, into the fog
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('0,3');
-      await expect.poll(() => page.getByTestId('can-act').textContent()).toBe('No units to act');
+      await expect.poll(() => page.getByTestId('units-to-act').count()).toBe(0);
       expect(await nextEnabled(page)).toBe(false);
     } finally {
       await close();
@@ -79,11 +79,8 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
     const { page, close } = await intoMatch(568, 320);
     try {
       await expect.poll(() => nextEnabled(page)).toBe(true);
-      // A tile next to the Warrior's is selected first, so a panel is already open and the board's slot does not
-      // change size when Next unit selects the Warrior: only Next unit itself can bring it into view.
-      await tapTile(page, '-2,3');
-      await page.locator('.selection .tile-panel').waitFor();
-      await frames(page);
+      // The board's slot keeps its size when Next unit selects the Warrior (its card lies over the board where the
+      // bar of turn buttons was): only Next unit itself can bring it into view.
       const slot = await box(page, '[data-testid="board-slot"]');
       // Zoom in on the Warrior, then drag the board down until the Warrior (near the board's foot) is off the slot.
       const at = mid(await box(page, '[data-centre="-2,5"]'));
@@ -100,16 +97,23 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
         await page.mouse.up();
         await frames(page);
       }
-      expect(inside(await box(page, '[data-centre="-2,5"]'), await box(page, '[data-testid="board-slot"]'))).toBe(false);
+      expect(inside(await box(page, '[data-centre="-2,5"]'), await uncoveredBox(page))).toBe(false);
       await page.getByTestId('next-unit').tap();
       await page.locator('.selection .unit-panel').waitFor();
-      await frames(page);
+      await cameraStill(page); // the view eases over
       const shown = await box(page, '[data-centre="-2,5"]');
-      expect(inside(shown, await box(page, '[data-testid="board-slot"]'))).toBe(true);
+      // In sight: in the part of the board the side column leaves uncovered.
+      expect(inside(shown, await uncoveredBox(page))).toBe(true);
 
-      // Already in sight: another tap (the same unit, the only one) leaves the board where it is.
+      // Already in sight: deselect (the tile cycles the Warrior, the city, nothing), which brings the bar of turn
+      // buttons back, then another tap (the same unit, the only one) leaves the board where it is.
+      await tapTile(page, '-2,5');
+      await page.locator('.selection .city-panel').waitFor();
+      await tapTile(page, '-2,5');
+      await expect.poll(() => page.locator('.selection').count()).toBe(0);
       await page.getByTestId('next-unit').tap();
-      await frames(page);
+      await page.locator('.selection .unit-panel').waitFor();
+      await cameraStill(page);
       const again = await box(page, '[data-centre="-2,5"]');
       expect(Math.hypot(again.x - shown.x, again.y - shown.y)).toBeLessThan(0.5);
     } finally {

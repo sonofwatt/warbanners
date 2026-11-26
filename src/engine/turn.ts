@@ -1,16 +1,16 @@
 import { CONFIG } from './data/config';
-import { applyReward, playerIncome } from './economy';
+import { applyReward, blockadeOf, cityIncome } from './economy';
 import { addDeed, maxHpOf } from './heroes';
 import { maxMp, ridingBonus } from './movement';
 import { DIRS, add, key, parseKey } from './hex';
 import type { HexKey } from './hex';
-import { cityById, freshAttacks, tileAt, unitAt } from './state';
+import { cityById, freshAttacks, momentumStart, tileAt, unitAt } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
 import { noteHealed } from './wear';
 import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
 
 // rules 11: what resting would heal the unit where it stands (before the cap at full health): by whose land it
-// is on, and nothing while an enemy unit its owner can see stands on a tile next to it (an unseen one changes
+// is on, plus the hunker bonus (rules 7), and nothing (a hunkered unit: a share) while an enemy unit its owner can see stands on a tile next to it (an unseen one changes
 // nothing, so the healing never gives it away). `visible` is visibleTiles(s, u.owner), passed in by callers
 // that ask about many units.
 export function restHealAt(s: MatchState, u: Unit, visible: ReadonlySet<HexKey> = visibleTiles(s, u.owner)): number {
@@ -19,7 +19,16 @@ export function restHealAt(s: MatchState, u: Unit, visible: ReadonlySet<HexKey> 
     const o = unitAt(s, k);
     return o !== undefined && o.owner !== u.owner && canSeeUnit(s, u.owner, o, visible);
   };
-  if (DIRS.some((d) => seenEnemy(key(add(at, d))))) return 0;
+  const regular = regularRestHeal(s, u);
+  if (DIRS.some((d) => seenEnemy(key(add(at, d))))) {
+    // rules 7: a hunkered unit still heals beside a seen enemy, a share of the regular heal rounded up, with no bonus
+    return u.hunkered ? Math.ceil(regular * CONFIG.hunker.besideEnemyShare) : 0;
+  }
+  return regular + (u.hunkered ? CONFIG.hunker.restBonus : 0);
+}
+
+// The resting heal by whose land the unit is on, with no hunker bonus and no enemy beside it.
+function regularRestHeal(s: MatchState, u: Unit): number {
   const cityId = tileAt(s, u.pos)?.cityId ?? null;
   if (cityId === null) return CONFIG.restHeal.neutral;
   const owner = cityById(s, cityId)?.owner;
@@ -44,7 +53,12 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
   // 4. The new player's income, rest healing, fresh movement, and units spawned last turn may act.
   const player = s.players[next]!;
   if (player.turnsTaken > 0) {
-    player.gold += playerIncome(s, next);
+    for (const c of s.cities) {
+      if (c.owner !== next) continue;
+      const b = blockadeOf(s, c);           // rules 8: a blockade cuts the city's income (never below the floor)
+      player.gold += cityIncome(s, c) - b.cut;
+      if (b.blockaded) ev.push({ type: 'blockaded', city: c.id, enemies: b.enemies, gold: b.cut });
+    }
     const visible = visibleTiles(s, next);   // every heal is worked out before any is applied: health changes no vision
     for (const u of s.units) {
       if (u.owner !== next || !u.rested) continue;
@@ -58,8 +72,10 @@ export function passTurn(s: MatchState, ending: PlayerId, ev: GameEvent[]): void
     if (u.owner !== next) continue;
     u.mp = maxMp(s, u); u.bonusMp = ridingBonus(s, u);
     u.attacks = freshAttacks(u.type);
+    u.momentum = momentumStart(u.type);   // rules 7
     u.moved = false;
     u.acted = false;
+    u.turnEnded = false;                  // rules 8
     u.fresh = false;
   }
 
@@ -88,6 +104,23 @@ export const endTurnHandler: Handler<Extract<Action, { type: 'endTurn' }>> = (s,
     u.taunted = false;
     u.blinded = false;
     u.lure = null;
+  }
+
+  // 2b. rules 8: a unit hunkered as its owner ends the turn heals now, by restHealAt as it stands at this moment, and
+  // not again when that owner's next turn starts. Every heal is worked out before any is applied, as in passTurn.
+  if (CONFIG.hunker.healAtTurnEnd) {
+    const visible = visibleTiles(s, ending);
+    const heals = s.units.filter((u) => u.owner === ending && u.hunkered).map((u) => [u, restHealAt(s, u, visible)] as const);
+    for (const [u, heal] of heals) {
+      u.rested = false;                     // healed for this turn already
+      const before = u.hp;
+      u.hp = Math.min(maxHpOf(u), u.hp + heal);
+      noteHealed(u, before, maxHpOf(u));
+      if (u.hp > before) {
+        ev.push({ type: 'restHealed', unit: u.id, hp: u.hp - before });
+        if (!u.fresh) addDeed(s, u, 'rest', 1, ev);   // a rest that heals, never a fresh unit's
+      }
+    }
   }
 
   // 3 to 5.

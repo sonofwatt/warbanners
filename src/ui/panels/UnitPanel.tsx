@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, isHero } from '../../engine';
+import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, isHero, momentumStart } from '../../engine';
 import type { DeedId, FactionId, Unit, statsOf } from '../../engine';
 import { BootIcon, HeartIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
@@ -10,42 +10,63 @@ import { UnitPicture } from './Picture';
 
 export interface UnitPanelProps {
   unit: Unit; faction: FactionId; stats: ReturnType<typeof statsOf>; myth: boolean;
+  braced?: boolean;                              // rules 7: a Hoplite with enough Hoplite mates beside it
   thresholds: Record<DeedId, number> | null;     // null for a unit the viewer does not own: its deeds stay hidden
   commands: Command[]; onCommand: (c: Command) => void;
 }
 
 // An enemy unit gets the same card with an empty command list.
-export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
+export function UnitPanel({ unit, faction, stats, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
-  const riding = def.traits.includes('mounted') && FACTIONS[faction].territoryRiding;     // rules 13, a faction rule rather than a trait
+  // rules 8: relay riding, a faction rule rather than a trait (mounted units only, where the faction says so)
+  const riding = FACTIONS[faction].relayRiders && (def.traits.includes('mounted') || !FACTIONS[faction].relayMountedOnly);
   const rows = thresholds !== null && canEarnTraits(unit) && unit.heroTraits.length < CONFIG.heroes.maxTraits
     ? DEEDS.filter((d) => !unit.heroTraits.includes(CONFIG.heroes.traitFor[d])) : [];
+  // The top of the card (what a collapsed card shows): the name, the actions and the numbers. The rest (what it is,
+  // its traits, its deeds) shows when the card is pulled up.
   return (
     <section className="panel unit-panel">
+      <div className="card-peek">
       <CardHead
         picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}
         badge={isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
         actions={<CommandList commands={commands} onCommand={onCommand} />}
-      >
-        <p className="blurb">{T.unit[type].blurb}</p>
-      </CardHead>
+      />
       <Stats stats={[
         { icon: <HeartIcon />, label: T.ui.health, value: `${unit.hp}/${stats.maxHp}` },
         { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },
         { icon: <ShieldIcon />, label: T.ui.defence, value: stats.def },
         { icon: <BootIcon />, label: T.ui.movement, value: stats.move },
-        { icon: <RangeIcon />, label: T.ui.range, value: stats.range },
+        { icon: <RangeIcon />, label: T.ui.range, value: stats.range > def.range ? T.ui.rangeOnMountain(stats.range) : stats.range },   // rules 8
       ]} />
+      </div>
+      <div className="card-more">
+      <p className="blurb">{T.unit[type].blurb}</p>
       {def.traits.length > 0 ? (
         <ul className="traits" aria-label={T.ui.traits}>
           {def.traits.map((t) => <li key={t}><strong>{T.trait[t].name}</strong><span>{T.trait[t].blurb}</span></li>)}
-          {riding ? <li key="ridingByTerritory"><strong>{T.ui.ridingByTerritory}</strong><span>{T.ui.ridingByTerritoryBlurb}</span></li> : null}
+          {riding ? <li key="relayRiding"><strong>{T.ui.relayRiding}</strong><span>{T.ui.relayRidingBlurb}</span></li> : null}
         </ul>
       ) : null}
       {unit.heroTraits.length > 0 ? (
         <ul className="traits earned" aria-label={T.ui.heroTraits}>
           {unit.heroTraits.map((t) => <li key={t}><strong>{T.heroTrait[t].name}</strong><span>{T.heroTrait[t].blurb}</span></li>)}
+        </ul>
+      ) : null}
+      {def.traits.includes('chain') ? (
+        <ul className="traits momentum" aria-label={T.ui.momentum}>
+          <li><strong>{T.ui.momentumLeft(unit.momentum, momentumStart(type))}</strong><span>{T.ui.momentumBlurb}</span></li>
+        </ul>
+      ) : null}
+      {unit.hunkered ? (
+        <ul className="traits hunkered" aria-label={T.ui.hunkered}>
+          <li><strong>{T.ui.hunkered}</strong><span>{T.ui.hunkeredBlurb}</span></li>
+        </ul>
+      ) : null}
+      {braced ? (
+        <ul className="traits braced" aria-label={T.ui.braced}>
+          <li><strong>{T.ui.braced}</strong><span>{T.ui.bracedBlurb}</span></li>
         </ul>
       ) : null}
       {myth ? (
@@ -73,6 +94,7 @@ export function UnitPanel({ unit, faction, stats, myth, thresholds, commands, on
           })}
         </ul>
       ) : null}
+      </div>
     </section>
   );
 }

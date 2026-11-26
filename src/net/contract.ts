@@ -5,6 +5,7 @@ import {
 } from '../engine';
 import { encodeAction, makeRoomCode, type Room } from '../online/wire';
 import type { Net } from './net';
+import { wait as scaled } from './waitScale';
 
 // One set of tests for every Net: fakeNet.test.ts runs it on the in-memory server, firebaseNet.emu.test.ts on the
 // emulator. What passes here on both is what the app may rely on.
@@ -25,11 +26,11 @@ function must(r: Result): MatchState {
 }
 
 export function contract(name: string, make: () => Promise<ContractKit>): void {
-  describe(name, { timeout: 20_000 }, () => {
+  describe(name, { timeout: scaled(20_000) }, () => {
     let kit: ContractKit;
     let a: Net; let b: Net; let c: Net;
     let code: string;
-    beforeAll(async () => { kit = await make(); ({ a, b, c } = kit); }, 30_000);
+    beforeAll(async () => { kit = await make(); ({ a, b, c } = kit); }, scaled(30_000));
     beforeEach(() => { code = makeRoomCode(); });
     const ageTurn = (cd: string, ms: number): Promise<void> => kit.ageTurn(cd, ms);
     const stopPresence = (net: Net, cd: string): Promise<void> => kit.stopPresence(net, cd);
@@ -57,7 +58,7 @@ export function contract(name: string, make: () => Promise<ContractKit>): void {
         const check = (): void => {
           if (!done && room !== undefined && actions !== undefined && pred(room, actions)) finish(null);
         };
-        const timer = setTimeout(() => finish(new Error('latest: the predicate never held')), 5_000);
+        const timer = setTimeout(() => finish(new Error('latest: the predicate never held')), scaled(5_000));
         const off = net.watch(cd, {
           room: (r) => { room = r; check(); },
           actions: (l) => { actions = l; check(); },

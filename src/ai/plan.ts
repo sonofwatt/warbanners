@@ -1,15 +1,16 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
-  CONFIG, UNITS, abilityTargets, applyAction, attackOf, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canResearch, canUseItem, coverAt, damageFor, defenceOf, distance, harvestRefusal, key, lureApplies, neighbors,
-  parseKey, reachable, rngInt, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, wallsRefusal,
+  CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
+  canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, defenceOf, distance, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
+  parseKey, reachable, restHealAt, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, visibleTiles, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
 import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
-import { availableTypes, chooseReward, chooseTech, chooseUnit } from './mix';
+import { availableTypes, chooseReward, chooseTech, chooseUnit, techGivesSomething } from './mix';
 import { PERSONAS } from './persona';
+import { connectingChains } from './roads';
 import { skillFor } from './skill';
 import { LEVEL_DIAL } from './types';
 import type { AiInput, Persona } from './types';
@@ -48,6 +49,18 @@ interface Cand {
 
 class OutOfTime extends Error {}
 
+// The believed state with `n` growth added to each listed city, through the engine's own addGrowth on copies
+// of those cities (its cityLevel events are dropped: they only matter to the match, not to a valuation).
+export function withGrowth(b: MatchState, ids: readonly number[], n: number): MatchState {
+  const cities = b.cities.map((c) => {
+    if (!ids.includes(c.id)) return c;
+    const g = { ...c, pendingRewards: [...c.pendingRewards] };
+    addGrowth(b, g, n, []);
+    return g;
+  });
+  return { ...b, cities };
+}
+
 const has = (u: Unit, t: string): boolean => (UNITS[u.type].traits as readonly string[]).includes(t);
 const unitIn = (s: MatchState, id: number): Unit | undefined => s.units.find((u) => u.id === id);
 
@@ -60,11 +73,13 @@ function actionKey(a: Action): string {
 // Could this unit kill a seen enemy this turn, judged by the damage formula alone (no probe)?
 function canKillThisTurn(b: MatchState, u: Unit): boolean {
   if (u.fresh || u.attacks <= 0 || UNITS[u.type].atk === 0 || UNITS[u.type].range === 0) return false;
-  const reach = (canMove(u) ? u.mp / 2 : 0) + UNITS[u.type].range;
+  // rules 8: a unit on a mountain ends its turn if it steps off, so it strikes only from where it stands
+  const perched = CONFIG.mountain.endsTurn && b.tiles[u.pos]?.terrain === 'mountain';
+  const reach = canMove(u) && !perched ? u.mp / 2 + UNITS[u.type].range : attackReach(b, u);
   const at = parseKey(u.pos);
   const atk = attackOf(b, u) * healthFactor(u);
   return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
-    && damageFor(atk, defenceOf(b, e), coverAt(b, e)) >= e.hp);
+    && strikeDamage(b, e, u, atk) >= e.hp);
 }
 
 // Units are taken killers first, then ranged, melee, supports, the Camp, the rest.
@@ -88,6 +103,8 @@ function lureDestinations(attackerAt: HexKey, targetAt: HexKey): HexKey[] {
 
 class TurnPlanner {
   private b: MatchState;
+  // The planner's visible tiles in `b`, worked out once per state and only when hunkers asks for them.
+  private seen: { b: MatchState; set: ReadonlySet<HexKey> } | null = null;
   private readonly ctx: Ctx;
   private readonly me: number;
   private readonly work: number;     // budget for everything except the final endTurn
@@ -235,7 +252,8 @@ class TurnPlanner {
   }
 
   private research(): void {
-    const open = this.ctx.persona.techOrder.filter((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t }));
+    const open = this.ctx.persona.techOrder.filter((t) => canResearch(this.b, this.me, t) && this.allowed({ type: 'research', tech: t })
+      && techGivesSomething(this.b, this.me, this.ctx.persona, t));
     const tech = chooseTech(this.b, this.me, this.mixPersona, open) ?? undefined;
     if (tech === undefined || !this.live()) return;
     const left = this.b.players[this.me]!.gold - techPrice(this.b, this.me, tech);
@@ -261,6 +279,7 @@ class TurnPlanner {
       for (let step = 0; step < MAX_STEPS_PER_UNIT; step++) {
         this.checkClock();
         const c = this.decide(next.id);
+        if (step === 0 && this.hunkers(next.id, c)) { this.commit({ type: 'hunker', unit: next.id }); break; }
         if (c === null) break;
         const refill = c.action.type === 'move' ? this.refill(unitIn(this.b, next.id)!) : null;
         this.commit(c.action, c.result);
@@ -309,8 +328,11 @@ class TurnPlanner {
     return this.campTraining(camp) !== null;
   }
 
-  // Harvest, build and walls while the best one's value gain per gold reaches the threshold. Roads are
-  // left out: valueOf has no term a road changes, so a road can never reach a positive threshold.
+  // Harvest, build, walls and roads while the best one's value gain per gold reaches the threshold. A road is
+  // worth nothing to valueOf until it completes a connection, so a road is scored by the chain it belongs to: the
+  // cheapest chain that would join an unlinked city to a capital (roads.ts), valued at the growth the connection
+  // pays both cities, divided by the gold the whole remaining chain costs. Its next tile is laid while that ratio
+  // clears the threshold, one tile per pass and re-planned after each, so gold goes only to chains that pay.
   private economy(): void {
     const need = ECONOMY_THRESHOLD / this.ctx.skill.economy;
     for (;;) {
@@ -328,6 +350,7 @@ class TurnPlanner {
       const before = valueOf(this.b, fresh(this.b));
       const gold = this.b.players[this.me]!.gold;
       let best: { a: Action; r: Applied; ratio: number } | null = null;
+      const road = this.roadCandidate(before, fresh(this.b), gold);
       try {
         for (const a of list) {
           if (!this.allowed(a)) continue;
@@ -337,6 +360,9 @@ class TurnPlanner {
           const gain = valueOf(r.state, fresh(r.state)) - before + GOLD_WEIGHT * this.ctx.skill.economy * cost;
           const ratio = gain / cost;
           if (best === null || ratio > best.ratio) best = { a, r, ratio };
+        }
+        if (road !== null && road.ratio >= need && (best === null || road.ratio > best.ratio)) {
+          best = { a: road.a, r: this.probe(this.b, road.a), ratio: road.ratio };
         }
       } catch (e) {
         // Out of budget partway: the best action found so far is already probed, so it costs nothing more.
@@ -348,7 +374,59 @@ class TurnPlanner {
     }
   }
 
+  // The best next road tile: for each chain connectingChains finds, the value of the growth its connection pays
+  // (connectGrowth to the city and to the capital, through valueOf, so it is in the units harvest and buildings are
+  // scored in) over the gold the chain still costs. Only a chain whose next tile can be laid now is a candidate.
+  private roadCandidate(before: number, ctx: Ctx, gold: number): { a: Action; ratio: number } | null {
+    if (gold < CONFIG.road.cost || CONFIG.connectGrowth <= 0) return null;
+    let best: { a: Action; ratio: number } | null = null;
+    for (const chain of connectingChains(this.b, this.me)) {
+      const at = chain.build.find((k) => roadRefusal(this.b, k) === null);
+      if (at === undefined) continue;
+      const a: Action = { type: 'road', at };
+      if (!this.allowed(a)) continue;
+      const paid = withGrowth(this.b, [chain.city, chain.capital], CONFIG.connectGrowth);
+      const ratio = (valueOf(paid, ctx) - before) / (chain.build.length * CONFIG.road.cost);
+      if (best === null || ratio > best.ratio) best = { a, ratio };
+    }
+    return best;
+  }
+
   // ---- one unit ----
+
+  // Rules 7: whether the unit hunkers instead of the plan c, which is not an attack, ability, capture or claim (a
+  // good one of those is always taken). Only with an enemy able to reach it: a garrison on an own city holds there
+  // instead of walking off when the danger on its tile is at least a third of its health, and a wounded unit that cannot
+  // reach a tile out of reach hunkers where it stands. Units beside a city, and garrisons under a light threat, were
+  // tried too: they stalled seeded matches (6 spartans at normal, 6 mongols at hard, in character.test.ts).
+  private visible(): ReadonlySet<HexKey> {
+    if (this.seen === null || this.seen.b !== this.b) this.seen = { b: this.b, set: visibleTiles(this.b, this.me) };
+    return this.seen.set;
+  }
+
+  // rules 9 adds an unhunker action (the owner ends a hunker). The planner never uses it: a hunkered unit that should
+  // move or act just does, which ends its hunker by itself. Not taught yet, by David's ruling (2026-11-25).
+  private hunkers(id: number, c: Cand | null): boolean {
+    if (c !== null && c.action.type !== 'move') return false;
+    const u = unitIn(this.b, id);
+    if (u === undefined || !canHunker(this.b, id) || !this.allowed({ type: 'hunker', unit: id })) return false;
+    const danger = this.ctx.danger;
+    if ((danger[u.pos] ?? 0) <= 0) return false;
+    // A move that sets up an attack this turn is left to the plan: no hunker while a seen enemy is in strike reach,
+    // unless its counter alone would kill the unit (a hopeless charge, which the plan never makes).
+    if (c !== null && UNITS[u.type].atk > 0 && u.attacks > 0) {
+      const from = [u.pos, ...(canMove(u) ? Object.keys(reachable(this.b, id)) : [])].map(parseKey);
+      const survivable = (e: Unit): boolean => UNITS[e.type].range === 0
+        || damageFor(attackOf(this.b, e) * CONFIG.counterFactor * healthFactor(e), defenceOf(this.b, u), 1) < u.hp;
+      const strikes = this.b.units.filter((e) => e.owner !== this.me && survivable(e));
+      if (strikes.some((e) => from.some((f) => distance(f, parseKey(e.pos)) <= UNITS[u.type].range))) return false;
+    }
+    // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in
+    const met = CONFIG.hunker.healAtTurnEnd ? Math.min(maxHpOf(u), u.hp + restHealAt(this.b, { ...u, hunkered: true }, this.visible())) : u.hp;
+    if (this.b.cities.some((x) => x.owner === this.me && x.pos === u.pos) && 3 * (danger[u.pos] ?? 0) >= met) return true;
+    if (u.hp >= maxHpOf(u)) return false;
+    return c === null || (danger[(c.action as { to: HexKey }).to] ?? 0) > 0;
+  }
 
   // Gold already pledged to refill other cities' tiles whose garrison stepped out this turn. A pledge
   // lapses once an own unit stands on that tile again, since the city can no longer train there.

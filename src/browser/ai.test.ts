@@ -10,7 +10,7 @@ import { hashState } from '../engine';
 import type { MatchState } from '../engine';
 import { randomPlayout } from '../engine/testkit';
 import { T } from '../ui/text';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // Solo play in a real browser: with the network cut, and a hard AI turn on a crowded board with the CPU slowed.
 // Seed 7 facts (see flow.test.ts): the person (Player 1) moves first with one Warrior (unit 0) on -2,5, which can
@@ -79,8 +79,16 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
 }
 
 /**
- * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 164
- * random turns of seed 7 (25 units; re-picked for rules 6, as 268 turns of seed 4 no longer has 25; that was re-picked
+ * One hard AI turn on a crowded board with the CPU slowed four times, as a mid-range phone. The position is 92
+ * random turns of seed 1 (25 units; re-picked for the rules 8 additions, as seed 3 now ends after 125 turns; before that
+ * 156 turns of seed 3 was re-picked for rules 8's mountains, as 104 turns of seed 4 now has 27, 164 turns of
+ * seed 9 gives the AI no action the person sees, and 186 turns of seed 9 has a 103 ms task; before that 104
+ * turns of seed 4 was re-picked for rules 7's Spartan growth discount and 12 start gold, as 274 turns of seed 9
+ * now has a 121 ms task in the turn, over the 100 ms bound; before that 274 turns of seed 9 was re-picked for rules 7's Lumber camp cost 4, as 292 turns of seed 8 now has 29; that
+ * was re-picked for rules 7's moving capitals and growth 2 buildings, as 286 turns of
+ * seed 7 now has 45, and seed 7's one even 25-unit count, 146, gives the AI no action the person can see, so the store
+ * never pauses; before that 286 turns of seed 7 was re-picked for rules 7, as 164 turns of seed 7 now has 12; that was re-picked for
+ * rules 6, as 268 turns of seed 4 no longer has 25; that was re-picked
  * for rules 5, and before it 236 turns of seed 7, for Task 8's thresholds), so it is the person's move and
  * tapping End turn hands the AI the board (with an odd count the AI would start on Continue, and the board-opening
  * render would land inside its first think). Times are milliseconds
@@ -88,7 +96,7 @@ function savedRecord(page: Page, id: string): Promise<HardTurn['saved']> {
  * It throws only when the page does not behave (no Continue, no turn finishing in time), never on a slow turn.
  */
 async function measureHardTurn(): Promise<HardTurn> {
-  const { entries, state } = savedHardMatch(7, 164);
+  const { entries, state } = savedHardMatch(7, 56);   // 25 units (re-picked for rules 9's level 2 Spartan capital, as speed.test.ts; (7, 66) for the unhunker action; (3, 82) for rules 8's tuning pass)
   const { page, context, close } = await openApp('', {
     beforeOpen: (c) => {
       void c.addInitScript((items: [string, string][]) => {
@@ -186,6 +194,8 @@ describe.runIf(process.env.BROWSER === '1')('solo play in the browser', () => {
       await tapTile(page, '-2,5');
       await tapTile(page, '-1,4');
       await expect.poll(() => page.locator('[data-unit="0"]').getAttribute('data-at')).toBe('-1,4');
+      // The Scout can still act, so it stays selected and its card holds the bar's place: deselect to reach End turn.
+      await deselect(page);
       await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
       await page.getByTestId('end-turn').tap();
 

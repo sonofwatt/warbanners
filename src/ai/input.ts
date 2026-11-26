@@ -1,4 +1,4 @@
-import { FACTIONS, RULES_VERSION, key, mirror, parseKey, playerView, range } from '../engine';
+import { RULES_VERSION, startTech, key, mirror, parseKey, playerView, range } from '../engine';
 import type { HexKey, MatchState, Player, PlayerId, Tile } from '../engine';
 import type { AiInput, Rival } from './types';
 
@@ -19,7 +19,7 @@ function guessTile(input: AiInput, k: HexKey): Tile {
   const seen = input.view.tiles[k];
   if (seen !== undefined) return structuredClone(seen);
   const terrain = input.view.tiles[key(mirror(parseKey(k)))]?.terrain ?? 'field';
-  return { terrain, resource: null, building: null, road: false, village: false, treasure: false, cityId: null };
+  return { terrain, resource: null, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null };
 }
 
 // A playable engine state rebuilt from the input: unknown tiles are guessed, unseen units are absent.
@@ -30,7 +30,7 @@ export function believedState(input: AiInput): MatchState {
   players[input.me] = structuredClone(input.self);
   for (const r of input.rivals) {
     players[r.id] = {
-      id: r.id, faction: r.faction, gold: 0, techs: [FACTIONS[r.faction].startTech], explored: [],
+      id: r.id, faction: r.faction, gold: 0, techs: [startTech(r.faction)], explored: [],
       alive: r.alive, turnsTaken: r.turnsTaken,
     };
   }

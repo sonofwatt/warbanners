@@ -45,7 +45,21 @@ test.runIf(process.env.SLOW === '1')('ten normal matches: legal, finished, only 
 // re-pick by this rule when the AI changes. The nearest three are 3 (0.211), 8 (0.210) and 1 (0.268), but three took
 // 227 s against 160 s for two, so the check runs the nearest two. The bound is the same: mean at least 0.15 and three
 // quarters above 0, which for two seeds means both.
-const ADAPT_SEEDS = [3, 8];
+// Rules 8 (mountains) re-pick, by the same rule: over start seeds 1 to 16 the gaps are 0.849, -0.138, -0.430, 0.745,
+// 0.536, 0.164, 0.776, 0.337, 0.584, 0.732, -0.032, 0.147, 0.033, 0.401, -0.056, 0.200 (mean 0.303, 12 of 16 above
+// 0, so the 16-seed bound holds). The old seeds 3 and 8 read -0.430 and 0.337, a mean of -0.047 (-0.236 with the
+// rules 7 AI, 0.056 with a flat mountain credit since dropped). The nearest two to the mean are 8 (0.337) and 14 (0.401).
+// Rules 8's tuning pass: over start seeds 1 to 16 the gaps are 0.212, 0.440, 0.000, -0.222, -0.007, -0.455, 0.000,
+// 0.617, -0.165, 0.212, 0.802, 0.491, 0.000, -0.081, -0.314, 0.000 (mean 0.096, 6 of 16 above 0), so the 16-seed bound
+// fails, as it did after the rules 8 additions (mean 0.067). Seeds 8 and 14 read 0.617 and -0.081. Re-picking the
+// seeds nearest the mean (gaps of 0.000) would hide that, so they stay and the check stays red until the adaptive
+// dial is looked at (2026-11-24-rules8-tuning-report.md).
+// The adaptive fix (2026-11-24-adaptive-fix-report.md): the dial no longer steps by the gap, which summed a standing
+// a second time and swung end to end within a match. Over start seeds 1 to 16 the gaps are 0.672, 0.657, 0.151,
+// 0.221, 0.311, 0.236, 0.642, 0.403, 0.121, 0.539, 0.209, 0.475, 0.436, 0.634, 0.779, -0.343 (mean 0.384, 15 of 16
+// above 0); seeds 8 and 14 read 0.403 and 0.634, so the seeds stay. On start seeds 17 to 48, not used to pick the
+// settings: mean 0.206, 21 of 32 above 0.
+const ADAPT_SEEDS = [8, 14];
 test.runIf(process.env.SLOW === '1')('adaptive climbs against a strong opponent and drops against a weak one', () => {
   const gaps = ADAPT_SEEDS.map((seed) => {
     const strong = adaptiveSeries({ opponentDial: 0.85, matches: 4, seed, maxRounds: 60 });
@@ -126,4 +140,25 @@ test('the census counts abilities, claims, camp training and rewards as the acti
   }
   const c = census([r]);
   expect(c.tactics.spartans.treasure!.total).toBe(r.sides[0].tactics.treasure ?? 0);
+}, 120_000);
+test('the census counts roads laid and connections as the actions and events of a match', () => {
+  const o: SimOpts = { seed: 3, factions: ['mongols', 'spartans'], seats: [{ level: 'normal' }, { level: 'normal' }], maxRounds: 25 };
+  const r = runMatch(o);
+  let s: MatchState = createMatch({ seed: o.seed, factions: o.factions });
+  const roads = [0, 0]; const connections = [0, 0];
+  for (const a of r.actions) {
+    const me = s.current;
+    if (a.type === 'road') roads[me]! += 1;
+    const res = applyAction(s, a);
+    if (!res.ok) throw new Error(res.reason);
+    connections[me]! += res.events.filter((e) => e.type === 'connected').length;
+    s = res.state;
+  }
+  for (const p of [0, 1] as const) {
+    expect(r.sides[p].roadsLaid).toBe(roads[p]);
+    expect(r.sides[p].connections).toBe(connections[p]);
+  }
+  const c = census([r]);
+  expect(c.roads.mongols).toEqual({ laid: roads[0], connections: connections[0], matchesConnected: connections[0]! > 0 ? 1 : 0 });
+  expect(c.roads.spartans).toEqual({ laid: roads[1], connections: connections[1], matchesConnected: connections[1]! > 0 ? 1 : 0 });
 }, 120_000);

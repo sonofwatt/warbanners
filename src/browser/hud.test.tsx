@@ -18,10 +18,10 @@ function hudPage(css: string, clock: string, paused: boolean, waits = false): st
   const noop = (): void => {};
   const hud = renderToStaticMarkup(
     <Hud
-      name={LONG} colour="#2D6DB5" faction="mongols" gold={10} income={2} round={12} unitsToAct={0} techReady={false}
-      endDisabled nextDisabled status={waits ? T.ui.yourTurnWaits : fill(T.ui.theirTurn, { name: LONG })} statusName={waits ? undefined : LONG}
+      name={LONG} colour="#2D6DB5" faction="mongols" gold={10} income={2} round={12}
+      status={waits ? T.ui.yourTurnWaits : fill(T.ui.theirTurn, { name: LONG })} statusName={waits ? undefined : LONG}
       statusShort={waits ? T.ui.yourTurnWaitsShort : undefined} clock={clock} clockPaused={paused}
-      onOpenTech={noop} onOpenMenu={noop} onEndTurn={noop} onNextUnit={noop}
+      onOpenMenu={noop}
     />,
   );
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head>`

@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest';
-import { applyAction, legalActions } from './apply';
+import { applyAction } from './apply';
+import { CONFIG } from './data/config';
 import { UNITS } from './data/units';
 import { hashState } from './hash';
 import { maxMp, reachable } from './movement';
 import { claimTerritory, unitById } from './state';
-import { addCity, addUnit, blankMatch, must, setTile } from './testkit';
+import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import { visibleTiles } from './vision';
 
 test('warrior on fields reaches its six neighbours', () => {
@@ -20,7 +21,7 @@ test('forest costs two tiles of movement, but one step is always allowed', () =>
   expect(reachable(s, w.id)['1,2']).toBe(0);
 });
 test('mountain needs a fresh unit and ends the move; water is closed', () => {
-  const s = blankMatch(); const k = addUnit(s, 'horseman', 0, 0, 0);
+  const s = blankMatch(); const k = addUnit(s, 'horseman', 0, 0, 0); give(s, 0, CONFIG.mountain.tech!);   // may climb (rules 8)
   setTile(s, 1, 0, { terrain: 'mountain' }); setTile(s, -1, 0, { terrain: 'water' });
   const r = reachable(s, k.id);
   expect(r['1,0']).toBe(0); expect(r['-1,0']).toBeUndefined(); expect(r['2,0']).toBeUndefined();
@@ -58,10 +59,10 @@ test('stepping onto or through a treasure leaves it in place (rules 12: it is cl
   expect(onto.tiles['1,0']!.treasure).toBe(true); expect(onto.rng).toBe(s.rng);
   expect(r.ok && r.events.map((e) => e.type)).toEqual(['moved']);
 });
-test('maxMp gives mounted Mongol units the half-point bonus and nobody else', () => {
+test('maxMp: since rules 8 a mounted Mongol unit has no half-point bonus either', () => {
   const s = blankMatch();                                           // player 0 Spartan, player 1 Mongol
   expect(maxMp(s, addUnit(s, 'horseman', 0, 0, 0))).toBe(4);
-  expect(maxMp(s, addUnit(s, 'horseman', 1, 1, 0))).toBe(5);
+  expect(maxMp(s, addUnit(s, 'horseman', 1, 1, 0))).toBe(4);
   expect(maxMp(s, addUnit(s, 'warrior', 1, 2, 0))).toBe(2);
 });
 test('unknown, spent and acted units reach nothing; a retreat unit may move after acting', () => {
@@ -86,13 +87,15 @@ test('road to a city tile costs 1 for anyone', () => {
   expect(r['1,0']).toBe(1);
   expect(r['2,0']).toBeUndefined();                                // off the road: field costs 2, 1 left
 });
-test('Mongol riders pay 1 inside their own territory, even over a mountain or forest', () => {
-  const s = blankMatch(); claimTerritory(s, addCity(s, 1, 3, 0, { radius: 2 }));
+test('Mongol riders pay 1 inside their own territory over a forest, but a mountain still ends the move (rules 8)', () => {
+  const s = blankMatch(); claimTerritory(s, addCity(s, 1, 3, 0, { radius: 2 })); give(s, 1, CONFIG.mountain.tech!);
   setTile(s, 2, 0, { terrain: 'forest' }); setTile(s, 1, 0, { terrain: 'mountain' });
   setTile(s, -1, 0, { terrain: 'mountain' });
   const h = addUnit(s, 'horseman', 1, 0, 0, { moved: true, mp: 3 });
   expect(reachable(s, h.id)['-1,0']).toBeUndefined();               // outside the territory: a moved unit cannot climb
-  expect(reachable(s, h.id)['1,0']).toBe(2);                        // inside it the mountain costs 1
+  expect(reachable(s, h.id)['1,0']).toBeUndefined();                // nor inside it: relay riding never skips the climb
+  const fresh = addUnit(s, 'horseman', 1, 0, 1, { mp: 3 });
+  expect(reachable(s, fresh.id)['1,0']).toBe(0);                    // a first step climbs, for everything left
   const g = addUnit(s, 'horseman', 1, 4, 0, { moved: true, mp: 3 });
   expect(reachable(s, g.id)['3,0']).toBe(2);
   expect(reachable(s, g.id)['2,0']).toBe(1);                        // forest inside own territory still costs 1
@@ -186,24 +189,15 @@ test('the explored set is the one from before the move: a fog tile cannot be ent
   expect(reachable(s, h.id)).toEqual({});
   expect(applyAction(s, { type: 'move', unit: h.id, to: '1,0' }).ok).toBe(false);
 });
-test('a pathfinder may end a move on one unexplored tile, never pass through one', () => {
-  expect(UNITS.scout.traits).toContain('pathfinder');
+test('rules 8: the Scout has sight 2 and no pathfinder, so it never steps onto an unexplored tile', () => {
+  expect(UNITS.scout.sight).toBe(2);
+  expect(UNITS.scout.traits).not.toContain('pathfinder');
+  expect(UNITS.scout.traits).toEqual(expect.arrayContaining(['hidden', 'noCityCapture']));
   const s = blankMatch(); const sc = addUnit(s, 'scout', 0, 0, 0, { mp: 4 });
   for (const q of [0, 1, 2, 3, 4]) setTile(s, q, 0, { road: true });
   s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'];
   const r = reachable(s, sc.id);
-  expect(r['1,0']).toBe(3);                                                     // explored: as before
-  expect(r['2,0']).toBe(0);                                                     // the first unexplored tile: it stops there
-  expect(r['3,0']).toBeUndefined();                                             // only through an unexplored tile
-});
-test('a pathfinder that ends a move in the fog has spent its turn, even with movement left', () => {
-  const s = blankMatch(); const sc = addUnit(s, 'scout', 0, 0, 0, { mp: 4 });
-  s.players[0]!.explored = ['0,0', '1,0', '-1,0'];
-  addUnit(s, 'warrior', 1, 1, 1);                                               // beside the fog tile it will reach
-  const t = must(applyAction(s, { type: 'move', unit: sc.id, to: '0,1' }));
-  expect(unitById(t, sc.id)).toMatchObject({ pos: '0,1', mp: 0, attacks: 0, acted: true, itemTurn: t.stamp });
-  expect(reachable(t, sc.id)).toEqual({});
-  expect(legalActions(t).filter((a) => 'unit' in a && a.unit === sc.id)).toEqual([]);
-  const u = must(applyAction(s, { type: 'move', unit: sc.id, to: '-1,0' }));    // an explored tile: as before
-  expect(unitById(u, sc.id)).toMatchObject({ mp: 2, attacks: 1, acted: false });
+  expect(r['1,0']).toBe(3);
+  expect(Object.keys(r).every((k) => s.players[0]!.explored.includes(k))).toBe(true);
+  expect(applyAction(s, { type: 'move', unit: sc.id, to: '2,0' }).ok).toBe(false);
 });

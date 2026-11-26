@@ -12,7 +12,7 @@ test('the input does not change when only hidden things change', () => {
   addUnit(base, 'warrior', 0, 0, 2); addUnit(base, 'horseman', 1, 0, -2);
   for (const p of base.players) p.explored = [...visibleTiles(base, p.id)].sort();
   const other = structuredClone(base);
-  other.players[1]!.gold = 99; other.players[1]!.techs = ['riding', 'roads']; other.rng = 12345; other.seed = 777;
+  other.players[1]!.gold = 99; other.players[1]!.techs = ['gathering', 'riding']; other.rng = 12345; other.seed = 777;
   addUnit(other, 'archer', 1, 3, -3);          // out of player 0's sight
   expect(aiInputFor(other, 0)).toEqual(aiInputFor(base, 0));
   expect(viewKey(aiInputFor(other, 0))).toBe(viewKey(aiInputFor(base, 0)));
@@ -46,9 +46,9 @@ test('unexplored tiles take the explored mirror terrain, else field', () => {
   }
 });
 test('the believed state is playable by the engine', () => {
-  const b = believedState(aiInputFor(randomPlayout(7, 160), 0));
+  const b = believedState(aiInputFor(randomPlayout(7, 130), 0));   // 130 since rules 8: seed 7 now ends after 135 turns
   for (const a of legalActions(b).slice(0, 40)) expect(applyAction(b, a).ok).toBe(true);
-}, 30_000);                                         // a 160-turn random playout: about 5 s alone, more under load
+}, 120_000);                                        // a 130-turn random playout (160 before rules 8): about 25 s alone since rules 7's Spartan growth discount, more under load
 test('every scenario is a legal position with the right player to move', () => {
   const cases: [string, ReturnType<typeof spartanLine>, number][] = [
     ['spartanLine', spartanLine(), 0], ['riderRaid', riderRaid(), 1], ['openVillage', openVillage(), 1],

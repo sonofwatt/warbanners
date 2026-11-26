@@ -18,7 +18,7 @@ export function blankMatch(opts?: { radius?: number; factions?: [FactionId, Fact
   const tiles: Record<string, Tile> = {};
   for (const h of range({ q: 0, r: 0 }, radius)) {
     tiles[key(h)] = {
-      terrain: 'field', resource: null, building: null, road: false, village: false,
+      terrain: 'field', resource: null, building: null, harvested: false, road: false, village: false,
       treasure: false, cityId: null,
     };
   }
@@ -47,6 +47,7 @@ export function addUnit(
 
 export function addCity(s: MatchState, owner: PlayerId, q: number, r: number, patch?: Partial<City>): City {
   const c = foundCity(s, owner, key({ q, r }), false);
+  c.linked = patch?.capital === true;                  // a capital starts linked, as foundCity makes it
   Object.assign(c, patch);
   return c;
 }

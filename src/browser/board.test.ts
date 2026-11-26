@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp } from './harness';
+import { cameraStill, frames, openApp } from './harness';
 
 async function centreOf(page: Page, selector: string): Promise<{ x: number; y: number }> {
   const box = await page.locator(selector).boundingBox();
@@ -81,7 +81,8 @@ describe.runIf(process.env.BROWSER === '1')('the board in a browser', () => {
       await frames(page);
       await page.setViewportSize({ width: 915, height: 412 });
       await frames(page);
-      await frames(page);
+      // The view eases to its new place after a rotation.
+      await cameraStill(page);
       const box = await page.locator('[data-hex="-2,5"]').boundingBox();
       expect(box).not.toBeNull();
       expect(box!.x).toBeGreaterThanOrEqual(0);

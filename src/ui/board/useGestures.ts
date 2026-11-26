@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { follows, gesture, IDLE } from './gesture';
 import type { GestureOut, GestureState, PointerInput } from './gesture';
@@ -9,12 +9,17 @@ const LINE_PX = 16; // a wheel "line" in pixels
 /**
  * Feeds the element's pointer events through the gesture reducer and calls `on` with each
  * tap, pan or pinch zoom, in pixels relative to the element. A mouse wheel zooms at the pointer.
- * Listeners are attached once; `on` may change on every render.
+ * `touched` is called as a finger (or the mouse, or its wheel) first touches the board, before anything comes of it,
+ * so an automatic pan can give way at once. Returns whether a finger is on the board now.
+ * Listeners are attached once; `on` and `touched` may change on every render.
  */
-export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullable<GestureOut>) => void): void {
+export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullable<GestureOut>) => void, touched?: () => void): () => boolean {
   const onRef = useRef(on);
+  const touchedRef = useRef(touched);
+  const held = useRef(false);
   useEffect(() => {
     onRef.current = on;
+    touchedRef.current = touched;
   });
 
   useEffect(() => {
@@ -30,6 +35,7 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
       const { x, y } = local(e);
       const next = gesture(state, { type, id: e.pointerId, x, y, t: e.timeStamp });
       state = next.state;
+      held.current = state.mode !== 'idle';
       if (next.out !== null) onRef.current(next.out);
     };
 
@@ -41,6 +47,7 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
       } catch {
         // The pointer is no longer active (it lifted before this ran): there is nothing to capture.
       }
+      touchedRef.current?.();
       feed('down', p);
     };
     const move = (e: Event): void => feed('move', e as PointerEvent);
@@ -56,6 +63,7 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
     const wheel = (e: Event): void => {
       const w = e as WheelEvent;
       w.preventDefault();
+      touchedRef.current?.();
       const dy = w.deltaMode === 1 ? w.deltaY * LINE_PX : w.deltaY;
       onRef.current({ kind: 'zoom', factor: Math.exp(-dy * WHEEL_STEP), at: local(w) });
     };
@@ -82,4 +90,5 @@ export function useGestures(ref: RefObject<Element | null>, on: (out: NonNullabl
       el.removeEventListener('wheel', wheel);
     };
   }, [ref]);
+  return useCallback(() => held.current, []);
 }

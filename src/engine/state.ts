@@ -1,5 +1,6 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
+import { TECH_TREE } from './data/techs';
 import { UNITS } from './data/units';
 import { DIRS, add, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
@@ -61,6 +62,14 @@ export function freshAttacks(type: UnitTypeId): number {
   return CONFIG.attacksPerTurn.base;
 }
 
+// rules 7, momentum: a type's momentum at the start of each of its owner's turns (0 for a type without chain).
+export function momentumStart(type: UnitTypeId): number {
+  if (!UNITS[type].traits.includes('chain')) return 0;
+  const start = CONFIG.momentum.start[type];
+  if (start === undefined) throw new Error(`no momentum start for ${type}`);
+  return start;
+}
+
 export function spawnUnit(
   s: MatchState, type: UnitTypeId, owner: PlayerId, pos: HexKey, home: number | null,
 ): Unit {
@@ -68,7 +77,7 @@ export function spawnUnit(
     id: s.nextUnitId, type, owner, pos, hp: UNITS[type].hp, mp: 0, bonusMp: 0, attacks: 0, home,
     enteredTurn: s.stamp, moved: false, acted: false, rested: false,
     taunted: false, blinded: false, lure: null, fresh: true,
-    deeds: freshDeeds(), heroTraits: [], wear: freshWear(), item: null, itemTurn: null,
+    deeds: freshDeeds(), heroTraits: [], wear: freshWear(), item: null, itemTurn: null, hunkered: false, momentum: momentumStart(type), turnEnded: false,
   };
   s.nextUnitId += 1;
   s.units.push(u);
@@ -93,7 +102,7 @@ export function foundCity(s: MatchState, owner: PlayerId, pos: HexKey, capital: 
   const c: City = {
     id: s.nextCityId, pos, owner, capital, level: CONFIG.newCity.level, growth: CONFIG.newCity.growth,
     radius: CONFIG.newCity.radius, walls: false, market: false,
-    incomeBonus: 0, capacityBonus: 0, pendingRewards: [],
+    incomeBonus: 0, capacityBonus: 0, pendingRewards: [], linked: capital,
   };
   s.nextCityId += 1;
   s.cities.push(c);
@@ -108,12 +117,14 @@ export function createMatch(settings: MatchSettings): MatchState {
     rulesVersion: RULES_VERSION, seed, rng: map.rng, radius: CONFIG.mapRadius,
     tiles: map.tiles, cities: [], units: [],
     players: settings.factions.map((faction, i) => ({
-      id: i, faction, gold: CONFIG.startGold[i]!, techs: [FACTIONS[faction].startTech],
+      id: i, faction, gold: CONFIG.startGold[i]!, techs: [TECH_TREE.start[faction]],
       explored: [], alive: true, turnsTaken: 0,
     })),
     current: 0, stamp: 0, nextUnitId: 0, nextCityId: 0, winner: null,
   };
   for (const p of s.players) foundCity(s, p.id, CONFIG.capitals[p.id]!, true);
+  // rules 9: a capital may start above level 1 (the Spartans' at 2), set directly: no level-up, so no reward
+  for (const p of s.players) s.cities[p.id]!.level = FACTIONS[p.faction].capitalStartLevel;
   for (const p of s.players) {
     const city = s.cities[p.id]!;
     const type = FACTIONS[p.faction].startUnit;

@@ -11,7 +11,8 @@ import type { Ground } from './palette';
 import { Border, Highlight, ReadyGlow, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from './hero';
-import { SHARED_FIGURES, StatusOverlay } from './units';
+import { SHARED_FIGURES } from './units';
+import { WarBanner } from './banner';
 import type { SharedFigure } from './units';
 import { ACCENT } from './palette';
 import { ArtModeContext } from './mode';
@@ -26,7 +27,7 @@ const PX = 2; // pixels per board unit
 const VARIANT_KEYS: readonly HexKey[] = ['0,0', '1,0', '2,0'];
 
 function tile(terrain: Terrain, o: Partial<Tile> = {}): Tile {
-  return { terrain, resource: null, building: null, road: false, village: false, treasure: false, cityId: null, ...o };
+  return { terrain, resource: null, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null, ...o };
 }
 const VIEW = { x: -40, y: -44, w: 80, h: 76 };
 
@@ -214,7 +215,7 @@ function BattleWear(): ReactElement {
   );
 }
 
-const MARKS: readonly Mark[] = ['move', 'attack', 'ability', 'selected'];
+const MARKS: readonly Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
 const FACTIONS: readonly FactionId[] = ['spartans', 'mongols'];
 const VARIANTS = [0, 1, 2] as const;
 
@@ -252,16 +253,21 @@ export function ArtSheet(): ReactElement {
             ['taunted', { hp: 20, maxHp: 20, taunted: true }],
             ['blinded', { hp: 12, maxHp: 15, blinded: true }],
             ['both, 40 health', { hp: 25, maxHp: 40, taunted: true, blinded: true }],
+            ['hunkered', { hp: 7, maxHp: 10, hunkered: true }],
           ] as const
         ).map(([label, s]) => (
           <Cell key={label} label={label} ground="grass" tall>
             {SHARED_FIGURES.spearman({ colour: playerColour('spartans'), accent: ACCENT.spartans })}
-            <StatusOverlay spent={false} fresh={false} taunted={false} blinded={false} {...s} />
+            <WarBanner type="spearman" colour={playerColour('spartans')} spent={false} fresh={false} taunted={false} blinded={false} {...s} />
           </Cell>
         ))}
-        <Cell label="spent (dimmed by caller)" ground="grass" tall>
-          <g opacity={0.5}>{SHARED_FIGURES.archer({ colour: playerColour('mongols'), accent: ACCENT.mongols })}</g>
-          <StatusOverlay hp={10} maxHp={10} spent fresh={false} taunted={false} blinded={false} />
+        <Cell label="spent (darker)" ground="grass" tall>
+          <g className="unit-shade spent">{SHARED_FIGURES.archer({ colour: playerColour('mongols'), accent: ACCENT.mongols })}</g>
+          <WarBanner type="archer" colour={playerColour('mongols')} hp={10} maxHp={10} spent fresh={false} taunted={false} blinded={false} />
+        </Cell>
+        <Cell label="hidden (own scout)" ground="grass" tall>
+          {FIGURES.scout({ colour: playerColour('spartans'), accent: ACCENT.spartans })}
+          <WarBanner type="scout" colour={playerColour('spartans')} hp={5} maxHp={5} spent={false} fresh={false} taunted={false} blinded={false} hidden />
         </Cell>
       </Section>
       <Section title="Heroes and treasures">
@@ -284,7 +290,7 @@ export function ArtSheet(): ReactElement {
             <Cell key={`${label}${f}`} label={label} ground="grass" tall>
               {'hero' in o ? <HeroMark accent={ACCENT[f]} /> : null}
               {FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
-              <StatusOverlay hp={hp} maxHp={hp} spent={false} fresh={fresh} taunted={false} blinded={false} />
+              <WarBanner type={id} colour={playerColour(f)} hero={'hero' in o} hp={hp} maxHp={hp} spent={false} fresh={fresh} taunted={false} blinded={false} />
               {'item' in o ? <g transform={`translate(${itemBadgeX(hp, fresh)} 0)`}><ItemBadge item="draught" /></g> : null}
             </Cell>
           );
@@ -320,6 +326,9 @@ export function ArtSheet(): ReactElement {
         <Cell label="cropland" ground="grass"><ResourceMark resource="cropland" /></Cell>
         <Cell label="game" ground="grass"><ResourceMark resource="game" /></Cell>
         <Cell label="ore" ground="rock"><ResourceMark resource="ore" /></Cell>
+        <Cell label="jewels" ground="rock"><ResourceMark resource="jewels" /></Cell>
+        <Cell label="fish" ground="water"><ResourceMark resource="fish" /></Cell>
+        <Cell label="fruit, harvested" ground="grass"><ResourceMark resource="orchard" harvested /></Cell>
         {/* Shared tiles are drawn by the board's own TileArt, so the sheet shows what a match shows. */}
         {[0, 1, 2].map((v) => (
           <Cell key={`g${v}`} label={`game in forest ${v}`} ground="grass"><TileArt k={VARIANT_KEYS[v]!} tile={tile('forest', { resource: 'game' })} /></Cell>
@@ -334,6 +343,13 @@ export function ArtSheet(): ReactElement {
         ))}
         <Cell label="mine" ground="rock"><BuildingMark building="mine" /></Cell>
         <Cell label="market" ground="grass"><BuildingMark building="market" /></Cell>
+        <Cell label="orchard" ground="grass"><BuildingMark building="orchard" /></Cell>
+        <Cell label="plantation" ground="grass"><BuildingMark building="plantation" /></Cell>
+        <Cell label="lumber mill in forest" ground="grass"><TileArt k="0,0" tile={tile('forest', { building: 'lumberMill' })} /></Cell>
+        <Cell label="foundry" ground="rock"><BuildingMark building="foundry" /></Cell>
+        <Cell label="granary" ground="grass"><BuildingMark building="granary" /></Cell>
+        <Cell label="fish on water" ground="water"><TileArt k="0,0" tile={tile('water', { resource: 'fish' })} /></Cell>
+        <Cell label="jewels on mountain" ground="rock"><TileArt k="0,0" tile={tile('mountain', { resource: 'jewels' })} /></Cell>
       </Section>
       <Section title="Roads">
         <Cell label="no links" ground="grass"><Road links={[]} /></Cell>

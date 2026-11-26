@@ -1,12 +1,18 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 7;
+export const RULES_VERSION = 10;
 export type PlayerId = number;
 export type FactionId = 'spartans' | 'mongols';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
-export type Resource = 'orchard' | 'cropland' | 'game' | 'ore';
-export type BuildingId = 'farm' | 'lumberCamp' | 'mine' | 'market';
+// rules 8 adds jewels (on mountains) and fish (on water)
+export type Resource = 'orchard' | 'cropland' | 'game' | 'ore' | 'jewels' | 'fish';
+// rules 8 adds the Orchard and the four upgrades (Plantation, Lumber mill, Foundry, Granary)
+export type BuildingId = 'farm' | 'lumberCamp' | 'mine' | 'market' | 'orchard' | 'plantation' | 'lumberMill' | 'foundry' | 'granary';
+// Both trees' techs: the rules 7 ladders (kept for the provenance replays) and the rules 8 tree; data/techs.ts says
+// which tree each belongs to, and CONFIG.techTree which one is in play.
 export type TechId = 'foraging' | 'farming' | 'markets' | 'riding' | 'roads' | 'chivalry'
-  | 'hunting' | 'forestry' | 'engineering' | 'bronze' | 'shieldwork' | 'smithing';
+  | 'hunting' | 'forestry' | 'engineering' | 'bronze' | 'shieldwork' | 'smithing'
+  | 'defence' | 'walls' | 'orchards' | 'plantations' | 'trapping' | 'archery' | 'siege' | 'logging' | 'milling'
+  | 'prospecting' | 'spears' | 'mining' | 'foundry' | 'gathering' | 'granary' | 'fishing';
 export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman'
   | 'knight' | 'catapult' | 'hoplite' | 'kingsGuard' | 'piper' | 'scout'
   | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp' | 'sellsword';
@@ -35,6 +41,7 @@ export type RewardId = 'gold' | 'scout' | 'borders' | 'barracks' | 'income' | 'g
 
 export interface Tile {
   terrain: Terrain; resource: Resource | null; building: BuildingId | null;
+  harvested: boolean;                    // rules 8: its resource was harvested (the resource stays, for building on)
   road: boolean; village: boolean; treasure: boolean;
   cityId: number | null;                 // the city whose territory this tile is in
 }
@@ -43,6 +50,7 @@ export interface City {
   level: number; growth: number; radius: number; walls: boolean; market: boolean;
   incomeBonus: number; capacityBonus: number;
   pendingRewards: number[];              // levels awaiting a choice, oldest first
+  linked: boolean;                       // rules 7: has paid its connection bonus to this owner (true for capitals)
 }
 export interface Unit {
   id: number; type: UnitTypeId; owner: PlayerId; pos: HexKey; hp: number;
@@ -60,6 +68,12 @@ export interface Unit {
   heroTraits: HeroTraitId[];             // in the order earned; public
   wear: Wear;                            // cosmetic battle wear; public
   item: ItemId | null;                   // a carried one-use item; public
+  hunkered: boolean;                     // rules 7: dug in until it moves or acts of its own accord; public
+  momentum: number;                      // rules 7: a chain unit's momentum left this turn (0 for any other unit); public
+  turnEnded: boolean;                    // rules 8: a step onto or off a mountain ended its turn; nothing, not even haste, lets it move again; public
+  // rules 9: stamp of the turn it last unhunkered (absent until it first does, so older states hash as before); a unit
+  // that unhunkered this turn may not hunker again this turn; public
+  unhunkeredTurn?: number;
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {
@@ -84,6 +98,8 @@ export type Action =
   | { type: 'capture'; unit: number }
   | { type: 'claimTreasure'; unit: number }
   | { type: 'useItem'; unit: number }
+  | { type: 'hunker'; unit: number }
+  | { type: 'unhunker'; unit: number }                               // rules 9: the owner ends a unit's hunker
   | { type: 'train'; city: number; unitType: UnitTypeId }
   | { type: 'campTrain'; unit: number; unitType: UnitTypeId; to: HexKey }
   | { type: 'harvest'; at: HexKey }
@@ -101,15 +117,21 @@ export type GameEvent =
   | { type: 'splashed'; target: number; damage: number }
   | { type: 'died'; unit: number }
   | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
-  | { type: 'chainCost'; unit: number; damage: number }             // rules 5: the health a chain unit paid for a kill
-  | { type: 'chainEnded'; unit: number }                             // rules 6: a hero trait from the kill ended the chain
+  | { type: 'momentum'; unit: number; spent: number; left: number } // rules 7: the momentum a chain unit paid for a kill
+  | { type: 'chainEnded'; unit: number }                             // rules 6: a hero trait from the kill ended the chain; rules 7: so does a short kill
   | { type: 'lured'; unit: number; from: HexKey; to: HexKey }
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'trained'; unit: number; at: HexKey }
   | { type: 'captured'; city: number; by: PlayerId }
+  | { type: 'capitalMoved'; player: PlayerId; city: number }       // rules 7: the player's capital was taken, this city is it now
   // trait: the relic's gift; found: the treasure a map shows; unit: the id of a spawned Warrior or Sellsword
   | { type: 'treasure'; at: HexKey; outcome: TreasureOutcome; trait?: HeroTraitId; found?: HexKey; unit?: number }
   | { type: 'usedItem'; unit: number; item: ItemId }
+  | { type: 'hunkered'; unit: number }                              // rules 7
+  | { type: 'hunkerEnded'; unit: number }                           // rules 7: it moved, acted or was lured; rules 9: or its owner unhunkered it
+  | { type: 'restHealed'; unit: number; hp: number }                // rules 8: a hunkered unit healed hp at the end of its owner's turn
+  | { type: 'blockaded'; city: number; enemies: number; gold: number }  // rules 8: the city's income was cut by gold as its owner's turn began
+  | { type: 'connected'; city: number; capital: number }           // rules 7: roads first joined the city to the capital
   | { type: 'cityLevel'; city: number; level: number }
   | { type: 'reward'; city: number; reward: RewardId }
   | { type: 'built'; at: HexKey; what: BuildingId | 'road' | 'walls' | 'harvest' }

@@ -334,6 +334,36 @@ whether cannibals capture or only besiege; how they treat a city once its owner 
 eliminated; and an original name and look for the group. They are a fictional people
 drawn as storybook raiders, not modelled on any real culture. **[Claude's call]**
 
+### 5.12 Biomes and difficulty **[David, 2026-11-24]**
+
+- **Biomes:** arid (hoodoo spires, drier and sparser grass, more sand, more jewels, fewer orchards), snow, grasslands,
+  jungle. New looks and a different mapgen mix only: every tile plays the same as today. Biome play rules (snow slows,
+  jungle blocks sight and so on) wait for a later major version. 1 to 3 biomes per map by size; a 1v1 map is one biome
+  66% of the time, two otherwise. Mountain shapes are tied to biomes. Ships after rules 8, in its own rules version.
+- **Factions and biomes:** factions have different starting tech, and each has a best biome. At easier difficulty a
+  player starts in their faction's best biome; at harder difficulty, outside it.
+- **Biome modifiers (David, 2026-11-24):** farmland is not a biome. Each core biome (arid, snow, grasslands, jungle)
+  can carry a modifier that changes its resource richness, e.g. Snow Tundra (few wild grain, fruit and other resource
+  tiles) or Grassland Fertile (more wild grain and fruit). Hoodoos only in arid. Fields are drawn inside each hex.
+- **Best biomes:** Mongols grasslands; Spartans have a similar preference. A Spartan farmland bonus is a separate
+  balance and rules discussion. Against the AI, difficulty (or a handicap) decides the map's biome or biomes; a map can
+  be all one biome (e.g. all jungle), so per-seat biomes are not required. Revisit in balance testing.
+- **Difficulty sets the biome (David, 2026-11-24):** on hard, the AI opponent's preferred biome sets the whole map
+  (an AI that prefers arid gives an all arid map); simplest when the AI faction is random. A player who picks both
+  factions can choose an opponent with the same preference. Richness: easy = rich, normal = normal, hard = sparse.
+  Level names: Grassland Steppe / Grasslands / Grassland Fertile, Arid Barrens / Arid / Arid Oasis, Snow Tundra /
+  Snow / Snow Taiga, Jungle Thicket / Jungle / Jungle Verdant. Spartans and Mongols both prefer grasslands for now.
+- **Adaptive AI picks the opponent faction:** with Adaptive AI the opponent faction(s) are forced to random, so the
+  game chooses the biome from the player's gameplay stats to match their skill.
+- **Game animals by biome (David, 2026-11-24):** snow reindeer, jungle toucans, arid boar, grasslands bison.
+- **Jewels:** their own resource. They mostly appear on mountains but sometimes on neutral open ground (sand, field
+  and similar), shipping with biomes, not rules 8. Drawn as a cluster of large crystals with no grey mound under them.
+- **Handicap (multiplayer, later feature):** a player can give an opponent a bonus of up to +5, for games with someone
+  less experienced. The bonus moves the giver out of their best biome and the receiver into theirs, and gives the
+  receiver more starting resource tiles and treasures. Exact steps per point to be set with sims.
+- **Difficulty in human vs human play (later feature):** each player may choose a difficulty, which changes their
+  starting conditions and the number of cannibal camps (5.11).
+
 ## 6. Multiplayer modes
 
 ### 6.1 Live **[David]**

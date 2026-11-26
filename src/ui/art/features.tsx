@@ -261,8 +261,46 @@ function ore(): ReactElement {
   return ink.done();
 }
 
-function ResourceMarkArt(p: { resource: Resource }): ReactElement {
-  switch (p.resource) {
+// rules 8: three cut stones in a crack of the rock, lit from the left.
+function jewels(): ReactElement {
+  const ink = new Ink(1.2);
+  ink.shadow(0, 4, 11, 2.6);
+  ink.poly([-11, 4, -7, -2, 6, -3, 11, 3, 6, 6, -6, 6], '#5E5A66');
+  ink.poly([-11, 4, -7, -2, -1, -2.6, -2, 6, -6, 6], '#726E7C');
+  // a red stone at the back, a green one left and a blue one front right
+  ink.poly([-1, -11, 3, -11, 5, -8, 1, -3, -3, -8], '#C23B4E');
+  ink.poly([-1, -11, 1, -11, 1, -3, -3, -8], '#E2667A');
+  ink.poly([-8, -5, -5, -5, -3.6, -2.6, -6.5, 1.5, -9.4, -2.6], '#2F9C6A');
+  ink.poly([-8, -5, -6.5, -5, -6.5, 1.5, -9.4, -2.6], '#5CC491');
+  ink.poly([4, -4, 7.6, -4, 9.2, -1.4, 5.8, 3, 2.4, -1.4], '#3A6FD0');
+  ink.poly([4, -4, 5.8, -4, 5.8, 3, 2.4, -1.4], '#6E9AEB');
+  ink.glint(-0.6, -9, 1.8, '#FFFFFF');
+  ink.glint(5.2, -2.2, 1.4, '#EAF4FF');
+  return ink.done();
+}
+
+// rules 8: two fish leaping over a ring of ripples.
+function fish(): ReactElement {
+  const ink = new Ink(1.1);
+  ink.stroke('M -12 5 Q -6 2 0 5 T 12 5', '#FFFFFF', 1.4);
+  ink.ellipse(0, 6, 9, 2, '#FFFFFF', 0.28);
+  for (const [x, y, dir] of [[-5, -3, 1], [6, -8, -1]] as const) {
+    ink.ellipse(x, y, 5.4, 2.4, '#D98A3D');
+    ink.ellipse(x, y + 0.8, 4.2, 1.2, '#F4C27E');
+    ink.poly([x - 5 * dir, y, x - 8.6 * dir, y - 3, x - 8.6 * dir, y + 3], '#B96A28');
+    ink.circle(x + 3 * dir, y - 0.6, 0.7, '#2A1C10');
+  }
+  return ink.done();
+}
+
+// rules 8: a harvested resource stays on its tile, drawn faded.
+function ResourceMarkArt(p: { resource: Resource; harvested?: boolean }): ReactElement {
+  const mark = resourceArt(p.resource);
+  return p.harvested === true ? <g data-harvested="true" opacity={0.45}>{mark}</g> : mark;
+}
+
+function resourceArt(resource: Resource): ReactElement {
+  switch (resource) {
     case 'orchard':
       return orchard();
     case 'cropland':
@@ -271,6 +309,10 @@ function ResourceMarkArt(p: { resource: Resource }): ReactElement {
       return game();
     case 'ore':
       return ore();
+    case 'jewels':
+      return jewels();
+    case 'fish':
+      return fish();
   }
 }
 
@@ -378,6 +420,89 @@ function market(): ReactElement {
   return ink.done();
 }
 
+/** A small round fruit tree standing on (x, y). */
+function fruitTree(ink: Ink, x: number, y: number, s: number): void {
+  ink.shadow(x + 1, y + 0.6, 5 * s, 1.8 * s);
+  ink.rect(x - 1 * s, y - 4 * s, 2 * s, 4.4 * s, TRUNK);
+  ink.circle(x, y - 7.5 * s, 5 * s, LEAF_LOW[1]);
+  ink.circle(x - 1 * s, y - 8.2 * s, 4 * s, LEAF_LOW[0]);
+  for (const [dx, dy] of [[-2.4, -6.4], [1.8, -9.6], [2.6, -5.6]] as const) ink.circle(x + dx * s, y + dy * s, 1.1 * s, '#E0563F');
+}
+
+// rules 8: two fruit trees behind a low fence.
+function orchardBuilding(): ReactElement {
+  const ink = new Ink();
+  fruitTree(ink, -6, 1, 1);
+  fruitTree(ink, 7, -2, 0.9);
+  for (const x of [-15, -8, -1, 6, 13]) ink.rect(x, 3 + (x + 15) * -0.12, 1.4, 6, WOOD);
+  ink.line(-15, 5, 14, 1.6, WOOD_DARK, 1.1);
+  ink.line(-15, 8, 14, 4.6, WOOD_DARK, 1.1);
+  return ink.done();
+}
+
+// rules 8: rows of fruit trees and a full basket at the front.
+function plantation(): ReactElement {
+  const ink = new Ink();
+  for (const [x, y] of [[-11, -5], [0, -8], [11, -5], [-6, 3], [6, 3]] as const) fruitTree(ink, x, y, 0.75);
+  ink.shadow(13, 9.4, 4.6, 1.4);
+  ink.poly([9, 5, 17, 5, 16, 9.6, 10, 9.6], '#B58548');
+  ink.line(9, 6.6, 17, 6.6, '#8A6232', 0.8);
+  for (const [x, c] of [[11, '#E0563F'], [13.2, '#F2C230'], [15.2, '#E0563F']] as const) ink.circle(x, 4.4, 1.4, c);
+  return ink.done();
+}
+
+// rules 8: a sawmill with a big round blade by its wall.
+function lumberMill(): ReactElement {
+  const ink = new Ink(1.05);
+  house(ink, -4, 4, 15, 10, { front: '#B98B5C', side: '#94683F', roof: '#6E4A33', roofSide: '#563827' }, 7);
+  ink.rect(-7, -2, 4, 6, '#5A3C29');
+  ink.shadow(10, 7, 6, 1.6);
+  ink.circle(10, -1, 6.4, '#C9D1D8');
+  ink.circle(10, -1, 4.6, '#9AA2AC');
+  for (let i = 0; i < 8; i++) {
+    const a = (i * 45 * Math.PI) / 180;
+    ink.poly([10 + 6.4 * Math.cos(a), -1 + 6.4 * Math.sin(a), 10 + 7.8 * Math.cos(a + 0.2), -1 + 7.8 * Math.sin(a + 0.2), 10 + 6.4 * Math.cos(a + 0.4), -1 + 6.4 * Math.sin(a + 0.4)], '#C9D1D8');
+  }
+  ink.circle(10, -1, 1.4, WOOD_DARK);
+  ink.rect(-14, 6.4, 10, 3, '#7A4E2C', 1.4);
+  ink.circle(-14, 7.9, 1.5, '#E9C98F');
+  return ink.done();
+}
+
+// rules 8: a stone furnace with a chimney, its mouth glowing.
+function foundry(): ReactElement {
+  const ink = new Ink();
+  ink.shadow(1, 6, 16, 3.4, 0.14);
+  ink.poly([-13, 6, -13, -6, -3, -11, 9, -9, 13, -4, 13, 6], '#7F796C');
+  ink.poly([-13, 6, -13, -6, -3, -11, -3, 6], '#958F81');
+  ink.rect(5, -22, 5, 14, '#6E6A60');
+  ink.rect(5, -22, 2.4, 14, '#857F73');
+  ink.ellipse(7.6, -25, 4, 2.2, '#B8B2A8', 0.7);
+  ink.ellipse(10.4, -29, 3, 1.8, '#B8B2A8', 0.5);
+  ink.rect(-8, -3, 8, 9, '#2B2724', 3);
+  ink.ellipse(-4, 2.6, 3.4, 2.4, '#F28C28');
+  ink.ellipse(-4, 3, 2, 1.4, '#FFD45E');
+  return ink.done();
+}
+
+// rules 8: a round store with a conical roof beside the barn's hay.
+function granary(): ReactElement {
+  const ink = new Ink(1.05);
+  ink.shadow(1, 6, 12, 3);
+  ink.rect(-7, -10, 14, 16, '#D9C49A', 2);
+  ink.rect(1.5, -10, 5.5, 16, '#BFA87C', 2);
+  ink.poly([-9, -10, 9, -10, 0, -21], '#B5653A');
+  ink.poly([0, -21, 9, -10, 3.5, -10], '#8F4E2C');
+  ink.rect(-2.4, -1, 4.8, 7, '#6B5A48');
+  ink.line(-7, -4, 7, -4, '#B59E72', 0.8);
+  // sheaves of grain by the door
+  for (const x of [-12, 11]) {
+    ink.poly([x - 2.4, 6, x, -3, x + 2.4, 6], '#E9BE36');
+    ink.line(x - 2, 2.4, x + 2, 2.4, '#A8862A', 0.9);
+  }
+  return ink.done();
+}
+
 function BuildingMarkArt(p: { building: BuildingId }): ReactElement {
   switch (p.building) {
     case 'farm':
@@ -388,6 +513,16 @@ function BuildingMarkArt(p: { building: BuildingId }): ReactElement {
       return mine();
     case 'market':
       return market();
+    case 'orchard':
+      return orchardBuilding();
+    case 'plantation':
+      return plantation();
+    case 'lumberMill':
+      return lumberMill();
+    case 'foundry':
+      return foundry();
+    case 'granary':
+      return granary();
   }
 }
 
@@ -580,10 +715,19 @@ function CityMarkArt(p: {
     }
   }
   if (p.walls) palisade(ink);
-  if (p.pending) {
-    ink.star(-12, -30, 8, '#FFF4B8');
-    ink.star(-12, -30, 6.2, '#FFC21A');
-  }
+  if (p.pending) pendingStar(ink);
+  return ink.done();
+}
+
+function pendingStar(ink: Ink): void {
+  ink.star(-12, -30, 8, '#FFF4B8');
+  ink.star(-12, -30, 6.2, '#FFC21A');
+}
+
+/** A city's reward waiting to be chosen: the star over the city, alone (the 3D look draws the city itself). */
+export function PendingStar(): ReactElement {
+  const ink = new Ink();
+  pendingStar(ink);
   return ink.done();
 }
 
@@ -599,7 +743,7 @@ export function TerrainFeature(p: { terrain: Terrain; variant: number }): ReactE
   return art === null ? null : graded;
 }
 
-export function ResourceMark(p: { resource: Resource }): ReactElement {
+export function ResourceMark(p: { resource: Resource; harvested?: boolean }): ReactElement {
   return useGraded(ResourceMarkArt(p));
 }
 

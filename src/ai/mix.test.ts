@@ -3,7 +3,7 @@ import { UNITS } from '../engine';
 import type { MatchState, UnitTypeId } from '../engine';
 import { addCity, addUnit, blankMatch, give, setTile } from '../engine/testkit';
 import { aiInputFor } from './input';
-import { chooseReward, chooseTech, chooseUnit } from './mix';
+import { chooseReward, chooseTech, chooseUnit, techGivesSomething } from './mix';
 import { PERSONAS } from './persona';
 import { planTurn } from './plan';
 import { LEVEL_DIAL } from './types';
@@ -15,10 +15,10 @@ function facing(enemy: UnitTypeId): MatchState {
   const s = blankMatch();
   addCity(s, 0, 0, 3);
   addCity(s, 1, 0, -3);
-  give(s, 0, 'bronze', 'shieldwork', 'smithing', 'hunting', 'forestry', 'engineering', 'riding', 'roads', 'chivalry');
-  give(s, 1, 'riding', 'hunting', 'bronze');
+  give(s, 0, 'prospecting', 'spears', 'smithing', 'foraging', 'defence', 'trapping', 'archery', 'siege', 'gathering', 'riding', 'chivalry');
+  give(s, 1, 'gathering', 'riding', 'trapping', 'archery', 'prospecting', 'spears');
   for (const [q, r] of [[-1, 1], [0, 1], [-1, 2]] as const) addUnit(s, 'hoplite', 0, q, r);   // two steps from the city
-  addUnit(s, 'scout', 0, 2, 0);
+  addUnit(s, 'scout', 0, 1, -2);                        // beside three of them: since rules 7 a Scout sees 1 tile (was 2,0)
   for (const [q, r] of [[0, -1], [1, -1], [2, -2], [3, -2]] as const) addUnit(s, enemy, 1, q, r);
   s.players[0]!.gold = 20;
   return s;
@@ -56,10 +56,10 @@ test('research follows the units wanted: Mongols facing archers go for chivalry,
   const s = blankMatch({ factions: ['spartans', 'mongols'] });
   addCity(s, 0, 0, 3);
   addCity(s, 1, 0, -3);
-  give(s, 1, 'riding', 'roads');
+  give(s, 1, 'gathering', 'riding');
   for (const [q, r] of [[-1, 0], [0, 0], [1, 0]] as const) addUnit(s, 'archer', 0, q, r);
   addUnit(s, 'horseArcher', 1, 0, -2);
-  const open = ['foraging', 'hunting', 'bronze', 'chivalry'] as const;
+  const open = ['foraging', 'trapping', 'prospecting', 'chivalry'] as const;
   expect(chooseTech(s, 1, PERSONAS.mongols, open)).toBe('chivalry');
 });
 
@@ -115,4 +115,46 @@ test('growth is bought on the way to a level, and a level reached late in the tu
   expect(harvest).toBeGreaterThanOrEqual(0);
   expect(reward).toBeGreaterThan(harvest);
   expect(plan.actions[reward]).toEqual({ type: 'chooseReward', city: c.id, choice: 1 });
+});
+
+// rules 8: a tech is bought only when it gives the player something now (or leads to a tech that does).
+test('a tech with nothing for the player now is not worth gold: Fishing with no fish, an upgrade with nothing to upgrade, Deep stores until nearly blockaded', () => {
+  const s = blankMatch();
+  addCity(s, 0, 0, 2); addCity(s, 1, 0, -3);
+  give(s, 0, 'prospecting', 'foraging', 'orchards', 'gathering');
+  const gives = (t: Parameters<typeof techGivesSomething>[3]): boolean => techGivesSomething(s, 0, PERSONAS.spartans, t);
+  expect(gives('fishing')).toBe(false);
+  setTile(s, 1, 2, { terrain: 'water', resource: 'fish' });            // in the city's territory
+  expect(gives('fishing')).toBe(true);
+  expect(gives('plantations')).toBe(false);
+  setTile(s, -1, 2, { terrain: 'field', resource: 'orchard', building: 'orchard' });
+  expect(gives('plantations')).toBe(true);
+  expect(gives('spears')).toBe(true);                                   // the Hoplite
+  expect(gives('walls')).toBe(false);                                   // Deep stores, and no enemy beside a city
+  addUnit(s, 'warrior', 1, 0, 1);
+  expect(gives('walls')).toBe(false);                                   // one enemy beside it is not a blockade (David)
+  addUnit(s, 'warrior', 1, 1, 1);
+  expect(gives('walls')).toBe(true);                                    // two of the three tiles a blockade needs: nearly
+  expect(gives('defence')).toBe(true);
+  const m = blankMatch({ factions: ['mongols', 'spartans'] });
+  addCity(m, 0, 0, 2); addCity(m, 1, 0, -3);
+  expect(techGivesSomething(m, 0, PERSONAS.mongols, 'walls')).toBe(true);   // Walls, which the Mongols build
+});
+
+test('blockaded cities make the walls tech the one to buy', () => {
+  const s = blankMatch();
+  addCity(s, 0, 0, 2, { level: 4 }); addCity(s, 1, 0, -3);
+  give(s, 0, 'prospecting', 'foraging', 'defence');
+  const open = ['walls', 'orchards', 'trapping', 'gathering'] as const;
+  const calm = chooseTech(s, 0, PERSONAS.spartans, [...open]);
+  addUnit(s, 'warrior', 1, 1, 2); addUnit(s, 'warrior', 1, 0, 3); addUnit(s, 'warrior', 1, -1, 2);
+  expect(calm).not.toBe('walls');
+  expect(chooseTech(s, 0, PERSONAS.spartans, [...open])).toBe('walls');
+});
+
+test('level 5: with two supports alive the champion is taken, however many are wounded', () => {
+  const hurt = levelFive('spartans', [
+    { type: 'hoplite', hp: 4 }, { type: 'hoplite', hp: 5 }, { type: 'hoplite', hp: 3 }, { type: 'piper' }, { type: 'piper' },
+  ]);
+  expect(chooseReward(hurt, 0, hurt.cities[0]!, 5)).toBe(0);
 });

@@ -23,7 +23,7 @@ If this file and the engine's data files disagree, the data files are wrong.
 |---|---|---|---|
 | Field | 2 | 1 | |
 | Forest | 4 | 1.25 | |
-| Mountain | all remaining, only as the first step of a unit that has not moved this turn | 1.5 | A unit standing here sees 1 tile farther |
+| Mountain | all remaining, only as the first step of a unit that has not moved this turn; ends the unit's turn (rules 8). Since rules 8 only a player who has researched `prospecting` (`CONFIG.mountain.tech`) may step onto one | 1.5 | A unit standing here sees 1 tile farther. A ranged unit here shoots 1 tile farther (section 10). Stepping off is also a first step only and ends the turn (section 9), and needs no tech |
 | Water | cannot enter | | Ships arrive in stage 4 |
 | Road to road | 1 | | Both the tile left and the tile entered have a road or a city |
 | City tile | 2 | 1.5 (2 with Walls, 2 for a Spartan city) | Cover applies to the owner's unit only |
@@ -41,8 +41,9 @@ centre `(0,0)` is always a plain field.
 1. Terrain for each tile of `H`, in `range` order, from `rngInt(100)`:
    under 50 field, under 72 forest, under 86 mountain, otherwise water.
 2. The capital tile is a field. Water next to a capital becomes field.
-3. Resource for each tile of `H` from `rngInt(100)`: field under 20 orchard, under 40
-   cropland; forest under 30 game; mountain under 40 ore; otherwise none.
+3. Resource for each tile of `H` from `rngInt(100)`: field under 20 orchard (fruit), under 40
+   cropland (wild grain); forest under 30 game; mountain under 40 ore, under 55 jewels (since
+   rules 8); water under 25 fish (since rules 8); otherwise none. The capital's tile has none.
 4. Villages: 3 in `H` (6 on the map). Candidates are field or forest tiles of `H` at
    least 3 from both capitals. Shuffle them, then take each one that is at least 3
    from every village already chosen and from every mirrored village. A village
@@ -56,16 +57,19 @@ centre `(0,0)` is always a plain field.
 
 ## 4. Start of a match
 
-- Each player: their capital (level 1, territory radius 1), one starting unit on
-  the capital tile, their faction's starting tech.
-- Each player starts with 10 gold.
+- Each player: their capital (level 1, territory radius 1; the Spartan capital starts at
+  level 2 since rules 9, see 13), one starting unit on
+  the capital tile, their faction's starting tech (since rules 8 a column 1 tech, which
+  trains no unit: see 7 and 13).
+- The first player starts with 10 gold and the second with 12 (both 10 before rules 7).
 - Each player has explored whatever their capital and starting unit can see.
 
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, capture, claim a treasure, train, harvest, build, lay
-a road, build walls, research, choose a city reward. Then end the turn.
+move, attack, use an ability, hunker (since rules 7, see 11) or unhunker (since rules 9), capture, claim a
+treasure, train, harvest, build, lay a road, build walls, research, choose a city
+reward. Then end the turn.
 
 At the start of each of your turns except your first: you are paid income, and your
 units that did nothing at all on your previous turn heal (see Resting in 11). Then
@@ -78,11 +82,30 @@ option, and statuses on your units (taunted, blinded) wear off.
 
 - Income per city each turn: its level, +1 if it is a capital, +1 per "income"
   reward taken, +2 if it has a Market.
+- Blockade (since rules 8): a city with enemy units on 3 or more of the 6 tiles next
+  to it (seen or not; a unit on the city tile does not count) when its owner's turn
+  starts is blockaded. It loses half of that turn's income, rounded down. A walled city loses a quarter
+  instead, and a Spartan city whose owner knows `walls` (Deep stores for the Spartans)
+  loses 15%, both rounded down. Whatever the share, a blockade costs at least 1 gold,
+  and the city always keeps at least 1 gold (so only a city earning 1 loses nothing). Growth,
+  research, training and healing are not changed. (`CONFIG.blockade`.)
 - A city's territory is every tile within its radius (1, or 2 after the "borders"
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
-- To go from level `L` to `L+1` a city needs `L+1` growth points (`L+2` for a
-  Mongol city). Spare points carry over.
+- To go from level `L` to `L+1` a city needs `L+1` growth points, and a Spartan city
+  from level 2 on 1 less, `L` (since rules 9; rules 7 and 8 gave the Spartans `L` from
+  level 1, and a Mongol city needed `L+2` before rules 8). Spare points carry over.
+- Connected cities (since rules 7): a city is connected when a chain of adjacent
+  tiles joins it to its owner's capital, every tile of the chain being a road or
+  a city of that owner. A road inside another player's territory breaks the
+  chain; a road in unclaimed land does not. The first time a city is connected,
+  it and the capital each get +1 growth point (which can level either city, with
+  its reward as usual). This happens once per city for each owner: a connection
+  is never taken back, a second road changes nothing, and each capture lets the
+  city pay its new owner once more (a player who retakes a city can earn it again). A player has at most one capital, and a city connects
+  only to its owner's capital; the capital never earns the bonus for itself, and
+  a player without a capital earns none. It is checked after each action, for
+  the player who acted.
 - Unit capacity: level + 1, +2 per "barracks" reward. Only units trained by the
   city (or by a Camp on its behalf) count, plus the starting unit for the
   capital. A unit that captures a village or a city counts against that city from
@@ -93,40 +116,71 @@ Rewards (pick one of two at each new level):
 
 | New level | Option 0 | Option 1 |
 |---|---|---|
-| 2 | `gold`: +6 gold | `scout`: explore every tile within 3 of the city |
+| 2 | `gold`: +5 gold (+6 before rules 9) | `scout`: explore every tile within 3 of the city |
 | 3 | `borders`: territory radius becomes 2 | `barracks`: +2 unit capacity |
 | 4 | `income`: +1 income for this city | `growth`: +2 growth points now |
 | 5 and every level after | `champion`: the faction's champion appears | `support`: the faction's support appears |
 
 A reward unit appears on the city tile, or if that is occupied on the first free
 enterable neighbour in direction order. If there is nowhere, the reward becomes
-+6 gold.
+the same gold as the level 2 `gold` reward (`CONFIG.rewardGold`): +5 gold (+6 before rules 9).
 
-Things you can do on a tile in your territory (one building per tile):
+Things you can do on a tile in your territory (one building per tile). Since rules 8 a
+harvest takes the one-off growth and marks the resource harvested, but the tile keeps its
+resource for building on; a building on an unharvested resource ends its harvest. Jewels
+and fish are harvested from the city like any other resource: no unit need stand there.
 
 | Action | Needs | Cost | Growth |
 |---|---|---|---|
-| Harvest orchard | tech `foraging` | 2 | +1, the orchard is used up |
-| Harvest game | tech `hunting` | 2 | +1, the game is used up |
-| Build Farm on cropland | tech `farming` | 5 | +2 |
-| Build Lumber camp on a forest tile with no resource | tech `forestry` | 3 | +1 |
-| Build Mine on ore | tech `bronze` | 5 | +2 |
-| Build Market on a field with no resource, one per city | tech `markets` | 6 | +1, and +2 income |
-| Build Walls (the city itself, not Spartans) | tech `shieldwork` | 6 | none |
-| Road, on any field or forest tile that is yours or unclaimed | tech `roads` | 1 | none |
+| Harvest fruit (orchard) | tech `foraging` | 2 | +1 |
+| Trap game | tech `trapping` | 2 | +1 |
+| Gather jewels (on a mountain) | tech `prospecting` | 2 | +1 |
+| Harvest wild grain (cropland) | tech `gathering` | 2 | +1 |
+| Catch fish (on water) | tech `fishing` | 2 | +1 |
+| Build Orchard on fruit, harvested or not | tech `orchards` | 5 | +2 |
+| Build Plantation on an Orchard, replacing it | tech `plantations` | 7 | +3 |
+| Build Lumber camp on a forest tile with no resource or with game | tech `logging` | 4 (3 before rules 7) | +2 (+1 before rules 7) |
+| Build Lumber mill on a Lumber camp, replacing it | tech `milling` | 6 | +3 |
+| Build Mine on ore | tech `mining` | 5 | +2 |
+| Build Foundry on a Mine, replacing it | tech `foundry` | 7 | +3 |
+| Build Farm on cropland, harvested or not | tech `farming` | 5 | +2 |
+| Build Granary on a Farm, replacing it | tech `granary` | 7 | +3 |
+| Build Market on a field with no resource, one per city | tech `granary` | 6 | +3 (+2 in rules 7 and 8, +1 before), and +2 income |
+| Build Walls (the city itself, not Spartans) | tech `walls` | 6 | none |
+| Road, on any field or forest tile that is yours or unclaimed (not Mongols, since rules 8) | tech `riding` | 1 | none |
+
+Before rules 8 a harvest used the resource up, only fruit and game could be harvested,
+and the techs were the rules 7 ones (see 7).
 
 A tile with a city standing on it takes no harvest, no building and no road.
 A road can only be laid on a tile you have explored.
 
 ## 7. Tech
 
-Price: base + (number of cities you hold - 1) * tier. Base is 4, 6, 8 for tiers 1, 2, 3.
-A tech needs the one before it in its branch.
+Since rules 8 there are five branches. Each opens with one column 1 tech (a simple
+resource), which leads to two column 2 techs: the top one opens a unit, the bottom one
+a tile improvement. Each column 2 tech leads to one column 3 tech (top: a stronger unit,
+or the Walls; bottom: the upgrade of the column 2 improvement), which needs only its own
+column 2 tech.
+
+Price: base + (number of cities you hold - 1) * column. Base is 4, 6, 8 for columns 1,
+2, 3, so every tech in a column costs the same.
+
+| Branch | Column 1 | Column 2 top | Column 3 top | Column 2 bottom | Column 3 bottom |
+|---|---|---|---|---|---|
+| Orchards | `foraging`: harvest fruit | `defence`: Defender | `walls`: Walls (Mongols); Deep stores, every city eases a blockade (Spartans) | `orchards`: Orchard | `plantations`: Plantation |
+| Hunting | `trapping`: trap game | `archery`: Archer | `siege`: Catapult | `logging`: Lumber camp | `milling`: Lumber mill |
+| Mountains | `prospecting`: gather jewels, climbing mountains | `spears`: Spearman, Hoplite (Spartans) | `smithing`: Swordsman | `mining`: Mine | `foundry`: Foundry |
+| Plains | `gathering`: harvest wild grain | `riding`: Horseman, Horse Archer and the Camp (Mongols), roads (Spartans) | `chivalry`: Knight | `farming`: Farm | `granary`: Granary, Market |
+| Waters | `fishing`: catch fish | (later) | (later) | (later) | (later) |
+
+Rules 7 had four branches of three tiers, each tech needing the one before it (kept for
+replaying older matches, `CONFIG.techTree: 'rules7'`):
 
 | Branch | Tier 1 | Tier 2 | Tier 3 |
 |---|---|---|---|
 | Fields | `foraging`: harvest orchards | `farming`: Farm | `markets`: Market |
-| Riding | `riding`: Horseman, Horse Archer | `roads`: roads, the Camp | `chivalry`: Knight |
+| Riding | `riding`: Horseman, Horse Archer | `roads`: roads, the Camp (Mongols) | `chivalry`: Knight |
 | Forest | `hunting`: harvest game, Archer | `forestry`: Lumber camp | `engineering`: Catapult |
 | Mountain | `bronze`: Mine, Spearman, Hoplite | `shieldwork`: Defender, Walls | `smithing`: Swordsman |
 
@@ -135,26 +189,30 @@ A tech needs the one before it in its branch.
 `Mv` is movement in tiles. Cost in gold. A dash in the cost column means the unit
 only comes from a city reward.
 
-| Unit | Faction | Atk | Def | Range | Mv | HP | Sight | Cost | Needs | Traits |
+| Unit | Faction | Atk | Def | Range | Mv | HP | Sight | Cost | Needs (rules 8 tech) | Traits |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Warrior | any | 4 | 3 | 1 | 1 | 10 | 1 | 2 | | |
-| Spearman | any | 4 | 4 | 1 | 1 | 10 | 1 | 3 | bronze | steadfast |
+| Spearman | any | 4 | 4 | 1 | 1 | 10 | 1 | 3 | spears | steadfast |
 | Swordsman | any | 5 | 4 | 1 | 1 | 15 | 1 | 5 | smithing | doubleStrike |
-| Defender | any | 2 | 9 | 1 | 1 | 20 | 1 | 3 | shieldwork | |
-| Archer | any | 4 | 2 | 2 | 1 | 10 | 2 | 3 | hunting | |
+| Defender | any | 2 | 9 | 1 | 1 | 20 | 1 | 3 | defence | |
+| Archer | any | 4 | 2 | 2 | 1 | 10 | 2 | 3 | archery | |
 | Horseman | any | 4 | 2 | 1 | 2 | 10 | 2 | 3 | riding | retreat, mounted |
 | Knight | any | 6 | 3 | 1 | 3 | 15 | 2 | 6 | chivalry | chain, mounted |
-| Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | engineering | splash, siege |
-| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | bronze | steadfast, phalanx |
+| Catapult | any | 6 | 1 | 3 | 1 | 10 | 1 | 6 | siege | splash, siege |
+| Hoplite | Spartans | 4 | 5 | 1 | 1 | 15 | 1 | 3 | spears | steadfast, phalanx |
 | King's Guard | Spartans | 6 | 6 | 1 | 1 | 20 | 2 | - | reward | unbowed |
 | Piper | Spartans | 2 | 3 | 1 | 1 | 10 | 2 | - | reward | heal, steady, taunt |
-| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 3 | 2 | | hidden, noCityCapture, pathfinder |
+| Krypteia Scout | Spartans | 2 | 1 | 1 | 2 | 5 | 2 | 2 | | hidden, noCityCapture |
 | Horse Archer | Mongols | 3 | 2 | 2 | 2 | 10 | 2 | 5 | riding | retreat, mounted |
 | Khan's Guard | Mongols | 6 | 4 | 1 | 3 | 20 | 2 | - | reward | chain, inspire, mounted |
 | Sky Caller | Mongols | 2 | 2 | 1 | 2 | 10 | 2 | - | reward | heal, hasten, dustStorm, mounted |
-| Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | roads | camp |
+| Camp | Mongols | 0 | 3 | 0 | 1 | 15 | 1 | 6 | riding | camp |
 
 Starting unit: Spartans a Krypteia Scout, Mongols a Horseman.
+
+The Krypteia Scout's sight is 2 and it has no `pathfinder` since rules 8 (rules 7:
+sight 1 and `pathfinder`, so it could step into the fog; 3 and no fog rule before).
+It never ends a move on an unexplored tile, like every other unit.
 
 The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section 6).
 
@@ -166,13 +224,30 @@ The Sellsword joins only from a treasure: see stage 2 (`stage2-rules.md` section
 - The fog (since rules 6): a move never passes through a tile its owner had not
   explored when the move began, and an ordinary unit never ends a move on one
   either. Moving still reveals what the unit now sees, so exploring means walking to
-  the edge of the white fog and looking. Only a unit with `pathfinder` (the Krypteia
-  Scout) may end a move on one unexplored tile, as the last tile of the move. Its
+  the edge of the white fog and looking. Only a unit with `pathfinder` (no unit
+  since rules 8; the Krypteia Scout in rules 6 and 7) may end a move on one unexplored tile, as the last tile of the move. Its
   owner explores what it now sees, and its turn ends there: it keeps no movement and
   may not attack, use an ability or drink a draught this turn, even with movement
   left. Costs, engagement, forest, mountain, roads and relay riders apply as usual.
   (Rules 3 to 5 let any unit end a move on one unexplored tile, and let a mounted
   Mongol keep moving after it.)
+- Mountains (since rules 8): a unit may step onto a mountain only if its owner has
+  researched `prospecting` (`CONFIG.mountain.tech`; without it a mountain is closed to
+  that player's units, for moves and kill advances alike). Stepping off needs no
+  tech. A step onto a mountain uses all the movement left and
+  is allowed only as the first step of a unit that has not moved this turn (as
+  before), and a step off a mountain is allowed only the same way: as the first step
+  of a unit that has not moved this turn, for all its movement. Either step ends the
+  unit's turn: it has no movement and no attacks left, and may not use an ability,
+  hunker, capture, claim a treasure or drink a draught this turn. So no move passes
+  over a mountain, and a unit cannot step down and attack in one turn. Nothing lets
+  it skip this: not roads, relay riders, riding by territory, the forest rule for
+  mounted units, a bonus or haste (a unit whose turn ended this way cannot be
+  hastened). A unit on a mountain may still attack or act from it without moving;
+  one with `retreat` may then step off, which ends its turn. Units placed, pushed or
+  lured onto or off a mountain are not moving: nothing changes for them. Mapgen never
+  puts a capital, village, city or treasure on a mountain, and roads cannot be built
+  on one.
 - After attacking, a unit cannot move, unless it has `retreat`, which keeps
   whatever movement it had left.
 - A unit trained or spawned this turn is fresh until its owner's next turn starts:
@@ -206,7 +281,25 @@ the attacker still cannot move after attacking unless it has `retreat`, a Knight
 `chain` attack is made from the new tile, and the step counts as entering the tile
 this turn (so it cannot capture or claim a treasure there until a later turn).
 Attackers with range 2 or more never move in, and neither does anyone for a unit
-killed by splash.
+killed by splash. Since rules 8 an advance onto or off a mountain ends the attacker's
+turn as a climb does (no chain attack and no retreat move after it); the kill still
+counts.
+
+Ranged units on a mountain (since rules 8): a unit whose type has range 2 or more
+(Archer, Horse Archer, Catapult) has +1 range for its own attacks while it stands on
+a mountain (Archer 3, Horse Archer 3, Catapult 4). A shot at a target farther than
+its normal range (a long shot) does less damage: after every other step, including
+the momentum cut,
+
+```
+damage  = max(1, round(damage * 0.8))            (long shot only)
+```
+
+Shots within the normal range from a mountain do full damage. A blinded unit keeps
+its blinded reach. The counter-attack keeps the normal range and full damage, so a
+unit on a mountain never strikes back at the extra tile. A Catapult still cannot
+attack after moving, so one that climbs shoots on a later turn. Splash from a long
+shot is half the cut damage.
 
 Worked examples (all at full health on a field unless said):
 
@@ -231,18 +324,18 @@ Worked examples (all at full health on a field unless said):
 | steadfast | Counter-attack factor 1.25 in place of 0.75 |
 | doubleStrike | Two attacks per turn |
 | retreat | Keeps its remaining movement after attacking |
-| chain | Each kill gives one more attack this turn. Since rules 5 each kill also costs the unit health: see stage2-rules.md, section 9 |
+| chain | Each kill gives one more attack this turn, except a kill whose advance steps onto or off a mountain, which ends the turn (rules 8). Since rules 7 the unit has momentum (Knight 7, Khan's Guard 8 at the start of each of its owner's turns): each kill costs the dead unit's price, and only a kill it can pay for gives the extra attack; an attack it cannot pay for does 1 less damage per missing point (at least 1) and ends the chain. See stage2-rules.md, section 9 (rules 5 to 6: each kill cost 2 health instead) |
 | splash | Enemy units next to the target take half the damage dealt to the target, rounded, at least 1. No counter from them |
 | siege | Cannot attack on a turn it has moved, cannot move after attacking, never counter-attacks |
 | mounted | A tag other rules refer to |
-| phalanx | +1 defence for each friendly Hoplite next to it, at most +2 |
+| phalanx | +1 defence for each friendly Hoplite next to it, at most +2. Since rules 7 a Hoplite with at least two friendly Hoplites next to it is braced: +2 more defence when a chain unit (Knight, Khan's Guard) attacks it (added with the hunker bonus, before cover multiplies; never on its counter or its own attacks), and a chain unit pays a momentum price of 4 to kill it in place of the Hoplite's 2 (stage2-rules.md, section 9; the brace no longer stops the chain by itself). Bracing is judged when the attack is made |
 | unbowed | Attack is not reduced by lost health, when attacking and when striking back |
 | hidden | Enemies see it only from a tile next to it (their unit or their city) |
 | noCityCapture | Cannot capture an enemy city (villages are still allowed) |
 | steady | Friendly units next to it cannot be lured |
 | inspire | Friendly mounted units next to it have +1 attack |
 | camp | Cannot attack. May train units (see 13) |
-| pathfinder | May end a move on one unexplored tile, which ends its turn (see 9) |
+| pathfinder | May end a move on one unexplored tile, which ends its turn (see 9). No unit has it since rules 8 |
 
 Abilities are actions that use up the unit's attack for the turn (and its movement,
 as an attack would):
@@ -254,11 +347,49 @@ as an attack would):
 | hasten | Sky Caller | a friendly mounted unit next to it | +2 half-points of movement this turn |
 | dustStorm | Sky Caller | a tile within 2 with at least one enemy unit you can see on it or next to it | Enemy units on that tile or next to it are blinded until the end of their owner's next turn: they give no vision and cannot attack beyond distance 1 |
 
+Hunker (since rules 7): an action, like an ability but for any unit except one with
+the `siege` trait (the Catapult never hunkers). A unit may hunker only if it has not
+moved, attacked, used an ability, captured or claimed a treasure this turn (since
+rules 8 drinking a draught first is fine; rules 7 counted a drink too), was not trained this turn, and is not hunkered already. Hunkering uses up
+its movement and attacks for the turn, but it is not doing something for resting:
+a unit that only hunkered still rests. A hunkered unit stays hunkered over later
+turns until it takes an action of its own (moves, attacks, uses an ability,
+captures, claims a treasure, or a Camp trains; a drink ended it in rules 7, not
+since rules 8), or a lure pulls it off its tile. Being attacked, striking back, being healed, taunted or blinded do not
+end it. While hunkered:
+
+- When it is attacked it has +1 defence, added before cover (`(def + 1) * cover`).
+  It gets nothing when it attacks, and attacking ends it first, so the counter it
+  takes is worked out without the bonus.
+- Its resting heal is 1 more (see Resting), and it still heals with a seen enemy
+  next to it.
+- Since rules 8 it heals at the end of its owner's turn, not at the start of the
+  next: a unit that is hunkered when its owner ends the turn heals then, by the
+  resting heal as it stands at that moment (its land, the extra 1, and the share
+  with a seen enemy next to it), up to its maximum. It then gets no resting heal
+  when its owner's next turn starts, so it never heals twice for one turn. A heal
+  that adds health counts as a rest for deeds. Units that rest without hunkering
+  heal as before, at the start of the next turn. (`CONFIG.hunker.healAtTurnEnd`.)
+- A Heal on it gives 1 more: +5 health, up to its maximum.
+
+Unhunker (since rules 9): on their own turn a player may end the hunker of any of their
+hunkered units. It costs nothing and does nothing else: it is not doing something for
+resting, and it gives back no movement or attacks the unit has already spent (a unit
+that hunkered this turn still cannot move this turn; one hunkered on an earlier turn has
+its normal turn). A unit that unhunkered may not hunker again that turn. On the unit's
+card the Hunker button becomes an Unhunker button, drawn pressed in, while it is
+hunkered (`CONFIG.hunker.unhunker`).
+
+Both players see that a unit is hunkered (a shield beside its health on the board).
+The numbers are `CONFIG.hunker`.
+
 Resting: a unit that did nothing at all on its owner's previous turn heals at the
 start of the next turn: 4 if it stands in its owner's territory, 2 on land no city
 claims, 1 in an enemy's territory, and nothing while an enemy unit its owner can
 see (section 14) stands on a tile next to it. An enemy its owner cannot see changes
-nothing.
+nothing. Hunkering does not count as doing something. A hunkered unit heals 1 more
+(5, 3 and 2), and with a seen enemy next to it still heals half the regular heal,
+rounded up and without the extra 1: 2, 1 and 1.
 
 ## 12. Treasures, capture, winning
 
@@ -280,6 +411,15 @@ nothing.
   not. Any city reward its previous owner had
   not yet chosen is dropped. City tribute is paid only by factions that have a
   tribute rule.
+- Captured capitals (since rules 7): a captured capital becomes an ordinary city
+  for its captor (no capital income, no capital banner), and it can earn the
+  connection bonus (see 6) for its new owner like any other city. If the player
+  who lost it still has cities, one of them becomes their capital at once: the
+  highest level, then the most growth points toward the next level, then the
+  nearest (hex distance) to the lost capital's tile, then the lowest city id. The
+  new capital counts as connected. Cities that already earned the bonus keep it
+  and earn nothing more; the others can now connect to the new capital. Before
+  rules 7 a captured capital stayed a capital, so a player could hold two.
 - A player with no cities is eliminated and their units are removed. The last
   player left wins. Either player may resign at any time, on their own turn or the other's; resigning eliminates them.
 
@@ -287,15 +427,26 @@ nothing.
 
 Spartans
 
-- Start with `bronze`.
+- Start with `prospecting` (`bronze` before rules 8). The starting Krypteia Scout is
+  placed as before, but Spearmen and Hoplites wait for `spears`.
+- The Spartan capital starts the match at level 2 (since rules 9). It never levelled
+  up, so there is no level 2 reward for it; its income, unit capacity and growth
+  need are a level 2 city's from the start.
+- From level 2 on a Spartan city needs 1 growth point less to level up: `L` to go
+  from level `L` to `L+1`. Leaving level 1 takes 2, as for anyone (since rules 9;
+  rules 7 and 8: `L` from level 1).
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
+  For them the `walls` tech is Deep stores (rules 8): a blockade of any Spartan city
+  takes 15% of its income instead of half (section 6).
 - Units: Hoplite, King's Guard (champion), Piper (support), Krypteia Scout.
 
 Mongols
 
-- Start with `riding`.
+- Start with `gathering` (`riding` before rules 8). The starting Horseman is placed as
+  before, but more riders wait for `riding`.
 - Mounted units shared by all factions (Horseman and Knight) cost 1 less.
-- Riding by territory (since rules 6). Mounted Mongol units have 1 extra half-point of
+- Riding by territory (rules 6 and 7; gone since rules 8, when the extra half-point is
+  0). Mounted Mongol units had 1 extra half-point of
   movement (before rules 6, a whole tile): a Horseman has 5 half-points, so 2 field
   tiles with one half-point left, which buys one more tile only where a tile costs 1
   (a road, or relay riders in Mongol territory): 5 road tiles. Territory is the city
@@ -311,10 +462,18 @@ Mongols
   apply to the move a `retreat` unit makes after attacking.
 - Entering a forest costs mounted Mongol units the normal forest cost and then uses
   up the rest of their move.
-- Relay riders: for Mongol units, entering any tile inside Mongol territory costs
-  1 half-point.
-- Tribute: capturing a village pays 3 gold, capturing a city pays 3 + its level.
-- Mongol cities need `L+2` growth points to leave level `L`.
+- Relay riders: for mounted Mongol units (since rules 8; every Mongol unit before),
+  entering any tile inside Mongol territory costs 1 half-point, the cost of a road,
+  whether the move started inside it or is riding in. Mongol foot units pay the
+  normal terrain costs there (or a road's, where a road is). The mountain rule
+  (section 9) still comes first.
+- Mongols build no roads (since rules 8). They still research `riding`, which opens
+  the Camp and leads to `chivalry`. Roads already on the map, built by anyone, work
+  for every unit.
+- Tribute: capturing a village pays 4 gold, capturing a city pays 4 + its level (3 and
+  3 + level before rules 8).
+- Mongol cities need `L+1` growth points to leave level `L`, as anyone's (`L+2`
+  before rules 8, when Mongols could build roads to connect their cities).
 - Feigned retreat (lure): when a Mongol unit with `retreat` attacks, the player may
   ask for a lure. If the target survives, is not steadied, and is not in a city,
   then when the attacker next moves this turn the target is pulled one tile toward
@@ -332,7 +491,8 @@ Mongols
 ## 14. Vision
 
 - A player sees every tile within `sight` of each of their units (one more from a
-  mountain) and every tile within their cities' territory radius + 1.
+  mountain) and every tile within their cities' territory radius (radius + 1 before
+  rules 8).
 - Seen tiles stay explored for the rest of the match.
 - An explored tile is shown as it is now, not as it was when last seen: its
   terrain, resource, building, road, and any city on it with that city's owner,
@@ -342,3 +502,81 @@ Mongols
   next to.
 - You can only attack or target a unit you currently see. A unit whose range is
   longer than its sight (the Catapult) needs another unit to spot for it.
+
+## Rules 7 changes
+
+- Connected cities: the first time roads join a city to its owner's capital, both
+  gain 1 growth (section 6).
+- A captured capital is an ordinary city for its captor, and the loser's best city
+  becomes their capital (section 12).
+- Lumber camp costs 4 and gives 2 growth, a Market gives 2 growth (section 6).
+- The Krypteia Scout's sight is 1 (section 8).
+- Hunker, a unit action for defence and healing (section 11).
+- Phalanx brace: a Hoplite with two friendly Hoplites beside it has +2 defence
+  against chain attackers, and costs a chain unit 4 momentum to kill (traits table).
+- Momentum replaces the rules 5 chain health cost: a chain unit pays each kill's
+  momentum price, and only a paid kill gives the extra attack; an attack it cannot
+  pay for is cut by the shortfall and ends the chain (stage2-rules.md, section 9).
+- A Spartan city needs 1 less growth to level up (sections 6 and 13).
+- The second player starts with 12 gold instead of 10 (section 4).
+
+## Rules 8 changes
+
+This list, the one above and the one below are the file's changelog.
+
+- Ranged units (range 2 or more) on a mountain have +1 range for their own attacks;
+  a shot that uses the extra tile does 0.8 of the damage, rounded, at least 1. The
+  counter-attack is unchanged (section 10).
+- A step onto a mountain ends the unit's turn, and a step off one is allowed only as
+  the first step of a unit that has not moved this turn and ends its turn too, so no
+  move passes over a mountain (sections 2 and 9). Relay riders no longer pay 1 for a
+  mountain in their own territory.
+- A melee kill advance onto or off a mountain ends the attacker's turn too, chain
+  and retreat included (section 10).
+- A city sees its territory radius and nothing beyond (section 14).
+- The Krypteia Scout has sight 2 and no `pathfinder`: it no longer steps into the
+  fog (section 8).
+- Mongol relay riders: only mounted Mongol units pay a road's cost onto their own
+  territory; foot units pay normal costs. The extra half-point of riding by
+  territory is gone, and Mongols build no roads (section 13).
+- A hunkered unit heals at the end of its owner's turn, not at the start of the
+  next (section 11). Drinking a draught neither stops a unit from hunkering nor
+  ends its hunker (`CONFIG.hunker.drinkKeepsHunker`).
+- Climbing must be researched: a unit steps onto a mountain only if its owner knows
+  `prospecting`; stepping off needs nothing (sections 2, 7 and 9).
+- The tech tree is new: five branches, each a column 1 resource tech that forks into a
+  unit row and an improvement row, one more tech each; every tech in a column costs the
+  same (section 7). Spartans start with `prospecting`, Mongols with `gathering`, so
+  neither trains a new unit kind before a column 2 tech (section 13).
+- A harvest keeps the resource on its tile, marked harvested, for building on; wild
+  grain can be harvested, and jewels (on mountains) and fish (on water) are new
+  resources (sections 3 and 6).
+- New improvements: the Orchard, and an upgrade for each improvement (Plantation,
+  Lumber mill, Foundry, Granary) that replaces it for more gold and more growth. A
+  Lumber camp may stand on a game forest. The Market moves to `granary`, the Walls to
+  `walls`, roads and the Camp to `riding` (section 6).
+- Blockade: a city with enemy units on 3 or more of the tiles beside it as its owner's turn starts
+  loses half that turn's income, rounded down, at least 1 gold and keeping at least 1; a quarter with
+  Walls, 15% for Spartans who know Deep stores (the `walls` tech, under its Spartan
+  name) (sections 6, 7 and 13).
+- Mongol cities level at the common pace: `L+1` growth points to leave level `L`
+  (was `L+2`), in place of the growth roads used to give them (sections 6 and 13).
+- Mongol tribute is 4 gold for a village and 4 + level for a city (was 3 and 3 + level)
+  (section 13).
+
+## Rules 9 changes
+
+- The Spartan capital starts at level 2, with no reward for it (David, 2026-11-25;
+  sections 4 and 13).
+- The Spartan growth discount starts at level 2: every city needs 2 growth points to
+  leave level 1 (a Spartan city needed 1), and from level 2 on a Spartan city needs
+  `L` as before (2 to leave level 2, 3 to leave level 3). Mongols are unchanged
+  (sections 6 and 13).
+- The level 2 `gold` reward is +5 gold (was +6). A champion or support reward with
+  no free tile pays the same +5 (section 6). The treasure's +5 gold is a separate
+  number and unchanged (section 12).
+- Unhunker: a player may end a unit's hunker on their turn, for nothing and with no
+  movement given back; the unit cannot hunker again that turn. The card shows an
+  Unhunker button for a hunkered unit (section 11).
+- A Market gives 3 growth (was 2). Its cost (6), its +2 income and the one per city
+  are unchanged (section 6).

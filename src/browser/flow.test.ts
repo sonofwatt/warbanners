@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // The whole game in a real browser, opened with ?seed=7. Facts about seed 7, checked against the engine:
 // Player 1 (Spartans) moves first with 10 gold and one Krypteia Scout (unit 0) on the capital at -2,5, which can
@@ -25,8 +25,12 @@ async function throughCurtain(page: Page, name: string): Promise<void> {
   await frames(page);
 }
 
-/** End turn is locked for a moment after the match appears; wait until it can be tapped. */
+/**
+ * End turn is locked for a moment after the match appears; wait until it can be tapped. A selection's card holds the
+ * bar's place, so whatever is selected is let go first.
+ */
 async function endTurnReady(page: Page): Promise<void> {
+  await deselect(page);
   await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
 }
 
@@ -43,7 +47,8 @@ async function startMatch(page: Page): Promise<void> {
  */
 async function slide(page: Page, from: string, to: string): Promise<void> {
   await tapTile(page, from);
-  await page.locator(`[data-mark="move"]`).first().waitFor({ state: 'attached' });
+  // Every move off a mountain ends the turn (rules 8), so a unit on one has only moveEnds marks.
+  await page.locator(`[data-mark="move"], [data-mark="moveEnds"]`).first().waitFor({ state: 'attached' });
   await page.evaluate(() => {
     const w = window as unknown as { unitNode: Element | null; track: { x: number; y: number }[]; tracking: boolean };
     w.unitNode = document.querySelector('[data-unit="0"]');
@@ -227,7 +232,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await page.getByTestId('end-turn').tap();
       await throughCurtain(page, 'Player 2');
       expect(await text(page, 'who')).toBe('Player 2');
-      expect(await text(page, 'gold')).toBe('10');
+      expect(await text(page, 'gold')).toBe('12');   // the second seat starts with 12 gold (rules 7)
       expect(await text(page, 'turn')).toBe('Turn 1');
 
       await page.reload();
@@ -236,7 +241,7 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       expect(await count(page, '[data-hex]')).toBe(0);
       await page.getByTestId('continue').tap();
       await throughCurtain(page, 'Player 2');
-      expect(await text(page, 'gold')).toBe('10');
+      expect(await text(page, 'gold')).toBe('12');
 
       await page.getByTestId('open-menu').tap();
       await page.getByTestId('resign').tap();
@@ -267,9 +272,14 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await throughCurtain(page, 'Player 1');
       await endTurnReady(page);
 
+      await expectTidy(page, 'match with nothing selected');
+      await expectEndTurnUncovered(page);
       await tapTile(page, '-2,5');
       await page.locator('.selection').waitFor();
       await expectTidy(page, 'match with a unit selected');
+      // The unit's card holds the bar's place until it is let go.
+      expect(await page.getByTestId('end-turn').count()).toBe(0);
+      await deselect(page);
       await expectEndTurnUncovered(page);
 
       await page.getByTestId('open-tech').tap();

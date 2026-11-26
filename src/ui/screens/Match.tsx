@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import {
-  DEEDS, growthNeeded, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
+  DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
@@ -9,21 +9,27 @@ import { roundOf } from '../../app/record';
 import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { formatClock } from '../../online/clock';
-import { T, fill } from '../text';
+import { T, digestText, fill } from '../text';
 import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
-import { hearingFor, isMuted, play, setMuted, soundFor } from '../sound';
+import { hearingFor, isMuted, play, setMuted, soundFor, warmSound } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
 import type { Command } from '../panels/commands';
 import { CityPanel } from '../panels/CityPanel';
 import { DigestCard } from '../panels/DigestCard';
-import { Hud } from '../panels/Hud';
+import { ActionBar, Hud } from '../panels/Hud';
 import { Menu } from '../panels/Menu';
 import { RewardSheet } from '../panels/RewardSheet';
 import { TechSheet } from '../panels/TechSheet';
 import { TilePanel } from '../panels/TilePanel';
 import { UnitPanel } from '../panels/UnitPanel';
+import { SelectionSheet } from '../panels/SelectionSheet';
+import type { SheetApi } from '../panels/SelectionSheet';
 import { Board } from '../board/Board';
+import type { BoardAttacks } from '../board/Board';
+import { NO_INSETS } from '../board/camera';
+import type { Insets } from '../board/camera';
+import { setTerrain3d, terrain3dOn } from '../terrain3d/option';
 import { Effects } from '../board/Effects';
 import { effectsFor, seenBy } from '../board/effects';
 import { buildScene } from '../board/scene';
@@ -39,6 +45,9 @@ export const TIME_UP_MS = 4000;
 export interface MatchData {
   view: PlayerView; ix: ActionIndex; marks: ReturnType<typeof marksFor>; ready: Set<HexKey>; spent: Set<number>;
   focus: HexKey | null; radius: number; factions: [FactionId, FactionId];
+  // rules 8: the gold each of the viewer's blockaded cities would lose as its next turn starts, judged on what the
+  // viewer sees (an unseen enemy is not counted here, so the forecast never gives one away)
+  blockades: Map<number, number>;
 }
 
 // `acts` is false online while the session says it is not this phone's turn (the other phone's turn, a return
@@ -53,7 +62,19 @@ export function matchData(state: MatchState, viewer: PlayerId, selection: Select
     view, ix, marks: marksFor(selection, view, ix), ready: new Set(readyTiles(view, ix)), spent: acts && state.current === viewer ? spentUnits(view, ix) : new Set(),
     focus: capital?.pos ?? first?.pos ?? null, radius: state.radius,
     factions: [state.players[0]!.faction, state.players[1]!.faction],
+    blockades: blockadesSeen(state, viewer),
   };
+}
+
+function blockadesSeen(state: MatchState, viewer: PlayerId): Map<number, number> {
+  const believed = believedState(aiInputFor(state, viewer));
+  const out = new Map<number, number>();
+  for (const c of believed.cities) {
+    if (c.owner !== viewer) continue;
+    const b = blockadeOf(believed, c);
+    if (b.blockaded) out.set(c.id, b.cut);
+  }
+  return out;
 }
 
 // The focus the camera aims at, held for the whole of a turn (`key` names the turn and the player). Without a
@@ -65,6 +86,9 @@ export function turnFocus(held: TurnFocus | null, key: string, focus: HexKey): T
 }
 
 export type Sheet = 'none' | 'tech' | 'menu';
+
+// While a turn report line is shown on the board, the board pans and zooms but takes no taps.
+const noTap = (): void => {};
 
 // Next unit is greyed, like End turn, while the AI plays, during End turn's lock and while a sheet or overlay is
 // up, and also when none of the viewer's units can still act.
@@ -111,11 +135,36 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const [techFocus, setTechFocus] = useState<TechId | null>(null);
   const [locked, setLocked] = useState(true);
   const [soundOn, setSoundOn] = useState(() => !isMuted());
+  const [terrain3d, setTerrain3dState] = useState(terrain3dOn);
   const [later, setLater] = useState<number[]>([]);
   // Each tap on Next unit asks the board, once, to bring the unit it selected into view.
   const [revealed, setRevealed] = useState(0);
+  // The turn report line being looked at on the board (its card is put away meanwhile), and a count that asks the
+  // board, once per tap, to centre on that line's tile.
+  const [peek, setPeek] = useState<number | null>(null);
+  const [centred, setCentred] = useState(0);
+  useEffect(() => { setPeek(null); }, [digest]);
+  // The selection card lies over the board; the board asks it what it covers when deciding where to look, and
+  // `coverN` tells the board each time that may have changed (the card's top grew or shrank, a rotation).
+  // With nothing selected the bar of turn buttons lies over the bottom of the board instead, and covers its height.
+  const slotRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLElement>(null);
+  const sheetApi = useRef<SheetApi | null>(null);
+  const [coverN, setCoverN] = useState(0);
+  const cover = useCallback((): Insets => {
+    const api = sheetApi.current, slot = slotRef.current, bar = barRef.current;
+    if (slot === null) return NO_INSETS;
+    const s = slot.getBoundingClientRect();
+    if (api !== null) return api.cover(s);
+    if (bar !== null) return { ...NO_INSETS, bottom: Math.max(0, Math.min(s.height, s.bottom - bar.getBoundingClientRect().top)) };
+    return NO_INSETS;
+  }, []);
+  const onCover = useCallback((): void => setCoverN((n) => n + 1), []);
 
   // The phone's status bar takes the top bar's paper while a match is open (the sky colour comes back on leaving).
+  // The audio context and the samples are made ready once the match is up, not by the first sound of a move.
+  useEffect(() => (soundOn ? warmSound() : undefined), [soundOn]);
+
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (meta === null) return undefined;
@@ -159,12 +208,23 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   // The sound is chosen by the same rule, from the same units.
   const fx = useMemo(() => {
     if (last === null || state === null || viewer === null || last.seq === shownBefore.current) return null;
-    const { visible, seenUnits } = seenBy(last.before, state, viewer);
+    const { visible, seenUnits, visibleBefore } = seenBy(last.before, state, viewer);
     return {
       seq: last.seq, sound: soundFor(last.events, hearingFor(last.before, state, viewer)),
-      list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer),
+      list: effectsFor(last.events, last.before, state, visible, seenUnits, viewer, visibleBefore),
     };
   }, [last, state, viewer]);
+  // The same action as the board plays it: its attacks and deaths (the 3D figures face, strike and block), when its
+  // moves start, and the tiles where it happened (the view follows them when they leave the middle of the screen).
+  const attacks = useMemo((): BoardAttacks | null => {
+    if (fx === null) return null;
+    const list = fx.list.flatMap((f) => (f.kind === 'lunge'
+      ? [{ unit: f.unit, from: f.from, toward: f.toward, delay: f.delay, target: f.target, counter: f.counter }] : []));
+    const fallen = fx.list.flatMap((f) => (f.kind === 'fall' ? [f.unit] : []));
+    const moves = fx.list.flatMap((f) => (f.kind === 'move' ? [{ unit: f.unit, delay: f.delay }] : []));
+    const tiles = fx.list.flatMap((f) => (f.kind === 'lunge' ? [f.from, f.toward] : f.kind === 'move' ? [f.to] : [f.at]));
+    return list.length === 0 && fallen.length === 0 && moves.length === 0 && tiles.length === 0 ? null : { seq: fx.seq, list, fallen, moves, tiles };
+  }, [fx]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   useEffect(() => {
     if (fx === null || fx.seq === heard.current) return;
@@ -176,10 +236,16 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     focusHeld.current = turnFocus(focusHeld.current, `${roundOf(state)}:${viewer}`, data.focus ?? '0,0');
   }
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
-  const items = useMemo(
-    () => (data === null ? null : buildScene({ view: data.view, radius: data.radius, marks: data.marks, ready: data.ready, selectedUnit, spentUnits: data.spent })),
-    [data, selectedUnit],
-  );
+  // While a city is selected (either player's), its land is outlined on the board.
+  const cityLand = selection.kind === 'city' ? selection.id : null;
+  // The tile of the turn report line being looked at is ringed, so it can be found when the board's edge stops the
+  // view short of centring it.
+  const peekAt = peek !== null ? digest[peek]?.at : undefined;
+  const items = useMemo(() => {
+    if (data === null) return null;
+    const marks = peekAt === undefined ? data.marks : { ...data.marks, [peekAt]: 'selected' as const };
+    return buildScene({ view: data.view, radius: data.radius, marks, ready: data.ready, selectedUnit, spentUnits: data.spent, cityLand });
+  }, [data, selectedUnit, peekAt, cityLand]);
   if (state === null || record === null || viewer === null || data === null || items === null) return null;
 
   const { view, ix } = data;
@@ -199,14 +265,14 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (u !== undefined) {
       const owner = state.players[u.owner]!.faction;
       const commands = u.owner === viewer ? unitCommands(selection, state, ix) : [];
-      // The myth touch and the movement are judged on what the viewer believes, never on the whole match, so an
+      // The myth touch, the brace and the movement are judged on what the viewer believes, never on the whole match, so an
       // enemy's card cannot tell of a hero or a helper beside it that the viewer has not seen.
       const believed = believedState(aiInputFor(state, viewer));
       const myth = mythTouched(believed, u);
       const thresholds = u.owner === viewer
         ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
       panel = (
-        <UnitPanel unit={u} faction={owner} stats={statsOf(believed, u)} myth={myth} thresholds={thresholds}
+        <UnitPanel unit={u} faction={owner} stats={statsOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
           commands={commands} onCommand={onCommand} />
       );
     }
@@ -215,14 +281,18 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (city !== undefined) {
       const mine = city.owner === viewer;
       const owner = state.players[city.owner]!.faction;
+      // Joined to its owner's capital now, judged on what the viewer believes (roads seen, never ones in the fog).
+      const believed = believedState(aiInputFor(state, viewer));
+      const seen = believed.cities.find((c) => c.id === city.id);
+      const connected = seen !== undefined && isConnected(believed, seen);
       panel = mine ? (
         <CityPanel
           key={city.id} faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
-          units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)}
-          walls={city.walls} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
+          units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)} blockade={data.blockades.get(city.id)}
+          walls={city.walls} connected={connected} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
       ) : (
-        <CityPanel faction={owner} level={city.level} capital={city.capital} walls={city.walls} commands={[]} onCommand={onCommand} />
+        <CityPanel faction={owner} level={city.level} capital={city.capital} walls={city.walls} connected={connected} commands={[]} onCommand={onCommand} />
       );
     }
   } else if (selection.kind === 'tile') {
@@ -230,7 +300,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     if (tile !== undefined) {
       panel = (
         <TilePanel
-          terrain={tile.terrain} resource={tile.resource} building={tile.building} road={tile.road}
+          terrain={tile.terrain} resource={tile.resource} building={tile.building} road={tile.road} harvested={tile.harvested}
           commands={tileCommands(selection.at, state, ix)} onCommand={onCommand}
         />
       );
@@ -239,9 +309,13 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
 
   const rewardCity = digest.length > 0 || sheet !== 'none' ? undefined
     : view.cities.find((c) => c.owner === viewer && ix.rewards.includes(c.id) && c.pendingRewards[0] !== undefined && !later.includes(c.id));
-  // In landscape the board takes the side column too while nothing is shown there.
+  // Something is shown in the side column (landscape) or over the bottom of the board (portrait). The board's slot
+  // keeps its size either way: the panel lies over it.
   const side = sheet !== 'none' || panel !== null;
+  const selectionKey = selection.kind === 'unit' ? `unit:${selection.id}` : selection.kind === 'city' ? `city:${selection.id}`
+    : selection.kind === 'tile' ? `tile:${selection.at}` : 'none';
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
+  const toggleTerrain3d = (): void => { setTerrain3d(!terrain3d); setTerrain3dState(!terrain3d); };
   const waiting = isOnline && !myTurn;
   const nextDisabled = waiting || nextUnitDisabled({
     canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
@@ -282,20 +356,26 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     || (online !== null && (!online.connected || online.returning || online.verifying || online.blocked || online.phase !== 'playing'));
   const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
   const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
+  const peeked = peek !== null ? digest[peek] : undefined;
+  const showLine = (i: number): void => { setPeek(i); setCentred((n) => n + 1); };
 
   return (
-    <div className={side ? 'screen match has-side' : 'screen match'} data-testid="match">
+    <div className={`screen match${side ? ' has-side' : ''}${peeked !== undefined ? ' peeking' : ''}`} data-testid="match">
       <Hud
         name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
-        gold={player.gold} income={playerIncome(state, viewer)} round={roundOf(state)}
-        unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting} thinking={aiBusy && !isOnline}
+        gold={player.gold} income={playerIncome(state, viewer)} blockade={[...data.blockades.values()].reduce((a, n) => a + n, 0)} round={roundOf(state)}
+        thinking={aiBusy && !isOnline}
         status={status} statusName={statusName} statusShort={statusShort} clock={clock} clockPaused={online?.clock.kind === 'paused'}
-        nextDisabled={nextDisabled} onNextUnit={onNextUnit}
-        onOpenTech={() => { setTechFocus(null); setSheet('tech'); }} onOpenMenu={() => setSheet('menu')} onEndTurn={() => run({ type: 'endTurn' })}
+        onOpenMenu={() => setSheet('menu')}
       />
-      <div className="board-slot" data-testid="board-slot">
-        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer} onTap={tap}
+      <div className="board-slot" data-testid="board-slot" ref={slotRef}>
+        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
+          terrain3d={terrain3d} attacks={attacks}
+          covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
+          onTap={peeked !== undefined ? noTap : tap}
           reveal={revealed > 0 && shownUnit !== undefined ? { n: revealed, at: shownUnit.pos } : null}
+          centre={centred > 0 && peeked !== undefined ? { n: centred, at: peeked.at } : null}
+          cover={cover} coverN={coverN}
         >
           {fx !== null ? <Effects key={fx.seq} effects={fx.list} factions={data.factions} /> : null}
         </Board>
@@ -306,21 +386,37 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
           {notice !== null && MATCH_NOTICES.has(notice) ? <NoticeLine notice={notice} onDismiss={dismissNotice} /> : null}
         </div>
       ) : null}
-      {panel !== null && sheet === 'none' ? <aside className="selection">{panel}</aside> : null}
+      {/* The bottom of the screen: the selection's card while something is selected, else the turn buttons. */}
+      {panel !== null && sheet === 'none' ? (
+        <SelectionSheet resetKey={selectionKey} apiRef={sheetApi} onCover={onCover}>{panel}</SelectionSheet>
+      ) : (
+          <ActionBar
+            barRef={barRef} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
+            unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting}
+            nextDisabled={nextDisabled} onNextUnit={onNextUnit}
+            onOpenTech={() => { setTechFocus(null); setSheet('tech'); }} onEndTurn={() => run({ type: 'endTurn' })}
+          />
+      )}
       {sheet === 'tech' ? (
         <TechSheet rows={techRows(state, ix)} focus={techFocus} onResearch={(t: TechId) => run({ type: 'research', tech: t })} onClose={() => setSheet('none')} />
       ) : null}
       {sheet === 'menu' ? (
         <Menu
-          soundOn={soundOn} onToggleSound={toggleSound} onResign={isOnline ? resignOnline : () => run({ type: 'resign' })}
+          soundOn={soundOn} onToggleSound={toggleSound} terrain3d={terrain3d} onToggleTerrain3d={toggleTerrain3d} onResign={isOnline ? resignOnline : () => run({ type: 'resign' })}
           resignDisabled={isOnline ? resignDisabled : aiBusy || !myTurn}
           onHome={goHome} onClose={() => setSheet('none')} onlineNote={isOnline ? T.ui.homeWaits : undefined}
         />
       ) : null}
-      {digest.length > 0 ? (
+      {digest.length > 0 && peeked === undefined ? (
         <div className="overlay" data-testid="digest">
-          <DigestCard lines={digest} />
+          <DigestCard lines={digest} onShow={showLine} />
           <button type="button" className="primary" data-testid="digest-ok" onClick={dismissDigest}>{T.ui.gotIt}</button>
+        </div>
+      ) : null}
+      {peeked !== undefined ? (
+        <div className="digest-peek" data-testid="digest-peek">
+          <p>{digestText(peeked)}</p>
+          <button type="button" className="primary" data-testid="digest-back" onClick={() => setPeek(null)}>{T.ui.backToReport}</button>
         </div>
       ) : null}
       {desync ? (

@@ -33,9 +33,9 @@ test('forest variants differ', () => {
 });
 
 test('every resource and building has its own drawing', () => {
-  const r = (['orchard', 'cropland', 'game', 'ore'] as const).map((x) => html(<ResourceMark resource={x} />));
-  const b = (['farm', 'lumberCamp', 'mine', 'market'] as const).map((x) => html(<BuildingMark building={x} />));
-  expect(new Set([...r, ...b]).size).toBe(8);
+  const r = (['orchard', 'cropland', 'game', 'ore', 'jewels', 'fish'] as const).map((x) => html(<ResourceMark resource={x} />));
+  const b = (['farm', 'lumberCamp', 'mine', 'market', 'orchard', 'plantation', 'lumberMill', 'foundry', 'granary'] as const).map((x) => html(<BuildingMark building={x} />));
+  expect(new Set([...r, ...b]).size).toBe(15);
 });
 
 test('a city carries its owner colour, grows with level, and shows capital, walls and pending', () => {
@@ -55,9 +55,9 @@ test('a road reaches toward each linked neighbour', () => {
 
 test('art stays inside its tile footprint', () => {
   const terrains: Terrain[] = ['field', 'forest', 'mountain', 'water'];
-  const resources: Resource[] = ['orchard', 'cropland', 'game', 'ore'];
-  const buildings: BuildingId[] = ['farm', 'lumberCamp', 'mine', 'market'];
-  const marks: Mark[] = ['move', 'attack', 'ability', 'selected'];
+  const resources: Resource[] = ['orchard', 'cropland', 'game', 'ore', 'jewels', 'fish'];
+  const buildings: BuildingId[] = ['farm', 'lumberCamp', 'mine', 'market', 'orchard', 'plantation', 'lumberMill', 'foundry', 'granary'];
+  const marks: Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
   const factions: FactionId[] = ['spartans', 'mongols'];
   const all: ReactElement[] = [
     ...(['grass', 'water', 'rock', 'sand', 'fog'] as const).map((g) => <TileBase ground={g} />),

@@ -1,15 +1,25 @@
 import { playerView } from '../../engine';
+import { hexesBetween, slideMs3d } from './motion';
 import { T } from '../text';
 import type { GameEvent, HexKey, MatchState, PlayerId, UnitTypeId } from '../../engine';
 
 export type Effect =
-  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number }
-  | { kind: 'lunge'; unit: number; toward: HexKey; delay: number }
-  | { kind: 'fall'; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
+  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number; ms?: number }
+  // A melee or ranged attack: the attacker leans from its tile toward the target's. `target` is the unit attacked,
+  // `counter` whether it struck back (the 3D look plays the exchange; the svg shows the lunge and the numbers).
+  | { kind: 'lunge'; unit: number; from: HexKey; toward: HexKey; delay: number; target: number; counter: boolean }
+  // A unit seen to change tile (a move, a lure, an advance after a kill): drawn by the board's slide, not here. The
+  // delay lets an advance wait for the blow that cleared the tile; it takes no slot, so it moves no other effect.
+  | { kind: 'move'; unit: number; unitType: UnitTypeId; from: HexKey; to: HexKey; delay: number }
+  | { kind: 'fall'; unit: number; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
   | { kind: 'burst'; at: HexKey; tone: 'build' | 'capture' | 'level' | 'treasure'; delay: number };
 
 export const EFFECT_MS = 450;
 export const MAX_TOTAL_MS = 1200;
+/** What a claimed treasure gave stays up three times as long as other effects, so it can be read. */
+export const TREASURE_TEXT_MS = EFFECT_MS * 3;
+/** How long one effect plays: its own time, or EFFECT_MS. */
+export const effectMs = (f: Effect): number => (f.kind === 'number' ? f.ms ?? EFFECT_MS : EFFECT_MS);
 const STEP_MS = 120;
 const COUNTER_MS = 150;
 
@@ -19,7 +29,7 @@ const COUNTER_MS = 150;
 // views: the answer is kept with the states of the action, which never change, and shared. Callers only read it.
 // Both states are held weakly (a WeakMap keyed by the state after, holding a WeakMap keyed by the state before),
 // so the answers never keep a match's earlier states alive.
-export interface Seen { visible: ReadonlySet<HexKey>; seenUnits: ReadonlySet<number> }
+export interface Seen { visible: ReadonlySet<HexKey>; seenUnits: ReadonlySet<number>; visibleBefore: ReadonlySet<HexKey> }
 const asked = new WeakMap<MatchState, WeakMap<MatchState, Map<PlayerId, Seen>>>();
 export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId): Seen {
   let byBefore = asked.get(after);
@@ -29,9 +39,11 @@ export function seenBy(before: MatchState, after: MatchState, viewer: PlayerId):
   const hit = byViewer.get(viewer);
   if (hit !== undefined) return hit;
   const now = playerView(after, viewer);
+  const was = playerView(before, viewer);
   const seen = {
     visible: new Set(now.visible),
-    seenUnits: new Set([...playerView(before, viewer).units, ...now.units].map((u) => u.id)),
+    seenUnits: new Set([...was.units, ...now.units].map((u) => u.id)),
+    visibleBefore: new Set(was.visible),
   };
   byViewer.set(viewer, seen);
   return seen;
@@ -44,13 +56,16 @@ export function cityTile(before: MatchState, after: MatchState, id: number): Hex
 }
 
 // How long the viewer needs to watch one action: until its last effect ends, or one slide for a seen unit that
-// moved (moves are drawn by the board's slide, not by an effect). 0 when the viewer can see none of it.
-export function watchMs(events: readonly GameEvent[], before: MatchState, after: MatchState, viewer: PlayerId): number {
-  const { visible, seenUnits } = seenBy(before, after, viewer);
-  const list = effectsFor(events, before, after, visible, seenUnits, viewer);
+// moved (moves are drawn by the board's slide, not by an effect). 0 when the viewer can see none of it. In the 3D
+// look (`look3d`) a move is watched until its walk has ended too, as the figure turns and then travels.
+export function watchMs(events: readonly GameEvent[], before: MatchState, after: MatchState, viewer: PlayerId, look3d = false): number {
+  const { visible, seenUnits, visibleBefore } = seenBy(before, after, viewer);
+  const all = effectsFor(events, before, after, visible, seenUnits, viewer, visibleBefore);
+  const list = all.filter((f) => f.kind !== 'move');
   const moved = events.some((e) => (e.type === 'moved' || e.type === 'lured' || e.type === 'advanced') && seenUnits.has(e.unit));
-  if (list.length === 0) return moved ? EFFECT_MS : 0;
-  return Math.max(...list.map((f) => f.delay)) + EFFECT_MS;
+  const walks = look3d ? all.flatMap((f) => (f.kind === 'move' ? [f.delay + slideMs3d(f.unitType, hexesBetween(f.from, f.to))] : [])) : [];
+  if (list.length === 0) return Math.max(moved ? EFFECT_MS : 0, ...walks);
+  return Math.max(...list.map((f) => f.delay + effectMs(f)), ...walks);
 }
 
 // Turn the events of one action into short on-board effects. The state is already final;
@@ -58,6 +73,9 @@ export function watchMs(events: readonly GameEvent[], before: MatchState, after:
 // effect about a unit outside `seenUnits` (the ids the viewer could see before the action or can see
 // after it), since a hidden unit may stand unseen on a visible tile. What a treasure held is told in words to the
 // player who claimed it only; the other side sees the plain burst.
+// `visibleBefore` (the tiles the viewer saw before the action) lets the blows, moves and falls of units the viewer
+// saw play out on tiles the action itself took out of sight: a unit killed takes its sight with it, but the viewer
+// watched it fall, and saw its killer strike from where it stood.
 export function effectsFor(
   events: readonly GameEvent[],
   before: MatchState,
@@ -65,6 +83,7 @@ export function effectsFor(
   visible: ReadonlySet<HexKey>,
   seenUnits: ReadonlySet<number>,
   viewer: PlayerId,
+  visibleBefore?: ReadonlySet<HexKey>,
 ): Effect[] {
   // Last known tile of every unit, followed through moves and lures within this list.
   const pos = new Map<number, HexKey>();
@@ -74,6 +93,7 @@ export function effectsFor(
 
   const out: Effect[] = [];
   const seen = (at: HexKey | undefined): at is HexKey => at !== undefined && visible.has(at);
+  const watched = (at: HexKey | undefined): at is HexKey => seen(at) || (at !== undefined && visibleBefore?.has(at) === true);
   const known = (id: number): boolean => seenUnits.has(id);
   let slot = 0;
   for (const e of events) {
@@ -82,23 +102,32 @@ export function effectsFor(
     switch (e.type) {
       case 'moved':
       case 'lured':
-      case 'advanced':
+      case 'advanced': {
         pos.set(e.unit, e.to);
+        const u = after.units.find((x) => x.id === e.unit) ?? before.units.find((x) => x.id === e.unit);
+        // Only a move that ends in sight; one that starts in the fog is drawn as the unit appearing, so its start
+        // is not told (it stands as its end).
+        if (u !== undefined && known(e.unit) && seen(e.to)) {
+          mine.push({ kind: 'move', unit: e.unit, unitType: u.type, from: watched(e.from) ? e.from : e.to, to: e.to, delay });
+        }
         break;
+      }
       case 'attacked': {
         const from = unitPos(e.unit);
         const to = unitPos(e.target);
         // A lunge shows both tiles, so it needs both to be visible.
-        if (seen(from) && seen(to) && known(e.unit) && known(e.target)) mine.push({ kind: 'lunge', unit: e.unit, toward: to, delay });
-        if (seen(to) && known(e.target)) mine.push({ kind: 'number', at: to, text: `-${e.damage}`, tone: 'hurt', delay });
-        if (e.counter > 0 && seen(from) && known(e.unit)) {
+        if (watched(from) && watched(to) && known(e.unit) && known(e.target)) {
+          mine.push({ kind: 'lunge', unit: e.unit, from, toward: to, delay, target: e.target, counter: e.counter > 0 });
+        }
+        if (watched(to) && known(e.target)) mine.push({ kind: 'number', at: to, text: `-${e.damage}`, tone: 'hurt', delay });
+        if (e.counter > 0 && watched(from) && known(e.unit)) {
           mine.push({ kind: 'number', at: from, text: `-${e.counter}`, tone: 'hurt', delay: delay + COUNTER_MS });
         }
         break;
       }
-      case 'chainCost': {
+      case 'momentum': {
         const at = unitPos(e.unit);
-        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: `-${e.damage}`, tone: 'hurt', delay });
+        if (at && known(e.unit)) mine.push({ kind: 'number', at, text: T.ui.momentumSpent(e.spent), tone: 'hero', delay });
         break;
       }
       case 'splashed': {
@@ -109,7 +138,7 @@ export function effectsFor(
       case 'died': {
         const u = before.units.find((x) => x.id === e.unit);
         const at = unitPos(e.unit);
-        if (u && at && known(u.id)) mine.push({ kind: 'fall', unitType: u.type, owner: u.owner, at, delay });
+        if (u && watched(at) && known(u.id)) mine.push({ kind: 'fall', unit: u.id, unitType: u.type, owner: u.owner, at, delay });
         break;
       }
       case 'ability': {
@@ -120,15 +149,20 @@ export function effectsFor(
         if (was && gain > 0 && known(was.id)) mine.push({ kind: 'number', at: e.target, text: `+${gain}`, tone: 'heal', delay });
         break;
       }
+      case 'restHealed': {                 // rules 8: a hunkered unit healed at the end of its owner's turn
+        const at = unitPos(e.unit);
+        if (seen(at) && known(e.unit)) mine.push({ kind: 'number', at, text: `+${e.hp}`, tone: 'heal', delay });
+        break;
+      }
       case 'treasure': {
         if (e.outcome === 'gold') {
           const gain = (after.players[before.current]?.gold ?? 0) - (before.players[before.current]?.gold ?? 0);
-          if (gain > 0) mine.push({ kind: 'number', at: e.at, text: `+${gain}`, tone: 'gold', delay });
+          if (gain > 0) mine.push({ kind: 'number', at: e.at, text: `+${gain}`, tone: 'gold', delay, ms: TREASURE_TEXT_MS });
           else mine.push({ kind: 'burst', at: e.at, tone: 'treasure', delay });
         } else if (before.current === viewer) {
           // The find words are the claimer's alone; the other side keeps the plain burst.
           const text = e.outcome === 'relic' && e.trait !== undefined ? T.heroTrait[e.trait].name : T.treasure[e.outcome];
-          mine.push({ kind: 'number', at: e.at, text, tone: 'find', delay });
+          mine.push({ kind: 'number', at: e.at, text, tone: 'find', delay, ms: TREASURE_TEXT_MS });
         } else mine.push({ kind: 'burst', at: e.at, tone: 'treasure', delay });
         break;
       }
@@ -147,6 +181,12 @@ export function effectsFor(
         if (at) mine.push({ kind: 'burst', at, tone: 'capture', delay });
         break;
       }
+      case 'blockaded': {                  // rules 8: shown to the city's owner only, as its turn starts
+        const at = cityTile(before, after, e.city);
+        const owner = after.cities.find((c) => c.id === e.city)?.owner;
+        if (at && owner === viewer && e.gold > 0) mine.push({ kind: 'number', at, text: T.ui.blockadeCut(e.gold), tone: 'hurt', delay });
+        break;
+      }
       case 'cityLevel': {
         const at = cityTile(before, after, e.city);
         if (at) mine.push({ kind: 'burst', at, tone: 'level', delay });
@@ -158,11 +198,11 @@ export function effectsFor(
       default:
         break;
     }
-    // Only effects on visible tiles count, so a hidden event leaves no gap in the timing.
-    const shown = mine.filter((f) => f.kind === 'lunge' || seen(f.at));
+    // Only effects on visible tiles count, so a hidden event leaves no gap in the timing. A move takes no slot.
+    const shown = mine.filter((f) => f.kind === 'lunge' || f.kind === 'move' || (f.kind === 'fall' || (f.kind === 'number' && f.tone === 'hurt') ? watched(f.at) : seen(f.at)));
     if (shown.length > 0) {
       out.push(...shown);
-      slot += 1;
+      if (shown.some((f) => f.kind !== 'move')) slot += 1;
     }
   }
 

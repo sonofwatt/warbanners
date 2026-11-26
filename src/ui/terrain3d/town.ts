@@ -1,0 +1,511 @@
+// The 3D cities, villages and mines: low-poly, faceted, vertex coloured parts for the terrain's merged prop mesh, in
+// the toon style of the peaks, trees and figures. Where things stand comes from townLayout.ts; this file only shapes
+// them. Spartan cities are whitewashed houses with gabled roofs round a columned hall; Mongol cities are round felt
+// tents round a great tent; both roof in the owner's colour. A village is two humble thatched huts.
+import {
+  BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, DodecahedronGeometry, ExtrudeGeometry, IcosahedronGeometry,
+  OctahedronGeometry, Path, Shape,
+} from 'three';
+import type { FactionId } from '../../engine';
+import { ACCENT, PLAYER_COLOURS } from '../art/palette';
+import { coloured, repaint } from './geom';
+import { hash2 } from './layout';
+import { FURNACE, LANTERN, MINE } from './townLayout';
+import type { TownPiece, TownPlan, WallPlan } from './townLayout';
+
+const TOWN = {
+  plaster: '#F4EBD5', plasterShade: '#E6DAC0', stone: '#DCD1B8', stoneDark: '#C7BBA0', step: '#E4D9BF',
+  column: '#FBF6E9', door: '#8A6A48', window: '#5A4632',
+  felt: '#F1E7D3', feltDoor: '#8C5A33',
+  wood: '#A87545', woodDark: '#6B4A2B', pole: '#6B4A2B',
+  mud: '#D9C59C', thatch: '#B8975A', thatchDark: '#9C7C45', logEnd: '#E2C08A', log: '#A8743F',
+  rock: '#7F786E', rockLight: '#958D80', rockDark: '#635D55', tunnel: '#3B2B20', tunnelDeep: '#1F1814', floor: '#3A2B20',
+  timber: '#8C5D35', timberDark: '#6E4528', rail: '#7D7A80', sleeper: '#6B4A2B', iron: '#3A3532', glass: '#FFD98A',
+  ore: '#4E4B58', crystal: '#BFE3FA', spoil: '#6E6A78', spoilDark: '#55525E',
+  furnace: '#8F887C', furnaceDark: '#77716A', ember: '#F28C28', emberHot: '#FFD45E', smoke: '#D9D5CE',
+} as const;
+
+/** Parts shaped round a local origin, then turned and placed as one, and only then coloured (so outlines turn too). */
+class Kit {
+  private readonly raw: { g: BufferGeometry; colour: string; gloss: number; out: number }[] = [];
+  add(g: BufferGeometry, colour: string, out = 0.6, gloss = 0): this {
+    this.raw.push({ g, colour, gloss, out });
+    return this;
+  }
+  box(w: number, h: number, d: number, x: number, y: number, z: number, colour: string, out = 0.6, ry = 0): this {
+    const g = new BoxGeometry(w, h, d);
+    if (ry) g.rotateY(ry);
+    g.translate(x, y + h / 2, z);
+    return this.add(g, colour, out);
+  }
+  done(x: number, y: number, z: number, rot: number): BufferGeometry[] {
+    return this.raw.map(({ g, colour, gloss, out }) => {
+      if (rot) g.rotateY(rot);
+      g.translate(x, y, z);
+      return coloured(g, colour, gloss, out);
+    });
+  }
+}
+
+/** A gable roof: ridge along z (the gable ends face the viewer, as in the svg), w wide, d deep, rh tall, with eaves. */
+function gable(w: number, d: number, rh: number, eave = 0.8): BufferGeometry {
+  const hw = w / 2 + eave;
+  const s = new Shape();
+  s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(0, rh); s.closePath();
+  const g = new ExtrudeGeometry(s, { depth: d + 2 * eave, bevelEnabled: false });
+  g.translate(0, 0, -(d / 2 + eave));
+  return g;
+}
+
+/** A thin flat shape in the x-y plane (a flag's cloth), facing the viewer, with a gentle wave along x. */
+function cloth(points: readonly [number, number][], thick: number, wave: number): BufferGeometry {
+  const s = new Shape();
+  points.forEach(([x, y], i) => (i === 0 ? s.moveTo(x, y) : s.lineTo(x, y)));
+  s.closePath();
+  const g = new ExtrudeGeometry(s, { depth: thick, bevelEnabled: false, steps: 1 });
+  const p = g.attributes.position!;
+  for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) + Math.sin(p.getX(i) * 0.42) * wave * Math.min(1, p.getX(i) / 4));
+  return g;
+}
+
+type Colour = { main: string; dark: string };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Spartans
+
+function spartanHouse(k: Kit, colour: Colour, tall: boolean, seed: number): void {
+  const w = 7.6 + seed * 1.2, d = 6.8, h = tall ? 11 : 6.2;
+  k.box(w, h, d, 0, -0.4, 0, TOWN.plaster, 0.7);
+  if (tall) k.box(w + 0.5, 0.6, d + 0.5, 0, 5.4, 0, TOWN.plasterShade, 0.3);
+  const roof = gable(w, d, 3.8);
+  roof.translate(0, h - 0.4, 0);
+  k.add(roof, colour.main, 0.7);
+  k.box(1.7, 3.2, 0.3, -w * 0.18, -0.4, d / 2 + 0.05, TOWN.door, 0.2);
+  k.box(1.3, 1.3, 0.25, w * 0.24, 2.2, d / 2 + 0.05, TOWN.window, 0.15);
+  if (tall) {
+    k.box(1.3, 1.5, 0.25, -w * 0.2, 7.4, d / 2 + 0.05, TOWN.window, 0.15);
+    k.box(1.3, 1.5, 0.25, w * 0.22, 7.4, d / 2 + 0.05, TOWN.window, 0.15);
+  }
+  // A chimney on the back slope.
+  k.box(1.1, 2.6, 1.1, w * 0.22, h + 0.6, -d * 0.2, TOWN.stoneDark, 0.3);
+}
+
+/** The columned hall; the capital's is wider, with six columns and three steps. */
+function spartanHall(k: Kit, colour: Colour, accent: string, grand: boolean): void {
+  const cols = grand ? 6 : 4;
+  const w = grand ? 19 : 14, d = grand ? 13 : 10;
+  const steps = grand ? 3 : 2;
+  for (let i = 0; i < steps; i++) k.box(w + 2 * (steps - i), 1.1, d + 2 * (steps - i), 0, -0.6 + i * 1.1, 0, i % 2 ? TOWN.stone : TOWN.step, 0.5);
+  const top = -0.6 + steps * 1.1;
+  const colH = grand ? 9 : 7.2;
+  k.box(w - 4, colH, d - 4.5, 0, top, -1.4, TOWN.plasterShade, 0.5); // the hall behind the columns
+  const span = w - 2.2;
+  for (let i = 0; i < cols; i++) {
+    const x = -span / 2 + (span * i) / (cols - 1);
+    for (const z of grand ? [d / 2 - 1.1, -d / 2 + 1.1] : [d / 2 - 1.1]) {
+      const c = new CylinderGeometry(0.72, 0.86, colH, 8);
+      c.translate(x, top + colH / 2, z);
+      k.add(c, TOWN.column, 0.35);
+    }
+  }
+  k.box(w, 1.4, d, 0, top + colH, 0, TOWN.plaster, 0.6); // the beam
+  const roof = gable(w - 0.6, d - 0.6, grand ? 5 : 4, 0.6);
+  roof.translate(0, top + colH + 1.4, 0);
+  k.add(roof, colour.main, 0.7);
+  // A gold disc in the pediment, as the svg hall has.
+  const disc = new CylinderGeometry(grand ? 1.4 : 1.1, grand ? 1.4 : 1.1, 0.35, 12);
+  disc.rotateX(Math.PI / 2);
+  disc.translate(0, top + colH + 1.4 + (grand ? 1.9 : 1.5), d / 2 + 0.35);
+  k.add(disc, accent, 0.25, 0.6);
+  if (grand) {
+    // Gilded ornaments on the roof's corners and ridge.
+    for (const [x, y] of [[-(w / 2), 0], [w / 2, 0], [0, 5]] as const) {
+      const o = new OctahedronGeometry(0.9, 0);
+      o.scale(1, 1.6, 1);
+      o.translate(x * 0.97, top + colH + 1.4 + y + 1, d / 2);
+      k.add(o, accent, 0.25, 0.6);
+    }
+  }
+}
+
+function spartanTower(k: Kit, colour: Colour): void {
+  const t = new CylinderGeometry(2.9, 3.2, 18, 9);
+  t.translate(0, 9 - 0.5, 0);
+  k.add(t, TOWN.stone, 0.7);
+  const ring = new CylinderGeometry(3.5, 3.5, 0.9, 9);
+  ring.translate(0, 17.9, 0);
+  k.add(ring, TOWN.stoneDark, 0.4);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    k.box(1.0, 1.3, 1.0, Math.cos(a) * 3.1, 18.3, Math.sin(a) * 3.1, TOWN.stone, 0.25, -a);
+  }
+  const roof = new ConeGeometry(3.7, 6.2, 9);
+  roof.translate(0, 19.6 + 3.1, 0);
+  k.add(roof, colour.main, 0.6);
+  k.box(0.8, 2.4, 0.3, 0, 9, 3.05, TOWN.window, 0.15);
+  k.box(0.8, 2.4, 0.3, 0, 13.5, 3.0, TOWN.window, 0.15);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Mongols
+
+function yurt(k: Kit, colour: Colour, accent: string, r: number, wallH: number, roofH: number, band: boolean): number {
+  const wall = new CylinderGeometry(r, r * 1.02, wallH, 12);
+  wall.translate(0, wallH / 2 - 0.4, 0);
+  k.add(wall, TOWN.felt, 0.7);
+  if (band) {
+    const b = new CylinderGeometry(r + 0.12, r + 0.12, 0.9, 12);
+    b.translate(0, wallH - 1.6, 0);
+    k.add(b, accent, 0.2, 0.4);
+  }
+  // Rope bands round the felt, a little darker.
+  const rope = new CylinderGeometry(r + 0.06, r + 0.06, 0.35, 12);
+  rope.translate(0, wallH * 0.35, 0);
+  k.add(rope, TOWN.plasterShade, 0.1);
+  const roof = new ConeGeometry(r + 0.8, roofH, 12);
+  roof.translate(0, wallH - 0.4 + roofH / 2, 0);
+  k.add(roof, colour.main, 0.7);
+  const crown = new CylinderGeometry(r * 0.2, r * 0.24, 0.7, 8);
+  crown.translate(0, wallH - 0.4 + roofH - 0.6, 0);
+  k.add(crown, accent, 0.25, 0.5);
+  k.box(2.0, Math.min(3.6, wallH * 0.72), 0.5, 0, -0.4, r - 0.05, TOWN.feltDoor, 0.2);
+  return wallH - 0.4 + roofH;
+}
+
+function greatYurt(k: Kit, colour: Colour, accent: string): void {
+  const r = 8.6, wallH = 7, roofH = 6;
+  const wall = new CylinderGeometry(r, r * 1.02, wallH, 14);
+  wall.translate(0, wallH / 2 - 0.4, 0);
+  k.add(wall, TOWN.felt, 0.8);
+  const band = new CylinderGeometry(r + 0.14, r + 0.14, 1.1, 14);
+  band.translate(0, wallH - 1.8, 0);
+  k.add(band, accent, 0.2, 0.4);
+  const roof = new ConeGeometry(r + 0.9, roofH, 14);
+  roof.translate(0, wallH - 0.4 + roofH / 2, 0);
+  k.add(roof, colour.main, 0.8);
+  // A second tier: a smaller drum and dome on top.
+  const y2 = wallH - 0.4 + roofH * 0.5;
+  const drum = new CylinderGeometry(4.3, 4.4, 4, 12);
+  drum.translate(0, y2 + 2, 0);
+  k.add(drum, TOWN.felt, 0.6);
+  const band2 = new CylinderGeometry(4.45, 4.45, 0.7, 12);
+  band2.translate(0, y2 + 3.2, 0);
+  k.add(band2, accent, 0.15, 0.4);
+  const dome = new ConeGeometry(5, 4.4, 12);
+  dome.translate(0, y2 + 4 + 2.2, 0);
+  k.add(dome, colour.main, 0.6);
+  const fin = new OctahedronGeometry(1.1, 0);
+  fin.scale(1, 2, 1);
+  fin.translate(0, y2 + 4 + 4.4 + 1.2, 0);
+  k.add(fin, accent, 0.25, 0.7);
+  k.box(3.0, 4.6, 0.6, 0, -0.4, r - 0.05, TOWN.feltDoor, 0.25);
+  k.box(4.2, 0.8, 0.8, 0, 4.2, r + 0.1, accent, 0.2);
+}
+
+function watchtower(k: Kit, colour: Colour): void {
+  for (const [x, z] of [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]] as const) k.box(0.8, 16, 0.8, x, -0.4, z, TOWN.wood, 0.35);
+  for (const y of [5, 10.5]) {
+    k.box(5.2, 0.5, 0.5, 0, y, 2.2, TOWN.woodDark, 0.2);
+    k.box(0.5, 0.5, 5.2, 2.2, y, 0, TOWN.woodDark, 0.2);
+    k.box(0.5, 0.5, 5.2, -2.2, y, 0, TOWN.woodDark, 0.2);
+  }
+  k.box(6.4, 1, 6.4, 0, 15.6, 0, TOWN.wood, 0.5);
+  k.box(4.6, 3.2, 4.6, 0, 16.6, 0, TOWN.felt, 0.5);
+  const roof = new ConeGeometry(4.4, 4, 4);
+  roof.rotateY(Math.PI / 4);
+  roof.translate(0, 19.8 + 2, 0);
+  k.add(roof, colour.main, 0.6);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Banners and walls
+
+function banner(colour: Colour, accent: string, h: number): Kit {
+  const k = new Kit();
+  const pole = new CylinderGeometry(0.42, 0.5, h, 6);
+  pole.translate(0, h / 2 - 0.5, 0);
+  k.add(pole, TOWN.pole, 0.3);
+  const ball = new IcosahedronGeometry(1.15, 0);
+  ball.translate(0, h + 0.4, 0);
+  k.add(ball, accent, 0.3, 0.6);
+  // A swallowtailed flag, as the svg banner, in the owner's colour with the accent disc.
+  const f = cloth([[0, 0], [13, -1], [10, -4.5], [13, -8], [0, -7]], 0.4, 0.7);
+  f.translate(0.3, h - 1, 0);
+  k.add(f, colour.main, 0.35);
+  const disc = new CylinderGeometry(1.6, 1.6, 0.3, 12);
+  disc.rotateX(Math.PI / 2);
+  disc.translate(5.6, h - 1 - 3.6, 0.2 + Math.sin(5.6 * 0.42) * 0.7);
+  k.add(disc, accent, 0.15, 0.4);
+  return k;
+}
+
+function pennant(colour: Colour): Kit {
+  const k = new Kit();
+  const pole = new CylinderGeometry(0.22, 0.26, 5, 5);
+  pole.translate(0, 2.5, 0);
+  k.add(pole, TOWN.pole, 0.2);
+  const f = cloth([[0, 0], [5, -1.2], [0, -2.4]], 0.3, 0.35);
+  f.translate(0.2, 4.9, 0);
+  k.add(f, colour.main, 0.25);
+  return k;
+}
+
+function walls(w: WallPlan, spartan: boolean): Kit {
+  const k = new Kit();
+  const H = spartan ? 4.6 : 5.2;
+  for (const [x0, z0, x1, z1] of w.runs) {
+    const dx = x1 - x0, dz = z1 - z0;
+    const L = Math.hypot(dx, dz);
+    const rot = Math.atan2(-dz, dx);
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    if (spartan) {
+      const g = new BoxGeometry(L, H, 2.2);
+      g.rotateY(rot);
+      g.translate(mx, H / 2 - 0.6, mz);
+      k.add(g, TOWN.stone, 0.45);
+      const n = Math.max(2, Math.floor(L / 2.6));
+      for (let i = 0; i < n; i++) {
+        const u = (i + 0.5) / n - 0.5;
+        k.box(1.3, 1.2, 2.2, mx + (dx * u), H - 0.6, mz + (dz * u), TOWN.stoneDark, 0.2, rot);
+      }
+    } else {
+      // A palisade: one run of pointed stakes, cut from a single sawtooth outline.
+      const s = new Shape();
+      const n = Math.max(3, Math.round(L / 1.6));
+      s.moveTo(-L / 2, -0.6);
+      s.lineTo(L / 2, -0.6);
+      for (let i = n; i >= 0; i--) {
+        const x = -L / 2 + (L * i) / n;
+        s.lineTo(x, H - 1.4);
+        if (i > 0) s.lineTo(x - L / n / 2, H);
+      }
+      s.closePath();
+      const g = new ExtrudeGeometry(s, { depth: 1.3, bevelEnabled: false });
+      g.translate(0, 0, -0.65);
+      g.rotateY(rot);
+      g.translate(mx, 0, mz);
+      k.add(g, TOWN.wood, 0.3);
+      const rail = new BoxGeometry(L, 0.5, 1.6);
+      rail.rotateY(rot);
+      rail.translate(mx, H * 0.45, mz);
+      k.add(rail, TOWN.woodDark, 0.15);
+    }
+  }
+  for (const [x, z] of w.towers) {
+    if (spartan) {
+      const t = new CylinderGeometry(2.4, 2.7, 7, 8);
+      t.translate(x, 3.5 - 0.6, z);
+      k.add(t, TOWN.stone, 0.5);
+      const cap = new CylinderGeometry(2.9, 2.9, 1.1, 8);
+      cap.translate(x, 6.9, z);
+      k.add(cap, TOWN.stoneDark, 0.3);
+    } else {
+      const t = new CylinderGeometry(1.2, 1.3, 7, 6);
+      t.translate(x, 3.5 - 0.6, z);
+      k.add(t, TOWN.wood, 0.3);
+      const tip = new ConeGeometry(1.2, 1.8, 6);
+      tip.translate(x, 7.8, z);
+      k.add(tip, TOWN.wood, 0.25);
+    }
+  }
+  // The gate: two posts and a beam over the opening.
+  const { x, z, rot } = w.gate;
+  const ux = Math.cos(rot), uz = Math.sin(rot);
+  for (const s of [-1, 1]) {
+    const px = x + ux * 4.4 * s, pz = z + uz * 4.4 * s;
+    if (spartan) k.box(2.4, H + 2, 2.8, px, -0.6, pz, TOWN.stone, 0.45, -rot);
+    else k.box(1.6, H + 1.6, 1.6, px, -0.6, pz, TOWN.woodDark, 0.3, -rot);
+  }
+  k.box(10.4, 1.4, spartan ? 2.8 : 1.6, x, H + (spartan ? 1.4 : 1.0), z, spartan ? TOWN.stoneDark : TOWN.woodDark, 0.35, -rot);
+  return k;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Villages
+
+function hut(k: Kit, seed: number): void {
+  const w = 8.2 + seed, d = 7.2;
+  k.box(w, 5.6, d, 0, -0.4, 0, TOWN.mud, 0.6);
+  const roof = gable(w, d, 6, 1.5);
+  roof.translate(0, 5.0, 0);
+  k.add(roof, seed > 0.5 ? TOWN.thatch : TOWN.thatchDark, 0.6);
+  k.box(2, 3.4, 0.3, -w * 0.15, -0.4, d / 2 + 0.05, TOWN.door, 0.2);
+  k.box(1.2, 1.2, 0.25, w * 0.25, 2.2, d / 2 + 0.05, TOWN.window, 0.12);
+}
+
+function woodpile(k: Kit): void {
+  for (const [x, y] of [[-1, 0.5], [1, 0.5], [0, 2.1]] as const) {
+    const g = new CylinderGeometry(0.9, 0.9, 4.2, 7);
+    g.rotateZ(Math.PI / 2);
+    g.rotateY(Math.PI / 2);
+    g.translate(x * 1.8, y, 0);
+    k.add(g, TOWN.log, 0.25);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Every part of a city or village, standing on the ground. */
+export function townParts(plan: TownPlan, cx: number, cz: number, height: (lx: number, lz: number) => number): BufferGeometry[] {
+  const out: BufferGeometry[] = [];
+  const faction: FactionId | null = plan.faction;
+  const colour = faction === null ? { main: TOWN.thatch, dark: TOWN.thatchDark } : PLAYER_COLOURS[faction];
+  const accent = faction === null ? TOWN.logEnd : ACCENT[faction];
+  const spartan = faction === 'spartans';
+  for (const p of plan.pieces) out.push(...piece(p, colour, accent, spartan).done(cx + p.x, height(p.x, p.z), cz + p.z, p.rot));
+  if (plan.banner !== null) out.push(...banner(colour, accent, plan.banner.h).done(cx + plan.banner.x, height(plan.banner.x, plan.banner.z), cz + plan.banner.z, 0));
+  if (plan.pennant !== null) out.push(...pennant(colour).done(cx + plan.pennant.x, plan.pennant.y, cz + plan.pennant.z, 0));
+  if (plan.walls !== null) out.push(...walls(plan.walls, spartan).done(cx, 0, cz, 0));
+  return out;
+}
+
+function piece(p: TownPiece, colour: Colour, accent: string, spartan: boolean): Kit {
+  const k = new Kit();
+  switch (p.kind) {
+    case 'house': spartanHouse(k, colour, false, p.seed); break;
+    case 'tall': spartanHouse(k, colour, true, p.seed); break;
+    case 'hall': spartanHall(k, colour, accent, false); break;
+    case 'grandHall': spartanHall(k, colour, accent, true); break;
+    case 'yurt': yurt(k, colour, accent, 4.3 + p.seed * 0.4, 4.6, 4.2, false); break;
+    case 'tallYurt': yurt(k, colour, accent, 4.6, 6.6, 4.6, true); break;
+    case 'yurtHall': yurt(k, colour, accent, 7, 6, 5.8, true); break;
+    case 'greatYurt': greatYurt(k, colour, accent); break;
+    case 'tower': if (spartan) spartanTower(k, colour); else watchtower(k, colour); break;
+    case 'hut': hut(k, p.seed); break;
+    case 'woodpile': woodpile(k); break;
+  }
+  return k;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The mine and the foundry
+
+/**
+ * A mine built into the mountain: a rock face with a timber-framed tunnel going in, rails running out of it to an
+ * ore cart, a lantern hanging inside (its light is drawn and flickers on the units canvas: lanterns.ts) and a spoil
+ * heap. The foundry adds a stone furnace with a chimney and a glowing mouth.
+ */
+export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, seed: number): BufferGeometry[] {
+  const k = new Kit();
+  const { x: fx, z: fz, halfW, h, depth, openW, openH } = MINE;
+  // The rock face, its front a cliff with the tunnel's mouth cut in it; extruded back, so the mouth's sides line the
+  // tunnel. Its foot sinks a little into the ground.
+  const s = new Shape();
+  const kx = halfW / 12.5, ky = h / 15;
+  const rim: [number, number][] = ([[-12.5, -0.8], [-11.1, 6], [-8.5, 11], [-3.5, 14], [1.5, 15], [6.5, 12.2], [10.5, 7], [12.5, -0.8]] as const)
+    .map(([x, y]) => [x * kx, y < 0 ? y : y * ky]);
+  rim.forEach(([x, y], i) => (i === 0 ? s.moveTo(x, y) : s.lineTo(x, y)));
+  s.closePath();
+  const hole = new Path();
+  hole.moveTo(-openW, 0.05); hole.lineTo(openW, 0.05); hole.lineTo(openW, openH - 1); hole.lineTo(0, openH); hole.lineTo(-openW, openH - 1); hole.closePath();
+  s.holes.push(hole);
+  const face = new ExtrudeGeometry(s, { depth, bevelEnabled: false });
+  face.translate(fx, 0, fz - depth);
+  const faceGeo = coloured(face, TOWN.rock, 0, 0);
+  // The tunnel's lining is dark earth, warmer near the lantern; the face's front is two rock tones in facets.
+  repaint(faceGeo, (x, y, z, nx, _ny, nz) => {
+    const inside = Math.abs(x - fx) < openW + 0.01 && y < openH + 0.01 && z < fz - 0.05 && z > fz - depth + 0.05;
+    if (inside) return z > fz - 3.5 ? TOWN.tunnel : TOWN.tunnelDeep;
+    if (nz > 0.9) return hash2(Math.floor(x / 3.2) + seed, Math.floor(y / 3.2)) > 0.5 ? TOWN.rockLight : TOWN.rock;
+    return nx < 0 ? TOWN.rockLight : TOWN.rockDark;
+  });
+  // A dark rim round the face's outline, a little behind it, so its silhouette reads against the scree as the toon
+  // outlines of the other props do (the face itself has none: its hull would show inside the tunnel).
+  const ring = new Shape();
+  const grow = (x: number, y: number): [number, number] => [x * 1.06 + Math.sign(x) * 0.2, y < 0 ? y : y + 0.55];
+  rim.map(([x, y]) => grow(x, y)).forEach(([x, y], i) => (i === 0 ? ring.moveTo(x, y) : ring.lineTo(x, y)));
+  ring.closePath();
+  const inner = new Path();
+  [...rim].reverse().forEach(([x, y], i) => (i === 0 ? inner.moveTo(x, y) : inner.lineTo(x, y)));
+  inner.closePath();
+  ring.holes.push(inner);
+  const rimGeo = new ExtrudeGeometry(ring, { depth: depth - 0.6, bevelEnabled: false });
+  rimGeo.translate(fx + cx, 0, fz - depth + cz);
+  const parts: BufferGeometry[] = [faceGeo, coloured(rimGeo, '#3F3B37', 0, 0)];
+  // The far end of the tunnel, and its floor in packed earth.
+  k.box(openW * 2 + 0.2, openH, 0.4, fx, 0, fz - depth + 0.3, TOWN.tunnelDeep, 0);
+  k.box(openW * 2, 0.12, depth, fx, 0.02, fz - depth / 2, TOWN.floor, 0);
+  // Inside, the sleepers are in the dark too.
+  // Rock above and beside the face, so it reads as part of the mountain (kept clear of the tunnel).
+  const rocks: [number, number, number, number, string][] = [
+    [-9.5, 9.5, -2.5, 4.6, TOWN.rockLight], [-1, 15, -3, 4.2, TOWN.rock], [6.5, 11.5, -2.8, 4.4, TOWN.rockDark], [-12, 3, 1, 3.4, TOWN.rockLight],
+  ];
+  for (const [x, y, z, r, c] of rocks) {
+    const g = new DodecahedronGeometry(r * kx, 0);
+    g.rotateY(seed + x);
+    g.scale(1.15, 0.8, 1);
+    g.translate(fx + x * kx, y * ky, fz + z);
+    k.add(g, c, 0.6);
+  }
+  // The timber frame at the mouth, and two more sets inside, smaller toward the dark.
+  const frame = (z: number, inset: number, out: number): void => {
+    const w = openW - inset;
+    k.box(1.2, openH - 1.2 - inset, 1.2, fx - w - 0.5, 0, z, TOWN.timber, out);
+    k.box(1.2, openH - 1.2 - inset, 1.2, fx + w + 0.5, 0, z, TOWN.timberDark, out);
+    k.box(2 * w + 3, 1.3, 1.4, fx, openH - 1.4 - inset, z, TOWN.timber, out);
+  };
+  frame(fz + 0.4, 0, 0.45);
+  k.box(1.0, 2.4, 1.0, fx - openW - 0.5, openH - 2.6, fz + 0.4, TOWN.timberDark, 0.2, 0.8); // a brace
+  frame(fz - 3, 0.6, 0);
+  frame(fz - 6, 0.6, 0);
+  // The lantern on its hook, on the first set's left post: a dark iron frame round warm glass.
+  const L = LANTERN;
+  k.box(1.4, 0.35, 0.35, L.x - 0.6, L.y + 1.6, L.z, TOWN.iron, 0);
+  k.box(1.25, 1.6, 1.25, L.x, L.y - 0.8, L.z, TOWN.iron, 0);
+  k.box(0.95, 1.25, 1.5, L.x, L.y - 0.62, L.z, TOWN.glass, 0);
+  const cap = new ConeGeometry(0.95, 0.9, 4);
+  cap.rotateY(Math.PI / 4);
+  cap.translate(L.x, L.y + 1.25, L.z);
+  k.add(cap, TOWN.iron, 0);
+  // Rails out of the tunnel, on sleepers, to an ore cart in the yard.
+  const r0 = fz - depth + 0.6, r1 = fz + 9;
+  for (const sx of [-1.35, 1.35]) k.box(0.4, 0.4, r1 - r0, fx + sx, 0.1, (r0 + r1) / 2, TOWN.rail, 0);
+  for (let z = r0 + 0.8; z < r1; z += 2.1) k.box(4.2, 0.28, 0.8, fx, 0, z, z < fz ? TOWN.tunnelDeep : TOWN.sleeper, 0);
+  const cartZ = fz + 5.8;
+  k.box(4.2, 2.4, 4.8, fx, 1.1, cartZ, TOWN.timberDark, 0.4);
+  k.box(4.5, 0.4, 5.1, fx, 3.4, cartZ, TOWN.iron, 0.2);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const w = new CylinderGeometry(0.8, 0.8, 0.5, 8);
+    w.rotateZ(Math.PI / 2);
+    w.translate(fx + sx * 2.25, 0.9, cartZ + sz * 1.6);
+    k.add(w, TOWN.iron, 0.15);
+  }
+  for (const [ox, oz, r] of [[-0.9, -0.8, 1.4], [1.0, 0.2, 1.3], [-0.2, 1.3, 1.1]] as const) {
+    const g = new DodecahedronGeometry(r, 0);
+    g.rotateX(ox + seed);
+    g.translate(fx + ox, 3.9, cartZ + oz);
+    k.add(g, TOWN.ore, 0.25);
+  }
+  const cr = new OctahedronGeometry(1, 0);
+  cr.scale(0.7, 1.6, 0.7);
+  cr.translate(fx + 0.4, 5.2, cartZ - 0.3);
+  k.add(cr, TOWN.crystal, 0.2, 1);
+  if (kind === 'mine') {
+    // A spoil heap by the door.
+    for (const [x, z, r, c] of [[12, 11, 2.6, TOWN.spoil], [14.6, 9.5, 2.0, TOWN.spoilDark], [10.2, 13.5, 1.6, TOWN.spoilDark], [15, 12.6, 1.5, TOWN.spoil]] as const) {
+      const g = new DodecahedronGeometry(r, 0);
+      g.rotateY(seed * 3 + x);
+      g.scale(1.2, 0.65, 1);
+      g.translate(x, r * 0.35, z);
+      k.add(g, c, 0.35);
+    }
+  } else {
+    // The foundry's furnace: a stone block against the rock, its mouth glowing, with a chimney and smoke.
+    const { x, z } = FURNACE;
+    k.box(8.4, 7.4, 7, x, -0.4, z, TOWN.furnace, 0.6);
+    k.box(9, 1.0, 7.6, x, 6.6, z, TOWN.furnaceDark, 0.35);
+    k.box(4.2, 3.8, 0.5, x, 0.6, z + 3.4, TOWN.tunnelDeep, 0);
+    k.box(3.2, 1.6, 0.4, x, 0.8, z + 3.65, TOWN.ember, 0);
+    k.box(1.8, 0.8, 0.3, x, 1.1, z + 3.9, TOWN.emberHot, 0);
+    k.box(3, 13, 3, x + 2.2, 6, z - 1.6, TOWN.furnaceDark, 0.5);
+    k.box(3.6, 0.9, 3.6, x + 2.2, 18.6, z - 1.6, TOWN.furnace, 0.3);
+    for (const [dx, dy, r] of [[0.5, 21.5, 1.8], [2, 24.5, 1.5], [3.6, 27, 1.2]] as const) {
+      const g = new IcosahedronGeometry(r, 0);
+      g.translate(x + 2.2 + dx, dy, z - 1.6);
+      k.add(g, TOWN.smoke, 0.25);
+    }
+  }
+  parts.push(...k.done(cx, 0, cz, 0));
+  for (const g of parts) if (g === faceGeo) g.translate(cx, 0, cz);
+  return parts;
+}

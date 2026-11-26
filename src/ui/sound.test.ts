@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { GameEvent } from '../engine';
 import type { Hearing } from './sound';
-import { HEARD_RULES, ORDER, SAMPLE_FILES, SOUNDS, isMuted, pickTake, play, resetSound, sampleUrl, setMuted, soundFor } from './sound';
+import { HEARD_RULES, ORDER, SAMPLE_FILES, SOUNDS, isMuted, pickTake, play, resetSound, sampleUrl, setMuted, soundFor, warmSound } from './sound';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -33,7 +33,7 @@ test('one sound per action, the most important one', () => {
   expect(soundFor([{ type: 'moved', unit: 1, from: '0,0', to: '1,0' }], ALL)).toBe('move');
   expect(soundFor([{ type: 'attacked', unit: 1, target: 2, damage: 3, counter: 0 }, { type: 'died', unit: 2 }], ALL)).toBe('fall');
   expect(soundFor([{ type: 'died', unit: 2 }, { type: 'matchOver', winner: 0 }], ALL)).toBe('win');
-  expect(soundFor([{ type: 'researched', tech: 'bronze' }], hear([], TILES, 0))).toBe('research');
+  expect(soundFor([{ type: 'researched', tech: 'prospecting' }], hear([], TILES, 0))).toBe('research');
   expect(soundFor([{ type: 'captured', city: 0, by: 1 }, { type: 'died', unit: 2 }], ALL)).toBe('capture');
   expect(soundFor([{ type: 'splashed', target: 2, damage: 1 }, { type: 'moved', unit: 1, from: '0,0', to: '1,0' }], ALL)).toBe('hit');
   expect(soundFor([{ type: 'turnStarted', player: 1 }], ALL)).toBeNull();
@@ -87,10 +87,10 @@ test('a melee advance sounds like a move, but only for a unit the viewer can see
 
 test('new events have their own sounds', () => {
   expect(soundFor([{ type: 'trained', unit: 1, at: '0,0' }], ALL)).toBe('train');
-  expect(soundFor([{ type: 'researched', tech: 'bronze' }], hear([], TILES, 0))).toBe('research');
+  expect(soundFor([{ type: 'researched', tech: 'prospecting' }], hear([], TILES, 0))).toBe('research');
   expect(soundFor([{ type: 'treasure', at: '0,0', outcome: 'gold' } as never], ALL)).toBe('treasure');
   expect(soundFor([{ type: 'heroTrait', unit: 1, trait: 'fierce', hero: false }], ALL)).toBe('levelUp');
-  expect(soundFor([{ type: 'chainCost', unit: 1, damage: 1 }], ALL)).toBe('chainCost');
+  expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], ALL)).toBe('chainCost');
   expect(soundFor([{ type: 'built', at: '0,0', what: 'road' }], ALL)).toBe('build');
 });
 
@@ -100,12 +100,12 @@ test('the most rewarding event wins', () => {
     capture: { type: 'captured', city: 0, by: 1 },
     levelUp: { type: 'heroTrait', unit: 1, trait: 'fierce', hero: false },
     fall: { type: 'died', unit: 2 },
-    chainCost: { type: 'chainCost', unit: 1, damage: 1 },
+    chainCost: { type: 'momentum', unit: 1, spent: 2, left: 5 },
     hit: { type: 'attacked', unit: 1, target: 2, damage: 3, counter: 0 },
     train: { type: 'trained', unit: 1, at: '0,0' },
     treasure: { type: 'treasure', at: '0,0', outcome: 'gold' },
     build: { type: 'built', at: '0,0', what: 'road' },
-    research: { type: 'researched', tech: 'bronze' },
+    research: { type: 'researched', tech: 'prospecting' },
     move: { type: 'moved', unit: 1, from: '0,0', to: '1,0' },
   } as const;
   const order = Object.keys(ev) as (keyof typeof ev)[];
@@ -115,11 +115,11 @@ test('the most rewarding event wins', () => {
   }
 });
 
-test('chain cost and level up are heard only for a unit the viewer can see', () => {
+test('momentum and level up are heard only for a unit the viewer can see', () => {
   const seen = hear([2]);
-  expect(soundFor([{ type: 'chainCost', unit: 1, damage: 1 }], seen)).toBeNull();
+  expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], seen)).toBeNull();
   expect(soundFor([{ type: 'heroTrait', unit: 1, trait: 'fierce', hero: false }], seen)).toBeNull();
-  expect(soundFor([{ type: 'chainCost', unit: 1, damage: 1 }], hear([1]))).toBe('chainCost');
+  expect(soundFor([{ type: 'momentum', unit: 1, spent: 2, left: 5 }], hear([1]))).toBe('chainCost');
 });
 
 test('the take picker never repeats the last take when there are three', () => {
@@ -189,6 +189,43 @@ test('until a sample is decoded the synth plays, then the sample', async () => {
   expect(sources[0]?.start).toHaveBeenCalled();
 });
 
+test('warming makes the context and loads the samples in later tasks, so the first sound pays for neither', async () => {
+  const { sources, osc, fetchMock } = fakeAudio();
+  const ctor = vi.fn();
+  const Fake = (globalThis as unknown as { AudioContext: new () => object }).AudioContext;
+  vi.stubGlobal('AudioContext', class extends (Fake as new () => object) { constructor() { super(); ctor(); } });
+  warmSound();
+  expect(ctor, 'nothing is made at once').not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+  await settle();
+  expect(ctor).toHaveBeenCalledTimes(1);
+  await settle();
+  expect(fetchMock).toHaveBeenCalledTimes(Object.values(SAMPLE_FILES).reduce((n, f) => n + (f?.takes ?? 0), 0));
+  await settle();
+  play('hit');
+  expect(ctor, 'the first sound reuses the warm context').toHaveBeenCalledTimes(1);
+  expect(sources).toHaveLength(1);
+  expect(osc).not.toHaveBeenCalled();
+});
+
+test('warming does nothing when muted, and can be cancelled', async () => {
+  const { fetchMock } = fakeAudio();
+  const ctor = vi.fn();
+  const Fake = (globalThis as unknown as { AudioContext: new () => object }).AudioContext;
+  vi.stubGlobal('AudioContext', class extends (Fake as new () => object) { constructor() { super(); ctor(); } });
+  setMuted(true);
+  warmSound();
+  await settle();
+  expect(ctor).not.toHaveBeenCalled();
+  setMuted(false);
+  const cancel = warmSound();
+  cancel();
+  await settle();
+  await settle();
+  expect(ctor).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 test('a failed load falls back to the synth, and a sound with no files is synth', async () => {
   const { sources, osc, fetchMock } = fakeAudio();
   fetchMock.mockImplementation(() => Promise.resolve({ ok: false, arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) }) as never);
@@ -253,7 +290,7 @@ describe('the sound tells only what the board would show', () => {
     expect(soundFor([cases[0]![1]], hear([], ['0,0']))).toBe('treasure');
   });
   test('an opponent research is never heard, the viewer own is', () => {
-    const r: GameEvent = { type: 'researched', tech: 'bronze' };
+    const r: GameEvent = { type: 'researched', tech: 'prospecting' };
     expect(soundFor([r], seeAll)).toBeNull();
     expect(soundFor([r], hear([], TILES, 0))).toBe('research');
   });

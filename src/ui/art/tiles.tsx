@@ -118,6 +118,15 @@ export function Highlight(p: { mark: Mark }): ReactElement {
           <ellipse cx={0} cy={0} rx={7.6} ry={4.7} fill="none" stroke="#FFFFFF" strokeWidth={3.2} />
         </g>
       );
+    case 'moveEnds':
+      // rules 8: the move ring, dashed, with a dot in the middle: the unit can go there, and its turn ends there.
+      return (
+        <g>
+          <ellipse cx={0} cy={1.2} rx={7.6} ry={4.7} fill="none" stroke={UNDER} strokeOpacity={0.5} strokeWidth={3.2} />
+          <ellipse cx={0} cy={0} rx={7.6} ry={4.7} fill="none" stroke="#FFFFFF" strokeWidth={3.2} strokeDasharray="3.4 2.6" />
+          <ellipse cx={0} cy={0} rx={1.8} ry={1.1} fill="#FFFFFF" stroke={UNDER} strokeOpacity={0.5} strokeWidth={0.8} />
+        </g>
+      );
     case 'attack':
       return <g>{ring('#F0402F', 0.22)}</g>;
     case 'ability':
@@ -168,33 +177,85 @@ export function ReadyGlow(): ReactElement {
  * line there and the outline has no gap.
  */
 export function Border(p: { edges: readonly number[]; colour: string }): ReactElement {
+  return (
+    <g>
+      {borderLines(p.edges).map(({ d, a, b }) => (
+        <line
+          key={d}
+          x1={r1(a.x)}
+          y1={r1(a.y)}
+          x2={r1(b.x)}
+          y2={r1(b.y)}
+          stroke={p.colour}
+          strokeWidth={BORDER_WIDTH}
+          strokeLinecap="round"
+        />
+      ))}
+    </g>
+  );
+}
+
+/** The border line's width in board units. */
+export const BORDER_WIDTH = 2.4;
+
+/** The border's lines round the tile centre, in board units, one per edge in `edges` (as Border draws them). */
+export function borderLines(edges: readonly number[]): { d: number; a: Pt; b: Pt }[] {
   const c = topCorners();
   const f = 0.9;
   const inner = shrink(c, f);
-  const sides = new Set(p.edges.map(cornerEdge));
+  const sides = new Set(edges.map(cornerEdge));
+  return edges.map((d) => {
+    const i = cornerEdge(d);
+    const j = (i + 1) % 6;
+    let a = inner[i]!;
+    let b = inner[j]!;
+    const before = (i + 5) % 6; // the side ending at corner i
+    if (!sides.has(before)) a = cross(inner[j]!, inner[i]!, c[before]!, c[i]!);
+    if (!sides.has(j)) b = cross(inner[i]!, inner[j]!, c[j]!, c[(j + 1) % 6]!);
+    return { d, a, b };
+  });
+}
+
+/** The strongest the selected city's glow gets, right at its outer edge. */
+export const CITY_GLOW_MAX = 0.5;
+
+/**
+ * The land of the selected city: an inner glow of the faction colour, CITY_GLOW_MAX strong right at each outer edge of
+ * the city's land (`edges`, the directions where the neighbour is not this city's) and fading to nothing one tile
+ * width in (at the tile's opposite side), so a ring a tile deep glows and the middle of a large city stays clear.
+ * Each edge's fade is a white-to-black gradient in a mask, and the fades combine by taking the stronger
+ * (mix-blend-mode lighten), so where two edges meet the glow never passes CITY_GLOW_MAX. One colour fill through the
+ * mask; no line. `id` names the mask and its gradients and is unique on the board.
+ */
+export function CityGlow(p: { id: string; edges: readonly number[]; colour: string }): ReactElement | null {
+  if (p.edges.length === 0) return null;
+  const c = topCorners();
+  const face = pts(c);
+  const mid = (i: number): Pt => {
+    const a = c[i % 6]!, b = c[(i + 1) % 6]!;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+  const fades = p.edges.map((d) => {
+    const i = cornerEdge(d);
+    return { d, from: mid(i), to: mid(i + 3) };
+  });
   return (
-    <g>
-      {p.edges.map((d) => {
-        const i = cornerEdge(d);
-        const j = (i + 1) % 6;
-        let a = inner[i]!;
-        let b = inner[j]!;
-        const before = (i + 5) % 6; // the side ending at corner i
-        if (!sides.has(before)) a = cross(inner[j]!, inner[i]!, c[before]!, c[i]!);
-        if (!sides.has(j)) b = cross(inner[i]!, inner[j]!, c[j]!, c[(j + 1) % 6]!);
-        return (
-          <line
-            key={d}
-            x1={r1(a.x)}
-            y1={r1(a.y)}
-            x2={r1(b.x)}
-            y2={r1(b.y)}
-            stroke={p.colour}
-            strokeWidth={2.4}
-            strokeLinecap="round"
-          />
-        );
-      })}
+    <g pointerEvents="none" data-city-glow={p.edges.join(',')}>
+      <defs>
+        {fades.map((f) => (
+          <linearGradient key={f.d} id={`${p.id}-${f.d}`} gradientUnits="userSpaceOnUse" x1={r1(f.from.x)} y1={r1(f.from.y)} x2={r1(f.to.x)} y2={r1(f.to.y)}>
+            <stop offset="0" stopColor="#FFFFFF" />
+            <stop offset="1" stopColor="#000000" />
+          </linearGradient>
+        ))}
+        <mask id={p.id} maskUnits="userSpaceOnUse" x={-60} y={-60} width={120} height={120}>
+          <g style={{ isolation: 'isolate' }}>
+            <polygon points={face} fill="#000000" />
+            {fades.map((f) => <polygon key={f.d} points={face} fill={`url(#${p.id}-${f.d})`} style={{ mixBlendMode: 'lighten' }} />)}
+          </g>
+        </mask>
+      </defs>
+      <polygon points={face} fill={p.colour} fillOpacity={CITY_GLOW_MAX} mask={`url(#${p.id})`} />
     </g>
   );
 }

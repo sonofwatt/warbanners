@@ -5,7 +5,7 @@ import { CONFIG, applyAction, playerView } from '../../engine';
 import type { GameEvent, MatchState } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import { T } from '../text';
-import { EFFECT_MS, MAX_TOTAL_MS, effectsFor, seenBy, watchMs } from './effects';
+import { EFFECT_MS, MAX_TOTAL_MS, TREASURE_TEXT_MS, effectsFor, seenBy, watchMs } from './effects';
 
 /** Every unit in either state: for the tests about tiles, where every unit is in sight. */
 const everyone = (...states: MatchState[]): Set<number> => new Set(states.flatMap((x) => x.units.map((u) => u.id)));
@@ -26,20 +26,21 @@ test('a killing blow: lunge, number, fall, in order', () => {
   if (!r.ok) throw new Error(r.reason);
   const dmg = (r.events.find((e) => e.type === 'attacked') as { damage: number }).damage;
   const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state), 0);
-  expect(fx).toContainEqual({ kind: 'lunge', unit: rider.id, toward: '1,0', delay: 0 });
+  expect(fx).toContainEqual({ kind: 'lunge', unit: rider.id, from: '0,0', toward: '1,0', delay: 0, target: s.units[1]!.id, counter: false });
   expect(fx).toContainEqual({ kind: 'number', at: '1,0', text: `-${dmg}`, tone: 'hurt', delay: 0 });
   expect(fx.find((f) => f.kind === 'fall')).toMatchObject({ unitType: 'warrior', owner: 1, at: '1,0' });
   expect(effectsFor(r.events, s, r.state, new Set(['0,0']), everyone(s, r.state), 0).filter((f) => 'at' in f && f.at === '1,0')).toEqual([]);
 });
 
-test('a knight kill shows its chain cost as a hurt number on the tile it rode into', () => {
+test('a knight kill shows the momentum it paid in the hero tone on the tile it rode into', () => {
   const s = blankMatch();
   const knight = addUnit(s, 'knight', 0, 0, 0);
   addUnit(s, 'warrior', 1, 1, 0, { hp: 1 });
   const r = applyAction(s, { type: 'attack', unit: knight.id, target: '1,0' });
   if (!r.ok) throw new Error(r.reason);
   const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state), 0);
-  expect(fx.at(-1)).toMatchObject({ kind: 'number', at: '1,0', text: `-${CONFIG.chainKillCost}`, tone: 'hurt' });
+  expect(fx.at(-1)).toMatchObject({ kind: 'number', at: '1,0', text: T.ui.momentumSpent(CONFIG.momentum.price.warrior), tone: 'hero' });
+  expect(T.ui.momentumSpent(2)).toBe('-2 momentum');
 });
 
 test('the fall comes 120 ms after the blow', () => {
@@ -71,6 +72,18 @@ test('a heal shows the health actually gained', () => {
   expect(fx).toEqual([{ kind: 'number', at: '1,0', text: '+4', tone: 'heal', delay: 0 }]);
 });
 
+test('rules 8: a hunkered unit healed at the end of the turn shows the number, only where the viewer sees it', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const dug = addUnit(s, 'warrior', 0, -3, 0, { hp: 3 });
+  const h = applyAction(s, { type: 'hunker', unit: dug.id }); if (!h.ok) throw new Error(h.reason);
+  const r = applyAction(h.state, { type: 'endTurn' }); if (!r.ok) throw new Error(r.reason);
+  const gain = r.state.units.find((u) => u.id === dug.id)!.hp - 3;
+  expect(gain).toBeGreaterThan(0);
+  const fx = effectsFor(r.events, h.state, r.state, new Set(Object.keys(s.tiles)), everyone(h.state, r.state), 0);
+  expect(fx).toContainEqual({ kind: 'number', at: '-3,0', text: `+${gain}`, tone: 'heal', delay: expect.any(Number) as number });
+  expect(effectsFor(r.events, h.state, r.state, new Set(['0,0']), everyone(h.state, r.state), 1).some((f) => f.kind === 'number')).toBe(false);
+});
+
 test('the fall follows a unit that moved earlier in the list', () => {
   const s = blankMatch();
   const u = addUnit(s, 'archer', 1, 0, 0);
@@ -79,7 +92,57 @@ test('the fall follows a unit that moved earlier in the list', () => {
     { type: 'died', unit: u.id },
   ];
   const fx = effectsFor(events, s, s, new Set(['0,0', '1,0']), everyone(s, s), 0);
-  expect(fx).toEqual([{ kind: 'fall', unitType: 'archer', owner: 1, at: '1,0', delay: 0 }]);
+  expect(fx).toEqual([
+    { kind: 'move', unit: u.id, unitType: 'archer', from: '0,0', to: '1,0', delay: 0 },
+    { kind: 'fall', unit: u.id, unitType: 'archer', owner: 1, at: '1,0', delay: 0 },
+  ]);
+});
+
+test('a move takes no slot: the effects after it keep their timing', () => {
+  const s = blankMatch();
+  const u = addUnit(s, 'warrior', 0, 0, 0);
+  const events: GameEvent[] = [
+    { type: 'moved', unit: u.id, from: '0,0', to: '1,0' },
+    { type: 'built', at: '1,0', what: 'farm' },
+  ];
+  const fx = effectsFor(events, s, s, new Set(['0,0', '1,0']), everyone(s, s), 0);
+  expect(fx).toEqual([
+    { kind: 'move', unit: u.id, unitType: 'warrior', from: '0,0', to: '1,0', delay: 0 },
+    { kind: 'burst', at: '1,0', tone: 'build', delay: 0 },
+  ]);
+});
+
+test('an advance after a kill waits for the blow and the fall', () => {
+  const { s, rider } = killPosition();
+  const r = applyAction(s, { type: 'attack', unit: rider.id, target: '1,0' });
+  if (!r.ok) throw new Error(r.reason);
+  const fx = effectsFor(r.events, s, r.state, new Set(Object.keys(s.tiles)), everyone(s, r.state), 0);
+  const move = fx.find((f) => f.kind === 'move');
+  if (!r.events.some((e) => e.type === 'advanced')) return; // the horseman does not advance in these rules
+  expect(move).toMatchObject({ unit: rider.id, from: '0,0', to: '1,0' });
+  expect(move!.delay).toBeGreaterThanOrEqual(fx.find((f) => f.kind === 'fall')!.delay);
+});
+
+test('a move out of the fog does not tell where it started', () => {
+  const s = blankMatch();
+  const u = addUnit(s, 'warrior', 1, 1, 0);
+  const events: GameEvent[] = [{ type: 'moved', unit: u.id, from: '0,0', to: '1,0' }];
+  expect(effectsFor(events, s, s, new Set(['1,0']), everyone(s, s), 0)).toEqual([
+    { kind: 'move', unit: u.id, unitType: 'warrior', from: '1,0', to: '1,0', delay: 0 },
+  ]);
+  // Into the fog: nothing.
+  expect(effectsFor(events, s, s, new Set(['0,0']), everyone(s, s), 0)).toEqual([]);
+});
+
+test('the 3D look watches a move until its walk ends; the svg look as before', () => {
+  const s = blankMatch();
+  const u = addUnit(s, 'warrior', 0, 0, 0);
+  addUnit(s, 'warrior', 0, -1, 0); // keeps the start in sight
+  const after = structuredClone(s);
+  after.units[0]!.pos = '3,0';
+  const events: GameEvent[] = [{ type: 'moved', unit: u.id, from: '0,0', to: '3,0' }];
+  expect(watchMs(events, s, after, 0)).toBe(EFFECT_MS);
+  expect(watchMs(events, s, after, 0, true)).toBe(140 + 720);
 });
 
 test('building gives a burst and an unseen tile gives nothing', () => {
@@ -235,7 +298,58 @@ test('a trait shows its name over the unit; a non-gold find shows its words to t
     [{ type: 'treasure', at: '2,0', outcome: 'relic', trait: 'fierce' }, T.heroTrait.fierce.name],
   ];
   for (const [e, text] of finds) {
-    expect(effectsFor([e], s, s, all, everyone(s), 0)).toEqual([{ kind: 'number', at: '2,0', text, tone: 'find', delay: 0 }]);
+    expect(effectsFor([e], s, s, all, everyone(s), 0)).toEqual([{ kind: 'number', at: '2,0', text, tone: 'find', delay: 0, ms: TREASURE_TEXT_MS }]);
     expect(effectsFor([e], s, s, all, everyone(s), 1)).toEqual([{ kind: 'burst', at: '2,0', tone: 'treasure', delay: 0 }]);
   }
+});
+
+test('what a claimed treasure gave stays up three times as long as other effects', () => {
+  expect(TREASURE_TEXT_MS).toBe(EFFECT_MS * 3);
+});
+
+test('a blockade shows the gold it cut on the city, to its owner only (rules 8)', () => {
+  const s = blankMatch();
+  const c = addCity(s, 0, 0, 0, { level: 4 });
+  addCity(s, 1, 0, -3);
+  addUnit(s, 'warrior', 1, 1, 0); addUnit(s, 'warrior', 1, 0, 1); addUnit(s, 'warrior', 1, -1, 0);
+  s.current = 1; s.players[0]!.turnsTaken = 1;
+  const r = applyAction(s, { type: 'endTurn' });
+  if (!r.ok) throw new Error(r.reason);
+  const e = r.events.find((x) => x.type === 'blockaded') as Extract<GameEvent, { type: 'blockaded' }>;
+  expect(e.gold).toBe(Math.max(CONFIG.blockade.minCut, Math.floor(4 * CONFIG.blockade.cut)));
+  const all = new Set(Object.keys(s.tiles));
+  expect(effectsFor(r.events, s, r.state, all, everyone(s, r.state), 0)).toContainEqual(expect.objectContaining({ kind: 'number', at: c.pos, text: T.ui.blockadeCut(e.gold) }));
+  expect(effectsFor(r.events, s, r.state, all, everyone(s, r.state), 1).some((f) => f.kind === 'number' && f.at === c.pos)).toBe(false);
+});
+
+test('a unit killed takes its sight with it, but the viewer still sees the blow that killed it, and its fall', () => {
+  const s = blankMatch();
+  const killer = addUnit(s, 'warrior', 1, 0, 0);
+  const victim = addUnit(s, 'archer', 0, 1, 0, { hp: 1 });
+  const events: GameEvent[] = [
+    { type: 'attacked', unit: killer.id, target: victim.id, damage: 5, counter: 0 },
+    { type: 'died', unit: victim.id },
+  ];
+  // After the action the viewer sees neither tile; before it, both.
+  const none = new Set<string>();
+  const before = new Set(['0,0', '1,0']);
+  expect(effectsFor(events, s, s, none, everyone(s), 0)).toEqual([]);
+  const fx = effectsFor(events, s, s, none, everyone(s), 0, before);
+  expect(fx).toContainEqual({ kind: 'lunge', unit: killer.id, from: '0,0', toward: '1,0', delay: 0, target: victim.id, counter: false });
+  expect(fx.some((f) => f.kind === 'fall')).toBe(true);
+  // Nothing about a tile seen at neither time.
+  expect(effectsFor(events, s, s, none, everyone(s), 0, new Set(['5,5']))).toEqual([]);
+});
+
+test('the AI waits no longer for a move whose start the viewer did not see than for a unit appearing', () => {
+  const s = blankMatch();
+  const u = addUnit(s, 'warrior', 1, -3, 0);
+  addUnit(s, 'scout', 0, 4, -1); // the viewer's own unit: it sees the end, not the start
+  const after = structuredClone(s);
+  after.units[0]!.pos = '3,0';
+  const events: GameEvent[] = [{ type: 'moved', unit: u.id, from: '-3,0', to: '3,0' }];
+  const { visible, visibleBefore } = seenBy(s, after, 0);
+  expect(visible.has('3,0')).toBe(true);
+  expect(visibleBefore.has('-3,0') || visible.has('-3,0')).toBe(false);
+  expect(watchMs(events, s, after, 0, true)).toBe(EFFECT_MS);
 });

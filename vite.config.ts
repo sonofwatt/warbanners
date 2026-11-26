@@ -31,8 +31,10 @@ export default defineConfig({
         scope: './',
         display: 'standalone',
         orientation: 'any',
-        background_color: '#7CC8EE',
-        theme_color: '#7CC8EE',
+        // Android draws its gesture bar in the installed app's colours, which a page cannot change while it runs (the
+        // meta theme-color only colours the status bar). The sea, so the bar under a match continues the water.
+        background_color: '#3E80AE',
+        theme_color: '#3E80AE',
         icons: [
           { src: 'icon-180.png', sizes: '180x180', type: 'image/png' },
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -42,6 +44,15 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,m4a}'],
+        // The 3D terrain chunk (three.js) is not precached: a device that never turns the option on never downloads
+        // it. Once fetched it is kept, so the option still works offline.
+        globIgnores: ['**/terrain3d-*.js'],
+        runtimeCaching: [{
+          urlPattern: /\/assets\/terrain3d-[^/]*\.js$/,
+          handler: 'CacheFirst',
+          // Each release names the chunk anew: keep the newest two, so old ones do not pile up.
+          options: { cacheName: 'terrain3d', expiration: { maxEntries: 2 } },
+        }],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },

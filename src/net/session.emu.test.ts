@@ -1,4 +1,5 @@
 import { afterAll, afterEach, describe, test } from 'vitest';
+import { wait } from './waitScale';
 import { cleanupAdmin, firebaseKit, sharedBodies, type SessionKit } from './sessionKit';
 
 // The shared session bodies on the emulator: real Firebase, real timers, drops through setOnline, and one timeout
@@ -13,6 +14,6 @@ describe.runIf(process.env.EMULATOR === '1')('the online session on the emulator
     test(name, async () => {
       kit = firebaseKit(++k);
       await body(kit);
-    }, 30_000);
+    }, wait(30_000));
   }
 });

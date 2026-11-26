@@ -10,6 +10,7 @@ import { createMatch, hashState, type MatchSettings, type PlayerId } from '../en
 import {
   aiSeatPatch, appendPatch, createPatch, joinPatch, lobbyPatch, presentPatch, startPatch, takeoverPatch,
 } from './patches';
+import { wait } from './waitScale';
 
 // The project id is deliberately not the app's namespace (demo-banners), so loading rules here can never mask a
 // broken app namespace: src/net/firebase.emu.test.ts has its own canary for that one.
@@ -85,7 +86,7 @@ const create = (uid: string, over: Partial<{ clock: number; rulesVersion: number
   createPatch(uid, { name: 'Ann', hostFaction: 'spartans', clock: 120, rulesVersion: 2, build: 't', ...over } as never);
 const awayFor = (uid: string, ms: number) => seed({ [`rooms/ABC234/presence/${uid}`]: { on: false, at: Date.now() - ms } });
 
-emu('database rules', () => {
+emu('database rules', { timeout: wait(30_000) }, () => {
   beforeAll(async () => {
     setLogLevel('error');   // a refused write is the point of most tests here; the SDK would warn on each
     env = await initializeTestEnvironment({
@@ -434,7 +435,7 @@ emu('database rules', () => {
     await new Promise((r) => setTimeout(r, 1_500));
     goOffline(db);
     let seen = null as { on?: boolean; at?: number } | null;
-    for (let i = 0; i < 50 && seen?.on !== false; i++) {
+    for (let i = 0; i < wait(50) && seen?.on !== false; i++) {
       await new Promise((r) => setTimeout(r, 100));
       seen = (await adminGet('rooms/ABC234/presence/u0')) as typeof seen;
     }

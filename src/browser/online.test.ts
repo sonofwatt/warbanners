@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
 import { T, fill } from '../ui/text';
-import { openApp, tapTile } from './harness';
+import { deselect, openApp, tapTile } from './harness';
 
 // One online match in two browser phones against the Firebase emulator (`npm run test:online` builds dist-emu and
 // starts the emulator). Each openApp is its own Chromium, so each phone has its own storage and anonymous identity.
@@ -50,6 +50,7 @@ async function startedMatch(): Promise<{ A: Phone; B: Phone; code: string }> {
 async function annPlaysFirstTurn(A: Phone, B: Phone): Promise<void> {
   await tapTile(A.page, '-2,5');
   await tapTile(A.page, '-1,4');
+  await deselect(A.page); // 0.7.0: a selection's card takes the turn buttons' place
   await A.page.getByTestId('end-turn').tap();
   await expect.poll(() => B.page.getByTestId('hud-status').textContent(), { timeout: 5_000 }).toContain(T.ui.yourTurn);
 }

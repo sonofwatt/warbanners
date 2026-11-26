@@ -1,26 +1,27 @@
-import { scrollWithin } from '../scrollWithin';
-import { useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { UNITS } from '../../engine';
 import type { FactionId, UnitTypeId } from '../../engine';
-import { BootIcon, CoinIcon, FlaskIcon, HeartIcon, LockIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
+import { BootIcon, CoinIcon, HeartIcon, LockIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
 import { Stats } from './Card';
 import type { Command } from './commands';
 import { UnitPicture } from './Picture';
 
 // A city's units to train: a row of pictures that scrolls sideways. Tapping one opens its card under the row (its
-// numbers, what it does and its traits) with the button that trains it; tapping it again closes the card. A unit the
-// city cannot train now stays in the row, faded, and its card says why.
-export function UnitShop({ commands, faction, onCommand }: { commands: Command[]; faction: FactionId; onCommand: (c: Command) => void }): ReactElement | null {
-  const [picked, setPicked] = useState<UnitTypeId | null>(null);
-  const shop = useRef<HTMLDivElement>(null);
-  // A picked unit's card opens under the row; bring the row and the card's head (its Train button) into view.
-  useEffect(() => { if (picked !== null && shop.current !== null) scrollWithin(shop.current, 'start', true); }, [picked]);
+// numbers, what it does and its traits) and puts its Train button in the city card's head (CityPanel); tapping it
+// again closes the card. A unit the city cannot train now stays in the row, faded, and its card says why.
+// `part`: the row alone (the top of the city card, shown collapsed) or the hint and picked unit's card alone (shown
+// when the city card is pulled up); both when left out.
+export function UnitShop({ commands, faction, picked, onPick, part }: {
+  commands: Command[]; faction: FactionId; picked: UnitTypeId | null; onPick: (t: UnitTypeId | null) => void;
+  part?: 'strip' | 'details';
+}): ReactElement | null {
   if (commands.length === 0) return null;
   const chosen = commands.find((c) => c.unit === picked);
+  const details = chosen === undefined ? <p className="shop-hint">{T.ui.shopHint}</p> : <ShopCard command={chosen} />;
+  if (part === 'details') return <div className="shop-details">{details}</div>;
   return (
-    <div className="shop" ref={shop}>
+    <div className="shop">
       <ul className="shop-strip" aria-label={T.ui.trainUnits}>
         {commands.map((c) => {
           const type = c.unit!;
@@ -28,7 +29,7 @@ export function UnitShop({ commands, faction, onCommand }: { commands: Command[]
             <li key={c.id}>
               <button
                 type="button" className={`shop-item${c.enabled ? '' : ' unready'}`} data-testid={`shop-${type}`}
-                aria-pressed={picked === type} onClick={() => setPicked(picked === type ? null : type)}
+                aria-pressed={picked === type} onClick={() => onPick(picked === type ? null : type)}
               >
                 <span className="shop-picture"><UnitPicture type={type} faction={faction} />{c.enabled ? null : <LockIcon />}</span>
                 <span className="shop-name">{T.unit[type].name}</span>
@@ -38,32 +39,18 @@ export function UnitShop({ commands, faction, onCommand }: { commands: Command[]
           );
         })}
       </ul>
-      {chosen === undefined ? <p className="shop-hint">{T.ui.shopHint}</p> : <ShopCard command={chosen} onCommand={onCommand} />}
+      {part === 'strip' ? null : details}
     </div>
   );
 }
 
-function ShopCard({ command, onCommand }: { command: Command; onCommand: (c: Command) => void }): ReactElement {
+function ShopCard({ command }: { command: Command }): ReactElement {
   const type = command.unit!;
   const def = UNITS[type];
-  const locked = !command.enabled && command.tech !== undefined;
   return (
     <section className="shop-card" aria-label={T.unit[type].name}>
-      <div className="shop-card-top">
-        <div className="shop-card-text">
-          <h3>{T.unit[type].name}</h3>
-          <p className="blurb">{T.unit[type].blurb}</p>
-        </div>
-        <div className="command">
-          <button type="button" className={locked ? 'primary needs-tech' : 'primary'} data-testid={`cmd-${command.id}`}
-            disabled={!command.enabled && !locked} onClick={() => onCommand(command)}>
-            <span className="command-label">{T.ui.train}</span>
-            {locked ? <FlaskIcon /> : null}
-            <span className="cost"><CoinIcon />{command.cost}<span className="vh">{` ${T.ui.gold.toLowerCase()}`}</span></span>
-          </button>
-          {command.why !== null ? <small className="why">{command.why}</small> : null}
-        </div>
-      </div>
+      <h3>{T.unit[type].name}</h3>
+      <p className="blurb">{T.unit[type].blurb}</p>
       <Stats stats={[
         { icon: <HeartIcon />, label: T.ui.health, value: def.hp },
         { icon: <SwordIcon />, label: T.ui.attackStat, value: def.atk },

@@ -1,16 +1,23 @@
 import { expect, test } from 'vitest';
-import { CONFIG, DEEDS, FACTIONS, HERO_TRAITS, TECHS, UNITS } from '../engine';
+import { BRANCHES, CONFIG, DEEDS, FACTIONS, HERO_TRAITS, TECHS, UNITS } from '../engine';
 import type { BuildingId, ItemId, TreasureOutcome, FactionId, TechId, UnitTypeId } from '../engine';
-import { digestText, reasonText, T, unlocks } from './text';
+import { digestText, reasonText, T, techName, unlocks } from './text';
 
 test('every id the engine knows has a name', () => {
   for (const id of Object.keys(UNITS)) { expect(T.unit[id as UnitTypeId].name).toBeTruthy(); expect(T.unit[id as UnitTypeId].blurb.length).toBeGreaterThan(10); }
   for (const id of Object.keys(TECHS)) expect(T.tech[id as TechId]).toBeTruthy();
   for (const id of Object.keys(CONFIG.buildings)) expect(T.building[id as BuildingId]).toBeTruthy();
+  for (const id of BRANCHES) expect(T.branch[id]).toBeTruthy();
+  for (const id of Object.keys(T.resource)) expect(T.harvestVerb[id as keyof typeof T.harvestVerb]).toBeTruthy();
   for (const id of Object.keys(FACTIONS)) expect(T.faction[id as FactionId]).toBeTruthy();
   const traits = new Set(Object.values(UNITS).flatMap(u => u.traits));
   for (const t of traits) expect(T.trait[t].blurb.length).toBeGreaterThan(10);
   for (const pair of Object.values(CONFIG.rewards)) for (const r of pair) expect(T.reward[r].name).toBeTruthy();
+});
+test('the level 2 gold reward reads its amount from CONFIG (5 since rules 9)', () => {
+  expect(CONFIG.rewardGold).toBe(5);
+  expect(T.reward.gold.blurb).toBe(`Take ${CONFIG.rewardGold} gold now.`);
+  expect(T.reward.gold.blurb).toContain('5 gold');
 });
 test('every refusal a panel can show has a line', () => {
   for (const r of ['not enough gold', 'missing tech', 'city is at capacity', 'city tile is occupied', 'cannot train that',
@@ -21,18 +28,42 @@ test('every refusal a panel can show has a line', () => {
   expect(reasonText('some new reason')).toBe('Some new reason');
 });
 test('what a tech unlocks comes from the data', () => {
-  expect(unlocks('riding')).toEqual(expect.arrayContaining(['Horseman', 'Horse Archer']));
-  expect(unlocks('bronze')).toEqual(expect.arrayContaining(['Spearman', 'Hoplite', T.building.mine]));
-  expect(unlocks('shieldwork')).toEqual(expect.arrayContaining(['Defender', T.ui.walls]));
-  expect(unlocks('roads')).toEqual(expect.arrayContaining(['Camp', T.ui.road]));
+  expect(unlocks('riding')).toEqual(expect.arrayContaining(['Horseman', 'Horse Archer', 'Camp', T.ui.road]));
+  expect(unlocks('spears')).toEqual(expect.arrayContaining(['Spearman', 'Hoplite']));
+  expect(unlocks('mining')).toEqual([T.building.mine]);
+  expect(unlocks('defence')).toEqual(['Defender']);
+  expect(unlocks('walls')).toEqual([T.ui.wallsBlockade, T.ui.storesBlockade]);
+  expect(unlocks('granary')).toEqual([T.building.market, T.building.granary]);
+  expect(unlocks('foraging')).toEqual([T.harvestVerb.orchard]);
+  expect(unlocks('prospecting')).toEqual([T.harvestVerb.jewels, T.ui.climbMountains]);
+  expect(unlocks('fishing')).toEqual([T.harvestVerb.fish]);
   for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId).length, id).toBeGreaterThan(0);
+  // rules 8: Riding opens the Camp and no road for the Mongols, the road and no Camp for the Spartans; the walls tech
+  // opens Walls for the Mongols and, as Deep stores, the Spartans' blockade defence; every tech opens something for both
+  expect(unlocks('riding', 'mongols')).toEqual(['Horseman', 'Horse Archer', 'Camp']);
+  expect(unlocks('riding', 'spartans')).toEqual(['Horseman', T.ui.road]);
+  expect(unlocks('walls', 'spartans')).toEqual([T.ui.storesBlockade]);
+  expect(unlocks('walls', 'mongols')).toEqual([T.ui.wallsBlockade]);
+  expect(techName('walls', 'spartans')).toBe('Deep stores');
+  expect(techName('walls', 'mongols')).toBe(T.tech.walls);
+  expect(techName('riding', 'spartans')).toBe(T.tech.riding);
+  for (const n of [CONFIG.blockade.cut, CONFIG.blockade.cutWalls]) expect(T.ui.wallsBlockade).toContain(`${Math.round(100 * n)}%`);
+  expect(T.ui.storesBlockade).toContain(`${Math.round(100 * CONFIG.blockade.cutSpartanTech)}%`);
+  for (const f of ['spartans', 'mongols'] as const) {
+    for (const id of Object.keys(TECHS)) expect(unlocks(id as TechId, f).length, `${f} ${id}`).toBeGreaterThan(0);
+  }
+  // rules 8: the climbing tech says it lets units climb, and the mountain tile says which tech that is
+  const climb = CONFIG.mountain.tech!;
+  expect(unlocks(climb)).toContain(T.ui.climbMountains);
+  for (const id of Object.keys(TECHS)) if (id !== climb) expect(unlocks(id as TechId)).not.toContain(T.ui.climbMountains);
+  expect(T.ui.mountainBlurb).toContain(T.tech[climb]);
 });
 test('digest lines read as sentences', () => {
-  expect(digestText({ kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
-  expect(digestText({ kind: 'unitHurt', unitType: 'warrior', damage: 4, by: null })).toBe('Your Warrior took 4 damage.');
-  expect(digestText({ kind: 'cityLost' })).toBe('You lost a city.');
-  expect(digestText({ kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');
-  expect(digestText({ kind: 'treasureTaken' })).toBe('The enemy claimed a treasure.');
+  expect(digestText({ at: '0,0', kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
+  expect(digestText({ at: '0,0', kind: 'unitHurt', unitType: 'warrior', damage: 4, by: null })).toBe('Your Warrior took 4 damage.');
+  expect(digestText({ at: '0,0', kind: 'cityLost' })).toBe('You lost a city.');
+  expect(digestText({ at: '0,0', kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');
+  expect(digestText({ at: '0,0', kind: 'treasureTaken' })).toBe('The enemy claimed a treasure.');
 });
 
 test('every hero trait, deed, item and treasure outcome has text, and blurbs carry the CONFIG numbers', () => {
@@ -51,6 +82,21 @@ test('the sellsword blurb names its trait through the text table', () => {
   expect(T.unit.sellsword.blurb).toContain(T.heroTrait[CONFIG.treasure.mercenaryTrait].name);
 });
 test('hero digest lines read as sentences', () => {
-  expect(digestText({ kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' })).toBe('Your Warrior earned Hardy.');
-  expect(digestText({ kind: 'heroMade', unitType: 'warrior' })).toBe('Your Warrior is now a hero.');
+  expect(digestText({ at: '0,0', kind: 'traitEarned', unitType: 'warrior', trait: 'hardy' })).toBe('Your Warrior earned Hardy.');
+  expect(digestText({ at: '0,0', kind: 'heroMade', unitType: 'warrior' })).toBe('Your Warrior is now a hero.');
+});
+
+test('rules 8: the mountain text names every ranged type from the unit data and takes its numbers from CONFIG', () => {
+  const ranged = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2);
+  expect(ranged.length).toBeGreaterThan(0);
+  for (const t of ranged) expect(T.ui.mountainBlurb).toContain(T.unit[t].name);
+  expect(T.ui.mountainBlurb).toContain(`${Math.round(CONFIG.mountain.longShotScale * 100)}% of the damage`);
+  for (const t of (Object.keys(UNITS) as UnitTypeId[]).filter((x) => UNITS[x].range < 2)) expect(T.ui.mountainBlurb).not.toContain(`${T.unit[t].name},`);
+});
+test('rules 9 (0.7.0): whatsNew is three sentences and reads its numbers from the data', () => {
+  expect(T.ui.whatsNew.match(/[.!?](\s|$)/g)).toHaveLength(3);
+  expect(T.ui.whatsNew).toContain(`Spartan capital starts at level ${FACTIONS.spartans.capitalStartLevel}`);
+  expect(T.ui.whatsNew).toContain(`pays ${CONFIG.rewardGold}`);
+  expect(T.ui.whatsNew).toContain(`Market gives ${CONFIG.buildings.market.growth} growth`);
+  expect(T.ui.whatsNew).toContain('Unhunker');
 });

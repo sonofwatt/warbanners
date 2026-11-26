@@ -12,8 +12,8 @@ const seeAll = (s: MatchState) => { for (const p of s.players) p.explored = Obje
 
 test('the index groups what the engine allows', () => {
   expect([...IX.moves[0]!].sort()).toEqual(['-1,3', '-1,4', '-1,5', '-1,6', '-2,4', '-2,6', '-3,5', '-3,6', '-4,5', '-4,6', '0,3']);   // the starting Krypteia Scout moves 2
-  expect(IX.build['-2,4']).toEqual(['mine']);
-  expect(IX.research).toEqual(['foraging', 'riding', 'hunting', 'shieldwork']);
+  expect(IX.build['-2,4']).toBeUndefined();                                    // rules 8: the Mine waits on Mining
+  expect(IX.research).toEqual(['foraging', 'trapping', 'spears', 'mining', 'gathering', 'fishing']);
   expect(IX.activeUnits).toEqual([0]);
   expect(IX.train[0]).toBeUndefined();          // the capital tile is occupied
 });
@@ -93,7 +93,8 @@ test('other taps change the selection and never act', () => {
 test('marks for a selected unit', () => {
   const m = marksFor(unitSel(0), V, IX);
   expect(m['-2,5']).toBe('selected'); expect(m['-1,4']).toBe('move');
-  expect(Object.values(m).filter(x => x === 'move')).toHaveLength(11);
+  expect(m['-2,4']).toBe('moveEnds');                       // rules 8: the mountain beside the capital ends the Scout's turn
+  expect(Object.values(m).filter(x => x === 'move')).toHaveLength(10);
 });
 test('an attack that can lure asks first', () => {
   const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
@@ -127,7 +128,7 @@ test('an armed ability fires on a target and disarms on anything else', () => {
 });
 test('a camp trains onto the tapped tile, and a waiting capture glows', () => {
   const s = seeAll(blankMatch({ factions: ['mongols', 'spartans'] }));
-  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); give(s, 0, 'riding', 'roads');
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3); give(s, 0, 'riding');
   const camp = addUnit(s, 'camp', 0, 0, 0);
   s.tiles['2,0']!.village = true; const taker = addUnit(s, 'warrior', 0, 2, 0);
   const v = playerView(s, 0), ix = indexActions(legalActions(s));
@@ -188,4 +189,15 @@ test('items index lists useItem units and does not count them as active', () => 
   expect(ix.items).toEqual([drinker.id]);
   expect(ix.activeUnits).not.toContain(drinker.id);
   expect(indexActions([]).items).toEqual([]);
+});
+// No unit has pathfinder since rules 8, so the engine offers no such move; the index here is built by hand.
+test("a pathfinder's step into the fog is marked as a move that ends the turn", () => {
+  const s = blankMatch({ unexplored: true });
+  addCity(s, 0, 0, 4); addCity(s, 1, 0, -4);
+  const scout = addUnit(s, 'scout', 0, 0, 0);
+  s.players[0]!.explored = ['-1,0', '-1,1', '0,-1', '0,0', '0,1', '1,-1', '1,0'].sort();
+  const ix = indexActions([{ type: 'move', unit: scout.id, to: '1,0' }, { type: 'move', unit: scout.id, to: '2,0' }]);
+  const m = marksFor(unitSel(scout.id), playerView(s, 0), ix);
+  expect(m['2,0']).toBe('moveEnds');
+  expect(m['1,0']).toBe('move');
 });

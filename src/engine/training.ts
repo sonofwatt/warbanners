@@ -1,4 +1,5 @@
 import { FACTIONS } from './data/factions';
+import { TECH_TREE } from './data/techs';
 import { UNITS } from './data/units';
 import { unitCapacity } from './economy';
 import { cityById, hasOwn, hasTrait, isEnterable, spawnUnit, tileAt, unitAt, unitById } from './state';
@@ -18,7 +19,7 @@ export function trainable(s: MatchState, p: PlayerId): UnitTypeId[] {
   return (Object.keys(UNITS) as UnitTypeId[]).filter((t) => {
     const def = UNITS[t];
     return (def.faction === null || def.faction === player.faction) && def.cost !== null
-      && (def.tech === null || player.techs.includes(def.tech));
+      && (TECH_TREE.units[t] === undefined || player.techs.includes(TECH_TREE.units[t]!));
   });
 }
 

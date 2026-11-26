@@ -18,6 +18,8 @@ Every unit keeps four running totals, its deeds. They only grow and are never re
   that takes a counter and lives. +1 when a heal ability raises its health. Resting never counts as surviving.
 - Rest: +1 at the start of its owner's turn when the unit rested (did nothing on the previous turn) and
   resting actually raised its health. A garrison at full health earns nothing.
+  Since rules 8 a hunkered unit's rest heal comes at the end of its owner's turn (stage1-rules.md, section 11),
+  and so does its rest deed, on the same terms.
 
 Survive and rest do not count for a fresh unit (one spawned or found last turn and not yet through its
 owner's next turn start), so a new unit does not start its story by standing still.
@@ -81,7 +83,7 @@ with the phalanx. Mongol heroes have nothing like it.
 
 The unit's displayed numbers (`statsOf`) include traits and the faction's mounted bonus but no neighbour
 bonuses (inspire, phalanx, myth touch). A Fierce Tireless Mongol Horseman is attack 5, defence 2, health 12,
-move 4 tiles, sight 2, range 1.
+move 3 tiles (since rules 8, with no Mongol riding bonus; 3.5 in rules 6 and 7, 4 before), sight 2, range 1.
 
 Worked examples (a Warrior is attack 4, defence 3, health 10; all on open field, health at its maximum):
 
@@ -90,7 +92,7 @@ Worked examples (a Warrior is attack 4, defence 3, health 10; all on open field,
 3. A Warrior hits a Warrior, and a Watchful attacker takes 1 from the counter, not 2.
 4. A Watchful Warrior attacking a Spearman takes 4 from the counter, not 5.
 5. A counter of 1 against a Watchful attacker stays 1.
-6. Tireless: a Warrior has 4 half-points of movement, a Mongol Horseman 8.
+6. Tireless: a Warrior has 4 half-points of movement, a Mongol Horseman 6 (no riding bonus since rules 8).
 
 ## 5. Treasures
 
@@ -166,19 +168,45 @@ the trait sizes and the treasure table are the first draft, kept. Every run is i
 | Normal over easy | at least 65% | 65.8% |
 | Hard over normal | at least 60% | 55.5% (missed) |
 
-## 9. The chain kill cost (rules 5)
+## 9. Momentum (rules 7, replacing the rules 5 chain kill cost)
 
-- A unit with the `chain` trait (the Knight and the Mongols' Khan's Guard) loses `CONFIG.chainKillCost` health, 2, each
-  time it kills with its own attack: "the rider flailing as they're trampled". The cost is taken after the kill and before
-  the extra attack is granted, and the extra attack is still granted after every kill.
-- It never kills the unit: health stops at 1. A wounded unit hits weaker (the health factor), so a long chain damps itself.
-- No cost when a chain unit kills by striking back, or when its attack does not kill.
-- The engine emits `{ type: 'chainCost', unit, damage }` after the kill's `died` and `advanced` events, with the health
-  actually lost (no event when nothing was lost); the board shows it as a hurt number on the unit.
-- It earns no deed: it is not a hit survived, and the attack's fight deed is unchanged.
-- The number was picked by simulated matches: `docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md`.
+- A unit with the `chain` trait (the Knight and the Mongols' Khan's Guard) has momentum. It starts each of its owner's
+  turns at its start value: Knight 7, Khan's Guard 8 (`CONFIG.momentum.start`). A chain unit that appears mid-turn
+  (trained, a reward, a camp, a treasure) starts with its start value too. Other units have none (0, never shown).
+- Every unit type has a momentum price (`CONFIG.momentum.price`). When a chain unit kills with its own attack, the kill
+  costs the dead unit's price. If the price is no more than the momentum left, it is paid (the momentum goes down by
+  the price) and the kill gives one more attack this turn. There is no refund.
+- A chain unit may attack any legal target. If the target's price is more than the momentum left, the attack is short:
+  its damage goes down by 1 for each missing point, never below 1, it gives no extra attack even if it kills, and the
+  momentum left drops to 0, kill or not. The counter-attack is worked out as usual, from the target as the hit leaves it.
+- The price check applies to every attack a chain unit makes, the first of the turn included; a kill on the first attack
+  costs momentum too. With start values of 7 and 8 and prices of at most 4, the first attack is never short.
+- If one attack kills several units (splash), only the target's kill is priced and only it can give the extra attack.
+- A braced Hoplite (rules 7, phalanx trait) costs `CONFIG.momentum.bracedPrice`, 4, in place of the Hoplite's 2, and
+  keeps its +2 defence against chain attackers. Bracing is judged when the attack is made, before the target can fall.
+- No cost when a chain unit kills by striking back. There is no health cost any more.
+
+| Price | Units |
+|---|---|
+| 0 | Scout |
+| 1 | Warrior, Archer, Horseman, Spearman, Catapult, Piper, Sky Caller |
+| 2 | Hoplite, Swordsman, Horse Archer, Knight, Sellsword, Camp |
+| 3 | Defender, King's Guard, Khan's Guard |
+| 4 | a braced Hoplite (in place of its 2) |
+
+Example: a Knight with 7 kills three Hoplites (2 each, 1 left); a fourth Hoplite is 1 short, so that attack does 1
+less damage and ends the chain. Scouts cost nothing, so a chain through a line of Scouts goes on.
+
+- Events: after a paid kill with a price above 0 the engine emits `{ type: 'momentum', unit, spent, left }` after the
+  kill's `died` and `advanced` events; the board shows "-2 momentum" (for example) over the unit in the hero tone, and
+  it plays the old chain cost sound. A short attack that kills emits `{ type: 'chainEnded', unit }` after the advance,
+  and the board shows "Chain ends". The unit card of a chain unit shows "Momentum 5 of 7" (for example).
 - A level-up ends the chain (rules 6): if the chain unit earns a hero trait from its own attack (the deed points that
-  attack earns are counted after it), it does not get the extra attack from that kill. The chain kill cost is still paid
-  first, and a Fierce trait still heals its new health at once. The engine emits `{ type: 'chainEnded', unit }` after the
-  `heroTrait` event, and the board shows "Chain ends" on the unit; the Chain trait text says so too.
-  `CONFIG.levelUpEndsChain` switches the rule (on).
+  attack earns are counted after it), it does not get the extra attack from that kill. The momentum already paid stays
+  paid, and a Fierce trait still heals its new health at once. The engine emits `{ type: 'chainEnded', unit }` after the
+  `heroTrait` event. `CONFIG.levelUpEndsChain` switches the rule (on).
+- A kill advance onto or off a mountain ends the chain and the turn (rules 8, stage1-rules.md section 10): the kill and
+  the momentum it paid still count, but the extra attack is taken back and the engine emits `chainEnded` (once).
+- The prices are a draft. Before rules 7 (rules 5 and 6) each chain kill cost the unit `chainKillCost` health, 2, never
+  below 1, and gave the extra attack every time; the rules 7 brace first stopped the chain outright. Momentum replaces
+  both. The rules 5 number was picked by `docs/superpowers/plans/2026-11-21-knight-chain-cost-log.md`.

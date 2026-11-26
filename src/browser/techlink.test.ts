@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // A build button that waits only on a tech opens the tech tree at that tech. Seed 7: the Field at -1,5, beside
 // Player 1's capital, offers Build Farm, which needs Farming. Set SHOT_DIR to save a picture of the sheet.
@@ -18,10 +18,13 @@ describe.runIf(process.env.BROWSER === '1')('a locked command opens the tech tre
         // The phone's own bars match what they touch: the status bar the top bar's paper, the bottom inset the sea.
         const bars = await page.evaluate(() => ({
           theme: document.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
-          body: getComputedStyle(document.body).backgroundImage,
+          html: getComputedStyle(document.documentElement).backgroundColor,
+          body: getComputedStyle(document.body).backgroundColor,
+          top: getComputedStyle(document.body, '::before').backgroundColor,
+          bottom: getComputedStyle(document.body, '::after').backgroundColor,
         }));
         expect(bars.theme).toBe('#FFF8E8');
-        expect(bars.body).toContain('rgb(255, 248, 232)'); expect(bars.body).toContain('rgb(62, 128, 174)');
+        expect(bars).toMatchObject({ html: 'rgb(62, 128, 174)', body: 'rgb(62, 128, 174)', top: 'rgb(255, 248, 232)', bottom: 'rgb(62, 128, 174)' });
         // The turn opens with the Scout selected, and -1,5 is a tile it could move to: let it go first.
         await page.keyboard.press('Escape');
         await frames(page);
@@ -49,9 +52,13 @@ describe.runIf(process.env.BROWSER === '1')('a locked command opens the tech tre
         if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/techlink-${w}x${h}.png` });
         // Opened from the bar, the sheet rings nothing.
         await page.getByTestId('close-sheet').tap();
+        await deselect(page); // the tile's card holds the bar's place
         await page.getByTestId('open-tech').tap();
         await row.waitFor();
         expect(await page.locator('.tech-sheet li.focus').count()).toBe(0);
+        // rules 8: five branches, each its column 1 tech and two rows
+        expect(await page.locator('.tech-sheet .branch').count()).toBe(5);
+        if (process.env.SHOT_DIR) { await frames(page); await page.screenshot({ path: `${process.env.SHOT_DIR}/techsheet-${w}x${h}.png` }); }
       } finally {
         await close();
       }

@@ -1,5 +1,5 @@
 // Bulk AI-against-AI matches for tuning: plays whole matches with the real turn driver and measures each side.
-import { CONFIG, FACTIONS, UNITS, createMatch, distance, isHero, parseKey, reachable } from '../engine';
+import { CONFIG, FACTIONS, UNITS, createMatch, distance, isHero, parseKey, reachable, startTech, unitTech } from '../engine';
 import type { Action, FactionId, HeroTraitId, MatchState, PlayerId, RewardId, TechId, Trait, TreasureOutcome, Unit, UnitTypeId } from '../engine';
 import { adaptStep, betweenMatches, gapOf, standingOf } from './adapt';
 import type { AdaptState } from './adapt';
@@ -20,6 +20,8 @@ export interface SideMetrics {
   doubleKills: number;   // turns in which one unit made 2 or more kills
   mountedTiles: number;  // tiles moved (hex distance of each move action) by mounted units
   mountedTurns: number;  // mounted units the side had at the start of each of its turns
+  roadsLaid: number;     // road actions the side played
+  connections: number;   // rules 7: its cities joined to a capital for the first time (connected events)
   // The census (2026-11-21-ai-unit-mix-log.md): how often each tactic was used, whether it was possible at all,
   // the level rewards taken and the techs held at the end.
   tactics: Partial<Record<Tactic, number>>;
@@ -66,7 +68,7 @@ function emptySide(): SideMetrics {
     cities: 0, citiesAtRound10: 0, unitsTrained: {}, attacks: 0, kills: 0, lures: 0, lureOntoCapturable: 0, luredCaptures: 0,
     raidRetreats: 0, mountedAttacks: 0, adjacentShare: 0, forestEntriesWithLittleMp: 0,
     traitsEarned: {}, heroes: 0, heroesLost: 0, treasures: {}, draughtsDrunk: 0, chainKills: 0, chainSweeps: 0, doubleKills: 0,
-    mountedTiles: 0, mountedTurns: 0, tactics: {}, possible: { treasure: true }, rewards: {}, techs: [],
+    mountedTiles: 0, mountedTurns: 0, roadsLaid: 0, connections: 0, tactics: {}, possible: { treasure: true }, rewards: {}, techs: [],
   };
 }
 
@@ -86,7 +88,7 @@ function markPossible(s: MatchState, me: PlayerId, side: SideMetrics): void {
       if (!hasT(u, trait)) continue;
       if (t === 'lure' && !FACTIONS[faction].canLure) continue;
       if (t === 'steady' && (rival === undefined || !FACTIONS[rival.faction].canLure)) continue;
-      // a pathfinder step needs an unexplored tile within the move; a Scout sees 3 tiles and moves 2, so it seldom has one
+      // a pathfinder step needs an unexplored tile within the move; since rules 8 no unit has the trait (the Scout lost it)
       if (t === 'pathfinder' && !Object.keys(reachable(s, u.id)).some((k) => !explored.has(k))) continue;
       side.possible[t] = true;
     }
@@ -174,6 +176,7 @@ export function runMatch(o: SimOpts): SimResult {
         if (events.some((e) => e.type === 'splashed')) tally(side, 'splash');
       }
       if (action.type === 'campTrain') tally(side, 'campTrain');
+      if (action.type === 'road') side.roadsLaid += 1;
       if (action.type === 'ability') tally(side, action.ability);
       if (action.type === 'claimTreasure') tally(side, 'treasure');
       if (action.type === 'move') {
@@ -209,6 +212,8 @@ export function runMatch(o: SimOpts): SimResult {
             mine.heroes += 1;
             if (firstHero === null) { firstHero = owner; firstHeroRound = roundsOf(before); }
           }
+        } else if (e.type === 'connected') {
+          side.connections += 1;              // paid only for the player acting
         } else if (e.type === 'treasure') {
           side.treasures[e.outcome] = (side.treasures[e.outcome] ?? 0) + 1;
         } else if (e.type === 'usedItem') {
@@ -277,7 +282,7 @@ const METRIC_KEYS: (keyof SideMetrics)[] = [
   'cities', 'citiesAtRound10', 'unitsTrained', 'attacks', 'kills', 'lures', 'lureOntoCapturable', 'luredCaptures',
   'raidRetreats', 'mountedAttacks', 'adjacentShare', 'forestEntriesWithLittleMp',
   'traitsEarned', 'heroes', 'heroesLost', 'treasures', 'draughtsDrunk', 'chainKills', 'chainSweeps', 'doubleKills',
-  'mountedTiles', 'mountedTurns',
+  'mountedTiles', 'mountedTurns', 'roadsLaid', 'connections',
 ];
 
 const total = (r: Partial<Record<string, number>>): number => Object.values(r).reduce((a: number, b) => a + (b ?? 0), 0);
@@ -347,6 +352,8 @@ export interface Census {
   // per faction and tactic: matches where it was possible, matches where it was used, and uses in all
   tactics: Record<FactionId, Partial<Record<Tactic, { possible: number; used: number; total: number }>>>;
   chivalry: Record<FactionId, { had: number; knights: number }>;   // matches with chivalry, and of those with a Knight
+  // per faction: roads laid and connections made in all, and matches with at least one connection
+  roads: Record<FactionId, { laid: number; connections: number; matchesConnected: number }>;
 }
 
 // The types a faction can train: a cost, and either no faction or its own.
@@ -358,13 +365,14 @@ export function census(results: readonly SimResult[]): Census {
   const out: Census = {
     units: { spartans: {}, mongols: {} }, rewards: { spartans: {}, mongols: {} }, tactics: { spartans: {}, mongols: {} },
     chivalry: { spartans: { had: 0, knights: 0 }, mongols: { had: 0, knights: 0 } },
+    roads: { spartans: { laid: 0, connections: 0, matchesConnected: 0 }, mongols: { laid: 0, connections: 0, matchesConnected: 0 } },
   };
   for (const r of results) for (const p of [0, 1] as const) {
     const f = r.factions[p];
     const side = r.sides[p];
-    const techs = new Set<TechId>([...side.techs, FACTIONS[f].startTech]);
+    const techs = new Set<TechId>([...side.techs, startTech(f)]);
     for (const t of trainableTypes(f)) {
-      const tech = UNITS[t].tech;
+      const tech = unitTech(t);
       const row = out.units[f][t] ??= { had: 0, trained: 0, total: 0 };
       const n = side.unitsTrained[t] ?? 0;
       row.total += n;
@@ -376,6 +384,9 @@ export function census(results: readonly SimResult[]): Census {
       out.chivalry[f].had += 1;
       if ((side.unitsTrained.knight ?? 0) > 0) out.chivalry[f].knights += 1;
     }
+    const roads = out.roads[f];
+    roads.laid += side.roadsLaid; roads.connections += side.connections;
+    if (side.connections > 0) roads.matchesConnected += 1;
     for (const [w, n] of Object.entries(side.rewards) as [RewardId, number][]) out.rewards[f][w] = (out.rewards[f][w] ?? 0) + n;
     for (const t of TACTICS) {
       const row = out.tactics[f][t] ??= { possible: 0, used: 0, total: 0 };

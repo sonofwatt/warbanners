@@ -1,4 +1,5 @@
 import { CONFIG } from './data/config';
+import { endHunker } from './hunker';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
 import { DIRS, add, distance, key, parseKey } from './hex';
@@ -62,9 +63,11 @@ function budgetOf(s: MatchState, u: Unit): number {
 export function reachable(s: MatchState, unitId: number): Record<HexKey, number> {
   const u = unitById(s, unitId);
   if (u === undefined) return {};
-  if (u.fresh || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
+  if (u.fresh || u.turnEnded || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return {};
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
+  const relays = faction.relayRiders && (mounted || !faction.relayMountedOnly);   // rules 8: mounted units only
+  const climbs = canClimb(s, u.owner);                     // rules 8: may step onto a mountain at all
   const explored = new Set(s.players[u.owner]!.explored);
   // rules 3 to 5 only: a move could end on one unexplored tile, and mounted Mongol riders kept moving after it
   const keepsMoveInFog = !CONFIG.closedFog && mounted && s.players[u.owner]!.faction === 'mongols';
@@ -81,14 +84,21 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
     if (from === null) break;
     done.add(from);
     const firstStep = from === u.pos && !u.moved;
+    const offMountain = CONFIG.mountain.endsTurn && tileAt(s, from)?.terrain === 'mountain';
     for (const d of DIRS) {
       const to = key(add(parseKey(from), d));
       const tile = tileAt(s, to);
       if (tile === undefined || tile.terrain === 'water' || isEnemyAt(s, u.owner, to)) continue;
       if (!entersFog && !explored.has(to)) continue;
+      if (!climbs && tile.terrain === 'mountain') continue;   // rules 8: climbing needs CONFIG.mountain.tech
       let cost: number;
       let forced = false;                                   // costs everything that is left
-      if (faction.relayRiders && tile.cityId !== null && cityById(s, tile.cityId)?.owner === u.owner) {
+      if (offMountain || (CONFIG.mountain.endsTurn && tile.terrain === 'mountain')) {
+        // rules 8: onto or off a mountain only as the first step, for everything left; it ends the turn (moveHandler).
+        // Before the road and relay costs, should a city or road ever stand on a mountain.
+        if (!firstStep) continue;
+        cost = left; forced = true;
+      } else if (relays && tile.cityId !== null && cityById(s, tile.cityId)?.owner === u.owner) {
         cost = CONFIG.relayCost;
       } else if (hasRoadOrCity(s, from) && hasRoadOrCity(s, to)) {
         cost = CONFIG.roadCost;
@@ -123,6 +133,20 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
   return out;
 }
 
+// rules 8: may units of `player` step onto a mountain? Only once the player has researched CONFIG.mountain.tech (none
+// needed when it is null). Takes anything with players, so a player's view works too.
+export function canClimb(s: Pick<MatchState, 'players'>, player: number): boolean {
+  const tech = CONFIG.mountain.tech;
+  return tech === null || s.players[player]?.techs.includes(tech) === true;
+}
+
+// rules 8: does a move from `from` to `to` step onto or off a mountain, and so end the unit's turn? Takes anything with
+// tiles, so a player's view works too (the UI marks such moves).
+export function mountainStep(s: Pick<MatchState, 'tiles'>, from: HexKey, to: HexKey): boolean {
+  const isPeak = (k: HexKey): boolean => hasOwn(s.tiles, k) && s.tiles[k]!.terrain === 'mountain';
+  return CONFIG.mountain.endsTurn && (isPeak(from) || isPeak(to));
+}
+
 // rules 13: the lured unit follows the rider by one tile if a tile is free
 function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): void {
   const target = unitById(s, mover.lure!.target);
@@ -143,6 +167,7 @@ function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): v
   const old = target.pos;
   target.pos = dest; target.enteredTurn = s.stamp;
   ev.push({ type: 'lured', unit: target.id, from: old, to: dest });
+  endHunker(target, ev);   // rules 7: pulled off its ground
 }
 
 export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev) => {
@@ -160,6 +185,10 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   // rules 6: a pathfinder that ends a move in the fog has spent its turn: no more moving, attacking or abilities
   if (CONFIG.closedFog && intoFog) { u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp; }
+  // rules 8: a step onto or off a mountain ends the turn the same way, and for good: not even haste moves it again
+  if (mountainStep(s, from, a.to)) {
+    u.mp = 0; u.bonusMp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp; u.turnEnded = true;
+  }
   ev.push({ type: 'moved', unit: u.id, from, to: a.to });
   addDeed(s, u, 'march', distance(parseKey(from), parseKey(a.to)), ev);
   if (u.lure !== null) pullLured(s, u, from, ev);

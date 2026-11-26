@@ -19,9 +19,10 @@ describe('vision', () => {
     setTile(s, 0, 0, { terrain: 'mountain' });
     expect(visibleTiles(s, 0).size).toBe(19);
   });
-  test('a city sees its radius plus one', () => {
-    const s = blankMatch({ unexplored: true }); addCity(s, 0, 0, 0);
-    expect(visibleTiles(s, 0).size).toBe(19);
+  test('rules 8: a city sees its territory radius and not one tile more', () => {
+    const s = blankMatch({ unexplored: true }); const c = addCity(s, 0, 0, 0);
+    expect(visibleTiles(s, 0).size).toBe(1 + 3 * c.radius * (c.radius + 1));
+    expect(visibleTiles(s, 0).has('2,0')).toBe(c.radius >= 2);
   });
   test('explored tiles stay explored', () => {
     const s = blankMatch({ unexplored: true }); const u = addUnit(s, 'warrior', 0, 0, 0);

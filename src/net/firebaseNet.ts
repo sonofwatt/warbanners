@@ -22,11 +22,25 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
   const open = new Map<string, number>();       // open watches per code
   // Created on the first call, never when firebaseNet() itself runs.
   const f = (): Fb => (made ??= fb(name));
-  // The server offset is listened to from the first serverNow() or watch, and let go when the last watch closes.
-  const listenOffset = (): void => { offsetOff ??= serverOffset(f(), (ms) => { offset = ms; }); };
   const db = (): Database => f().db;
   const at = (code: string, path = ''): ReturnType<typeof ref> => ref(db(), path ? `rooms/${code}/${path}` : `rooms/${code}`);
   const signIn = (): Promise<string> => ensureSignedIn(f());
+  // Nothing here touches the database before this identity is signed in. The first listen or read opens the socket,
+  // and the socket takes its token as it opens: the SDK asks auth for a token, and a sign-in that ends while it waits
+  // for the answer is lost, because the SDK then writes the token it was given (none) over the one the sign-in just
+  // handed it. That socket answers as signed out until the token next changes, about an hour later: every room
+  // listener is refused and cancelled, and the phone waits on 'connecting'. Seen on CI, never on a quiet laptop.
+  const afterSignIn = (fn: () => void): void => {
+    if (f().auth.currentUser) fn(); else signIn().then(fn, () => { /* not signed in: nothing to listen to yet */ });
+  };
+  // The server offset is listened to from the first serverNow() or watch once signed in, and let go when the last
+  // watch closes.
+  let offsetAsked = false;
+  const listenOffset = (): void => {
+    if (offsetOff || offsetAsked) return;
+    offsetAsked = true;
+    afterSignIn(() => { offsetAsked = false; offsetOff ??= serverOffset(f(), (ms) => { offset = ms; }); });
+  };
   const val = async (code: string, path: string): Promise<unknown> => (await get(at(code, path))).val();
 
   // Races the work against the time limit. The work never rejects: a refusal by the rules is 'refused', anything
@@ -176,20 +190,22 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
         return () => { stopped = true; };
       }
       const g = f();
-      listenOffset();
       open.set(code, (open.get(code) ?? 0) + 1);
       let online = false;
-      const onVisible = (): void => {
-        if (!stopped && !online && document.visibilityState === 'visible') reconnect(g);
-      };
-      offs.push(watchConnected(g, (ok) => { online = ok; if (!stopped) w.connected(ok); }));
-      if (typeof document !== 'undefined') {
-        document.addEventListener('visibilitychange', onVisible);
-        offs.push(() => document.removeEventListener('visibilitychange', onVisible));
-      }
-      // Listeners attach once signed in: the rules refuse a signed-out read, and a refused listener is cancelled.
+      // Everything that touches the database waits for the sign-in (see afterSignIn): the connected watch and a
+      // reconnect open the socket as surely as a listen does. The rules refuse a signed-out read, too, and a refused
+      // listener is cancelled.
       signIn().then(() => {
         if (stopped) return;
+        listenOffset();
+        offs.push(watchConnected(g, (ok) => { online = ok; if (!stopped) w.connected(ok); }));
+        const onVisible = (): void => {
+          if (!stopped && !online && document.visibilityState === 'visible') reconnect(g);
+        };
+        if (typeof document !== 'undefined') {
+          document.addEventListener('visibilitychange', onVisible);
+          offs.push(() => document.removeEventListener('visibilitychange', onVisible));
+        }
         const parts: Record<string, unknown> = {};
         const seen = new Set<string>();
         for (const node of ROOM_NODES) {
@@ -200,7 +216,7 @@ export function firebaseNet(name?: string, opts?: { schemaOverride?: number; tim
           }, () => { /* cancelled by the rules: the room reads as it last did */ }));
         }
         offs.push(onValue(at(code, 'actions'), (snap) => { if (!stopped) w.actions(readActions(snap.val())); }, () => {}));
-      }).catch(() => { /* not signed in: connected(false) already tells the caller */ });
+      }).catch(() => { if (!stopped) w.connected(false); });   // not signed in (offline, say): the caller hears it is offline
       return () => {
         if (stopped) return;
         stopped = true;

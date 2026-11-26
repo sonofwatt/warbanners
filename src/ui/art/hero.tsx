@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
 import type { ItemId } from '../../engine';
 import { Ink } from './features';
-import { GLINT_GAP, MARK_STEP, PIP_H, PIP_Y, PLATE, WOOD, WOOD_DARK, plateRight } from './units';
+import { bannerRight, GLINT_GAP, MARK_STEP, PIP_H, PIP_Y, PLATE } from './banner';
+import { WOOD, WOOD_DARK } from './units';
 
-// The hero's pennant, drawn behind a figure, and the badge of a carried item, drawn on the plate's row.
+// The hero's pennant, drawn behind a figure, and the badge of a carried item, drawn on the banner's row.
 // Both use the figures' coordinates: feet near (0, 4), the tile's top face centred on the origin.
 
 const GOLD = '#FFDA4D';
@@ -28,7 +29,7 @@ export function HeroMark(p: { accent: string }): ReactElement {
 }
 
 /**
- * A carried item's badge, centred on x 0 on the plate's row: a small dark tab, like the plate it sits by,
+ * A carried item's badge, centred on x 0 on the plate's row: a small dark tab, like the pip plate,
  * with a stoppered flask on it. The caller moves it to `itemBadgeX`.
  */
 export function ItemBadge(p: { item: ItemId }): ReactElement {
@@ -43,7 +44,9 @@ export function ItemBadge(p: { item: ItemId }): ReactElement {
   return <g data-item={p.item}>{ink.items}</g>;
 }
 
-/** Where the item badge goes for a unit of this maximum health: the glint's slot, or one slot past it when the glint is shown. */
-export function itemBadgeX(maxHp: number, fresh: boolean): number {
-  return plateRight(maxHp) + GLINT_GAP + (fresh ? MARK_STEP : 0);
+/** Where the item badge goes for a unit of this maximum health: the glint's slot right of the war banner, or one slot
+ * past it when the glint or the hunker shield (which shares the glint's slot) is shown. A hidden unit's banner is
+ * wider by its eye. */
+export function itemBadgeX(maxHp: number, slotTaken: boolean, hidden = false): number {
+  return bannerRight(maxHp, hidden) + GLINT_GAP + (slotTaken ? MARK_STEP : 0);
 }

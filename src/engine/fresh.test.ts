@@ -32,7 +32,7 @@ test('a Horseman trained this turn cannot be hastened, move or attack, and a mov
 });
 
 test('a Camp trained this turn cannot train, and acts normally once its owner\'s next turn starts', () => {
-  const s = mongols(); give(s, 0, 'riding', 'roads'); const city = addCity(s, 0, 0, 0, { level: 3 });
+  const s = mongols(); give(s, 0, 'riding'); const city = addCity(s, 0, 0, 0, { level: 3 });
   const t = must(applyAction(s, { type: 'train', city: city.id, unitType: 'camp' }));
   const camp = unitAt(t, '0,0')!;
   const before = hashState(t);

@@ -34,7 +34,7 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
       && canSeeUnit(s, u.owner, t, visible));
   } else if (ability === 'hasten') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
-      && hasTrait(t, 'mounted') && !t.fresh);
+      && hasTrait(t, 'mounted') && !t.fresh && !t.turnEnded);   // rules 8: no haste for a unit whose turn ended
   } else {
     return dustStormTiles(s, u);
   }
@@ -74,7 +74,8 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     const target = unitAt(s, a.target)!;
     if (a.ability === 'heal') {
       const before = target.hp;
-      target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal);
+      const bonus = target.hunkered ? CONFIG.hunker.abilityHealBonus : 0;   // rules 7
+      target.hp = Math.min(maxHpOf(target), target.hp + CONFIG.abilityHeal + bonus);
       noteHealed(target, before, maxHpOf(target));
       if (target.hp > before && !target.fresh) addDeed(s, target, 'survive', 1, ev);
     }

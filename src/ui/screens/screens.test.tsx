@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
 import { expect, test } from 'vitest';
-import { RULES_VERSION } from '../../engine';
+import { CONFIG, RULES_VERSION } from '../../engine';
 import { addCity, addUnit, blankMatch } from '../../engine/testkit';
 import { createAppStore } from '../../app/store';
 import type { Deps } from '../../app/store';
@@ -17,7 +17,7 @@ import { Match, nextUnitDisabled, turnFocus } from './Match';
 import { Pass } from './Pass';
 import { Result, resultSound } from './Result';
 import { Setup, setupLine } from './Setup';
-import { Hud } from '../panels/Hud';
+import { ActionBar, Hud } from '../panels/Hud';
 
 const thinker = (): AiClient => ({ think: async (input, opts) => planTurn(input, opts), dispose: () => {} });
 
@@ -60,7 +60,7 @@ test('while the curtain is up the app draws no Hud, no digest and no board slot'
   store.getState().startMatch(SETUP);
   store.getState().ready();
   store.getState().run({ type: 'endTurn' });
-  store.setState({ digest: [{ kind: 'cityLost' }] }); // the store keeps these set during the curtain
+  store.setState({ digest: [{ kind: 'cityLost', at: '0,0' }] }); // the store keeps these set during the curtain
   const s = store.getState();
   expect(s.screen).toBe('pass');
   expect(s.last).not.toBeNull();
@@ -186,11 +186,13 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
 });
 
-test('with equal start gold, setup says only who moves first; a gold difference is still told', () => {
+test('setup tells the second seat\'s extra start gold; with equal gold it says only who moves first', () => {
   const { store } = fakeStore();
   const html = render(store, <Setup />);
-  expect(html).not.toContain('more gold');
-  expect(html).toContain(`>${fill(T.ui.firstMoves, { first: T.ui.playerOne })}<`);
+  const extra = CONFIG.startGold[1] - CONFIG.startGold[0];                 // 2 since rules 7: the second seat starts with 12 gold
+  expect(extra).toBeGreaterThan(0);
+  expect(html).toContain(`>${fill(T.ui.setupLine, { first: T.ui.playerOne, second: T.ui.playerTwo, n: extra })}<`);
+  expect(html).not.toContain(fill(T.ui.firstMoves, { first: T.ui.playerOne }));
   expect(setupLine('Ann', 'Ben', 0)).toBe('Ann moves first.');
   expect(setupLine('Ann', 'Ben', 2)).toBe('Ann moves first and Ben starts with 2 more gold.');
 });
@@ -231,21 +233,22 @@ test('an enemy city opened from under my unit shows only what the board shows', 
   expect(store.getState().selection).toEqual({ kind: 'city', id: foe.id });
   const html = render(store, <Match />);
   expect(html).toContain('city-panel');
-  expect(html).toContain(`>${T.ui.level}<`);
+  // The level is the badge on the picture's corner now, not a number in the row.
+  expect(html).toContain('data-testid="city-level"');
+  expect(html).not.toContain(`>${T.ui.level}<`);
   expect(html).toContain(`>${T.ui.walls}<`);
   for (const hidden of [T.ui.growth, T.ui.unitsHeld, T.ui.incomeWord]) expect(html).not.toContain(`>${hidden}<`);
   expect(html).not.toContain('data-testid="cmd-');
 });
 
-test('the Hud says the AI is thinking', () => {
-  const props = {
-    name: 'Ann', colour: '#f00', faction: 'spartans' as const, gold: 8, income: 2, round: 1, unitsToAct: 1, techReady: false,
-    onOpenTech: () => {}, onOpenMenu: () => {}, onEndTurn: () => {}, onNextUnit: () => {},
-  };
+test('the Hud says the AI is thinking, and the bar greys End turn meanwhile', () => {
+  const props = { name: 'Ann', colour: '#f00', faction: 'spartans' as const, gold: 8, income: 2, round: 1, onOpenMenu: () => {} };
   expect(renderToStaticMarkup(<Hud {...props} />)).not.toContain(T.ai.thinking);
-  const html = renderToStaticMarkup(<Hud {...props} thinking endDisabled />);
-  expect(html).toContain(T.ai.thinking);
-  expect(html).toMatch(/disabled=""[^>]*data-testid="end-turn"|data-testid="end-turn"[^>]*disabled=""/);
+  expect(renderToStaticMarkup(<Hud {...props} thinking />)).toContain(T.ai.thinking);
+  const bar = renderToStaticMarkup(
+    <ActionBar colour="#f00" faction="spartans" unitsToAct={1} techReady={false} endDisabled onOpenTech={() => {}} onEndTurn={() => {}} onNextUnit={() => {}} />,
+  );
+  expect(bar).toMatch(/disabled=""[^>]*data-testid="end-turn"|data-testid="end-turn"[^>]*disabled=""/);
 });
 
 test('the match screen shows Thinking while the AI plays, and a blocked move\'s reason', () => {

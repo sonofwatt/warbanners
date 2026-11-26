@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { applyAction, createMatch, damageFor, reachable } from '../engine';
 import type { MatchState, PlayerId } from '../engine';
 import { addCity, addUnit, blankMatch, randomPlayout, rngFor, setTile } from '../engine/testkit';
-import { dangerMap, exposureCost, followCredit, moveScore, objectives, unitValue, unitWorth, valueOf } from './assess';
+import { dangerMap, exposureCost, followCredit, moveScore, objectives, pressOf, unitValue, unitWorth, valueOf } from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState } from './input';
 import { PERSONAS } from './persona';
@@ -93,6 +93,22 @@ test('a seen enemy city is a goal; a taken enemy capital is not', () => {
   b.cities.find(c => c.pos === '2,-5')!.owner = 0;
   expect(objectives(b, 0, PERSONAS.spartans).some(o => o.at === '2,-5')).toBe(false);
 });
+test('the enemy capital goal follows a moved capital (rules 7), and the old capital tile is then an ordinary city', () => {
+  const s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  setTile(s, 0, -3, { terrain: 'field' });
+  const next = addCity(s, 1, 0, -3);
+  const old = s.cities.find(c => c.pos === '2,-5')!;
+  old.capital = false; next.capital = true; next.linked = true;   // as if 2,-5 had been taken back by its first owner
+  const goals = objectives(believedState(aiInputFor(s, 0)), 0, PERSONAS.spartans);
+  expect(goals.some(o => o.kind === 'enemyCapital' && o.at === '0,-3')).toBe(true);
+  expect(goals.filter(o => o.at === '2,-5').map(o => o.kind)).toEqual(['enemyCity']);
+});
+test('an unexplored enemy capital tile stays a goal: the start is known to both', () => {
+  const b = believedState(aiInputFor(createMatch({ seed: 42, factions: ['spartans', 'mongols'] }), 0));
+  expect(b.players[0]!.explored).not.toContain('2,-5');
+  expect(objectives(b, 0, PERSONAS.spartans)).toContainEqual({ at: '2,-5', kind: 'enemyCapital', value: 14 });
+});
 test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored tile', () => {
   for (const [seed, turns] of [[3, 90]] as const) {
     const s = randomPlayout(seed, turns);
@@ -105,7 +121,11 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
       for (const [to, mp] of Object.entries(reachable(b, u.id))) {
         const r = applyAction(b, { type: 'move', unit: u.id, to });
         expect(r.ok).toBe(true); if (!r.ok) continue;
-        if (r.events.some(e => e.type === 'lured')) continue;
+        // moveScore does not price a hero trait the march earns; since rules 7 this position has a Horseman one move
+        // from Tireless, so those moves are left out as lures are. For the same reason, a move that ends a Hunker (since
+        // the rules 7 Spartan growth discount and 12 start gold this position has a hunkered Defender) is left out:
+        // moveScore does not price the hunker it gives up
+        if (r.events.some(e => e.type === 'lured' || e.type === 'heroTrait' || e.type === 'hunkerEnded')) continue;
         const fresh = r.state.players[s.current]!.explored.length - b.players[s.current]!.explored.length;
         expect(moveScore(b, ctx, u.id, to, mp)).toBeCloseTo(valueOf(r.state, ctx) - before + 0.9 * fresh, 6);
         checked++;
@@ -113,7 +133,7 @@ test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored
     }
     expect(checked).toBeGreaterThan(0);
   }
-});
+}, 60_000);   // a 90-turn random playout and every reachable move: well over the default 5 s under load
 test('the value rewards a capture and punishes standing in danger', () => {
   const b = believedState(aiInputFor(openVillage(), 1));
   const ctx = makeCtx(b, 1, 1);
@@ -295,4 +315,28 @@ test('a map-revealed treasure becomes an objective', () => {
   expect(ev?.type === 'treasure' && ev.outcome === 'map' && ev.found).toBe('-3,0');
   const b = believedState(aiInputFor(r.state, 0));
   expect(objectives(b, 0, PERSONAS.spartans)).toContainEqual({ at: '-3,0', kind: 'treasure', value: 9 });
+});
+test('rules 8: a blockade counts as the gold it cuts, gained on an enemy city and lost on an own one', () => {
+  const s = blankMatch(); const own = addCity(s, 0, 0, 3); const theirs = addCity(s, 1, 0, -3);
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  addUnit(s, 'warrior', 0, 1, -3); addUnit(s, 'warrior', 0, -1, -2); addUnit(s, 'warrior', 0, 1, -4);   // beside the enemy city
+  addUnit(s, 'warrior', 1, 1, 3); addUnit(s, 'warrior', 1, -1, 3); addUnit(s, 'warrior', 1, 1, 2);       // beside the own city
+  const ctx = makeCtx(s, 0, 1);
+  const before = valueOf(s, ctx);
+  theirs.incomeBonus = 4;                           // 5 gold: the blockade cuts 2, one more than at 1 gold (cut 0)
+  expect(valueOf(s, ctx) - before).toBeCloseTo(ctx.skill.economy * 3 * 2, 9);
+  own.incomeBonus = 4;                              // 4 more income, of which the blockade takes 2
+  expect(valueOf(s, ctx) - before).toBeCloseTo(ctx.skill.economy * 3 * (2 + 4 - 2), 9);
+});
+test('a side holding three times the enemy cities presses on: its pull toward its goals is three times as strong', () => {
+  const s = blankMatch(); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  addCity(s, 0, -3, 3); expect(pressOf(s, 0)).toBe(1);
+  addCity(s, 0, 3, 0); expect(pressOf(s, 0)).toBe(3);
+  expect(pressOf(s, 1)).toBe(1);
+  // the pull part of a unit's worth, one tile nearer the enemy city, alone with no enemy unit about
+  const u = addUnit(s, 'warrior', 0, 0, 0);
+  for (const p of s.players) p.explored = Object.keys(s.tiles).sort();
+  const ctx = makeCtx(s, 0, 1);
+  const here = valueOf(s, ctx); u.pos = '0,-1'; const nearer = valueOf(s, ctx);
+  expect(nearer - here).toBeGreaterThan(3 * 0.8 * 0.99);
 });

@@ -3,8 +3,18 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
 import { CONFIG, UNITS } from '../../engine';
 import { HeroMark, ItemBadge, itemBadgeX } from './hero';
-import { ACCENT } from './palette';
-import { MARK_R, MARK_STEP, PIP_H, PIP_Y, StatusOverlay } from './units';
+import { ACCENT, playerColour } from './palette';
+import { BANNER_MID, MARK_R, MARK_STEP, WarBanner } from './banner';
+import type { WarBannerProps } from './banner';
+
+/** A war banner with nothing on it but what is given. */
+const banner = (p: Partial<WarBannerProps>) => (
+  <WarBanner type="warrior" colour={playerColour('spartans')} hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} {...p} />
+);
+/** The banner row's reach either side: taunted and blinded beside a 5-pip banner on the left, the glint and a draught on the right. */
+const REACH = 34;
+/** The banner row, top to bottom: the banner with its edge, and every mark and badge on it. */
+const ROW_TOP = -50, ROW_BOTTOM = -38;
 
 const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
 
@@ -41,8 +51,8 @@ const MOST_HP = Math.max(...Object.values(UNITS).map((u) => u.hp)) + CONFIG.hero
 
 test('the hero mark and the draught badge stay inside the unit box and use only absolute paths', () => {
   // The mark rises behind the figure, inside x -20..20, and its top stays below the taunted and blinded badges,
-  // which hang beside the plate down to PIP_Y + PIP_H / 2 + MARK_R.
-  const belowMarks = PIP_Y + PIP_H / 2 + MARK_R;
+  // which hang beside the banner down to BANNER_MID + MARK_R.
+  const belowMarks = BANNER_MID + MARK_R;
   for (const accent of Object.values(ACCENT)) {
     const mark = html(<HeroMark accent={accent} />);
     expect(mark).toContain('data-hero-mark');
@@ -57,36 +67,49 @@ test('the hero mark and the draught badge stay inside the unit box and use only 
       expect(p.y, p.where).toBeLessThanOrEqual(8);
     }
   }
-  // The badge sits on the plate's row, never wider than the overlay's own reach: taunted and blinded beside
-  // a 5-pip plate reach x -28.2, so the badge, fresh or not, stays within 28.2 on the right.
+  // The badge sits on the banner's row, never wider than the row's own reach on the left (taunted and blinded beside
+  // a 5-pip banner), fresh or not.
   const badge = html(<ItemBadge item="draught" />);
   expect(badge).toContain('data-item="draught"');
   for (const hp of [5, 10, 15, 20, MOST_HP]) {
     for (const fresh of [false, true]) {
       for (const p of extents(badge)) {
         const x = p.x + itemBadgeX(hp, fresh);
-        expect(x, `${hp} ${fresh} ${p.where}`).toBeLessThanOrEqual(28.2);
+        expect(x, `${hp} ${fresh} ${p.where}`).toBeLessThanOrEqual(REACH);
         expect(x, `${hp} ${fresh} ${p.where}`).toBeGreaterThan(0);
-        expect(p.y, p.where).toBeGreaterThanOrEqual(-46);
-        expect(p.y, p.where).toBeLessThan(-36);
+        expect(p.y, p.where).toBeGreaterThanOrEqual(ROW_TOP);
+        expect(p.y, p.where).toBeLessThan(ROW_BOTTOM);
       }
     }
   }
-  for (const p of extents(html(<StatusOverlay hp={MOST_HP} maxHp={MOST_HP} spent={false} fresh={false} taunted blinded />))) {
-    expect(p.x, p.where).toBeGreaterThanOrEqual(-28.2);
+  for (const p of extents(html(banner({ hp: MOST_HP, maxHp: MOST_HP, taunted: true, blinded: true })))) {
+    expect(p.x, p.where).toBeGreaterThanOrEqual(-REACH);
   }
 });
 
 test('the draught badge takes the glint\'s slot, and moves one slot right when the unit is also fresh', () => {
   expect(itemBadgeX(10, true) - itemBadgeX(10, false)).toBeCloseTo(MARK_STEP);
   // The glint and the badge never overlap: the badge's leftmost point is right of the glint's rightmost.
-  const glint = extents(html(<StatusOverlay hp={10} maxHp={10} spent={false} fresh taunted={false} blinded={false} />));
+  const glint = extents(html(banner({ fresh: true })));
   const glintRight = Math.max(...glint.map((p) => p.x));
   const badgeLeft = Math.min(...extents(html(<ItemBadge item="draught" />)).map((p) => p.x)) + itemBadgeX(10, true);
   expect(badgeLeft).toBeGreaterThan(glintRight);
-  // Not fresh, it sits where the glint would, clear of the plate.
-  const plateRight = Math.max(...extents(html(<StatusOverlay hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} />)).map((p) => p.x));
+  // Not fresh, it sits where the glint would, clear of the banner.
+  const plateRight = Math.max(...extents(html(banner({}))).map((p) => p.x));
   expect(Math.min(...extents(html(<ItemBadge item="draught" />)).map((p) => p.x)) + itemBadgeX(10, false)).toBeGreaterThan(plateRight);
+});
+
+test('the hunker shield takes the glint\'s slot, stays on the plate\'s row, and the draught badge moves past it', () => {
+  const shield = extents(html(banner({ hp: MOST_HP, maxHp: MOST_HP, hunkered: true })));
+  const plain = extents(html(banner({ hp: MOST_HP, maxHp: MOST_HP })));
+  const plateRight = Math.max(...plain.map((p) => p.x));
+  const extra = shield.filter((p) => p.x > plateRight);
+  expect(extra.length).toBeGreaterThan(0);
+  for (const p of extra) {
+    expect(p.x, p.where).toBeLessThan(itemBadgeX(MOST_HP, true) + Math.min(...extents(html(<ItemBadge item="draught" />)).map((q) => q.x)));
+    expect(p.y, p.where).toBeGreaterThanOrEqual(ROW_TOP);
+    expect(p.y, p.where).toBeLessThan(ROW_BOTTOM);
+  }
 });
 
 test('the hero mark is unlike the taunted, blinded and fresh marks', () => {

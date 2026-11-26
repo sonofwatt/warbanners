@@ -103,6 +103,7 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
   const notice = useApp((s) => s.notice);
   const update = useApp((s) => s.update);
   const openSetup = useApp((s) => s.openSetup);
+  const openStats = useApp((s) => s.openStats);
   const dismissNotice = useApp((s) => s.dismissNotice);
   const applyUpdate = useApp((s) => s.applyUpdate);
   const onlineList = useApp((s) => s.onlineList);
@@ -144,8 +145,9 @@ export function Home({ onCheck, install }: HomeProps): ReactElement {
         <button type="button" className="paper" data-testid="join-with-code" disabled={blocked !== null} onClick={openJoin}>{T.ui.joinWithCode}</button>
       </div>
       {blocked !== null ? <p className="hint" data-testid="online-why">{T.ui[blocked]}</p> : null}
-      {/* Room in this row for more entries beside Settings (Stats). */}
+      {/* Stats and Settings share one quiet row. */}
       <div className="home-more">
+        <button type="button" className="quiet" data-testid="open-stats" onClick={openStats}>{T.stats.open}</button>
         <button type="button" className="quiet" data-testid="open-settings" onClick={() => setSettings(true)}>{T.ui.settingsButton}</button>
       </div>
       {settings ? <Settings onClose={() => setSettings(false)} /> : null}

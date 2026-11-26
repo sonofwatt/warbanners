@@ -1,4 +1,5 @@
 import { CONFIG } from './data/config';
+import { TECH_TREE } from './data/techs';
 import { distance, key, mirror, neighbors, parseKey, range } from './hex';
 import type { Hex, HexKey } from './hex';
 import { rngInt } from './rng';
@@ -16,8 +17,11 @@ function inHalf(h: Hex): boolean {
 }
 
 function makeTile(terrain: Terrain, resource: Resource | null): Tile {
-  return { terrain, resource, building: null, road: false, village: false, treasure: false, cityId: null };
+  return { terrain, resource, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null };
 }
+
+// rules 8: jewels and fish appear only where the tree in play harvests them, so the rules 7 tree makes rules 7 maps.
+const treeHarvests = (r: Resource): boolean => TECH_TREE.harvest[r] !== undefined;
 
 function attemptSeed(seed: number, n: number): number {
   return (seed + Math.imul(n, ATTEMPT_SEED_STEP)) >>> 0;
@@ -40,6 +44,9 @@ function resourceFor(terrain: Terrain, roll: number): Resource | null {
     if (roll < m.game) return 'game';
   } else if (terrain === 'mountain') {
     if (roll < m.ore) return 'ore';
+    if (roll < m.jewels && treeHarvests('jewels')) return 'jewels';
+  } else if (terrain === 'water') {
+    if (roll < m.fish && treeHarvests('fish')) return 'fish';
   }
   return null;
 }

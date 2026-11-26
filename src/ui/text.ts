@@ -1,7 +1,7 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, UNITS } from '../engine';
+import { CONFIG, FACTIONS, UNITS, buildingTech, harvestTech, roadTech, unitTech, wallsTech } from '../engine';
 import type {
-  AbilityId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
+  AbilityId, BranchId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
 } from '../engine';
 import type { DigestLine } from '../app/digest';
@@ -35,7 +35,7 @@ const unit: Record<UnitTypeId, Entry> = {
   hoplite: { name: 'Hoplite', blurb: 'A Spartan spear fighter whose defence grows with each other Hoplite beside it, up to 2.' },
   kingsGuard: { name: "King's Guard", blurb: 'The Spartan champion, a mighty fighter whose attack does not weaken as it is hurt.' },
   piper: { name: 'Piper', blurb: 'A Spartan helper who heals friends, taunts enemies and keeps friends beside it from being lured.' },
-  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees far and is seen by enemies only from the next tile.' },
+  scout: { name: 'Krypteia Scout', blurb: 'A fast, fragile Spartan who sees two tiles away and is seen by enemies only from the next tile.' },
   horseArcher: { name: 'Horse Archer', blurb: 'A Mongol rider who shoots two tiles away and keeps moving after attacking.' },
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
   skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },
@@ -47,7 +47,7 @@ const trait: Record<Trait, Entry> = {
   steadfast: { name: 'Steadfast', blurb: 'Strikes back harder than usual when attacked.' },
   doubleStrike: { name: 'Double strike', blurb: 'Can attack twice each turn.' },
   retreat: { name: 'Retreat', blurb: 'Keeps its remaining movement after attacking.' },
-  chain: { name: 'Chain', blurb: `Gets one more attack this turn for every kill, at the cost of ${CONFIG.chainKillCost} health (never below 1). A kill that earns a hero trait ends the chain.` },
+  chain: { name: 'Chain', blurb: 'Each turn starts with momentum. A kill costs momentum by the kind of unit killed and gives one more attack this turn. An attack it lacks the momentum for does 1 less damage per missing point and ends the chain, as does a kill that earns a hero trait.' },
   splash: { name: 'Splash', blurb: 'Enemy units beside the target take half the damage the target takes.' },
   siege: { name: 'Siege', blurb: 'Cannot attack after moving or move after attacking, and never strikes back.' },
   mounted: { name: 'Mounted', blurb: 'Counts as a rider for the rules that mention riders.' },
@@ -83,12 +83,29 @@ const reward: Record<RewardId, Entry> = {
   support: { name: 'Support', blurb: "Your faction's support unit appears in this city." },
 };
 
+const pct = (x: number): number => Math.round(100 * x);
+
+// Both trees' techs (the rules 7 names stay for the provenance replays).
 const tech: Record<TechId, string> = {
   foraging: 'Foraging', farming: 'Farming', markets: 'Markets', riding: 'Riding', roads: 'Roads', chivalry: 'Chivalry',
   hunting: 'Hunting', forestry: 'Forestry', engineering: 'Engineering', bronze: 'Bronze', shieldwork: 'Shieldwork', smithing: 'Smithing',
+  defence: 'Defence', walls: 'Walls', orchards: 'Orchards', plantations: 'Plantations',
+  trapping: 'Trapping', archery: 'Archery', siege: 'Siege', logging: 'Logging', milling: 'Milling',
+  prospecting: 'Prospecting', spears: 'Spears', mining: 'Mining', foundry: 'Foundry',
+  gathering: 'Gathering', granary: 'Granary', fishing: 'Fishing',
 };
-const building: Record<BuildingId, string> = { farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market' };
-const resource: Record<Resource, string> = { orchard: 'Orchard', cropland: 'Cropland', game: 'Game', ore: 'Ore' };
+// rules 8: a faction's own name for a tech. The Spartans build no walls; for them the walls tech is Deep stores.
+const techFor: Partial<Record<FactionId, Partial<Record<TechId, string>>>> = { spartans: { walls: 'Deep stores' } };
+const branch: Record<BranchId, string> = { orchards: 'Orchards', hunting: 'Hunting', mountains: 'Mountains', plains: 'Plains', waters: 'Waters' };
+const building: Record<BuildingId, string> = {
+  farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market',
+  orchard: 'Orchard', plantation: 'Plantation', lumberMill: 'Lumber mill', foundry: 'Foundry', granary: 'Granary',
+};
+const resource: Record<Resource, string> = { orchard: 'Fruit', cropland: 'Wild grain', game: 'Game', ore: 'Ore', jewels: 'Jewels', fish: 'Fish' };
+// The harvest command for each resource (ore has none: it is mined).
+const harvestVerb: Record<Resource, string> = {
+  orchard: 'Harvest fruit', cropland: 'Harvest wild grain', game: 'Trap game', ore: 'Harvest ore', jewels: 'Gather jewels', fish: 'Catch fish',
+};
 const terrain: Record<Terrain, string> = { field: 'Field', forest: 'Forest', mountain: 'Mountain', water: 'Water' };
 const faction: Record<FactionId, string> = { spartans: 'Spartans', mongols: 'Mongols' };
 
@@ -107,6 +124,7 @@ const reason: Record<string, string> = {
   'cannot build a road there': 'A road cannot go there',
   'already walled': 'This city already has walls',
   'your faction cannot build walls': 'Your people do not build walls',
+  'your faction cannot build roads': 'Your people do not build roads',   // rules 8
   'no city has room': 'No city has room for another unit',
   'not your city': 'This is not your city',
   'no reward pending': 'No reward is waiting',
@@ -114,7 +132,26 @@ const reason: Record<string, string> = {
   'tile is not next to the camp': 'That tile is not next to the camp',
   'camp was trained this turn': 'The camp is too new to train',
   'camp already used this turn': 'The camp has already acted this turn',
+  'already hunkered': 'This unit is already hunkered',
+  'not hunkered': 'This unit is not hunkered',
+  'unhunkered this turn': 'This unit came out of its hunker this turn',
+  'siege engines cannot hunker': 'Siege engines cannot hunker',
+  'unit already acted this turn': 'This unit has already acted this turn',
 };
+
+// rules 8: the ranged unit types (range 2 or more), named from the unit data, as "A, B and C"; a tile count in words;
+// the long shot's share of the damage as a percentage. Built from UNITS and CONFIG so the text cannot drift.
+function rangedNames(): string {
+  const n = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2).map((t) => unit[t].name);
+  return n.length <= 1 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n.at(-1)!}`;
+}
+const tilesWord = (n: number): string => (n === 1 ? '1 tile' : `${n} tiles`);
+// rules 8: the sentence that says which tech lets units climb, from CONFIG (empty when no tech is needed).
+function climbLine(): string {
+  const t = CONFIG.mountain.tech;
+  return t === null ? '' : `Units climb a mountain only once ${tech[t]} is known; stepping off needs nothing. `;
+}
+const longShotPercent = (): number => Math.round(CONFIG.mountain.longShotScale * 100);
 
 const ui = {
   appName: 'Warbanners', rulesWord: 'rules', versionWord: 'Version', builtWord: 'built',
@@ -128,7 +165,7 @@ const ui = {
   terrain: 'Terrain', resourceWord: 'Resource', buildingWord: 'Building', roadWord: 'Road', none: 'None',
   statusOwned: 'Known', statusReady: 'Ready', statusCostly: 'Too costly now', statusLocked: 'Locked',
   research: 'Research', unlocks: 'Opens', close: 'Close', later: 'Later', chooseReward: 'Choose a reward',
-  soundOn: 'Sound on', soundOff: 'Sound off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
+  soundOn: 'Sound on', soundOff: 'Sound off', terrain3dOn: '3D terrain on', terrain3dOff: '3D terrain off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
   home: 'Back to home', andMore: 'and {n} more',
   digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
   digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',
@@ -157,7 +194,7 @@ const ui = {
   tagline: 'Face a friend or the AI, here or online.',
   installHint: 'Keep {name} on your home screen.',
   movesFirst: 'Moves first',
-  digestTitle: 'While you were away',
+  digestTitle: 'While you were away', backToReport: 'Back to report',
   screenFailed: 'Something went wrong on this screen. Your saved matches are safe.',
   blockedUnseen: 'Something unseen blocks the way.',
   aiPassed: 'The AI could not decide and passed its turn.',
@@ -214,10 +251,39 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
-  whatsNew: 'New: the game fits your screen with nothing to scroll. Actions sit at the top right of each card. A city shows its units in a row: tap one to see it and train it. A greyed button that needs a tech opens the tech tree at that tech. Cancel now clears a chosen ability, and a tap on the board no longer presses a button on the card it opens.',
-  ridingByTerritory: 'Rides by territory',
-  ridingByTerritoryBlurb: 'A move that starts in Mongol or neutral land gets half a tile more, enough for one more road or Mongol tile, and each Mongol tile costs half a tile. A move that starts in enemy land is a normal move.',
+  sheetMore: 'Show more', sheetLess: 'Show less',
+  turnActions: 'Your turn',
+  connectedToCapital: 'Connected to the capital', levelOf: 'Level {n}',
+  // rules 8 (0.6.0) in two sentences, its numbers and names from CONFIG and the tables
+  // rules 9 (0.7.0) in three sentences, its numbers from CONFIG and FACTIONS
+  whatsNew: `New in rules 9: the Spartan capital starts at level ${FACTIONS.spartans.capitalStartLevel}, and from level ${CONFIG.growthExtraFrom} on a Spartan city needs ${-FACTIONS.spartans.growthExtra} growth less to level up; the gold level reward pays ${CONFIG.rewardGold}, a Market gives ${CONFIG.buildings.market.growth} growth, and a hunkered unit can Unhunker. The screen is steadier: the map stays still when you select something, the unit or city card pulls up from the bottom, and Tech, Next unit and End turn sit at the bottom, End turn turning red once every unit has acted. In the 3D look units turn to face their moves, walk, strike, block and crouch when hunkered, cities, villages and the mine are built in 3D, and every unit carries a war banner with its type and health, spent units shown darker.`,
+  relayRiding: 'Rides Mongol land',
+  relayRidingBlurb: 'Every step onto a tile of Mongol territory costs what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',
+  momentum: 'Momentum',
+  momentumLeft: (left: number, start: number) => `Momentum ${left} of ${start}`,
+  momentumSpent: (spent: number) => `-${spent} momentum`,
+  momentumBlurb: 'Spent on kills: a kill gives one more attack while there is momentum to pay for it. It comes back each turn.',
+  rangeOnMountain: (n: number) => `${n} (mountain)`,
+  climbMountains: 'Climbing mountains',
+  harvestedTag: 'harvested',   // rules 8
+  rowTop: 'Army', rowBottom: 'Land', branchLater: 'Boats and more come later.',
+  unlocksNone: 'Nothing for your people',   // a tech that opens nothing for the viewer's faction (none in rules 8)
+  blockaded: 'Blockaded',                   // rules 8
+  blockadeCut: (n: number) => `-${n} gold`,
+  blockadeHint: (n: number) => `Blockade: ${n} gold less income`,
+  // rules 8: what the walls tech does against a blockade, for those who build walls and for the Spartans' Deep stores
+  wallsBlockade: `Walls: a blockade takes ${pct(CONFIG.blockade.cutWalls)}% of a walled city's income, not ${pct(CONFIG.blockade.cut)}%`,
+  storesBlockade: `Every city: a blockade takes ${pct(CONFIG.blockade.cutSpartanTech)}% of its income, not ${pct(CONFIG.blockade.cut)}%`,
+  harvestedBlurb: 'Already harvested, so it gives no more growth by itself, but it can still be built on.',
+  mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
+  hunker: 'Hunker', unhunker: 'Unhunker', hunkered: 'Hunkered', braced: 'Braced',
+  bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
+  // rules 8: the heal comes at the end of the hunkered unit's turn and a drink keeps the hunker; each switch off reads as rules 7
+  hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of each of its turns' : 'at the start of its next turn'}, ${CONFIG.hunker.restBonus} more than a rest (a little even with an enemy beside it), and ${CONFIG.hunker.abilityHealBonus} more from a Heal. It ends when the unit moves or acts${CONFIG.hunker.drinkKeepsHunker ? '; drinking a draught does not end it' : ' or drinks a draught'}.`,
+  // rules 9
+  unhunkerHint: 'Hunkered now. Tap to come out of the hunker: it gives back no movement this turn, and the unit cannot hunker again until next turn.',
+  hunkerHint: `Dig in for the turn: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of this turn' : 'at the start of your next turn'}.`,
 } as const;
 
 const ai = {
@@ -226,12 +292,32 @@ const ai = {
   settled: (n: number): string => `The AI finished at level ${n} of 10.`,
 };
 
-export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, building, resource, terrain, faction, reason, ui, ai } as {
+const stats = {
+  open: 'Stats', title: 'Stats', empty: 'No finished matches yet. Stats appear here after your first match ends.',
+  player: 'Player', kind: 'Match', faction: 'Faction', ai: 'Computer',
+  kinds: { all: 'All', computer: 'Computer', pass: 'Pass the phone', online: 'Online' },
+  bothFactions: 'Both', anyAi: 'Any',
+  played: 'Played', wins: 'Won', winRate: 'Win rate', streak: 'Win run now', bestStreak: 'Best win run',
+  avgDealt: 'Damage a match', avgTaken: 'Damage taken a match', kills: 'Kills', deaths: 'Units lost',
+  cities: 'Cities taken', heroes: 'Heroes', treasures: 'Treasures', avgRounds: 'Turns a match', favourite: 'Favourite',
+  none: '-', noMatches: 'No matches with these filters.',
+  recent: 'Recent matches',
+  won: 'Won against {name}', lost: 'Lost against {name}',
+  recentLine: '{faction}, {kind}, {turns}, {date}',
+  turns: (n: number): string => (n === 1 ? '1 turn' : `${n} turns`),
+  sideLine: '{name}: {dealt} damage, {kills} kills, {deaths} units lost',
+  forget: 'Forget {name}', forgetAsk: 'Forget {name} and all their stats on this phone?', forgetYes: 'Yes, forget', forgetNo: 'Keep',
+  usedName: 'Use the name {name}', recentNames: 'Names used before',
+  tallyTitle: 'This match', tallyDealt: 'Damage dealt', tallyKills: 'Kills', tallyDeaths: 'Units lost',
+  tallyCities: 'Cities taken', tallyHeroes: 'Heroes', tallyTreasures: 'Treasures',
+};
+
+export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, branch, building, resource, harvestVerb, terrain, faction, reason, ui, ai, stats } as {
   unit: Record<UnitTypeId, Entry>; trait: Record<Trait, Entry>; heroTrait: Record<HeroTraitId, Entry>;
   deed: Record<DeedId, string>; item: Record<ItemId, Entry>; treasure: Record<TreasureOutcome, string>; ability: Record<AbilityId, Entry>;
-  reward: Record<RewardId, Entry>; tech: Record<TechId, string>; building: Record<BuildingId, string>;
-  resource: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
-  reason: Record<string, string>; ui: typeof ui; ai: typeof ai;
+  reward: Record<RewardId, Entry>; tech: Record<TechId, string>; branch: Record<BranchId, string>; building: Record<BuildingId, string>;
+  resource: Record<Resource, string>; harvestVerb: Record<Resource, string>; terrain: Record<Terrain, string>; faction: Record<FactionId, string>;
+  reason: Record<string, string>; ui: typeof ui; ai: typeof ai; stats: typeof stats;
 };
 
 export function fill(template: string, values: Record<string, string | number>): string {
@@ -242,16 +328,27 @@ export function reasonText(why: string): string {
   return T.reason[why] ?? (why.charAt(0).toUpperCase() + why.slice(1));
 }
 
-// Names of what a tech opens, read from the unit table and the config.
-export function unlocks(id: TechId): string[] {
+// Names of what a tech opens, read from the tech tree in play. Given a faction, only what that faction gets:
+// its own and the shared units, walls and roads only where it builds them (rules 8: Mongols build no roads).
+// A tech's name as the given faction sees it (rules 8: the Spartans' Deep stores).
+export function techName(id: TechId, faction?: FactionId): string {
+  return (faction === undefined ? undefined : techFor[faction]?.[id]) ?? T.tech[id];
+}
+
+export function unlocks(id: TechId, faction?: FactionId): string[] {
   const out: string[] = [];
-  for (const [type, def] of Object.entries(UNITS)) if (def.tech === id) out.push(T.unit[type as UnitTypeId].name);
-  for (const [b, rule] of Object.entries(CONFIG.buildings)) if (rule.tech === id) out.push(T.building[b as BuildingId]);
-  for (const [res, rule] of Object.entries(CONFIG.harvest)) {
-    if (rule.tech === id) out.push(`${T.ui.harvest} ${T.resource[res as Resource].toLowerCase()}`);
+  for (const type of Object.keys(UNITS) as UnitTypeId[]) {
+    const def = UNITS[type];
+    if (unitTech(type) === id && (faction === undefined || def.faction === null || def.faction === faction)) out.push(T.unit[type].name);
   }
-  if (CONFIG.walls.tech === id) out.push(T.ui.walls);
-  if (CONFIG.road.tech === id) out.push(T.ui.road);
+  for (const b of Object.keys(CONFIG.buildings) as BuildingId[]) if (buildingTech(b) === id) out.push(T.building[b]);
+  for (const res of Object.keys(T.resource) as Resource[]) if (harvestTech(res) === id) out.push(T.harvestVerb[res]);
+  if (wallsTech() === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) {
+    out.push(CONFIG.blockade.on ? T.ui.wallsBlockade : T.ui.walls);
+  }
+  if (wallsTech() === id && CONFIG.blockade.on && (faction === undefined || FACTIONS[faction].blockadeStores)) out.push(T.ui.storesBlockade);
+  if (roadTech() === id && (faction === undefined || FACTIONS[faction].canBuildRoads)) out.push(T.ui.road);
+  if (CONFIG.mountain.tech === id) out.push(T.ui.climbMountains);   // rules 8
   return out;
 }
 

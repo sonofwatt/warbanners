@@ -1,6 +1,8 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
-import { key, parseKey, range } from './hex';
+import { TECH_TREE } from './data/techs';
+import { DIRS, add, key, parseKey, range } from './hex';
+import { harvestTech } from './tech';
 import {
   cityAt, cityById, claimTerritory, firstFreeNeighbor, hasOwn, spawnUnit, tileAt, unitAt,
 } from './state';
@@ -13,14 +15,45 @@ export function cityIncome(_s: MatchState, c: City): number {
   return c.level + (c.capital ? CONFIG.capitalIncome : 0) + c.incomeBonus + (c.market ? CONFIG.buildings.market.income : 0);
 }
 
+// rules 8: the blockade of a city as things stand: the enemy units on the tiles next to it (seen or not; never its own
+// tile; one unit to a tile, so this is the enemy-held tiles), whether that is a blockade, and the gold it would cut from the city's income (0 when not blockaded).
+export interface Blockade { enemies: number; blockaded: boolean; cut: number }
+
+export function blockadeOf(s: MatchState, c: City): Blockade {
+  const B = CONFIG.blockade;
+  if (!B.on) return { enemies: 0, blockaded: false, cut: 0 };
+  const at = parseKey(c.pos);
+  let enemies = 0;
+  for (const d of DIRS) {
+    const u = unitAt(s, key(add(at, d)));
+    if (u !== undefined && u.owner !== c.owner) enemies += 1;
+  }
+  if (enemies < B.minTiles) return { enemies, blockaded: false, cut: 0 };
+  const owner = s.players[c.owner]!;
+  let rate: number = B.cut;
+  if (c.walls) rate = Math.min(rate, B.cutWalls);
+  if (FACTIONS[owner.faction].blockadeStores && owner.techs.includes(TECH_TREE.walls)) rate = Math.min(rate, B.cutSpartanTech);
+  const income = cityIncome(s, c);
+  return { enemies, blockaded: true, cut: Math.max(0, Math.min(Math.max(B.minCut, Math.floor(income * rate)), income - B.floor)) };
+}
+
+// The gold every blockade of p's cities would cut from p's next income, as things stand.
+export function blockadeLoss(s: MatchState, p: PlayerId): number {
+  let total = 0;
+  for (const c of s.cities) if (c.owner === p) total += blockadeOf(s, c).cut;
+  return total;
+}
+
 export function playerIncome(s: MatchState, p: PlayerId): number {
   let total = 0;
   for (const c of s.cities) if (c.owner === p) total += cityIncome(s, c);
   return total;
 }
 
+// rules 9: the faction extra counts only from level CONFIG.growthExtraFrom on (data, not a faction check).
 export function growthNeeded(s: MatchState, c: City): number {
-  return c.level + CONFIG.growthBase + FACTIONS[s.players[c.owner]!.faction].growthExtra;
+  const extra = c.level >= CONFIG.growthExtraFrom ? FACTIONS[s.players[c.owner]!.faction].growthExtra : 0;
+  return c.level + CONFIG.growthBase + extra;
 }
 
 export function addGrowth(s: MatchState, c: City, n: number, ev: GameEvent[]): void {
@@ -93,15 +126,17 @@ function ownTile(s: MatchState, at: unknown): { tile: Tile; city: City } | null 
   return city !== undefined && city.owner === s.current ? { tile, city } : null;
 }
 
-// Why the current player cannot harvest the resource at `at`, or null when they can.
+// Why the current player cannot harvest the resource at `at`, or null when they can. rules 8: a harvested tile, or one
+// with a building on it, has nothing more to harvest.
 export function harvestRefusal(s: MatchState, at: unknown): string | null {
   const own = ownTile(s, at);
   if (own === null) return 'not your territory';
   const { tile } = own;
-  if (tile.resource === null || !hasOwn(CONFIG.harvest, tile.resource)) return 'nothing to harvest';
+  const tech = tile.resource === null ? null : harvestTech(tile.resource);
+  if (tech === null || tile.harvested || tile.building !== null) return 'nothing to harvest';
   const rule = CONFIG.harvest[tile.resource as keyof typeof CONFIG.harvest];
   const player = s.players[s.current]!;
-  if (!player.techs.includes(rule.tech)) return 'missing tech';
+  if (!player.techs.includes(tech)) return 'missing tech';
   if (player.gold < rule.cost) return 'not enough gold';
   return null;
 }
@@ -112,24 +147,34 @@ export const harvestHandler: Handler<Extract<Action, { type: 'harvest' }>> = (s,
   const { tile, city } = ownTile(s, a.at)!;
   const rule = CONFIG.harvest[tile.resource as keyof typeof CONFIG.harvest];
   s.players[s.current]!.gold -= rule.cost;
-  tile.resource = null;
+  if (TECH_TREE.harvestKeepsTile) tile.harvested = true;   // rules 8: the resource stays, for building on
+  else tile.resource = null;
   addGrowth(s, city, rule.growth, ev);
   ev.push({ type: 'built', at: a.at, what: 'harvest' });
   return null;
 };
 
-// Why the current player cannot build `building` at `at`, or null when they can.
+// Why the current player cannot build `building` at `at`, or null when they can. A building stands on its terrain
+// and on one of the resources the tree lists for it; rules 8, an upgrade stands on the improvement it upgrades and
+// replaces it.
 export function buildRefusal(s: MatchState, at: unknown, building: unknown): string | null {
   if (typeof building !== 'string' || !hasOwn(CONFIG.buildings, building)) return 'unknown building';
+  const tree = TECH_TREE.buildings[building as BuildingId];
+  if (tree === undefined) return 'unknown building';
   const own = ownTile(s, at);
   if (own === null) return 'not your territory';
   const { tile, city } = own;
   const rule = CONFIG.buildings[building as BuildingId];
-  if (tile.building !== null) return 'already built';
-  if (tile.terrain !== rule.on || tile.resource !== rule.resource) return 'wrong tile';
+  if (rule.upgrades !== null) {
+    if (tile.building === building) return 'already built';
+    if (tile.building !== rule.upgrades || tile.terrain !== rule.on) return 'wrong tile';
+  } else {
+    if (tile.building !== null) return 'already built';
+    if (tile.terrain !== rule.on || !tree.on.includes(tile.resource)) return 'wrong tile';
+  }
   if (building === 'market' && city.market) return 'city already has a market';
   const player = s.players[s.current]!;
-  if (!player.techs.includes(rule.tech)) return 'missing tech';
+  if (!player.techs.includes(tree.tech)) return 'missing tech';
   if (player.gold < rule.cost) return 'not enough gold';
   return null;
 }
@@ -152,13 +197,14 @@ export const buildHandler: Handler<Extract<Action, { type: 'build' }>> = (s, a, 
 export function roadRefusal(s: MatchState, at: unknown): string | null {
   if (typeof at !== 'string') return 'bad road';
   const player = s.players[s.current]!;
+  if (!FACTIONS[player.faction].canBuildRoads) return 'your faction cannot build roads';   // rules 8
   if (!player.explored.includes(at)) return 'cannot build a road there';
   const tile = tileAt(s, at);
   if (tile === undefined || cityAt(s, at) !== undefined) return 'cannot build a road there';
   if (tile.terrain !== 'field' && tile.terrain !== 'forest') return 'cannot build a road there';
   if (tile.road) return 'already a road';
   if (tile.cityId !== null && cityById(s, tile.cityId)?.owner !== s.current) return 'not your territory';
-  if (!player.techs.includes(CONFIG.road.tech)) return 'missing tech';
+  if (!player.techs.includes(TECH_TREE.road)) return 'missing tech';
   if (player.gold < CONFIG.road.cost) return 'not enough gold';
   return null;
 }
@@ -180,7 +226,7 @@ export function wallsRefusal(s: MatchState, cityId: unknown): string | null {
   if (city.walls) return 'already walled';
   const player = s.players[s.current]!;
   if (!FACTIONS[player.faction].canBuildWalls) return 'your faction cannot build walls';
-  if (!player.techs.includes(CONFIG.walls.tech)) return 'missing tech';
+  if (!player.techs.includes(TECH_TREE.walls)) return 'missing tech';
   if (player.gold < CONFIG.walls.cost) return 'not enough gold';
   return null;
 }
