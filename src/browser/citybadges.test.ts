@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { newRecord } from '../app/record';
 import type { MatchRecord } from '../app/record';
 import { writeSave } from '../app/saves';
-import { createMatch, hashState, isConnected } from '../engine';
+import { FACTIONS, createMatch, hashState, isConnected } from '../engine';
 import { addCity, setTile } from '../engine/testkit';
 import { T } from '../ui/text';
 import { cameraStill, deselect, frames, openApp, tapTile } from './harness';
@@ -77,7 +77,7 @@ describe.runIf(process.env.BROWSER === '1')('the city card\'s corner badges', ()
       await frames(page);
       await cameraStill(page);
 
-      for (const [at, name, connected, level] of [['-1,3', 'connected', true, 2], ['1,2', 'unconnected', false, 1], ['-2,5', 'capital', false, 1]] as const) {
+      for (const [at, name, connected, level] of [['-1,3', 'connected', true, 2], ['1,2', 'unconnected', false, 1], ['-2,5', 'capital', false, FACTIONS.spartans.capitalStartLevel]] as const) {
         await selectCity(page, at);
         const road = await badge(page, 'city-connected');
         if (connected) {
