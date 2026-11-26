@@ -17,18 +17,23 @@ export interface FactionDef {
   blockadeStores: boolean;
   agoge: boolean;                        // earns traits from the lower agogeThresholds
   mythTouch: boolean;                    // a hero beside another hero of its owner has +1 attack and +1 defence
+  // rules 9: the level the faction's capital starts the match at. It never levelled up, so it has no reward pending;
+  // income, unit capacity and growth needs follow the level as for any city.
+  capitalStartLevel: number;
 }
 
 // rules 13
 export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
   spartans: {
     startUnit: 'scout', champion: 'kingsGuard', support: 'piper',
-    cityCover: 2, canBuildWalls: false, growthExtra: -1, mountedMoveBonus: 0, mountedDiscount: 0,
+    // rules 9 (David, 2026-11-25): the capital starts at level 2, and from level 2 on a Spartan city needs 1 growth less
+    // than anyone's (growthExtra -1 from CONFIG.growthExtraFrom 2): 2 to leave level 1, then L to leave level L
+    cityCover: 2, canBuildWalls: false, growthExtra: -1, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartLevel: 2,
     forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true, blockadeStores: true, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: true, mythTouch: true,
   },
   mongols: {
     startUnit: 'horseman', champion: 'khansGuard', support: 'skyCaller',
-    cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 1,
+    cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 1, capitalStartLevel: 1,
     // rules 8: no riding bonus (it was a half-point, ridden by territory) and relay riding for mounted units only.
     // growthExtra 0 (1 before rules 8): Mongol cities level as fast as anyone's, for the connection growth they lost
     // with their roads, and tribute 4 (3 before rules 8) for a village or a city's base (2026-11-24-rules8-tuning-report.md)

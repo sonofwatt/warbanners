@@ -266,6 +266,12 @@ test('rules 8: the hunker button and the Hunkered line say the unit heals at the
   const html = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.hunkerHint }]} onCommand={noop} />);
   expect(html).toContain(`title="${T.ui.hunkerHint}"`);
 });
+test('rules 9: the Unhunker button is drawn pressed in, with its hint', () => {
+  const html = renderToStaticMarkup(<CommandList commands={[{ id: 'unhunker', label: T.ui.unhunker, cost: null, enabled: true, why: null, action: null, arm: null, hint: T.ui.unhunkerHint, pressed: true }]} onCommand={noop} />);
+  expect(html).toContain('aria-pressed="true"'); expect(html).toContain('class="pressed"'); expect(html).toContain(T.ui.unhunker);
+  const plain = renderToStaticMarkup(<CommandList commands={[{ id: 'hunker', label: T.ui.hunker, cost: null, enabled: true, why: null, action: null, arm: null }]} onCommand={noop} />);
+  expect(plain).not.toContain('aria-pressed'); expect(plain).not.toContain('pressed');
+});
 test('rules 7: a hunkered unit shows a Hunkered line, any viewer', () => {
   for (const own of [true, false]) {
     const html = renderToStaticMarkup(<UnitPanel {...lone('warrior', 'spartans', { hunkered: true }, own)} commands={[]} onCommand={noop} />);

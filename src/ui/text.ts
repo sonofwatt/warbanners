@@ -133,6 +133,8 @@ const reason: Record<string, string> = {
   'camp was trained this turn': 'The camp is too new to train',
   'camp already used this turn': 'The camp has already acted this turn',
   'already hunkered': 'This unit is already hunkered',
+  'not hunkered': 'This unit is not hunkered',
+  'unhunkered this turn': 'This unit came out of its hunker this turn',
   'siege engines cannot hunker': 'Siege engines cannot hunker',
   'unit already acted this turn': 'This unit has already acted this turn',
 };
@@ -271,10 +273,12 @@ const ui = {
   storesBlockade: `Every city: a blockade takes ${pct(CONFIG.blockade.cutSpartanTech)}% of its income, not ${pct(CONFIG.blockade.cut)}%`,
   harvestedBlurb: 'Already harvested, so it gives no more growth by itself, but it can still be built on.',
   mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
-  hunker: 'Hunker', hunkered: 'Hunkered', braced: 'Braced',
+  hunker: 'Hunker', unhunker: 'Unhunker', hunkered: 'Hunkered', braced: 'Braced',
   bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
   // rules 8: the heal comes at the end of the hunkered unit's turn and a drink keeps the hunker; each switch off reads as rules 7
   hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of each of its turns' : 'at the start of its next turn'}, ${CONFIG.hunker.restBonus} more than a rest (a little even with an enemy beside it), and ${CONFIG.hunker.abilityHealBonus} more from a Heal. It ends when the unit moves or acts${CONFIG.hunker.drinkKeepsHunker ? '; drinking a draught does not end it' : ' or drinks a draught'}.`,
+  // rules 9
+  unhunkerHint: 'Hunkered now. Tap to come out of the hunker: it gives back no movement this turn, and the unit cannot hunker again until next turn.',
   hunkerHint: `Dig in for the turn: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of this turn' : 'at the start of your next turn'}.`,
 } as const;
 

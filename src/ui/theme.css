@@ -122,6 +122,12 @@ button.needs-tech {
   padding-bottom: 0; box-shadow: inset 0 0 0 2px var(--edge-faint);
 }
 button.needs-tech .icon { opacity: 0.7; }
+/* rules 9: a toggle that is on (Unhunker on a hunkered unit): held down, so the card shows the state. */
+button.pressed {
+  --face: var(--paper-sunk); --label: var(--ink);
+  transform: translateY(2px);
+  box-shadow: inset 0 -2px 0 var(--side), 0 0 0 2px var(--ink);
+}
 button:focus-visible, input:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
 .primary { --face: var(--gold); --side: var(--gold-side); --label: var(--ink); }

@@ -57,7 +57,8 @@ centre `(0,0)` is always a plain field.
 
 ## 4. Start of a match
 
-- Each player: their capital (level 1, territory radius 1), one starting unit on
+- Each player: their capital (level 1, territory radius 1; the Spartan capital starts at
+  level 2 since rules 9, see 13), one starting unit on
   the capital tile, their faction's starting tech (since rules 8 a column 1 tech, which
   trains no unit: see 7 and 13).
 - The first player starts with 10 gold and the second with 12 (both 10 before rules 7).
@@ -66,7 +67,7 @@ centre `(0,0)` is always a plain field.
 ## 5. Turn
 
 Players alternate. On your turn, in any order and any number of times while legal:
-move, attack, use an ability, hunker (since rules 7, see 11), capture, claim a
+move, attack, use an ability, hunker (since rules 7, see 11) or unhunker (since rules 9), capture, claim a
 treasure, train, harvest, build, lay a road, build walls, research, choose a city
 reward. Then end the turn.
 
@@ -91,9 +92,9 @@ option, and statuses on your units (taunted, blinded) wear off.
 - A city's territory is every tile within its radius (1, or 2 after the "borders"
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
-- To go from level `L` to `L+1` a city needs `L+1` growth points (`L` for a
-  Spartan city since rules 7; a Mongol city needed `L+2` before rules 8). Spare
-  points carry over.
+- To go from level `L` to `L+1` a city needs `L+1` growth points, and a Spartan city
+  from level 2 on 1 less, `L` (since rules 9; rules 7 and 8 gave the Spartans `L` from
+  level 1, and a Mongol city needed `L+2` before rules 8). Spare points carry over.
 - Connected cities (since rules 7): a city is connected when a chain of adjacent
   tiles joins it to its owner's capital, every tile of the chain being a road or
   a city of that owner. A road inside another player's territory breaks the
@@ -115,14 +116,14 @@ Rewards (pick one of two at each new level):
 
 | New level | Option 0 | Option 1 |
 |---|---|---|
-| 2 | `gold`: +6 gold | `scout`: explore every tile within 3 of the city |
+| 2 | `gold`: +5 gold (+6 before rules 9) | `scout`: explore every tile within 3 of the city |
 | 3 | `borders`: territory radius becomes 2 | `barracks`: +2 unit capacity |
 | 4 | `income`: +1 income for this city | `growth`: +2 growth points now |
 | 5 and every level after | `champion`: the faction's champion appears | `support`: the faction's support appears |
 
 A reward unit appears on the city tile, or if that is occupied on the first free
 enterable neighbour in direction order. If there is nowhere, the reward becomes
-+6 gold.
+the same gold as the level 2 `gold` reward (`CONFIG.rewardGold`): +5 gold (+6 before rules 9).
 
 Things you can do on a tile in your territory (one building per tile). Since rules 8 a
 harvest takes the one-off growth and marks the resource harvested, but the tile keeps its
@@ -144,7 +145,7 @@ and fish are harvested from the city like any other resource: no unit need stand
 | Build Foundry on a Mine, replacing it | tech `foundry` | 7 | +3 |
 | Build Farm on cropland, harvested or not | tech `farming` | 5 | +2 |
 | Build Granary on a Farm, replacing it | tech `granary` | 7 | +3 |
-| Build Market on a field with no resource, one per city | tech `granary` | 6 | +2 (+1 before rules 7), and +2 income |
+| Build Market on a field with no resource, one per city | tech `granary` | 6 | +3 (+2 in rules 7 and 8, +1 before), and +2 income |
 | Build Walls (the city itself, not Spartans) | tech `walls` | 6 | none |
 | Road, on any field or forest tile that is yours or unclaimed (not Mongols, since rules 8) | tech `riding` | 1 | none |
 
@@ -371,6 +372,14 @@ end it. While hunkered:
   heal as before, at the start of the next turn. (`CONFIG.hunker.healAtTurnEnd`.)
 - A Heal on it gives 1 more: +5 health, up to its maximum.
 
+Unhunker (since rules 9): on their own turn a player may end the hunker of any of their
+hunkered units. It costs nothing and does nothing else: it is not doing something for
+resting, and it gives back no movement or attacks the unit has already spent (a unit
+that hunkered this turn still cannot move this turn; one hunkered on an earlier turn has
+its normal turn). A unit that unhunkered may not hunker again that turn. On the unit's
+card the Hunker button becomes an Unhunker button, drawn pressed in, while it is
+hunkered (`CONFIG.hunker.unhunker`).
+
 Both players see that a unit is hunkered (a shield beside its health on the board).
 The numbers are `CONFIG.hunker`.
 
@@ -420,8 +429,12 @@ Spartans
 
 - Start with `prospecting` (`bronze` before rules 8). The starting Krypteia Scout is
   placed as before, but Spearmen and Hoplites wait for `spears`.
-- A Spartan city needs 1 less growth point to level up (since rules 7): `L` to go
-  from level `L` to `L+1`.
+- The Spartan capital starts the match at level 2 (since rules 9). It never levelled
+  up, so there is no level 2 reward for it; its income, unit capacity and growth
+  need are a level 2 city's from the start.
+- From level 2 on a Spartan city needs 1 growth point less to level up: `L` to go
+  from level `L` to `L+1`. Leaving level 1 takes 2, as for anyone (since rules 9;
+  rules 7 and 8: `L` from level 1).
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
   For them the `walls` tech is Deep stores (rules 8): a blockade of any Spartan city
   takes 15% of its income instead of half (section 6).
@@ -509,7 +522,7 @@ Mongols
 
 ## Rules 8 changes
 
-This list and the one above are the file's changelog.
+This list, the one above and the one below are the file's changelog.
 
 - Ranged units (range 2 or more) on a mountain have +1 range for their own attacks;
   a shot that uses the extra tile does 0.8 of the damage, rounded, at least 1. The
@@ -550,3 +563,20 @@ This list and the one above are the file's changelog.
   (was `L+2`), in place of the growth roads used to give them (sections 6 and 13).
 - Mongol tribute is 4 gold for a village and 4 + level for a city (was 3 and 3 + level)
   (section 13).
+
+## Rules 9 changes
+
+- The Spartan capital starts at level 2, with no reward for it (David, 2026-11-25;
+  sections 4 and 13).
+- The Spartan growth discount starts at level 2: every city needs 2 growth points to
+  leave level 1 (a Spartan city needed 1), and from level 2 on a Spartan city needs
+  `L` as before (2 to leave level 2, 3 to leave level 3). Mongols are unchanged
+  (sections 6 and 13).
+- The level 2 `gold` reward is +5 gold (was +6). A champion or support reward with
+  no free tile pays the same +5 (section 6). The treasure's +5 gold is a separate
+  number and unchanged (section 12).
+- Unhunker: a player may end a unit's hunker on their turn, for nothing and with no
+  movement given back; the unit cannot hunker again that turn. The card shows an
+  Unhunker button for a hunkered unit (section 11).
+- A Market gives 3 growth (was 2). Its cost (6), its +2 income and the one per city
+  are unchanged (section 6).

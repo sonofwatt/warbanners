@@ -44,6 +44,10 @@ export const CONFIG = deepFreeze({
   capitalIncome: 1,
   capacityBase: 1,                            // unit capacity is level + capacityBase (+ rewards)
   growthBase: 1,                              // growth to leave level L is L + growthBase (+ faction extra)
+  // rules 9: the faction's growthExtra counts only when leaving this level or a higher one, so every city needs
+  // 1 + growthBase growth for its first level-up and the Spartan -1 applies from level 2 on. 1 replays rules 8 (the
+  // extra on every level); only the provenance tests set it back.
+  growthExtraFrom: 2,
   mapgen: {
     field: 50, forest: 72, mountain: 86,
     orchard: 20, cropland: 40, game: 30, ore: 40,
@@ -65,7 +69,9 @@ export const CONFIG = deepFreeze({
   // moment) and not at the start of that owner's next turn. Off replays rules 7 (the heal waits for the next turn).
   // rules 8, drinkKeepsHunker: drinking a draught neither stops a unit from hunkering this turn nor ends its hunker.
   // Off replays rules 7 (a drink counted as acting for both).
-  hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5, healAtTurnEnd: true, drinkKeepsHunker: true },
+  // rules 9, unhunker: the owner may end a unit's hunker on their turn (CONFIG.hunker.unhunker). Off replays rules 8
+  // (no such action); only the provenance tests turn it off.
+  hunker: { on: true, def: 1, restBonus: 1, abilityHealBonus: 1, besideEnemyShare: 0.5, healAtTurnEnd: true, drinkKeepsHunker: true, unhunker: true },
   // rules 7, phalanx brace: a phalanx unit with at least `mates` friendly phalanx units beside it is braced. Against a
   // chain attacker it has +def defence (before cover), and it costs the momentum bracedPrice in place of its own price.
   brace: { mates: 2, def: 2 },
@@ -94,7 +100,7 @@ export const CONFIG = deepFreeze({
     4: ['income', 'growth'],
     5: ['champion', 'support'],
   },
-  rewardGold: 6, rewardScoutRadius: 3, rewardBorderRadius: 2, rewardCapacity: 2, rewardIncome: 1, rewardGrowth: 2,
+  rewardGold: 5, rewardScoutRadius: 3, rewardBorderRadius: 2, rewardCapacity: 2, rewardIncome: 1, rewardGrowth: 2,
   // The techs that open harvests, buildings, walls and roads are in the tree (data/techs.ts). rules 8: wild grain
   // (cropland), jewels and fish are harvested too.
   harvest: {
@@ -110,7 +116,7 @@ export const CONFIG = deepFreeze({
     farm: { cost: 5, growth: 2, on: 'field', upgrades: null, income: 0 },
     lumberCamp: { cost: 4, growth: 2, on: 'forest', upgrades: null, income: 0 },   // rules 7: cost 4 (was 3), growth 2 (was 1)
     mine: { cost: 5, growth: 2, on: 'mountain', upgrades: null, income: 0 },
-    market: { cost: 6, growth: 2, on: 'field', upgrades: null, income: 2 },         // rules 7: growth 2 (was 1)
+    market: { cost: 6, growth: 3, on: 'field', upgrades: null, income: 2 },         // rules 9: growth 3 (2 in rules 7 and 8, 1 before)
     orchard: { cost: 5, growth: 2, on: 'field', upgrades: null, income: 0 },
     plantation: { cost: 7, growth: 3, on: 'field', upgrades: 'orchard', income: 0 },
     lumberMill: { cost: 6, growth: 3, on: 'forest', upgrades: 'lumberCamp', income: 0 },
@@ -145,12 +151,12 @@ export const CONFIG = deepFreeze({
   citySightExtra: number; hiddenRevealRange: number; blindedReach: number;
   attacksPerTurn: { doubleStrike: number; base: number };
   newCity: { level: number; radius: number; growth: number };
-  capitalIncome: number; capacityBase: number; growthBase: number;
+  capitalIncome: number; capacityBase: number; growthBase: number; growthExtraFrom: number;
   mapgen: Record<string, number>;
   techBase: readonly [number, number, number];
   counterFactor: number; steadfastFactor: number; damageScale: number; splashDivisor: number;
   restHeal: { home: number; neutral: number; enemy: number }; abilityHeal: number; hastenMp: number; phalanxMax: number; phalanxBonus: number; tauntRange: number; inspireAtk: number; dustStormRange: number;
-  hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number; healAtTurnEnd: boolean; drinkKeepsHunker: boolean };
+  hunker: { on: boolean; def: number; restBonus: number; abilityHealBonus: number; besideEnemyShare: number; healAtTurnEnd: boolean; drinkKeepsHunker: boolean; unhunker: boolean };
   brace: { mates: number; def: number };
   momentum: { start: Partial<Record<UnitTypeId, number>>; price: Record<UnitTypeId, number>; bracedPrice: number };
   treasure: {

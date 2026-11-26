@@ -70,8 +70,12 @@ test('between matches', () => {
   expect(betweenMatches(0.15, 'ai')).toBe(0.1);
   expect(betweenMatches(0.62, 'none')).toBe(0.62);
 });
-test('standing at the opening is even', () => {
+test('standing at the opening is even but for the Spartan level 2 capital', () => {
   const s = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
   expect(gapOf(s, 1)).toBeCloseTo((standingOf(s, 1) - standingOf(s, 0)) / (standingOf(s, 1) + standingOf(s, 0)), 10);
-  expect(Math.abs(gapOf(s, 1))).toBeLessThan(0.1);
+  // rules 9: the Spartan capital starts at level 2, worth 2 for the level and 1 for the income; without it the two
+  // sides stand within 0.1 of each other (10.5 and 10.75 on this map)
+  const even = { ...s, cities: s.cities.map((c) => (c.owner === 0 ? { ...c, level: 1 } : c)) };
+  expect(standingOf(s, 0) - standingOf(even, 0)).toBe(3);
+  expect(Math.abs(gapOf(even, 1))).toBeLessThan(0.1);
 });

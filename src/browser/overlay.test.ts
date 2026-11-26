@@ -4,9 +4,10 @@ import { frames, openApp, tapTile } from './harness';
 
 // While a card that asks for an answer is up (the turn digest, a city's reward choice), the Hud behind it is
 // dimmed and taps on it do nothing, as before the chrome was restyled; and the card itself stays clear of the
-// Hud. Seed 7: harvesting the fruit at -2,6 beside the Spartan capital levels the city at once, so the reward
-// choice opens on the first turn of the match (rules 8: Foraging first, 4 gold, then the harvest, 2; before rules 8's
-// tree this built a mine on -2,4, which now waits on Mining). The digest uses the same overlay.
+// Hud. Seed 16: harvesting the fruit at -2,6 and -3,6 beside the Spartan capital levels the city, so the reward
+// choice opens on the first turn of the match (Foraging first, 4 gold, then the two harvests, 2 each). Since rules 9
+// the Spartan capital starts at level 2 and needs 2 growth to reach level 3; before that seed 7's one orchard at -2,6
+// took a level 1 capital to level 2, and before rules 8's tree a mine on -2,4. The digest uses the same overlay.
 
 async function tapAt(page: Page, x: number, y: number): Promise<void> {
   await page.touchscreen.tap(x, y);
@@ -33,6 +34,15 @@ async function toReward(page: Page): Promise<void> {
   await frames(page);
   if (await page.getByTestId('cmd-harvest').count() === 0) await tapTile(page, '-2,6');
   await page.getByTestId('cmd-harvest').tap();
+  await frames(page);
+  // The second fruit, -3,6. The view may still be settling after the first harvest, so the tile is found again and
+  // tapped until its card offers the harvest.
+  for (let tries = 0; tries < 5 && await page.getByTestId('cmd-harvest').count() === 0; tries++) {
+    const second = await page.locator('[data-centre="-3,6"]').boundingBox();
+    if (second === null) throw new Error('no second fruit tile');
+    await tapAt(page, second.x + second.width / 2, second.y + second.height / 2);
+  }
+  await page.getByTestId('cmd-harvest').tap();
   await page.getByTestId('reward-0').waitFor();
   await page.waitForTimeout(250); // the overlay's fade
 }
@@ -40,7 +50,7 @@ async function toReward(page: Page): Promise<void> {
 describe.runIf(process.env.BROWSER === '1')('a card that asks for an answer', () => {
   for (const [w, h] of [[412, 915], [568, 320]] as const) {
     test(`blocks the Hud behind it and stays clear of it at ${w} by ${h}`, async () => {
-      const { page, close } = await openApp('?seed=7', { width: w, height: h });
+      const { page, close } = await openApp('?seed=16', { width: w, height: h });
       try {
         await page.getByTestId('new-match').waitFor();
         await toReward(page);

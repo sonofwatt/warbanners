@@ -7,7 +7,7 @@ import { addCity, addUnit, blankMatch, give, must, setTile } from './testkit';
 import type { City, GameEvent, MatchState } from './types';
 
 // rules 7: a captured capital is an ordinary city for its captor, and the loser's best remaining city becomes the
-// capital at once. Lumber camps and Markets give 2 growth.
+// capital at once. Lumber camps give 2 growth, Markets 3 (2 before rules 9).
 
 function capture(s: MatchState, at: City): { state: MatchState; events: GameEvent[] } {
   const [q, r] = at.pos.split(',').map(Number) as [number, number];
@@ -20,15 +20,15 @@ function moved(events: GameEvent[]): GameEvent[] {
   return events.filter((e) => e.type === 'capitalMoved');
 }
 
-test('a Lumber camp and a Market each add 2 growth', () => {
+test('a Lumber camp adds 2 growth and a Market 3 (rules 9; 2 in rules 7 and 8)', () => {
   expect(CONFIG.buildings.lumberCamp.growth).toBe(2);
-  expect(CONFIG.buildings.market.growth).toBe(2);
+  expect(CONFIG.buildings.market.growth).toBe(3);
   const s = blankMatch(); const c = addCity(s, 0, 0, 0, { level: 5 }); give(s, 0, 'logging', 'granary');
   setTile(s, 1, 0, { terrain: 'forest' });
   const a = must(applyAction(s, { type: 'build', at: '1,0', building: 'lumberCamp' }));
   expect(cityById(a, c.id)).toMatchObject({ level: 5, growth: 2 });
   const b = must(applyAction(a, { type: 'build', at: '0,1', building: 'market' }));
-  expect(cityById(b, c.id)).toMatchObject({ level: 5, growth: 4 });
+  expect(cityById(b, c.id)).toMatchObject({ level: 6, growth: 0 });   // 2 + 3 fills the Spartan level 5 bar (5)
 });
 
 test('a captured capital is an ordinary city for its captor: no capital income, and it can connect once', () => {
@@ -49,13 +49,13 @@ test('a captured capital is an ordinary city for its captor: no capital income, 
   const two = applyAction(one, { type: 'road', at: '-2,2' });
   if (!two.ok) throw new Error(two.reason);
   expect(two.events).toContainEqual({ type: 'connected', city: theirs.id, capital: mine.id });
-  expect(cityById(two.state, theirs.id)).toMatchObject({ linked: true, level: 2, growth: 0 });   // the 1 paid fills a Spartan level 1 bar
-  expect(cityById(two.state, mine.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(two.state, theirs.id)).toMatchObject({ linked: true, level: 1, growth: 1 });   // rules 9: the 1 paid half-fills a level 1 bar
+  expect(cityById(two.state, mine.id)).toMatchObject({ level: 1, growth: 1 });
   const three = applyAction(two.state, { type: 'road', at: '-1,0' });
   if (!three.ok) throw new Error(three.reason);
   expect(three.events.some((e) => e.type === 'connected')).toBe(false);
-  expect(cityById(three.state, theirs.id)).toMatchObject({ level: 2, growth: 0 });
-  expect(cityById(three.state, mine.id)).toMatchObject({ level: 2, growth: 0 });
+  expect(cityById(three.state, theirs.id)).toMatchObject({ level: 1, growth: 1 });
+  expect(cityById(three.state, mine.id)).toMatchObject({ level: 1, growth: 1 });
 });
 
 // The loser (player 1) holds a capital at 0,0 and the cities each case adds; player 0's capital is far away.
@@ -114,7 +114,7 @@ test('a city linked before the move stays linked and pays nothing again; an unli
   if (!b.ok) throw new Error(b.reason);
   expect(b.events.filter((e) => e.type === 'connected')).toEqual([{ type: 'connected', city: unlinked.id, capital: next.id }]);
   expect(cityById(b.state, linked.id)!.growth).toBe(0);
-  expect(cityById(b.state, unlinked.id)).toMatchObject({ linked: true, level: 2, growth: 0 });   // a Spartan level 1 city fills on 1
+  expect(cityById(b.state, unlinked.id)).toMatchObject({ linked: true, level: 1, growth: 1 });   // rules 9: a level 1 bar needs 2, Spartan or not
 });
 
 test('a player whose last city is taken is eliminated and no capital moves', () => {

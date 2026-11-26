@@ -14,6 +14,11 @@ test('every id the engine knows has a name', () => {
   for (const t of traits) expect(T.trait[t].blurb.length).toBeGreaterThan(10);
   for (const pair of Object.values(CONFIG.rewards)) for (const r of pair) expect(T.reward[r].name).toBeTruthy();
 });
+test('the level 2 gold reward reads its amount from CONFIG (5 since rules 9)', () => {
+  expect(CONFIG.rewardGold).toBe(5);
+  expect(T.reward.gold.blurb).toBe(`Take ${CONFIG.rewardGold} gold now.`);
+  expect(T.reward.gold.blurb).toContain('5 gold');
+});
 test('every refusal a panel can show has a line', () => {
   for (const r of ['not enough gold', 'missing tech', 'city is at capacity', 'city tile is occupied', 'cannot train that',
     'not your territory', 'nothing to harvest', 'already built', 'wrong tile', 'city already has a market', 'already a road',
