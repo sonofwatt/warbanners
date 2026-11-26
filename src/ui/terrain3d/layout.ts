@@ -10,6 +10,8 @@ import { THICK_3D } from './codes';
 import type { GlMap, GlTile } from './input';
 import { MINE_FLAT, townPlan, villagePlan } from './townLayout';
 import type { TownPlan } from './townLayout';
+import { buildingPlan, chestSpot, FIELD_BUILDINGS } from './buildingLayout';
+import type { BuildingPlan, ChestSpot, FieldBuilding } from './buildingLayout';
 
 export const R = 30; // board/layout.ts
 export const SQUASH = 0.62; // board/layout.ts
@@ -156,6 +158,10 @@ export interface Setup {
   // A city's or a village's buildings (townLayout.ts), and a mine or foundry built into the mountain.
   town: TownPlan | null;
   works: 'mine' | 'foundry' | null;
+  // buildings3d: a farm, granary, orchard, plantation, lumber camp or mill, or market (buildingLayout.ts), and the
+  // treasure chest.
+  building: BuildingPlan | null;
+  chest: ChestSpot | null;
 }
 
 // Roads: as Road in features.tsx, a track from the tile centre to the middle of each edge whose neighbour has a
@@ -252,6 +258,7 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   const out: Setup = {
     t, q, r, v, turn, res, faded, links, trees: [], peaks: [], props: [], bits: [], blobs: [], tufts: [], hillEdges: [],
     town: null, works: t.terrain === 'mountain' && works && !city ? (t.building as 'mine' | 'foundry') : null,
+    building: null, chest: city ? null : chestSpot(t),
   };
   if (city) {
     if (t.town !== null) {
@@ -264,6 +271,11 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
     out.town = villagePlan(v, turn, q, r);
     for (const p of out.town.pieces) out.blobs.push([p.x, p.z, p.foot * 1.1, 0.22]);
   }
+  if (t.building !== null && (FIELD_BUILDINGS as readonly string[]).includes(t.building)) {
+    out.building = buildingPlan(t.building as FieldBuilding, turn, q, r);
+    for (const p of out.building.pieces) if (p.h > 3) out.blobs.push([p.x, p.z, p.foot * 1.05, p.kind === 'tree' || p.kind === 'fullTree' ? 0.3 : 0.22]);
+  }
+  if (out.chest !== null) out.blobs.push([out.chest.x, out.chest.z + 1, 5.5 * out.chest.s, 0.26]);
   if (out.works !== null) out.blobs.push([-3, 4, 13, 0.18], [12, 6, 7, out.works === 'foundry' ? 0.2 : 0]);
   const seed = hash2(q, r) * 6.28;
   const free = res === null && t.building === null && !t.village && !t.treasure;
@@ -288,10 +300,19 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
       }
     }
   }
-  // A village's huts push aside the grove's trees that would stand in them.
+  // A village's huts, and a camp's or mill's buildings, push aside the grove's trees that would stand in them.
   if (out.town !== null) {
     const pieces = out.town.pieces;
     out.trees = out.trees.filter(([x, z, s]) => pieces.every((p) => Math.hypot(x - p.x, z - p.z) > p.foot + 4 * s));
+  }
+  if (out.building !== null) {
+    const pieces = out.building.pieces.filter((p) => p.h > 4);
+    out.trees = out.trees.filter(([x, z, s]) => pieces.every((p) => Math.hypot(x - p.x, z - p.z) > p.foot + 2.5 * s));
+  }
+  // The chest, too, keeps its trees and its peak's foot clear around it.
+  if (out.chest !== null) {
+    const c = out.chest;
+    out.trees = out.trees.filter(([x, z, s]) => Math.hypot(x - c.x, z - c.z) > 5 * c.s + 4 * s);
   }
   const place = (kind: PropKind, x: number, z: number, s: number, rad: number, flip = false): void => {
     const p = offRoad(links, x, z, rad * s);
@@ -473,6 +494,8 @@ export function heightFn(setup: Setup): (lx: number, lz: number) => number {
       const dx = Math.max(MINE_FLAT.x0 - lx, 0, lx - MINE_FLAT.x1), dz = Math.max(MINE_FLAT.z0 - lz, 0, lz - MINE_FLAT.z1);
       h *= smooth(0, 6, Math.hypot(dx, dz));
     }
+    // A farm's rows, a market's square or a mill's race lie on near level ground.
+    if (setup.building !== null) h *= 0.3;
     // Roads are packed flat.
     const onRoad = smooth(ROAD_HALF + 3, ROAD_HALF, roadDist(setup.links, lx, lz));
     return h * fade * (1 - 0.7 * onRoad);

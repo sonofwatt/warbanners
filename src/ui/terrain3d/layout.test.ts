@@ -112,7 +112,15 @@ test('a foundry clears the front of its mountain as a mine does; mills, plantati
   const foundry = one({ terrain: 'mountain', resource: 'ore', building: 'foundry' });
   expect(foundry.peaks).toEqual(mine.peaks);
   for (const p of foundry.peaks.slice(1)) expect(p.z).toBeLessThanOrEqual(-8);
-  expect(one({ terrain: 'forest', building: 'lumberMill' }).trees).toEqual(one({ terrain: 'forest', building: 'lumberCamp' }).trees);
+  // buildings3d: the camp and the mill keep part of the grove along the back, and no tree stands in a building.
+  for (const building of ['lumberCamp', 'lumberMill'] as const) {
+    const s = one({ terrain: 'forest', building });
+    expect(s.trees.length, building).toBeGreaterThanOrEqual(2);
+    for (const [, z] of s.trees) expect(z, building).toBeLessThan(2);
+    for (const p of s.building!.pieces.filter((x) => x.h > 4)) {
+      for (const [x, z] of s.trees) expect(Math.hypot(x - p.x, z - p.z), `${building} ${p.kind}`).toBeGreaterThan(p.foot);
+    }
+  }
   for (const building of ['orchard', 'plantation', 'granary', 'farm'] as const) {
     const s = one({ terrain: 'field', resource: building === 'farm' || building === 'granary' ? 'cropland' : 'orchard', building });
     expect([s.props.length, s.tufts.length, s.bits.length]).toEqual([0, 0, 0]);

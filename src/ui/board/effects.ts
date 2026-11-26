@@ -68,6 +68,20 @@ export function watchMs(events: readonly GameEvent[], before: MatchState, after:
   return Math.max(...list.map((f) => f.delay + effectMs(f)), ...walks);
 }
 
+/**
+ * The treasure claims among an action's effects, where the viewer sees them: each claim shows as gold, a find (to the
+ * claimer) or a plain burst (to the other side) on the chest's tile, and only there. The 3D look opens the chest on
+ * that tile at that moment (terrain3d/chests.ts). One per tile.
+ */
+export function claimsOf(list: readonly Effect[]): { at: HexKey; delay: number }[] {
+  const out: { at: HexKey; delay: number }[] = [];
+  for (const f of list) {
+    const claim = (f.kind === 'number' && (f.tone === 'gold' || f.tone === 'find')) || (f.kind === 'burst' && f.tone === 'treasure');
+    if (claim && !out.some((c) => c.at === f.at)) out.push({ at: f.at, delay: f.delay });
+  }
+  return out;
+}
+
 // Turn the events of one action into short on-board effects. The state is already final;
 // these only decorate it. Secrecy: an effect on a tile outside `visible` is dropped, and so is any
 // effect about a unit outside `seenUnits` (the ids the viewer could see before the action or can see

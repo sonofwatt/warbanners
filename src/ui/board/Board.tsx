@@ -61,6 +61,8 @@ export interface BoardAttacks {
   fallen?: readonly number[];
   moves?: readonly { unit: number; delay: number }[];
   tiles?: readonly HexKey[];
+  // Treasure claimed in sight (effects.ts claimsOf): the 3D chest there swings its lid open, then goes.
+  chests?: readonly { at: HexKey; delay: number }[];
 }
 
 /** The screen the board assumes before it has been measured, and in Node. */
@@ -122,8 +124,8 @@ const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in
  *   the ore or chest smaller in front.
  * - a road is drawn under everything.
  * - a treasure under a unit is drawn small beside the figure, so a unit waiting to claim it never hides it.
- * With the 3D terrain on (`layers`), the terrain features, groves and resources are left out, and what stays (a
- * building, a village, a treasure) keeps the place it has today, so it sits where the 3D art leaves room for it.
+ * With the 3D terrain on (`layers`), each layer the 3D look draws (terrain features, groves, resources, buildings,
+ * villages, the treasure chest) is left out here; anything left keeps the place it has today.
  */
 export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?: SvgLayers }): ReactElement {
   const { tile } = p;
@@ -150,7 +152,7 @@ export function TileArt(p: { k: HexKey; tile: Tile; occupied?: boolean; layers?:
   } else {
     const beside = tile.treasure && p.occupied === true;
     const item = tile.treasure
-      ? <g data-treasure={beside ? 'beside' : 'centre'}><Treasure /></g>
+      ? ((p.layers?.treasure ?? true) ? <g data-treasure={beside ? 'beside' : 'centre'}><Treasure /></g> : null)
       : tile.resource !== null && drawResource ? <ResourceMark resource={tile.resource} harvested={tile.harvested} /> : null;
     if (beside) {
       art = (
@@ -703,7 +705,7 @@ export function Board(p: BoardProps): ReactElement {
       t.drawUnits(cam.current, vp.current);
       // A slide or lunge is a game event: it wakes the loop; the frame just drawn counts as the loop's own.
       ambient.current?.drew();
-      if (live.moving || t.units.turning(now)) unitsFrame.current = requestAnimationFrame(step);
+      if (live.moving || t.units.turning(now) || t.playing(now)) unitsFrame.current = requestAnimationFrame(step);
     };
     unitsFrame.current = requestAnimationFrame(step);
   }, []);
@@ -732,7 +734,13 @@ export function Board(p: BoardProps): ReactElement {
       survives: a.target !== undefined && !fallen.has(a.target), counter: a.counter === true,
     })), now);
     t.units.forget(attacks.fallen ?? []);
-    if (t.units.turning(now)) followUnits();
+    // A claimed chest opens where it stood, in this same frame (the terrain has just dropped it).
+    if ((attacks.chests?.length ?? 0) > 0 && cam.current !== null) {
+      t.chests(attacks.chests ?? [], now, prefersReducedMotion());
+      t.tick(now, ambient.current?.level() ?? 0);
+      t.drawUnits(cam.current, vp.current);
+    }
+    if (t.units.turning(now) || t.playing(now)) followUnits();
   }, [attacks, units3d, followUnits]);
   // Effects (a lunge, a fall) start in their own layout effects, which run before this one.
   useLayoutEffect(() => {

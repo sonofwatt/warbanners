@@ -27,7 +27,7 @@ import { Board } from '../board/Board';
 import type { BoardAttacks } from '../board/Board';
 import { setTerrain3d, terrain3dOn } from '../terrain3d/option';
 import { Effects } from '../board/Effects';
-import { effectsFor, seenBy } from '../board/effects';
+import { claimsOf, effectsFor, seenBy } from '../board/effects';
 import { buildScene } from '../board/scene';
 import { FACTION_COLOUR } from './colour';
 import { failureText } from './Join';
@@ -203,7 +203,8 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     const fallen = fx.list.flatMap((f) => (f.kind === 'fall' ? [f.unit] : []));
     const moves = fx.list.flatMap((f) => (f.kind === 'move' ? [{ unit: f.unit, delay: f.delay }] : []));
     const tiles = fx.list.flatMap((f) => (f.kind === 'lunge' ? [f.from, f.toward] : f.kind === 'move' ? [f.to] : [f.at]));
-    return list.length === 0 && fallen.length === 0 && moves.length === 0 && tiles.length === 0 ? null : { seq: fx.seq, list, fallen, moves, tiles };
+    const chests = claimsOf(fx.list);
+    return list.length === 0 && fallen.length === 0 && moves.length === 0 && tiles.length === 0 ? null : { seq: fx.seq, list, fallen, moves, tiles, chests };
   }, [fx]);
   // One sound per accepted action; what was accepted before this screen appeared is not replayed.
   useEffect(() => {

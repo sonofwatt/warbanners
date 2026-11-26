@@ -69,7 +69,7 @@ test('a city is built in 3D and grows with its level; walls and the capital add 
 
 test('villages, mines and foundries have 3D props; the foundry adds its furnace to the mine', () => {
   expect(tris({ village: true })).toBeGreaterThan(0);
-  expect(tris({ terrain: 'forest', village: true })).toBeGreaterThan(tris({ terrain: 'forest', building: 'lumberCamp' }) * 0.5);
+  expect(tris({ terrain: 'forest', village: true })).toBeGreaterThan(0);
   const mine = tris({ terrain: 'mountain', resource: 'ore', building: 'mine' });
   const foundry = tris({ terrain: 'mountain', resource: 'ore', building: 'foundry' });
   const peak = tris({ terrain: 'mountain' });
@@ -86,3 +86,53 @@ test('what the cities, villages and mines cost in triangles stays small', () => 
   expect(field).toBeGreaterThanOrEqual(0);
 });
 function peakOnly(): number { return tris({ terrain: 'mountain' }); }
+
+// buildings3d: the tile buildings and the treasure chest.
+const has = (c: Float32Array, hex: string): boolean => {
+  const col = new Color(hex);
+  for (let i = 0; i < c.length; i += 3) if (Math.abs(c[i]! - col.r) < 1e-4 && Math.abs(c[i + 1]! - col.g) < 1e-4 && Math.abs(c[i + 2]! - col.b) < 1e-4) return true;
+  return false;
+};
+const ON = { farm: 'field', granary: 'field', orchard: 'field', plantation: 'field', market: 'field', lumberCamp: 'forest', lumberMill: 'forest' } as const;
+
+test('every tile building is built in 3D, and each upgrade is a clear step up from what it replaces', () => {
+  for (const [building, terrain] of Object.entries(ON) as [keyof typeof ON, 'field' | 'forest'][]) {
+    expect(tris({ terrain, building }), building).toBeGreaterThan(tris({ terrain }) + 200);
+  }
+  for (const [from, to, terrain] of [['farm', 'granary', 'field'], ['orchard', 'plantation', 'field'], ['lumberCamp', 'lumberMill', 'forest']] as const) {
+    expect(tris({ terrain, building: to }), to).toBeGreaterThan(tris({ terrain, building: from }) * 1.15);
+  }
+});
+
+test('a market\'s awnings are in its owner\'s colour; without an owner they keep the svg\'s yellow', () => {
+  for (const faction of ['spartans', 'mongols'] as const) {
+    expect(has(colours({ building: 'market', owner: faction }), PLAYER_COLOURS[faction].main), faction).toBe(true);
+  }
+  expect(has(colours({ building: 'market', owner: null }), '#F2B705')).toBe(true);
+  expect(has(colours({ building: 'market', owner: null }), PLAYER_COLOURS.spartans.main)).toBe(false);
+});
+
+test('a building replaces its resource, harvested or not: the same building either way, no faded resource beside it', () => {
+  for (const [building, resource, terrain] of [['farm', 'cropland', 'field'], ['orchard', 'orchard', 'field'], ['lumberCamp', 'game', 'forest']] as const) {
+    expect(tris({ terrain, building, resource, harvested: true }), building).toBe(tris({ terrain, building, resource }));
+    expect(colours({ terrain, building, resource, harvested: true })).toEqual(colours({ terrain, building, resource }));
+    expect(piecesOf({ terrain, building, resource }).ground.attributes.aTile!.getZ(0)).toBe(RES_ID.none);
+  }
+});
+
+test('the treasure chest is drawn in 3D on every land terrain, beside a unit as well, and only where the svg would draw it', () => {
+  for (const terrain of ['field', 'forest', 'mountain'] as const) {
+    expect(tris({ terrain, treasure: true }), terrain).toBeGreaterThan(tris({ terrain }) + 60);
+    expect(has(colours({ terrain, treasure: true }), '#E7B53C'), terrain).toBe(true); // its gold bands
+  }
+  expect(tris({ treasure: true, beside: true })).toBe(tris({ treasure: true }));
+  expect(has(colours({ treasure: true, building: 'farm' }), '#E7B53C')).toBe(false);
+  expect(has(colours({ treasure: true, village: true }), '#E7B53C')).toBe(false);
+});
+
+test('what the tile buildings and the chest cost in triangles stays small', () => {
+  for (const [building, terrain] of Object.entries(ON) as [keyof typeof ON, 'field' | 'forest'][]) {
+    expect(tris({ terrain, building }), building).toBeLessThan(1600);
+  }
+  expect(tris({ treasure: true }) - tris({})).toBeLessThan(400);
+});

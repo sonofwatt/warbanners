@@ -26,7 +26,7 @@ const TOWN = {
 } as const;
 
 /** Parts shaped round a local origin, then turned and placed as one, and only then coloured (so outlines turn too). */
-class Kit {
+export class Kit {
   private readonly raw: { g: BufferGeometry; colour: string; gloss: number; out: number }[] = [];
   add(g: BufferGeometry, colour: string, out = 0.6, gloss = 0): this {
     this.raw.push({ g, colour, gloss, out });
@@ -38,8 +38,9 @@ class Kit {
     g.translate(x, y + h / 2, z);
     return this.add(g, colour, out);
   }
-  done(x: number, y: number, z: number, rot: number): BufferGeometry[] {
+  done(x: number, y: number, z: number, rot: number, scale = 1): BufferGeometry[] {
     return this.raw.map(({ g, colour, gloss, out }) => {
+      if (scale !== 1) g.scale(scale, scale, scale);
       if (rot) g.rotateY(rot);
       g.translate(x, y, z);
       return coloured(g, colour, gloss, out);
@@ -48,7 +49,7 @@ class Kit {
 }
 
 /** A gable roof: ridge along z (the gable ends face the viewer, as in the svg), w wide, d deep, rh tall, with eaves. */
-function gable(w: number, d: number, rh: number, eave = 0.8): BufferGeometry {
+export function gable(w: number, d: number, rh: number, eave = 0.8): BufferGeometry {
   const hw = w / 2 + eave;
   const s = new Shape();
   s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(0, rh); s.closePath();

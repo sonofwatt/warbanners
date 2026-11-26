@@ -11,7 +11,7 @@ export const THICK_3D = 45;
 /** Everything about a tile the 3D geometry shows, as a short code: equal codes build equal geometry. */
 export function tileCode(t: GlTile): string {
   const town = t.town === null ? '' : `[${t.town.faction[0]}${t.town.level}${t.town.capital ? 'C' : ''}${t.town.walls ? 'W' : ''}]`;
-  return `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}${town}`;
+  return `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}${t.beside === true ? 'b' : ''}${t.owner ? `(${t.owner[0]})` : ''}${town}`;
 }
 
 /** The borders' own signature: the border mesh is rebuilt only when it changes. */

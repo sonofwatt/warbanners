@@ -21,7 +21,7 @@ const html = (t: SceneTile, gl: boolean): string =>
 const part = (el: React.ReactElement): string => renderToStaticMarkup(el).replace(/^<g>|<\/g>$/g, '');
 
 test('with the option off every layer is drawn, as today', () => {
-  const all = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true };
+  const all = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true, treasure: true };
   expect(svgLayers({ fog: false, tile: tile() }, false)).toEqual(all);
   expect(svgLayers({ fog: true, tile: null }, false)).toEqual(all);
 });
@@ -47,7 +47,7 @@ test('with the option on the svg drops the ground, road, terrain feature, resour
   }
 });
 
-test('cities, villages, mines and foundries go to the 3D look, drawn once; the reward star, other buildings and treasures stay in the svg', () => {
+test('cities and villages go to the 3D look, drawn once; the reward star stays in the svg', () => {
   const city: City = {
     id: 1, pos: '0,0', owner: 0, capital: true, level: 2, growth: 0, radius: 1, walls: true, market: false,
     incomeBonus: 0, capacityBonus: 0, pendingRewards: [], linked: true,
@@ -72,11 +72,47 @@ test('cities, villages, mines and foundries go to the 3D look, drawn once; the r
   expect(html(scene('2,0', tile({ village: true })), false)).toContain(part(<Village />));
   expect(html(scene('2,0', tile({ village: true })), true)).not.toContain(part(<Village />));
   expect(glMapOf([scene('2,0', tile({ village: true }))], 3).map.tiles['2,0']!.village).toBe(true);
-  // A farm and a treasure stay.
-  expect(html(scene('2,1', tile({ building: 'farm', resource: 'cropland' })), true)).toContain(part(<BuildingMark building="farm" />));
-  const treasure = html(scene('3,0', tile({ terrain: 'mountain', treasure: true })), true);
-  expect(treasure).toContain(part(<Treasure />));
-  expect(treasure).not.toContain(part(<TerrainFeature terrain="mountain" variant={0} />).slice(0, 120));
+});
+
+test('buildings3d: every building and the treasure chest go to the 3D look, each drawn exactly once', () => {
+  // A farm: in the svg with the option off, in 3D (and not the svg) with it on.
+  const farm = scene('2,1', tile({ building: 'farm', resource: 'cropland' }));
+  expect(html(farm, false)).toContain(part(<BuildingMark building="farm" />));
+  expect(html(farm, true)).not.toContain(part(<BuildingMark building="farm" />));
+  expect(glMapOf([farm], 3).map.tiles['2,1']!.building).toBe('farm');
+  // The chest, in the middle and beside a unit, on every terrain: never in the svg with the option on, always on the
+  // 3D map; the terrain under it goes to 3D as before.
+  for (const terrain of ['field', 'forest', 'mountain'] as const) {
+    for (const occupied of [false, true]) {
+      const t = scene('3,0', tile({ terrain, treasure: true }), { occupied });
+      const off = html(t, false);
+      const on = html(t, true);
+      expect(off, `${terrain} ${occupied}`).toContain(part(<Treasure />));
+      expect(off).toContain(`data-treasure="${occupied ? 'beside' : 'centre'}"`);
+      expect(on, `${terrain} ${occupied}`).not.toContain(part(<Treasure />));
+      expect(on).not.toContain('data-treasure');
+      const g = glMapOf([t], 3).map.tiles['3,0']!;
+      expect(g.treasure).toBe(true);
+      expect(g.beside).toBe(occupied);
+    }
+  }
+  expect(html(scene('3,0', tile({ terrain: 'mountain', treasure: true })), true)).not.toContain(part(<TerrainFeature terrain="mountain" variant={0} />).slice(0, 120));
+  // A treasure under a building or a village is hidden in both looks (the svg draws the building), never lost twice.
+  expect(html(scene('3,0', tile({ treasure: true, building: 'farm' })), false)).not.toContain(part(<Treasure />));
+});
+
+test('buildings3d: a market carries its land\'s owner for its awnings; other tiles do not, so a border move never rebuilds them', () => {
+  const owned = (building: Tile['building'], owner: number | null) => glMapOf([scene('0,0', tile({ building }), { owner })], 3, ['spartans', 'mongols']);
+  expect(owned('market', 1).map.tiles['0,0']!.owner).toBe('mongols');
+  expect(owned('market', null).map.tiles['0,0']!.owner).toBe(null);
+  expect(owned('market', 0).key).not.toBe(owned('market', 1).key);
+  expect(owned('farm', 0).map.tiles['0,0']!.owner).toBe(null);
+  // The farm tile itself is the same; only the border (drawn on its own) tells the owner.
+  const a = owned('farm', 0).key.split('|')[1], b = owned('farm', 1).key.split('|')[1];
+  expect(a).toBe(b);
+  // A unit stepping onto a chest moves the chest beside it: the tile's code changes, so it is rebuilt.
+  const t = tile({ treasure: true });
+  expect(glMapOf([scene('0,0', t, { occupied: true })], 3).key).not.toBe(glMapOf([scene('0,0', t)], 3).key);
 });
 
 test('a fogged tile leaves its blank base to the terrain, which draws today\'s fog, and keeps its marks', () => {
@@ -108,7 +144,7 @@ test('a veil change keeps the map signature, so it only repaints', () => {
   expect(c.key).not.toBe(a.key);
 });
 
-test('rules 8: jewels, fish and harvested resources go to the 3D look, never drawn twice; every building but the mine and foundry stays in the svg', () => {
+test('rules 8: jewels, fish and harvested resources go to the 3D look, never drawn twice; every building goes to 3D', () => {
   for (const [terrain, resource] of [['mountain', 'jewels'], ['water', 'fish']] as const) {
     for (const harvested of [false, true]) {
       const t = scene('1,0', tile({ terrain, resource, harvested }));
@@ -136,8 +172,8 @@ test('a harvest changes the map signature, so the tile is rebuilt faded', () => 
   expect(b.key).not.toBe(a.key);
 });
 
-test('the 3D look draws exactly the mine and the foundry of the buildings', () => {
-  expect([...GL_BUILDING].sort()).toEqual(['foundry', 'mine']);
+test('buildings3d: the 3D look draws every building', () => {
+  expect([...GL_BUILDING].sort()).toEqual(['farm', 'foundry', 'granary', 'lumberCamp', 'lumberMill', 'market', 'mine', 'orchard', 'plantation']);
 });
 
 test('borders go to the 3D map with their owner\'s colour, and a change of border changes the map signature', () => {
@@ -165,4 +201,20 @@ test('a city level, walls or owner change changes the map signature, so the city
   const base = key(city);
   for (const c of [{ ...city, level: 3 }, { ...city, walls: true }, { ...city, owner: 1 }, { ...city, capital: true }]) expect(key(c)).not.toBe(base);
   expect(key({ ...city, growth: 2 })).toBe(base); // what the 3D does not show does not rebuild it
+});
+
+test('buildings3d: with the option on, nothing that stands on a tile is left to the svg (only the marks and overlays)', () => {
+  const terrains = ['field', 'forest', 'mountain', 'water'] as const;
+  const resources = [null, 'orchard', 'cropland', 'game', 'ore', 'jewels', 'fish'] as const;
+  const buildings = [null, 'farm', 'lumberCamp', 'mine', 'market', 'orchard', 'plantation', 'lumberMill', 'foundry', 'granary'] as const;
+  for (const terrain of terrains) {
+    for (const resource of resources) {
+      for (const building of buildings) {
+        for (const extra of [{}, { village: true }, { treasure: true }, { road: true, harvested: true }]) {
+          const layers = svgLayers({ fog: false, tile: tile({ terrain, resource, building, ...extra }) }, true);
+          expect(Object.values(layers).some(Boolean), `${terrain} ${resource} ${building} ${JSON.stringify(extra)}`).toBe(false);
+        }
+      }
+    }
+  }
 });

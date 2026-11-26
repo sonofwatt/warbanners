@@ -13,13 +13,16 @@ import { fogGeometry, tilePieces } from './build';
 import type { TilePieces } from './build';
 import { tileCode } from './codes';
 import type { GlMap, GlTile } from './input';
-import { COS_E, EDGE_NB, parse, SQUASH } from './layout';
+import { centre, COS_E, EDGE_NB, heightFn, parse, SQUASH, tileSetup } from './layout';
 import { groundFrag, groundVert, propFrag, propVert } from './shaders';
 import { createFalls } from './falls';
 import { createBorders } from './borders';
 import { createLanterns } from './lanterns';
 import { anyInView } from './fallsLayout';
 import { createUnits3d } from './units/units3d';
+import { createWheels } from './wheels';
+import { createChests } from './chests';
+import { chestPlays, chestSpots } from './buildingLayout';
 import type { Units3d } from './units/units3d';
 
 export interface TerrainCamera { cx: number; cy: number; scale: number }
@@ -42,6 +45,17 @@ export interface Terrain3d {
   falls(): number;
   /** The mine lanterns and furnaces on the map and each flicker voice's brightness now, for tests. */
   lanterns(): { count: number; glow: [number, number] };
+  /**
+   * Treasure claimed (the action's claim effects: the tile and its delay): each chest the map showed there opens, its
+   * lid swinging back, then fades away. Nothing with reduced motion (`reduced`), or without the units canvas.
+   */
+  chests(claims: readonly { at: HexKey; delay: number }[], nowMs: number, reduced: boolean): void;
+  /** Whether a chest is opening at `nowMs` (the board keeps drawing the figures' canvas while one is). */
+  playing(nowMs: number): boolean;
+  /** The lumber mills' wheels on the map and the first one's turn now, for tests. */
+  wheels(): { count: number; angle: number; triangles: number };
+  /** The chests opening now, for tests. */
+  opening(): { key: string; lid: number; alpha: number }[];
   /** Triangles in the territory border mesh, for tests. */
   borderTriangles(): number;
   /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
@@ -93,6 +107,9 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const borders = createBorders();
   // The mines' lanterns (and the foundries' furnaces) flicker, so their light goes with the figures too.
   const lanterns = createLanterns(shared);
+  // The lumber mills' wheels turn in the same loop; a claimed chest opens on the figures' canvas.
+  const wheels = createWheels(shared);
+  const chestsFx = units ? createChests(shared) : null;
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
   const propMat = new ShaderMaterial({ uniforms: propUniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true });
@@ -104,8 +121,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
   scene.add(ground, outline, props, borders.group);
-  if (units) units.extras.add(falls.group, lanterns.group);
-  else scene.add(falls.group, lanterns.group);
+  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, chestsFx!.group);
+  else scene.add(falls.group, lanterns.group, wheels.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
   const cache = new Map<string, TilePieces>();
@@ -143,6 +160,33 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     falls.setMap(map);
     borders.setMap(map);
     lanterns.setMap(map);
+    wheels.setMap(map);
+    noteChests(map);
+  }
+
+  // Where each chest on the map stands (world space, on its ground), and those the last maps took away: a claim
+  // reaches the board after the map without the chest, so it opens where the chest stood.
+  let chestsNow = new Map<HexKey, { x: number; y: number; z: number; s: number }>();
+  const chestsGone = new Map<HexKey, { x: number; y: number; z: number; s: number }>();
+  function noteChests(map: GlMap): void {
+    const next = new Map<HexKey, { x: number; y: number; z: number; s: number }>();
+    for (const [k, s] of chestSpots(map)) {
+      const was = chestsNow.get(k);
+      const { q, r } = parse(k);
+      const c = centre(q, r);
+      const y = was !== undefined && was.x === c.x + s.x && was.z === c.z + s.z ? was.y : heightFn(tileSetup(map, k))(s.x, s.z);
+      next.set(k, { x: c.x + s.x, y, z: c.z + s.z, s: s.s });
+    }
+    for (const [k, s] of chestsNow) if (!next.has(k)) chestsGone.set(k, s);
+    for (const k of next.keys()) chestsGone.delete(k);
+    while (chestsGone.size > 16) chestsGone.delete(chestsGone.keys().next().value!);
+    chestsNow = next;
+  }
+  function chests(claims: readonly { at: HexKey; delay: number }[], nowMs: number, reduced: boolean): void {
+    if (chestsFx === null) return;
+    const spots = new Map([...chestsGone, ...chestsNow]);
+    chestsFx.play(chestPlays(claims, spots, nowMs, reduced));
+    for (const c of claims) chestsGone.delete(c.at);
   }
 
   // The veil: aVeil on every vertex, 1 where its tile (aHex) is veiled. Rewritten in place, so no rebuild.
@@ -167,6 +211,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     paintVeil();
     falls.setVeil(veiled);
     lanterns.setVeil(veiled);
+    wheels.setVeil(veiled);
   }
 
   // The SVG board's camera (cx, cy, scale in board units and px per unit) and viewport, unchanged. The camera looks
@@ -204,21 +249,26 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     flowAt = nowMs;
     flow += dt * Math.min(1, Math.max(0, level));
     falls.setTime(flow);
+    wheels.setTime(flow);
+    chestsFx?.tick(nowMs);
     // The lanterns flicker on the wall clock, scaled by the level: at rest and under reduced motion they hold steady.
     lanterns.setTime(nowMs / 1000, level);
   }
   function animating(cam: TerrainCamera, vp: TerrainViewport): boolean {
     if (units === null) return false;
     if (units.onScreen(cam, vp)) return true;
+    if (chestsFx?.playing(performance.now()) === true) return true;
     const hw = vp.w / 2 / cam.scale, hh = vp.h / 2 / cam.scale;
     const view = { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh };
-    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view);
+    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view);
   }
 
   function dispose(): void {
     falls.dispose();
     borders.dispose();
     lanterns.dispose();
+    wheels.dispose();
+    chestsFx?.dispose();
     units?.dispose();
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
     cache.clear();
@@ -231,7 +281,11 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
 
   return {
     setMap, setVeil, draw, drawUnits, tick, animating, dispose, units, falls: () => falls.count(),
-    lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow() }), borderTriangles: () => borders.triangles(),
+    lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow() }),
+    chests, playing: (nowMs) => chestsFx?.playing(nowMs) === true,
+    wheels: () => ({ count: wheels.count(), angle: wheels.angle(), triangles: wheels.triangles() }),
+    opening: () => chestsFx?.state() ?? [],
+    borderTriangles: () => borders.triangles(),
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, tiles: tileCount }),
   };
 }

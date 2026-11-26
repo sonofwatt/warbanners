@@ -23,6 +23,10 @@ export interface GlTile {
   // The city standing here, as the 3D look draws it: its owner's faction (roof colour and style), level, capital and
   // walls. Null on a tile with no city (and on a city whose owner has no faction, which the svg leaves blank too).
   town: GlTown | null;
+  // buildings3d: the faction owning the land, for a market's awnings (null for every other tile, so a border that
+  // moves never rebuilds a tile whose look does not show it), and a treasure drawn beside a unit standing on it.
+  owner?: FactionId | null;
+  beside?: boolean;
 }
 /** What a city shows in 3D. A reward waiting to be chosen (the star) stays in the svg, over everything. */
 export interface GlTown { faction: FactionId; level: number; capital: boolean; walls: boolean }
@@ -44,8 +48,13 @@ export interface GlBorder { key: HexKey; edges: number[]; colour: string; lines:
 /** Terrains and resources that have WebGL art. Anything else is left to the SVG board, so nothing goes missing. */
 export const GL_TERRAIN: ReadonlySet<Terrain> = new Set<Terrain>(['field', 'forest', 'mountain', 'water']);
 export const GL_RESOURCE: ReadonlySet<Resource> = new Set<Resource>(['orchard', 'cropland', 'game', 'ore', 'jewels', 'fish']);
-/** Buildings with WebGL art: the mine (a timber-framed tunnel into the mountain, a lantern inside) and its foundry. */
-export const GL_BUILDING: ReadonlySet<BuildingId> = new Set<BuildingId>(['mine', 'foundry']);
+/**
+ * Buildings with WebGL art: every one. The mine (a timber-framed tunnel into the mountain, a lantern inside) and its
+ * foundry; the farm, granary, orchard, plantation, lumber camp, lumber mill and market (buildings.ts).
+ */
+export const GL_BUILDING: ReadonlySet<BuildingId> = new Set<BuildingId>([
+  'farm', 'lumberCamp', 'mine', 'market', 'orchard', 'plantation', 'lumberMill', 'foundry', 'granary',
+]);
 
 /** The SVG layers a tile draws. With the terrain on, the ground, roads, terrain features and resources go to WebGL. */
 export interface SvgLayers {
@@ -57,10 +66,11 @@ export interface SvgLayers {
   village: boolean;
   building: boolean; // the tile's building mark (BuildingMark), when it has one
   border: boolean; // the territory border lines
+  treasure: boolean; // the treasure chest (Treasure), when the tile shows one
 }
 
-const ALL: SvgLayers = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true };
-const NONE: SvgLayers = { base: false, road: false, feature: false, resource: false, town: false, village: false, building: false, border: false };
+const ALL: SvgLayers = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true, treasure: true };
+const NONE: SvgLayers = { base: false, road: false, feature: false, resource: false, town: false, village: false, building: false, border: false, treasure: false };
 
 export function svgLayers(t: { fog: boolean; tile: Tile | null; city?: City | null }, gl: boolean): SvgLayers {
   if (!gl) return ALL;
@@ -100,6 +110,8 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
       road: t.road,
       city: it.city !== null,
       town: townOf(it.city, factions),
+      owner: t.building === 'market' && it.owner !== null ? factions[it.owner] ?? null : null,
+      beside: t.treasure && it.occupied,
     };
     if (it.veiled) veiled.push(it.key);
     const ownerFaction = it.owner === null ? undefined : factions[it.owner];
