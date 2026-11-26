@@ -42,6 +42,8 @@ const SHAFT = '#5E4733';
 const IRON = '#8B8E92';
 const IRON_DARK = '#5D6166';
 const SHIELD_BACK = '#4A3626';
+/** A healed scar on this darker skin: paler than the toon SCAR so it shows. */
+const SCAR_PALE = '#DDB69C';
 
 /** The thighs: a piece of their own, turning about the hips, so a crouch bends the knees. */
 export const THIGHS = 'thighs';
@@ -365,18 +367,18 @@ function helmet(k: Kit, c: Look, w: Wear): void {
     front: (i, j) => helmPoint(th(i), v(j)),
     back: (i, j) => helmPoint(th(i), v(j), 0.32),
     keep: (i, j) => !(broken && HELM_GAP.has(`${i},${j}`)),
-    backKeep: (_i, j) => j >= 4,
+    backKeep: (_i, j) => j >= 5,
     inside: new Vector3(...HELM_C),
   }, BRONZE, BRONZE_IN, BRONZE_LIT, { gloss: 0.55 });
   // The opening, dark inside; a brow ridge over each eye; the rim's darker edge.
-  fineDecal(k, tOpening(), SLIT, helmSurf, 0.3, 0.06);
+  fineDecal(k, tOpening(), SLIT, helmSurf, 0.9, 0.06);
   for (const s of [-1, 1]) k.line([s * 0.28, 1.1, s * 1.1, 1.14, s * 1.85, 0.94, s * 2.35, 0.55], 0.16, mix(BRONZE, BRONZE_LIT, 0.55), helmSurf);
   k.line([-2.6, -3.5, -1.2, -3.58, 1.2, -3.58, 2.6, -3.5], 0.2, BRONZE_DARK, helmSurf);
   // The crest's holder along the top.
   k.box([0, HELM_C[1] + HB - 0.05, HELM_C[2] - 0.6], [0.9, 0.7, 4.6], BRONZE_DARK);
   // Wear: scratches, then dents, then a crack; broken, a cheek plate is gone (the gap above).
   if (worn(w, 1)) scratches(k, helmSurf, [[-2.1, 2.3, -0.9, 3.1], [0.8, 3.0, 2.0, 2.3], [1.3, -0.8, 2.3, -1.6]], WORN_BRONZE, 0.15);
-  if (worn(w, 2)) { dent(k, helmSurf, 1.5, 2.2, 0.55, BRONZE); dent(k, helmSurf, -0.9, 3.2, 0.4, BRONZE); }
+  if (worn(w, 2)) { dent(k, helmSurf, 1.5, 2.2, 0.7, BRONZE); dent(k, helmSurf, -1.0, 3.0, 0.55, BRONZE); }
   if (worn(w, 3)) crack(k, helmSurf, [2.2, 1.6, 2.0, 0.9, 2.4, 0.2], 0.16);
   if (heavy(w)) for (const [x, y, r] of [[1.6, -1.9, 0.22], [2.0, -2.5, 0.16], [0.9, 1.6, 0.14]] as const) k.decal(ell(x, y, r, r, 6), BLOOD, helmSurf);
   crest(k, c, w);
@@ -465,12 +467,12 @@ const torsoSurf: Surface = frontmost(
 function torso(k: Kit): void {
   lathe(k, [0, 0, 0], TORSO, SKIN, { sz: TORSO_SZ, seg: 14, gloss: 0.12 });
   for (const m of PECS) blob(k, m.c, m.r, SKIN, { w: 9, h: 6, hull: 0, rot: m.rot, gloss: 0.12 });
-  for (const m of ABS) blob(k, m.c, m.r, SKIN, { w: 6, h: 4, hull: 0 });
+  for (const m of ABS) blob(k, m.c, m.r, SKIN, { w: 5, h: 4, hull: 0 });
   // The obliques over the hips, the slope of the shoulders and the shoulders themselves.
   for (const s of [-1, 1]) {
     blob(k, [s * 3.5, 26.6, 1.0], [1.3, 2.4, 1.6], SKIN, { w: 6, h: 5, hull: 0 });
     blob(k, [s * 2.9, 37.9, -0.6], [2.5, 1.0, 1.8], SKIN, { w: 8, h: 5, hull: 0 });
-    blob(k, [s * 5.75, 36.3, -0.05], [1.8, 2.3, 1.9], SKIN, { w: 9, h: 7 });
+    blob(k, [s * 5.75, 36.3, -0.05], [1.8, 2.3, 1.9], SKIN, { w: 8, h: 6 });
   }
   // The neck, mostly inside the helmet.
   limb(k, [0, 38.4, -0.3], [0, 42.4, 0.05], 1.6, 1.35, SKIN, { seg: 8 });
@@ -527,8 +529,8 @@ function legs(k: Kit, w: Wear): void {
       blob(k, [s * 2.7, 18.2, 0.85], [2.05, 4.1, 1.85], SKIN, { w: 8, h: 6, hull: 0 });
       blob(k, knee(s), [1.45, 1.4, 1.4], SKIN, { w: 7, h: 5 });
     }
-    if (bloody(w, 1)) drip(k, onUpright(-2.7, 0.85, 1.9), -2.1, 21.0, 4.2, 0.45);
-    if (heavy(w)) { drip(k, onUpright(2.7, 0.85, 1.9), 2.2, 20.6, 5.2, 0.5); drip(k, onUpright(-2.7, 0.85, 1.9), -3.1, 19.8, 3.0, 0.4); }
+    if (bloody(w, 1)) runDown(k, onUpright(-2.7, 0.85, 1.9), -2.1, 21.0, 4.2, 0.45);
+    if (heavy(w)) { runDown(k, onUpright(2.7, 0.85, 1.9), 2.2, 20.6, 5.2, 0.5); runDown(k, onUpright(-2.7, 0.85, 1.9), -3.1, 19.8, 3.0, 0.4); }
   }, { axis: [1, 0, 0] });
   k.pivot(LEGS, [0, ANKLE_Y + 0.2, 0], () => {
     for (const s of [-1, 1]) {
@@ -595,7 +597,7 @@ function cloak(k: Kit, c: Look, w: Wear): void {
 
 const SR = 9.6;
 const SRINGS = [0, 0.24, 0.45, 0.63, 0.78, 0.885, 1.0];
-const SNU = 28;
+const SNU = 24;
 const DOME = 2.5;
 const shieldZ = (r: number): number => {
   const rf = SR * 0.885;
@@ -627,7 +629,7 @@ function shield(k: Kit, c: Look, w: Wear): void {
   const cuts: Cut[] = [];
   if (worn(w, 3) && !broken) cuts.push({ from: 285, to: 318, inner: SR * 0.62 });
   if (broken) cuts.push({ from: 300, to: 322, inner: SR * 0.8 });
-  const JAG = [0.0, 0.9, -0.3, 0.6, -0.7, 0.35, 1.0, -0.2, 0.5, -0.5];
+  const JAG = [0.0, 0.6, 1.1, 0.4, -0.5, -0.2, 0.7, 1.3, 0.3, -0.6, -0.1, 0.5, 0.9, 0.2, -0.4, 0.1, 0.6];
   const at = (x: number, y: number, back: boolean, jag: number): Vector3 => {
     const [px, py] = chipped(x, y, cuts, jag);
     return new Vector3(px, py, shieldZ(Math.hypot(px, py)) - (back ? 0.75 : 0));
@@ -651,15 +653,15 @@ function shield(k: Kit, c: Look, w: Wear): void {
       return at(xb + (xr - xb) * ACROSS[i]!, y, back, 0.25 * (j % 2 ? 1 : -1));
     };
     shell(k, { nu: ACROSS.length - 1, nv: NV, front: (i, j) => pt(i, j, false), back: (i, j) => pt(i, j, true), inside: new Vector3(0, 0, -6) },
-      BRONZE, SHIELD_BACK, BRONZE_LIT, { gloss: 0.5 });
+      BRONZE, SHIELD_BACK, mix(BRONZE_DARK, BRONZE_LIT, 0.35), { gloss: 0.5 });
   }
   // The rim's darker band and the owner's mark, a chevron; broken, only its right stroke is left.
   const ring: number[] = [];
-  for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; ring.push(Math.cos(a) * SR * 0.895, Math.sin(a) * SR * 0.895); }
+  for (let i = 0; i <= 28; i++) { const a = (i / 28) * Math.PI * 2; ring.push(Math.cos(a) * SR * 0.895, Math.sin(a) * SR * 0.895); }
   if (!worn(w, 3)) k.line(ring, 0.22, BRONZE_DARK, shieldSurf);
   const mark = mix(c.main, c.dark, 0.25);
   const lam = broken ? [0.6, 5.0, 4.8, -5.6, 2.6, -5.6, 0.6, -0.8] : [0, 6.6, 5.2, -5.6, 2.7, -5.6, 0, 0.9, -2.7, -5.6, -5.2, -5.6];
-  fineDecal(k, lam, mark, shieldSurf, 0.9, 0.08);
+  fineDecal(k, lam, mark, shieldSurf, 2.0, 0.08);
   shieldWear(k, w);
 }
 
@@ -667,7 +669,7 @@ function shield(k: Kit, c: Look, w: Wear): void {
 function shieldWear(k: Kit, w: Wear): void {
   const s = shieldSurf;
   if (worn(w, 1)) scratches(k, s, worn(w, 4) ? [[2.6, -3.8, 4.4, -2.6]] : [[-4.6, 3.6, -2.8, 4.6], [2.6, -3.8, 4.4, -2.6], [-1.2, -5.6, 0.4, -4.8]], WORN_BRONZE, 0.18);
-  if (worn(w, 2)) { dent(k, s, 3.6, 2.8, 1.0, BRONZE); if (!worn(w, 4)) dent(k, s, -3.6, -1.6, 0.9, BRONZE); }
+  if (worn(w, 2)) { dent(k, s, 3.6, 2.2, 1.35, BRONZE); dent(k, s, 1.2, -5.2, 1.0, BRONZE); if (!worn(w, 4)) dent(k, s, -3.8, -1.4, 1.25, BRONZE); }
   if (worn(w, 3)) crack(k, s, [2.8, 4.9, 2.4, 3.6, 3.0, 2.4, 2.0, 1.0], 0.22);
   if (worn(w, 4)) crack(k, s, [1.4, -2.0, 2.8, -3.2, 3.4, -5.0], 0.22);
   if (bloody(w, 1)) smear(k, s, 2.2, -1.2, -0.3, -1, 3.0, 1.1);
@@ -720,19 +722,31 @@ function spear(k: Kit, butt: V3, top: V3, w: Wear): void {
 
 // ---- blood and scars on the body, the face under a broken helmet, and the ground ----
 
+/** Blood on skin: a redder smear than on bronze or earth, so it reads on the tan (a dark core where it is thickest). */
+const BLOOD_SKIN = '#7E1E17';
+function bleed(k: Kit, s: Surface, x: number, y: number, dx: number, dy: number, len: number, wd: number): void {
+  k.decal(smearPoly(x, y, dx, dy, len, wd), BLOOD_SKIN, s);
+  const l = Math.hypot(dx, dy);
+  k.decal(ell(x + (dx / l) * len * 0.12, y + (dy / l) * len * 0.12, wd * 0.28, wd * 0.28, 6), BLOOD, s);
+}
+function runDown(k: Kit, s: Surface, x: number, y: number, len: number, wd: number): void {
+  k.decal([x - wd / 2, y, x + wd / 2, y, x + wd * 0.25, y - len, x - wd * 0.25, y - len], BLOOD_SKIN, s);
+  k.decal(ell(x, y - len, wd * 0.6, wd * 0.6, 6), BLOOD_SKIN, s);
+}
+
 function bodyWear(k: Kit, w: Wear): void {
   // Battered: a cut across the ribs; then blood from it and from under the helmet.
   if (worn(w, 3)) k.line([-3.9, 31.0, -2.6, 31.9, -1.5, 32.6], 0.22, '#4A1512', torsoSurf);
   if (bloody(w, 1)) {
-    smear(k, torsoSurf, -2.8, 31.6, 0.15, -1, 3.2, 0.9);
-    drip(k, torsoSurf, -2.4, 29.4, 2.6, 0.4);
+    bleed(k, torsoSurf, -2.8, 31.6, 0.15, -1, 3.2, 0.9);
+    runDown(k, torsoSurf, -2.4, 29.4, 2.6, 0.4);
     // From under the cheek plate down the neck onto the chest.
-    smear(k, torsoSurf, 1.2, 38.0, -0.1, -1, 2.8, 0.75);
+    bleed(k, torsoSurf, 1.2, 38.0, -0.1, -1, 2.8, 0.75);
   }
   if (heavy(w)) {
-    smear(k, torsoSurf, 1.7, 33.6, 0.2, -1, 4.6, 1.1);
-    drip(k, torsoSurf, 1.2, 30.2, 3.4, 0.45);
-    smear(k, torsoSurf, -1.4, 28.2, -0.2, -1, 2.6, 0.8);
+    bleed(k, torsoSurf, 1.7, 33.6, 0.2, -1, 4.6, 1.1);
+    runDown(k, torsoSurf, 1.2, 30.2, 3.4, 0.45);
+    bleed(k, torsoSurf, -1.4, 28.2, -0.2, -1, 2.6, 0.8);
     for (const [x, y, r] of [[2.6, 35.8, 0.25], [-0.6, 33.0, 0.2], [3.6, 29.6, 0.22]] as const) k.decal(ell(x, y, r, r, 6), BLOOD, torsoSurf);
   }
 }
@@ -740,20 +754,28 @@ function bodyWear(k: Kit, w: Wear): void {
 function face(k: Kit, w: Wear): void {
   if (!helmBroken(w)) return;
   // The face under the gap: a cheek and jaw, a little drawn in the dark of the helmet.
-  blob(k, HEAD_C, HEAD_R, SKIN, { w: 10, h: 8, hull: 0 });
+  // The face is in the helmet's shadow toward the top: a per-corner tint, so the gap reads as a hole with a face in it.
+  const g = new SphereGeometry(1, 10, 8);
+  const pos = g.attributes.position!;
+  const tint: number[] = [];
+  for (let i = 0; i < pos.count; i++) { const t = 0.42 + 0.58 * Math.min(1, Math.max(0, (0.35 - pos.getY(i)) / 1.1)); tint.push(t, t * 0.97, t * 0.95); }
+  g.setAttribute('color', new Float32BufferAttribute(tint, 3));
+  g.scale(...HEAD_R);
+  g.translate(...HEAD_C);
+  k.add(g, SKIN, sm({ hull: 0 }));
   const s = ellSurf(HEAD_C, HEAD_R);
   if (w.scarred && !bloody(w, 1)) {
-    k.line([-1.95, -0.1, -1.6, -2.0], 0.24, SCAR, s);
+    k.line([-1.95, -0.1, -1.6, -2.0], 0.32, SCAR_PALE, s);
     for (const t of [0.3, 0.7]) { const y = -0.1 - 1.9 * t, x = -1.95 + 0.35 * t; k.line([x - 0.35, y, x + 0.35, y], 0.14, SCAR_DARK, s); }
   }
   if (bloody(w, 1)) {
-    smear(k, s, -1.9, -0.2, 0.1, -1, 1.6, 0.55);
-    drip(k, s, -1.7, -1.6, 0.9, 0.25);
+    bleed(k, s, -1.9, -0.2, 0.1, -1, 1.6, 0.55);
+    runDown(k, s, -1.7, -1.6, 0.9, 0.25);
   }
   if (heavy(w)) {
-    smear(k, s, -1.25, -0.9, 0.15, -1, 1.8, 0.5);
-    drip(k, s, -2.2, -1.6, 1.2, 0.25);
-    smear(k, torsoSurf, -1.5, 38.8, 0.05, -1, 3.6, 0.8);
+    bleed(k, s, -1.25, -0.9, 0.15, -1, 1.8, 0.5);
+    runDown(k, s, -2.2, -1.6, 1.2, 0.25);
+    bleed(k, torsoSurf, -1.5, 38.8, 0.05, -1, 3.6, 0.8);
   }
 }
 
@@ -780,6 +802,7 @@ export interface RealOpts { look: Look; wear: Wear }
 /** The Gritty Hoplite. Returns its ground shadow's size (as the toon figures do). */
 export function realHoplite(k: Kit, { look: c, wear: w }: RealOpts): { rx: number; rz: number; x: number } {
   setYaw(YAW);
+  fineCount = 0; // each build lifts its marks the same way, so a figure built twice is the same to the last vertex
   k.frame([0, 0, 0], [0, YAW, 0], () => {
     cloak(k, c, w);
     legs(k, w);
