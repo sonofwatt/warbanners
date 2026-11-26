@@ -16,6 +16,7 @@ import { propFrag, propVert } from '../shaders';
 import { ARM, ARROW, buildFigure, SHIELD, STONE_PIECE, WEAPON, WEAPON2 } from './figures';
 import type { Figure } from './figures';
 import { CLEAN } from './parts';
+import type { Wear } from './parts';
 import { armSwing, idleKind, idlePose, settleWeight, stoneLoaded } from './idle';
 import type { IdleKind } from './idle';
 import { AIM_TURN_MS, aimYaw, facingBusy, facingYaw, frontsOf, heldAt, moveYaw, queueTurn, REST_FACING, settle, TURN_MS, turnNow, wrap } from './facing';
@@ -97,10 +98,23 @@ export interface Units3d {
 
 /** The figures' hull, a little thinner than the terrain's (0.55), as the figures are small. */
 const UNIT_OUTLINE = 0.5;
+/** Gritty's realistic figures have a thin outline: enough to hold the silhouette on the ground, no cartoon line. */
+const REAL_OUTLINE = 0.2;
+/**
+ * How a figure is drawn: the toon figures in Bright, the toon figures in Gritty (muted), and Gritty's realistic
+ * figures (muted, the soft Gritty light, a thin outline). Each style has its own materials.
+ */
+type Style = 'bright' | 'gritty' | 'real';
+const STYLE_DEFINES: Record<Style, Record<string, string>> = { bright: {}, gritty: { GRITTY_MUTE: '' }, real: { GRITTY_MUTE: '', GRITTY_LIGHT: '' } };
+const styleOf = (gritty: boolean, f: Figure): Style => (!gritty ? 'bright' : f.real ? 'real' : 'gritty');
 /** The soft blob under a figure: black at 18 percent, as the svg Shadow. */
 const SHADOW_ALPHA = 0.18;
 
-const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}`;
+/** A unit's battle wear as the figures take it (none in Bright). */
+const wearOf = (u: { gritty?: boolean; wear?: GlUnit['wear'] }): Wear => (u.gritty === true && u.wear !== undefined ? u.wear : CLEAN);
+/** What a figure looks like: equal keys share one built figure. Gritty and each wear look are figures of their own. */
+const lookKey = (type: string, look: GlUnit['look'], hero: boolean, gritty = false, wear: Wear = CLEAN): string =>
+  `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}|${gritty ? `g${wear.stage}${wear.blood}${wear.scarred === true ? 's' : ''}` : ''}`;
 
 /**
  * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,
@@ -109,6 +123,7 @@ const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `
 interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3 }
 interface Built {
   group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; pieces: Map<string, Piece>; shadow: Mesh; shadowX: number;
+  style: Style; guard: Guard;
   /** Its opaque meshes (a fall's see-through ones are not listed), and whether each is the hull: a shade repaints them. */
   paint: { mesh: Mesh; hull: boolean }[];
 }
@@ -126,8 +141,6 @@ interface Placed extends Built {
   weight: number;
   /** The last move (board points), how far along it the figure is (hexes) and through its travel (0 to 1, or null). */
   trip: { x0: number; y0: number } | null; stride: number; travel: number | null;
-  /** The crouch it takes when hunkered. */
-  guard: Guard;
 }
 /** The distance between neighbouring tile centres, in board units. */
 const TILE_STEP = R * SQ3;
@@ -178,22 +191,34 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   renderer.outputColorSpace = LinearSRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
 
-  const uniforms = (outline: boolean, alpha?: number): Record<string, { value: unknown }> => ({
-    ...shared, uOutline: { value: outline ? UNIT_OUTLINE : 0 }, uIsOutline: { value: outline }, ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
+  const uniforms = (outline: boolean, style: Style, alpha?: number): Record<string, { value: unknown }> => ({
+    ...shared, uOutline: { value: outline ? (style === 'real' ? REAL_OUTLINE : UNIT_OUTLINE) : 0 }, uIsOutline: { value: outline },
+    ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
   });
   // The figures turn (facing.ts), so their normals are taken to world space for the light, which stays put.
-  const fillMat = new ShaderMaterial({ uniforms: uniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, defines: { WORLD_NORMAL: '' } });
-  const hullMat = new ShaderMaterial({ uniforms: uniforms(true), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, side: BackSide, defines: { WORLD_NORMAL: '' } });
+  const defines = (style: Style, more: Record<string, string> = {}): Record<string, string> => ({ WORLD_NORMAL: '', ...STYLE_DEFINES[style], ...more });
+  const plainMat = (outline: boolean, style: Style): ShaderMaterial => new ShaderMaterial({
+    uniforms: uniforms(outline, style), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
+    side: outline ? BackSide : undefined, defines: defines(style),
+  });
+  const fillMat = plainMat(false, 'bright'), hullMat = plainMat(true, 'bright');
+  /** The plain (unshaded) materials of each style, Bright's made at once and the Gritty ones when first needed. */
+  const plains = new Map<Style, { fill: ShaderMaterial; hull: ShaderMaterial }>([['bright', { fill: fillMat, hull: hullMat }]]);
+  function plainMats(style: Style): { fill: ShaderMaterial; hull: ShaderMaterial } {
+    let m = plains.get(style);
+    if (m === undefined) { m = { fill: plainMat(false, style), hull: plainMat(true, style) }; plains.set(style, m); }
+    return m;
+  }
   const shadowGeo = new CircleGeometry(1, 20);
   const shadowMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA, depthWrite: false });
 
   // A fading fall is see-through as one piece, as the svg group opacity draws it: a depth-only pass first, then the
   // colour pass blends only the nearest surface, once. (No standing unit is ever see-through.)
   interface Dim { depthFill: ShaderMaterial; depthHull: ShaderMaterial; fill: ShaderMaterial; hull: ShaderMaterial; shadow: MeshBasicMaterial }
-  function makeDim(a: number): Dim {
+  function makeDim(a: number, style: Style = 'bright'): Dim {
     const mk = (outline: boolean, colour: boolean): ShaderMaterial => new ShaderMaterial({
-      uniforms: uniforms(outline, a), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
-      side: outline ? BackSide : undefined, defines: { UNIT_ALPHA: '', WORLD_NORMAL: '' },
+      uniforms: uniforms(outline, style, a), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
+      side: outline ? BackSide : undefined, defines: defines(style, { UNIT_ALPHA: '' }),
       colorWrite: colour, transparent: colour, depthWrite: !colour,
     });
     return {
@@ -207,45 +232,68 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     d.shadow.opacity = SHADOW_ALPHA * a;
   }
   const disposeDim = (d: Dim): void => { for (const m of [d.depthFill, d.depthHull, d.fill, d.hull, d.shadow]) m.dispose(); };
-  /** The shared opaque materials of each shade step (step 0 is the plain pair), made when first needed. */
-  const shades = new Map<number, { fill: ShaderMaterial; hull: ShaderMaterial }>();
-  function shadeMats(step: number): { fill: ShaderMaterial; hull: ShaderMaterial } {
-    if (step <= 0) return { fill: fillMat, hull: hullMat };
-    let m = shades.get(step);
+  /** The shared opaque materials of each style and shade step (step 0 is the plain pair), made when first needed. */
+  const shades = new Map<string, { fill: ShaderMaterial; hull: ShaderMaterial }>();
+  function shadeMats(step: number, style: Style): { fill: ShaderMaterial; hull: ShaderMaterial } {
+    if (step <= 0) return plainMats(style);
+    const key = `${style}|${step}`;
+    let m = shades.get(key);
     if (m === undefined) {
       const mk = (outline: boolean): ShaderMaterial => new ShaderMaterial({
-        uniforms: { ...uniforms(outline), uShade: { value: step / SHADE_STEPS } }, vertexShader: propVert, fragmentShader: propFrag,
-        vertexColors: true, side: outline ? BackSide : undefined, defines: { UNIT_SHADE: '', WORLD_NORMAL: '' },
+        uniforms: { ...uniforms(outline, style), uShade: { value: step / SHADE_STEPS } }, vertexShader: propVert, fragmentShader: propFrag,
+        vertexColors: true, side: outline ? BackSide : undefined, defines: defines(style, { UNIT_SHADE: '' }),
       });
       m = { fill: mk(false), hull: mk(true) };
-      shades.set(step, m);
+      shades.set(key, m);
     }
     return m;
   }
   /** Paint a figure's opaque meshes with a shade step. */
-  function repaint(b: Pick<Built, 'paint'>, step: number): void {
-    const m = shadeMats(step);
+  function repaint(b: Pick<Built, 'paint' | 'style'>, step: number): void {
+    const m = shadeMats(step, b.style);
     for (const p of b.paint) p.mesh.material = p.hull ? m.hull : m.fill;
   }
 
   const looks = new Map<string, Figure>();
-  function figureOf(type: GlUnit['type'], look: GlUnit['look'], hero: boolean): Figure {
-    const k = lookKey(type, look, hero);
+  function figureOf(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, gritty: boolean, wear: Wear): Figure {
+    const k = lookKey(type, look, hero, gritty, wear);
     let f = looks.get(k);
     if (f === undefined) {
-      f = buildFigure(type, { look, wear: CLEAN, hero });
+      f = buildFigure(type, { look, wear, hero, gritty });
       looks.set(k, f);
     }
     return f;
   }
+  /**
+   * Free the figures no unit or fall shows any more, once there are more than a few: in Gritty every wear look is a
+   * figure of its own, and a long match would otherwise keep every look it ever showed.
+   */
+  const LOOKS_KEPT = 12;
+  function pruneLooks(): void {
+    if (looks.size <= LOOKS_KEPT) return;
+    const used = new Set<string>();
+    for (const p of placed.values()) used.add(p.sig);
+    for (const g of fallen.values()) used.add(g.sig);
+    for (const [k, f] of looks) {
+      if (used.has(k) || looks.size <= LOOKS_KEPT) continue;
+      f.fill.dispose(); f.hull.dispose();
+      for (const pc of Object.values(f.pieces)) { pc.fill.dispose(); pc.hull.dispose(); }
+      looks.delete(k);
+    }
+  }
 
-  /** One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower on screen, as the svg feet. */
-  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, own?: Dim): Built {
-    const f = figureOf(type, look, hero);
+  /**
+   * One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower
+   * on screen, as the svg feet. A fall brings its own see-through materials (`own`, made for the figure's style).
+   */
+  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, gritty: boolean, wear: Wear, own?: (style: Style) => Dim): Built {
+    const f = figureOf(type, look, hero, gritty, wear);
+    const style = styleOf(gritty, f);
+    const base = plainMats(style);
     const g = new Group();
     const body = new Group();
     body.position.set(0, 0, FEET_Z);
-    const dim = own ?? null;
+    const dim = own === undefined ? null : own(style);
     const paint: Built['paint'] = [];
     // The shadow lies in the figure's group, not its body: idle life does not lift it, and a turn turns only its shape.
     const sh = new Mesh(shadowGeo, dim !== null ? dim.shadow : shadowMat);
@@ -257,14 +305,14 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const d = dim;
       meshes.push(new Mesh(f.hull, d.depthHull), new Mesh(f.fill, d.depthFill), new Mesh(f.hull, d.hull), new Mesh(f.fill, d.fill));
     } else {
-      const hull = new Mesh(f.hull, hullMat), fill = new Mesh(f.fill, fillMat);
+      const hull = new Mesh(f.hull, base.hull), fill = new Mesh(f.fill, base.fill);
       meshes.push(hull, fill);
       paint.push({ mesh: hull, hull: true }, { mesh: fill, hull: false });
     }
     for (const m of meshes) { m.frustumCulled = false; body.add(m); }
     // Moving pieces (the trebuchet's arm and stone, weapons, shields, legs, a rider): each in a group at its pivot,
     // so turning the group swings it. A piece built inside another is carried by it (a rider's lance).
-    const guard = guardOf(type);
+    const guard = guardOf(type, f.real);
     const inners = new Map<string, Group>();
     const pieces = new Map<string, Piece>();
     const piece = (name: string): Group | null => {
@@ -279,7 +327,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       inner.position.set(-pc.pivot[0], -pc.pivot[1], -pc.pivot[2]);
       const ms = dim !== null
         ? [new Mesh(pc.hull, dim.depthHull), new Mesh(pc.fill, dim.depthFill), new Mesh(pc.hull, dim.hull), new Mesh(pc.fill, dim.fill)]
-        : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
+        : [new Mesh(pc.hull, base.hull), new Mesh(pc.fill, base.fill)];
       if (dim === null) paint.push({ mesh: ms[0]!, hull: true }, { mesh: ms[1]!, hull: false });
       for (const m of ms) { m.frustumCulled = false; inner.add(m); }
       at.add(inner);
@@ -305,7 +353,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     const axis = f.pieces[ARM]?.axis;
     g.add(body);
     g.add(sh);
-    const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x, paint };
+    const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x, paint, style, guard };
     placeShadow(built, 0);
     return built;
   }
@@ -317,7 +365,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   const facings = new Map<number, Facing>();
   const turnMs = (ms: number): number => (reducedMotion() ? 0 : ms);
   // The facing of a unit that has just left the scene, by its look and tile, so its fall starts the way it stood.
-  const gone = new Map<string, { yaw: number; at: number }>();
+  const gone = new Map<string, { yaw: number; at: number; gritty: boolean; wear: Wear }>();
   // The facing of each unit that has gone out of sight (not died), by id, so it is seen again the way it stood.
   const unseen = new Map<number, { type: GlUnit['type']; yaw: number }>();
   const spot = (type: string, x: number, y: number): string => `${type}@${Math.round(x * 10)},${Math.round(y * 10)}`;
@@ -359,7 +407,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         fc.spent = u.spent;
         fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
       }
-      const sig = lookKey(u.type, u.look, u.hero);
+      const sig = lookKey(u.type, u.look, u.hero, u.gritty === true, wearOf(u));
       let p = placed.get(u.id);
       if (p !== undefined && p.sig !== sig) {
         scene.remove(p.group);
@@ -367,8 +415,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       }
       if (p === undefined) {
         p = {
-          sig, unit: u, ...makeGroup(u.type, u.look, u.hero), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
-          moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null, guard: guardOf(u.type),
+          sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.gritty === true, wearOf(u)), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
+          moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null,
         };
         scene.add(p.group);
         placed.set(u.id, p);
@@ -381,18 +429,22 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const step = fs === undefined ? 0 : shadeStep(crouchAt(fs.shade, now));
       if (step !== p.step) { repaint(p, step); p.step = step; }
     }
+    const placedLast = new Map<number, GlUnit>();
     for (const [id, p] of placed) {
       if (keep.has(id)) continue;
+      placedLast.set(id, p.unit);
       scene.remove(p.group);
       placed.delete(id);
     }
     for (const [k, g] of gone) if (now - g.at > GONE_MS) gone.delete(k);
     for (const [k, l] of left) if (now - l.at > GONE_MS) left.delete(k);
     for (const [k, f] of fallStrikes) if (now - f.at > GONE_MS) fallStrikes.delete(k);
+    pruneLooks();
     for (const [id, fc] of facings) {
       if (keep.has(id)) continue;
       const yaw = wrap(facingYaw(fc.face, now));
-      gone.set(spot(fc.type, fc.x, fc.y), { yaw, at: now });
+      const last = placedLast.get(id);
+      gone.set(spot(fc.type, fc.x, fc.y), { yaw, at: now, gritty: last?.gritty === true, wear: last === undefined ? CLEAN : wearOf(last) });
       unseen.set(id, { type: fc.type, yaw });
       left.set(id, { type: fc.type, x: fc.x, y: fc.y, at: now });
       // Whatever it was waiting to do (a delayed turn, a strike, a block) goes with it: seen again, it starts afresh.
@@ -474,7 +526,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
 
   // Falls: a figure of the fallen unit, turned about the line of sight through its tile centre and fading.
   const axis = new Vector3(0, -SQUASH, -COS_E); // the camera's view direction: a turn about it is a turn on screen
-  const fallen = new Map<string, { group: Group; dim: Dim; pieces: Map<string, Piece>; spot: string }>();
+  const fallen = new Map<string, { group: Group; dim: Dim; pieces: Map<string, Piece>; spot: string; sig: string }>();
   const q = new Quaternion();
   const Z = new Vector3(0, 0, 1), Y = new Vector3(0, 1, 0);
   function pose(at: ReadonlyMap<number, UnitPose>, falls: readonly UnitFall[]): void {
@@ -492,18 +544,22 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     const live = new Set<string>();
     for (const f of falls) {
       if (!(f.alpha > 0)) continue;
-      const k = `${f.key}|${lookKey(f.type, f.look, false)}`;
+      const at = spot(f.type, f.x, f.y);
+      // It falls as it looked when it stood (in Gritty, with its wear), facing the way it stood.
+      const was = gone.get(at);
+      const gritty = was?.gritty === true, wear = was?.wear ?? CLEAN;
+      const k = `${f.key}|${lookKey(f.type, f.look, false, gritty, wear)}`;
       live.add(k);
       let g = fallen.get(k);
       if (g === undefined) {
-        const dim = makeDim(f.alpha);
-        const b = makeGroup(f.type, f.look, false, dim);
+        const made: { dim: Dim | null } = { dim: null };
+        const b = makeGroup(f.type, f.look, false, gritty, wear, (style) => (made.dim = makeDim(f.alpha, style)));
+        const dim = made.dim!;
         // It falls facing the way it stood (or toward the unit it struck, if it struck as it fell).
-        const at = spot(f.type, f.x, f.y);
         const yaw = fallStrikes.get(at)?.yaw ?? gone.get(at)?.yaw ?? 0;
         b.body.quaternion.setFromAxisAngle(Y, yaw);
         placeShadow(b, yaw);
-        g = { group: b.group, dim, pieces: b.pieces, spot: at };
+        g = { group: b.group, dim, pieces: b.pieces, spot: at, sig: lookKey(f.type, f.look, false, gritty, wear) };
         scene.add(g.group);
         fallen.set(k, g);
       }
@@ -656,7 +712,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       for (const pc of Object.values(f.pieces)) { pc.fill.dispose(); pc.hull.dispose(); }
     }
     looks.clear();
-    const mats: Material[] = [fillMat, hullMat, shadowMat];
+    const mats: Material[] = [shadowMat];
+    for (const m of plains.values()) mats.push(m.fill, m.hull);
+    plains.clear();
     for (const m of shades.values()) mats.push(m.fill, m.hull);
     shades.clear();
     for (const m of mats) m.dispose();
