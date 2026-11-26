@@ -11,10 +11,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
 import { fogGeometry, tilePieces } from './build';
 import type { TilePieces } from './build';
+import { tileCode } from './codes';
 import type { GlMap, GlTile } from './input';
 import { COS_E, EDGE_NB, parse, SQUASH } from './layout';
 import { groundFrag, groundVert, propFrag, propVert } from './shaders';
 import { createFalls } from './falls';
+import { createBorders } from './borders';
+import { createLanterns } from './lanterns';
 import { anyInView } from './fallsLayout';
 import { createUnits3d } from './units/units3d';
 import type { Units3d } from './units/units3d';
@@ -37,6 +40,10 @@ export interface Terrain3d {
   animating(cam: TerrainCamera, vp: TerrainViewport): boolean;
   /** The waterfalls on the map, for tests. */
   falls(): number;
+  /** The mine lanterns and furnaces on the map and each flicker voice's brightness now, for tests. */
+  lanterns(): { count: number; glow: [number, number] };
+  /** Triangles in the territory border mesh, for tests. */
+  borderTriangles(): number;
   /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
   readonly units: Units3d | null;
   /** Free every GPU resource and the context. */
@@ -48,8 +55,7 @@ export interface Terrain3d {
 /** The highest device pixel ratio the terrain renders at: sharp on phones, without paying for 3x. */
 export const MAX_DPR = 2;
 
-const code = (t: GlTile | undefined): string =>
-  t === undefined ? 'x' : `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}`;
+const code = (t: GlTile | undefined): string => (t === undefined ? 'x' : tileCode(t));
 
 /**
  * Make the renderer, or null when this device has no WebGL 2 (the board then stays all SVG). The options are for
@@ -83,6 +89,10 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const units = opts.units ? createUnits3d(opts.units, shared) : null;
   // The waterfalls go with the figures, whose canvas redraws on its own; without it they stand still on the terrain.
   const falls = createFalls(shared);
+  // Territory borders lie on the ground; what stands in front of one hides it, and it shows through faintly.
+  const borders = createBorders();
+  // The mines' lanterns (and the foundries' furnaces) flicker, so their light goes with the figures too.
+  const lanterns = createLanterns(shared);
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
   const propMat = new ShaderMaterial({ uniforms: propUniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true });
@@ -93,9 +103,9 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const props = new Mesh(new BufferGeometry(), propMat);
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
-  scene.add(ground, outline, props);
-  if (units) units.extras.add(falls.group);
-  else scene.add(falls.group);
+  scene.add(ground, outline, props, borders.group);
+  if (units) units.extras.add(falls.group, lanterns.group);
+  else scene.add(falls.group, lanterns.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
   const cache = new Map<string, TilePieces>();
@@ -131,6 +141,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     oldProps.dispose();
     paintVeil();
     falls.setMap(map);
+    borders.setMap(map);
+    lanterns.setMap(map);
   }
 
   // The veil: aVeil on every vertex, 1 where its tile (aHex) is veiled. Rewritten in place, so no rebuild.
@@ -154,6 +166,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     veiledNow = new Set(veiled.map((k) => { const { q, r } = parse(k); return hexId(q, r); }));
     paintVeil();
     falls.setVeil(veiled);
+    lanterns.setVeil(veiled);
   }
 
   // The SVG board's camera (cx, cy, scale in board units and px per unit) and viewport, unchanged. The camera looks
@@ -191,16 +204,21 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     flowAt = nowMs;
     flow += dt * Math.min(1, Math.max(0, level));
     falls.setTime(flow);
+    // The lanterns flicker on the wall clock, scaled by the level: at rest and under reduced motion they hold steady.
+    lanterns.setTime(nowMs / 1000, level);
   }
   function animating(cam: TerrainCamera, vp: TerrainViewport): boolean {
     if (units === null) return false;
     if (units.onScreen(cam, vp)) return true;
     const hw = vp.w / 2 / cam.scale, hh = vp.h / 2 / cam.scale;
-    return anyInView(falls.boxes(), { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh });
+    const view = { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh };
+    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view);
   }
 
   function dispose(): void {
     falls.dispose();
+    borders.dispose();
+    lanterns.dispose();
     units?.dispose();
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
     cache.clear();
@@ -213,6 +231,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
 
   return {
     setMap, setVeil, draw, drawUnits, tick, animating, dispose, units, falls: () => falls.count(),
+    lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow() }), borderTriangles: () => borders.triangles(),
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, tiles: tileCount }),
   };
 }

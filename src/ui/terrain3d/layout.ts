@@ -6,8 +6,10 @@
 // layout (one of six turns) so the same layout reads differently. The light never turns with it: only the
 // layout does. Tall things (peaks, the grove behind what shares a forest) keep to the back of the tile.
 import type { HexKey } from '../../engine';
-import { THICK_3D } from './input';
+import { THICK_3D } from './codes';
 import type { GlMap, GlTile } from './input';
+import { MINE_FLAT, townPlan, villagePlan } from './townLayout';
+import type { TownPlan } from './townLayout';
 
 export const R = 30; // board/layout.ts
 export const SQUASH = 0.62; // board/layout.ts
@@ -151,6 +153,9 @@ export interface Setup {
   blobs: [number, number, number, number][]; // soft shadows on the ground: x, z, radius, strength
   tufts: [number, number, number, number][];
   hillEdges: number[];
+  // A city's or a village's buildings (townLayout.ts), and a mine or foundry built into the mountain.
+  town: TownPlan | null;
+  works: 'mine' | 'foundry' | null;
 }
 
 // Roads: as Road in features.tsx, a track from the tile centre to the middle of each edge whose neighbour has a
@@ -214,8 +219,10 @@ export function peaksFor(v: number, turn: number, shared: boolean, mine: boolean
   // The turn spins the ridges a little: the faces change, the lit-left and shaded-right split stays.
   const main: Peak = { x: mx, z: mz, h: mh, b: mb, rot: mrot + (turn - 2.5) * 0.05, shoulder, snow: 2 };
   if (shared) {
-    // Ore or a mine shares the tile: the main peak keeps its full form, moved back and aside.
-    Object.assign(main, { x: mx + (mine ? 6 : -4), z: mz - (mine ? 6 : 5), h: mh * (mine ? 0.9 : 0.96), b: mb * 0.9 });
+    // Ore shares the tile: the main peak keeps its full form, moved back and aside. A mine's rock face and tunnel
+    // stand in front of it, so it moves further back and is a little smaller, clear of the tunnel.
+    if (mine) Object.assign(main, { x: mx + 5, z: -1.2 - mb * 0.66, h: mh * 0.86, b: mb * 0.66 });
+    else Object.assign(main, { x: mx - 4, z: mz - 5, h: mh * 0.96, b: mb * 0.9 });
   }
   const out: Peak[] = [main];
   L.subs.forEach(([x, z, f, b], i) => {
@@ -242,8 +249,22 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   const shared = t.terrain === 'mountain' && (res === 'ore' || res === 'jewels' || works || t.treasure);
   const links = roadLinks(map, k);
   const faded = res !== null && t.harvested;
-  const out: Setup = { t, q, r, v, turn, res, faded, links, trees: [], peaks: [], props: [], bits: [], blobs: [], tufts: [], hillEdges: [] };
-  if (city) return out;
+  const out: Setup = {
+    t, q, r, v, turn, res, faded, links, trees: [], peaks: [], props: [], bits: [], blobs: [], tufts: [], hillEdges: [],
+    town: null, works: t.terrain === 'mountain' && works && !city ? (t.building as 'mine' | 'foundry') : null,
+  };
+  if (city) {
+    if (t.town !== null) {
+      out.town = townPlan(t.town, q, r);
+      for (const p of out.town.pieces) out.blobs.push([p.x, p.z, p.foot * 1.15, 0.24]);
+    }
+    return out;
+  }
+  if (t.village && t.building === null) {
+    out.town = villagePlan(v, turn, q, r);
+    for (const p of out.town.pieces) out.blobs.push([p.x, p.z, p.foot * 1.1, 0.22]);
+  }
+  if (out.works !== null) out.blobs.push([-3, 4, 13, 0.18], [12, 6, 7, out.works === 'foundry' ? 0.2 : 0]);
   const seed = hash2(q, r) * 6.28;
   const free = res === null && t.building === null && !t.village && !t.treasure;
   if (t.terrain === 'mountain') {
@@ -266,6 +287,11 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
         if (p) out.trees.push([p[0], p[1], s]);
       }
     }
+  }
+  // A village's huts push aside the grove's trees that would stand in them.
+  if (out.town !== null) {
+    const pieces = out.town.pieces;
+    out.trees = out.trees.filter(([x, z, s]) => pieces.every((p) => Math.hypot(x - p.x, z - p.z) > p.foot + 4 * s));
   }
   const place = (kind: PropKind, x: number, z: number, s: number, rad: number, flip = false): void => {
     const p = offRoad(links, x, z, rad * s);
@@ -442,6 +468,11 @@ export function heightFn(setup: Setup): (lx: number, lz: number) => number {
       h += 2.4 * (0.45 + 0.55 * near) * smooth(0.2, 0.9, n) * smooth(1, 9, edgeDist(lx, lz));
     }
     if (setup.res === 'cropland') h += 0.5 * vnoise(lx * 0.3 + q, lz * 0.3 + r);
+    // The mine's yard is level ground, so its tunnel floor and rails sit on it.
+    if (setup.works !== null) {
+      const dx = Math.max(MINE_FLAT.x0 - lx, 0, lx - MINE_FLAT.x1), dz = Math.max(MINE_FLAT.z0 - lz, 0, lz - MINE_FLAT.z1);
+      h *= smooth(0, 6, Math.hypot(dx, dz));
+    }
     // Roads are packed flat.
     const onRoad = smooth(ROAD_HALF + 3, ROAD_HALF, roadDist(setup.links, lx, lz));
     return h * fade * (1 - 0.7 * onRoad);
