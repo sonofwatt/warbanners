@@ -3,7 +3,6 @@ import type { City, HexKey, PlayerId, PlayerView, Tile, Unit } from '../../engin
 import { FIGURE_H, boardKeys, boardToHex, hexToBoard } from './layout';
 import type { Pt } from './layout';
 import type { Mark } from './mark';
-import type { TrackLook } from './tracks';
 
 export interface SceneTile {
   kind: 'tile';
@@ -22,9 +21,9 @@ export interface SceneTile {
   mark: Mark | null;
   ready: boolean; // one of the viewer's units can capture or claim a treasure here: it glows gold under any mark
   occupied: boolean; // a unit the viewer can see stands on it (a treasure there is drawn beside the figure)
-  // tracks3d: the marks traffic left here (tracks.ts), and for each of `roadLinks` the road's wear where it meets
-  // that neighbour (the busier of the two), so a widened road meets its neighbour at one width. Left out: none.
-  tracks?: TrackLook | null;
+  // tracks3d: a busy road's wear step here (roadWear.ts, 1 to 3), and for each of `roadLinks` its wear where it meets
+  // that neighbour (the busier of the two), so a widened road meets its neighbour at one width. Left out: a light road.
+  roadLevel?: number;
   roadWear?: number[];
 }
 export interface SceneUnit {
@@ -46,8 +45,8 @@ export interface SceneInput {
   // The city whose land is outlined (the selected city, either player's), drawn on the explored tiles the viewer
   // knows to be its territory, the same knowledge the faction borders show.
   cityLand?: number | null;
-  // tracks3d: the traffic marks the viewer has seen (tracks.ts), drawn on explored tiles only. None when left out.
-  tracks?: ReadonlyMap<HexKey, TrackLook>;
+  // tracks3d: each busy road's wear step from the traffic the viewer has seen (roadWear.ts). None when left out.
+  roadWear?: ReadonlyMap<HexKey, number>;
 }
 
 const HALF_WIDTH = 13; // board units either side of a figure's centre line
@@ -92,7 +91,7 @@ export function buildScene(input: SceneInput): SceneItem[] {
       const roadLinks: number[] = [];
       const inLand = land !== null && tile.cityId === land;
       const cityEdges: number[] | null = inLand ? [] : null;
-      const look = input.tracks?.get(k) ?? null;
+      const level = tile.road && !cityAt.has(k) ? input.roadWear?.get(k) ?? 0 : 0;
       const roadWear: number[] = [];
       neighbors(parseKey(k)).forEach((n, dir) => {
         const nk = key(n);
@@ -101,14 +100,14 @@ export function buildScene(input: SceneInput): SceneItem[] {
         const nt = view.tiles[nk];
         if (tile.road && nt && (nt.road || cityAt.has(nk))) {
           roadLinks.push(dir);
-          const other = nt.road && !cityAt.has(nk) ? input.tracks?.get(nk)?.road ?? 0 : 0;
-          roadWear.push(Math.max(look?.road ?? 0, other));
+          const other = nt.road && !cityAt.has(nk) ? input.roadWear?.get(nk) ?? 0 : 0;
+          roadWear.push(Math.max(level, other));
         }
       });
       out.push({
         kind: 'tile', key: k, at, fog: false, tile, veiled: !visible.has(k),
         city, owner, borderEdges, cityEdges, roadLinks, mark: marks[k] ?? null, ready: ready.has(k), occupied: unitsAt.has(k),
-        ...(tile.terrain !== 'water' && (look !== null || roadWear.some((w) => w > 0)) ? { tracks: look, roadWear } : {}),
+        ...(level > 0 || roadWear.some((w) => w > 0) ? { roadLevel: level, roadWear } : {}),
       });
     }
     for (const unit of (unitsAt.get(k) ?? []).slice().sort((a, b) => a.id - b.id)) {

@@ -27,18 +27,14 @@ export interface GlTile {
   // moves never rebuilds a tile whose look does not show it), and a treasure drawn beside a unit standing on it.
   owner?: FactionId | null;
   beside?: boolean;
-  // tracks3d: the traffic marks on this tile, packed for the ground shader (left out on a tile with none).
-  tracks?: GlTracks;
+  // tracks3d: a busy road's wear, for the ground shader (left out on a light road and every other tile).
+  roadWear?: GlRoadWear;
 }
 /**
- * tracks3d: a tile's traffic, packed as the ground shader reads it. Edge bits and digits are in the 3D look's edge
- * order (layout.ts EDGE_NB), not the engine's.
- * - masks: the foot, hoof and wheel edges, 6 bits each (foot + 64 hoof + 4096 wheel);
- * - levels: their wear steps, 0 to 3, and the path step, 0 to 2 (foot + 4 hoof + 16 wheel + 64 path);
- * - road: the road's wear step at the tile's centre, 0 to 3;
- * - edges: the road's wear where it meets each neighbour, a base 4 digit per edge.
+ * tracks3d: how worn a road is: `road` its wear step at the tile's centre (0, a light road, to 3), `edges` its wear
+ * where it meets each neighbour, a base 4 digit per edge in the 3D look's edge order (layout.ts EDGE_NB).
  */
-export interface GlTracks { masks: number; levels: number; road: number; edges: number }
+export interface GlRoadWear { road: number; edges: number }
 /** What a city shows in 3D. A reward waiting to be chosen (the star) stays in the svg, over everything. */
 export interface GlTown { faction: FactionId; level: number; capital: boolean; walls: boolean }
 export interface GlMap {
@@ -81,11 +77,10 @@ export interface SvgLayers {
   building: boolean; // the tile's building mark (BuildingMark), when it has one
   border: boolean; // the territory border lines
   treasure: boolean; // the treasure chest (Treasure), when the tile shows one
-  tracks: boolean; // tracks3d: the traffic marks and a busy road's wider look (Tracks)
 }
 
-const ALL: SvgLayers = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true, treasure: true, tracks: true };
-const NONE: SvgLayers = { base: false, road: false, feature: false, resource: false, town: false, village: false, building: false, border: false, treasure: false, tracks: false };
+const ALL: SvgLayers = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true, treasure: true };
+const NONE: SvgLayers = { base: false, road: false, feature: false, resource: false, town: false, village: false, building: false, border: false, treasure: false };
 
 export function svgLayers(t: { fog: boolean; tile: Tile | null; city?: City | null }, gl: boolean): SvgLayers {
   if (!gl) return ALL;
@@ -128,8 +123,8 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
       owner: t.building === 'market' && it.owner !== null ? factions[it.owner] ?? null : null,
       beside: t.treasure && it.occupied,
     };
-    const tracks = it.city === null ? glTracksOf(it) : null;
-    if (tracks !== null) tiles[it.key]!.tracks = tracks;
+    const wear = it.city === null ? glRoadWearOf(it) : null;
+    if (wear !== null) tiles[it.key]!.roadWear = wear;
     if (it.veiled) veiled.push(it.key);
     const ownerFaction = it.owner === null ? undefined : factions[it.owner];
     if (ownerFaction !== undefined && it.borderEdges.length > 0) borders.push({
@@ -148,18 +143,15 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
 
 /** The 3D edge (EDGE_NB order) of an engine direction (DIRS order). */
 export const edge3d = (dir: number): number => (6 - dir) % 6;
-const maskTo3d = (m: number): number => [0, 1, 2, 3, 4, 5].reduce((o, d) => ((m >> d) & 1 ? o | (1 << edge3d(d)) : o), 0);
 
-/** A scene tile's traffic packed for the 3D ground (GlTracks), or null when it shows none. */
-export function glTracksOf(it: SceneTile): GlTracks | null {
-  const l = it.tracks ?? null;
+/** A scene tile's road wear packed for the 3D ground (GlRoadWear), or null on a light road or no road. */
+export function glRoadWearOf(it: SceneTile): GlRoadWear | null {
+  if (it.tile?.road !== true) return null;
   const wear = it.roadWear ?? [];
-  const road = it.tile?.road === true ? l?.road ?? 0 : 0;
   let edges = 0;
-  if (it.tile?.road === true) it.roadLinks.forEach((d, i) => { edges += (wear[i] ?? 0) * 4 ** edge3d(d); });
-  const masks = l === null ? 0 : maskTo3d(l.foot.edges) + 64 * maskTo3d(l.hoof.edges) + 4096 * maskTo3d(l.wheel.edges);
-  const levels = l === null ? 0 : l.foot.level + 4 * l.hoof.level + 16 * l.wheel.level + 64 * l.path;
-  return masks === 0 && levels === 0 && road === 0 && edges === 0 ? null : { masks, levels, road, edges };
+  it.roadLinks.forEach((d, i) => { edges += (wear[i] ?? 0) * 4 ** edge3d(d); });
+  const road = it.roadLevel ?? 0;
+  return road === 0 && edges === 0 ? null : { road, edges };
 }
 
 function townOf(city: City | null, factions: readonly FactionId[]): GlTown | null {
