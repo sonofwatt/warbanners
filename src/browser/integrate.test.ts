@@ -127,14 +127,11 @@ describe.runIf(process.env.BROWSER === '1')('0.7.0 together: panels, war banners
         const [atBanner] = await changeWhenHidden(page, `[data-unit][data-at="${CAPITAL}"] [data-banner]`, [{ x: b2.x + b2.width / 2, y: b2.y + b2.height / 2 }]);
         expect(atBanner, 'the banner shows over the city').toBeGreaterThan(40);
 
-        // The ring is on top: hiding it changes the screen at its left and right corners (clear of the figure).
+        // The ring is on top: hiding it changes the screen on its left and right sides, at mid height (clear of the
+        // figure). Read from the layout box, which carries any css transform on the tile.
         const corners = await page.evaluate((hex) => {
-          const poly = document.querySelector<SVGPolygonElement>(`[data-hex="${hex}"] [data-mark="selected"] polygon[fill="none"]`)!;
-          const m = poly.getScreenCTM()!;
-          const pts = [...poly.points].map((p) => ({ x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f }));
-          const left = pts.reduce((a, p) => (p.x < a.x ? p : a));
-          const right = pts.reduce((a, p) => (p.x > a.x ? p : a));
-          return [left, right];
+          const r = document.querySelector(`[data-hex="${hex}"] [data-mark="selected"] polygon[fill="none"]`)!.getBoundingClientRect();
+          return [{ x: r.left, y: r.top + r.height / 2 }, { x: r.right, y: r.top + r.height / 2 }];
         }, CAPITAL);
         const atRing = await changeWhenHidden(page, `[data-hex="${CAPITAL}"] [data-mark="selected"]`, corners);
         for (const d of atRing) expect(d, 'the ring shows over the city').toBeGreaterThan(40);
