@@ -7,7 +7,8 @@
 // back and the sides. In a forest the grove along the back stays, and the camp or mill stands in front of it.
 import type { BuildingId, HexKey } from '../../engine';
 import type { GlMap, GlTile } from './input';
-import { centre, COS_E, edgeDist, hash2, parse, SQUASH } from './layout';
+import { centre, COS_E, edgeDist, hash2, heightFn, parse, SQUASH, tileSetup } from './layout';
+import { FURNACE } from './townLayout';
 
 /** The buildings this file lays out; the mine and the foundry are built into the mountain (townLayout.ts). */
 export type FieldBuilding = Exclude<BuildingId, 'mine' | 'foundry'>;
@@ -39,6 +40,15 @@ export interface BuildingPlan { building: FieldBuilding; pieces: BuildingPiece[]
 /** The lumber mill's water wheel: its hub (local to the tile), radius and which way it is mirrored. */
 export interface WheelSpot { x: number; y: number; z: number; r: number }
 export const WHEEL = { x: 12, y: 7.8, z: 2, r: 7.5 } as const;
+
+/**
+ * Each piece is shaped at a modest size and drawn larger, so it reads at the phone's default zoom as boldly as the
+ * svg mark does. Trees take their size from the layout; plots, strips, fences and the race are laid out to size.
+ */
+export const PIECE_SIZE: Partial<Record<PieceKind, number>> = {
+  plot: 1.25, wheatPlot: 1.25, barn: 1.45, bale: 1.45, granary: 1.3, sheaf: 1.4, ladder: 1.35, basket: 1.45, crates: 1.4,
+  cabin: 1.45, stump: 1.45, logPile: 1.4, bigLogPile: 1.35, sawhorse: 1.4, mill: 1.3, planks: 1.35, stall: 1.35, barrel: 1.5, sack: 1.5,
+};
 
 /** How far from the middle a tall piece must keep, so a unit standing there never stands inside it. */
 export const CLEAR = 8;
@@ -233,3 +243,74 @@ export function wheelSpots(map: GlMap): WheelSpotOnMap[] {
 export const WHEEL_SPEED = 1.05;
 /** The wheel's turn after `flow` seconds of the motion clock (which stands still at rest and under reduced motion). */
 export const wheelAngle = (flow: number, phase: number): number => -(flow * WHEEL_SPEED + phase);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Chimney smoke
+
+/**
+ * The chimney tops that smoke, local to their piece's place and before its size (buildings.ts SIZE): the lumber
+ * camp's cabin stovepipe and the lumber mill's chimney. The foundry's chimney top is local to the tile.
+ */
+export const CABIN_PIPE = { x: 8.4 * 0.28, y: 5.2 + 0.6 + 4.6, z: -7 * 0.15 } as const;
+export const MILL_CHIMNEY = { x: -4.5, y: 19.6, z: -1.6 } as const;
+export const FOUNDRY_CHIMNEY = { x: FURNACE.x + 2.2, y: 19.5, z: FURNACE.z - 1.6 } as const;
+
+/** A smoking chimney: where its smoke starts (world), how full it is (a thin wisp, or fuller), and its board box. */
+export interface SmokeSpot { key: HexKey; x: number; y: number; z: number; kind: 'wisp' | 'full'; seed: number; box: { x0: number; x1: number; y0: number; y1: number } }
+
+/** Puffs a chimney sends up at once: a thin wisp has fewer, smaller ones. */
+export const SMOKE_PUFFS = { wisp: 4, full: 6 } as const;
+/** How high a puff rises over its life, and how far the wind carries it to the right (world units). */
+export const SMOKE_RISE = 22;
+export const SMOKE_DRIFT = 9;
+
+/** Every smoking chimney on the map: lumber camps, lumber mills and foundries. */
+export function smokeSpots(map: GlMap): SmokeSpot[] {
+  const out: SmokeSpot[] = [];
+  for (const k of Object.keys(map.tiles).sort()) {
+    const t = map.tiles[k]!;
+    if (t.city) continue;
+    const { q, r } = parse(k);
+    const c = centre(q, r);
+    let at: { x: number; y: number; z: number } | null = null;
+    let kind: SmokeSpot['kind'] = 'full';
+    if (t.building === 'foundry' && t.terrain === 'mountain') at = FOUNDRY_CHIMNEY;
+    else if (t.building === 'lumberCamp' || t.building === 'lumberMill') {
+      const setup = tileSetup(map, k);
+      const camp = t.building === 'lumberCamp';
+      const p = setup.building?.pieces.find((x) => x.kind === (camp ? 'cabin' : 'mill'));
+      if (p === undefined) continue;
+      const top = camp ? CABIN_PIPE : MILL_CHIMNEY, size = PIECE_SIZE[p.kind] ?? 1;
+      at = { x: p.x + top.x * size, y: heightFn(setup)(p.x, p.z) + top.y * size, z: p.z + top.z * size };
+      kind = camp ? 'wisp' : 'full';
+    }
+    if (at === null) continue;
+    const x = c.x + at.x, z = c.z + at.z;
+    const bx = x + SMOKE_DRIFT / 2, by = z * SQUASH - (at.y + SMOKE_RISE / 2) * COS_E;
+    out.push({ key: k, x, y: at.y, z, kind, seed: hash2(q * 2.9, r * 1.3), box: { x0: bx - 12, x1: bx + 12, y0: by - 16, y1: by + 16 } });
+  }
+  return out;
+}
+
+/** The smoke's clock wraps every SMOKE_PERIOD seconds; each puff lives a whole number of times per period. */
+export const SMOKE_PERIOD = 1000;
+/** Lives per second of puff i of a chimney with seed w: a puff lasts about 3 to 4 s. */
+export const smokeRate = (i: number, w: number): number => Math.floor(300 * (0.85 + 0.3 * ((i * 0.37 + w) % 1))) / SMOKE_PERIOD;
+
+/**
+ * Where puff i of n of a chimney is at clock `t` (seconds), as the vertex shader draws it: how far through its life,
+ * its rise and drift from the chimney top, its size (as a share of the chimney's puff size) and its opacity. It
+ * swells as it rises, drifts to the right more the higher it goes, and fades in quickly and out slowly.
+ */
+export function smokePuff(t: number, i: number, n: number, w: number): { life: number; x: number; y: number; size: number; alpha: number } {
+  const tw = ((t % SMOKE_PERIOD) + SMOKE_PERIOD) % SMOKE_PERIOD;
+  const life = (((tw * smokeRate(i, w) + i / n + w) % 1) + 1) % 1;
+  const sway = Math.sin(life * 5.0 + i * 1.7) * 0.6;
+  return {
+    life,
+    x: SMOKE_DRIFT * life * life + sway * life,
+    y: SMOKE_RISE * life,
+    size: 0.45 + 1.05 * Math.sqrt(life),
+    alpha: Math.min(1, life / 0.12) * (1 - life) * (1 - life) * 1.15,
+  };
+}

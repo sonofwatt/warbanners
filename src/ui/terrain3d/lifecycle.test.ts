@@ -20,7 +20,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 function fakeTerrain(): Terrain3d & { disposed: number } {
-  const t = { disposed: 0, setMap: () => {}, setVeil: () => {}, draw: () => {}, drawUnits: () => {}, tick: () => {}, animating: () => false, falls: () => 0, lanterns: () => ({ count: 0, glow: [1, 1] as [number, number] }), borderTriangles: () => 0, chests: () => {}, playing: () => false, wheels: () => ({ count: 0, angle: 0, triangles: 0 }), opening: () => [], units: null, stats: () => ({ triangles: 0, calls: 0, tiles: 0 }), dispose: () => { t.disposed++; } };
+  const t = { disposed: 0, setMap: () => {}, setVeil: () => {}, draw: () => {}, drawUnits: () => {}, tick: () => {}, animating: () => false, falls: () => 0, lanterns: () => ({ count: 0, glow: [1, 1] as [number, number], tunnel: { lit: 0, front: 0 } }), smoke: () => ({ count: 0, time: 0 }), borderTriangles: () => 0, chests: () => {}, playing: () => false, wheels: () => ({ count: 0, angle: 0, triangles: 0 }), opening: () => [], units: null, stats: () => ({ triangles: 0, calls: 0, tiles: 0 }), dispose: () => { t.disposed++; } };
   return t;
 }
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));

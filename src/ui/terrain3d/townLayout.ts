@@ -153,8 +153,13 @@ export function villagePlan(v: number, turn: number, q: number, r: number): Town
  * OPEN_W half wide and OPEN_H tall.
  */
 export const MINE = { x: -3, z: 9, halfW: 14.5, h: 17.5, depth: 9, openW: 5.2, openH: 11.5 } as const;
-/** Where the lantern hangs inside the tunnel (local to the tile), placed so the camera sees it through the frame. */
-export const LANTERN = { x: MINE.x - MINE.openW + 1.4, y: 5.6, z: MINE.z - 3 } as const;
+/**
+ * Where the lantern hangs (local to the tile): deep in the tunnel, on a chain from the far frame's lintel, and low
+ * enough that the camera, looking down at the elevation whose sine is SQUASH, sees it under the mouth's lintel.
+ */
+export const LANTERN = { x: MINE.x - 1.4, y: 4.4, z: MINE.z - 5.6 } as const;
+/** How far the lantern's light reaches in the tunnel (world units): the far wall and frames, out to the mouth. */
+export const LANTERN_REACH = 9.5;
 /** The foundry's furnace: beside the mine face, its glowing mouth facing the viewer. */
 export const FURNACE = { x: 13, z: 5, mouthY: 2.6 } as const;
 

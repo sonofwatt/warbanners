@@ -22,6 +22,7 @@ import { anyInView } from './fallsLayout';
 import { createUnits3d } from './units/units3d';
 import { createWheels } from './wheels';
 import { createChests } from './chests';
+import { createSmoke } from './smoke';
 import { chestPlays, chestSpots } from './buildingLayout';
 import type { Units3d } from './units/units3d';
 
@@ -43,8 +44,13 @@ export interface Terrain3d {
   animating(cam: TerrainCamera, vp: TerrainViewport): boolean;
   /** The waterfalls on the map, for tests. */
   falls(): number;
-  /** The mine lanterns and furnaces on the map and each flicker voice's brightness now, for tests. */
-  lanterns(): { count: number; glow: [number, number] };
+  /**
+   * The mine lanterns and furnaces on the map, each flicker voice's brightness now, and the triangles of the lit
+   * tunnel insides and their depth-only fronts, for tests.
+   */
+  lanterns(): { count: number; glow: [number, number]; tunnel: { lit: number; front: number } };
+  /** The smoking chimneys on the map and the smoke's clock now, for tests. */
+  smoke(): { count: number; time: number };
   /**
    * Treasure claimed (the action's claim effects: the tile and its delay): each chest the map showed there opens, its
    * lid swinging back, then fades away. Nothing with reduced motion (`reduced`), or without the units canvas.
@@ -106,9 +112,12 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   // Territory borders lie on the ground; what stands in front of one hides it, and it shows through faintly.
   const borders = createBorders();
   // The mines' lanterns (and the foundries' furnaces) flicker, so their light goes with the figures too.
-  const lanterns = createLanterns(shared);
+  // With the figures' canvas, the lantern also lights its tunnel's inside there, over the terrain's unlit copy.
+  const lanterns = createLanterns(shared, units !== null);
   // The lumber mills' wheels turn in the same loop; a claimed chest opens on the figures' canvas.
   const wheels = createWheels(shared);
+  // Chimney smoke (camps, mills, foundries) drifts on the same clock as the waterfalls' mist.
+  const smoke = createSmoke(shared);
   const chestsFx = units ? createChests(shared) : null;
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
@@ -121,8 +130,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
   scene.add(ground, outline, props, borders.group);
-  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, chestsFx!.group);
-  else scene.add(falls.group, lanterns.group, wheels.group);
+  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, chestsFx!.group);
+  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
   const cache = new Map<string, TilePieces>();
@@ -161,6 +170,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     borders.setMap(map);
     lanterns.setMap(map);
     wheels.setMap(map);
+    smoke.setMap(map);
     noteChests(map);
   }
 
@@ -212,6 +222,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     falls.setVeil(veiled);
     lanterns.setVeil(veiled);
     wheels.setVeil(veiled);
+    smoke.setVeil(veiled);
   }
 
   // The SVG board's camera (cx, cy, scale in board units and px per unit) and viewport, unchanged. The camera looks
@@ -250,6 +261,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     flow += dt * Math.min(1, Math.max(0, level));
     falls.setTime(flow);
     wheels.setTime(flow);
+    smoke.setTime(flow);
     chestsFx?.tick(nowMs);
     // The lanterns flicker on the wall clock, scaled by the level: at rest and under reduced motion they hold steady.
     lanterns.setTime(nowMs / 1000, level);
@@ -260,7 +272,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     if (chestsFx?.playing(performance.now()) === true) return true;
     const hw = vp.w / 2 / cam.scale, hh = vp.h / 2 / cam.scale;
     const view = { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh };
-    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view);
+    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view) || anyInView(smoke.boxes(), view);
   }
 
   function dispose(): void {
@@ -268,6 +280,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     borders.dispose();
     lanterns.dispose();
     wheels.dispose();
+    smoke.dispose();
     chestsFx?.dispose();
     units?.dispose();
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
@@ -281,7 +294,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
 
   return {
     setMap, setVeil, draw, drawUnits, tick, animating, dispose, units, falls: () => falls.count(),
-    lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow() }),
+    lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow(), tunnel: lanterns.tunnel() }),
+    smoke: () => ({ count: smoke.count(), time: smoke.time() }),
     chests, playing: (nowMs) => chestsFx?.playing(nowMs) === true,
     wheels: () => ({ count: wheels.count(), angle: wheels.angle(), triangles: wheels.triangles() }),
     opening: () => chestsFx?.state() ?? [],

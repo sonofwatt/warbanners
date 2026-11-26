@@ -95,3 +95,49 @@ test('the mill wheel is one mesh for the map, turns with the motion clock, holds
   expect(t.wheels().count).toBe(0);
   t.dispose();
 });
+
+test('chimney smoke: one mesh for the map, on the motion clock, standing still at rest', () => {
+  const t = make();
+  t.setMap(mapOf({ '0,0': { terrain: 'forest', building: 'lumberCamp' }, '1,0': { terrain: 'forest', building: 'lumberMill' }, '2,0': { terrain: 'mountain', building: 'foundry' } }));
+  expect(t.smoke().count).toBe(3);
+  t.tick(0, 1);
+  t.tick(80, 1);
+  const moving = t.smoke().time;
+  expect(moving).toBeGreaterThan(0);
+  t.tick(160, 0);
+  const held = t.smoke().time;
+  t.tick(5000, 0);
+  expect(t.smoke().time).toBe(held); // at rest and under reduced motion the clock, and so the smoke, holds still
+  expect(t.animating({ cx: 0, cy: 0, scale: 1 }, { w: 400, h: 400 })).toBe(true);
+  t.setMap(mapOf({ '0,0': { terrain: 'forest', building: 'lumberCamp' } }));
+  expect(t.smoke().count).toBe(1);
+  t.dispose();
+});
+
+test('the lantern lights its tunnel\'s inside on the figures\' canvas, behind a depth-only copy of the mine\'s front', async () => {
+  const { worksPieces, worksParts } = await import('./town');
+  const { MINE } = await import('./townLayout');
+  const t = make();
+  t.setMap(mapOf({ '0,0': { terrain: 'mountain', building: 'mine' }, '1,0': { terrain: 'mountain', building: 'foundry' } }));
+  const { lit, front } = t.lanterns().tunnel;
+  expect(lit).toBeGreaterThan(100);
+  expect(front).toBeGreaterThan(100);
+  t.dispose();
+  // Without the figures' canvas the lanterns draw in the terrain scene, which already has the inside: no second copy.
+  const bare = createTerrain3d({} as HTMLCanvasElement, {})!;
+  bare.setMap(mapOf({ '0,0': { terrain: 'mountain', building: 'mine' } }));
+  expect(bare.lanterns().tunnel).toEqual({ lit: 0, front: 0 });
+  bare.dispose();
+  // The three sets are the whole mine, and everything lit lies inside the tunnel or on its rails.
+  const count = (gs: { attributes: { position?: { count: number } } }[]): number => gs.reduce((n, g) => n + (g.attributes.position?.count ?? 0), 0);
+  const w = worksPieces('foundry', 0, 0, 0.3);
+  expect(count(w.outside) + count(w.occluder) + count(w.interior)).toBe(count(worksParts('foundry', 0, 0, 0.3)));
+  for (const g of w.interior) {
+    g.computeBoundingBox();
+    const b = g.boundingBox!;
+    expect(b.min.z).toBeGreaterThanOrEqual(MINE.z - MINE.depth - 0.5);
+    expect(b.max.x).toBeLessThanOrEqual(MINE.x + MINE.openW + 1.5);
+    expect(b.min.x).toBeGreaterThanOrEqual(MINE.x - MINE.openW - 1.5);
+    expect(b.max.y).toBeLessThanOrEqual(MINE.openH + 0.5);
+  }
+});

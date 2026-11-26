@@ -219,8 +219,15 @@ export const propVert = /* glsl */ `
 attribute float aGloss; attribute vec3 aOut; attribute float aVeil;
 uniform float uOutline;
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
+#ifdef LAMP
+// A mine tunnel's inside, lit by its lantern (lanterns.ts): the lantern's place and which flicker voice it follows.
+attribute vec4 aLamp; varying vec4 vLamp;
+#endif
 void main() {
   vColor = color; vGloss = aGloss;
+#ifdef LAMP
+  vLamp = aLamp;
+#endif
 #ifdef WORLD_NORMAL
   // A figure that turns (units/facing.ts) is lit by the world's light, not its own: its normals turn with it.
   vNormal = mat3(modelMatrix) * normal;
@@ -245,6 +252,10 @@ uniform float uAlpha;
 #define ALPHA 1.0
 #endif
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
+#ifdef LAMP
+varying vec4 vLamp;
+uniform float uGlow0, uGlow1, uReach;
+#endif
 void main() {
   if (uIsOutline) { gl_FragColor = vec4(finish(vColor * vec3(0.30, 0.32, 0.36), vVeil), ALPHA); return; }
   vec3 n = normalize(vNormal);
@@ -261,5 +272,16 @@ void main() {
   vec3 view = normalize(vec3(0.0, 0.62, 0.785));
   float spec = pow(max(dot(reflect(-uLightDir, n), view), 0.0), 10.0);
   lit = mix(lit, vec3(1.0), max(vGloss, 0.0) * smoothstep(0.55, 0.6, spec) * 0.85);
+#ifdef LAMP
+  // Warm lantern light, falling off from the lantern in two toon steps and breathing with its flicker. Faces turned
+  // toward the lantern take more of it, so the frames' edges catch the light as they recede.
+  vec3 toLamp = vLamp.xyz - vWorld;
+  float dist = length(toLamp);
+  float glow = vLamp.w < 0.5 ? uGlow0 : uGlow1;
+  float near = 1.0 - smoothstep(0.0, uReach, dist);
+  float facing = 0.45 + 0.55 * max(dot(n, toLamp / max(dist, 0.001)), 0.0);
+  float warm = glow * facing * (0.55 * near + 0.45 * near * near);
+  lit = lit * (1.0 + 2.6 * warm * vec3(1.0, 0.78, 0.48)) + warm * vec3(0.30, 0.17, 0.05);
+#endif
   gl_FragColor = vec4(finish(lit, vVeil), ALPHA);
 }`;

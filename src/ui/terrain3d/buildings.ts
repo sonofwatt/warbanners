@@ -21,7 +21,7 @@ import { PLAYER_COLOURS } from '../art/palette';
 import { coloured } from './geom';
 import { SQUASH } from './layout';
 import { Kit, gable } from './town';
-import { WHEEL } from './buildingLayout';
+import { MILL_CHIMNEY, PIECE_SIZE, WHEEL } from './buildingLayout';
 import type { BuildingPiece, BuildingPlan, ChestSpot } from './buildingLayout';
 
 const B = {
@@ -225,7 +225,7 @@ function cabin(k: Kit): void {
   roof.translate(0, h - 0.4, 0);
   k.add(roof, B.roof, 0.65);
   k.box(2, 3.6, 0.3, -w * 0.2, -0.4, d / 2 + 0.55, B.door, 0.15);
-  k.box(1.1, 3.2, 1.1, w * 0.28, h + 0.6, -d * 0.15, B.cabinDark, 0.25); // a stovepipe
+  k.box(1.1, 4.6, 1.1, w * 0.28, h + 0.6, -d * 0.15, B.cabinDark, 0.25); // a stovepipe, standing clear of the ridge (CABIN_PIPE)
 }
 
 function stump(k: Kit): void {
@@ -280,6 +280,10 @@ function mill(k: Kit): void {
   k.add(roof, B.roof, 0.7);
   k.box(2.4, 4.2, 0.3, -3.3, -0.3, d / 2 + 0.35, B.door, 0.15);
   for (const [x, y] of [[2.4, 3.2], [-w / 3 - 0.5, 7.6], [w / 4, 7.6]] as const) k.box(1.6, 1.7, 0.3, x, y, d / 2 + 0.1, B.window, 0.1);
+  // A stone chimney through the roof's back slope (its smoke drifts: smoke.ts).
+  const c = MILL_CHIMNEY;
+  k.box(1.9, c.y - 0.6 - 9.5, 1.9, c.x, 9.5, c.z, B.footing, 0.4);
+  k.box(2.4, 0.6, 2.4, c.x, c.y - 0.6, c.z, B.footingDark, 0.2);
   // A gable window and a hoist beam under the eaves at the right end.
   k.box(1.6, 0.6, 3.2, w / 2 + 0.9, h - 1.2, 0, B.millDark, 0.15);
 }
@@ -379,20 +383,11 @@ function sack(k: Kit): void {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-/**
- * Each piece is shaped at a modest size and drawn larger, so it reads at the phone's default zoom as boldly as the
- * svg mark does. Trees take their size from the layout; plots, strips, fences and the race are laid out to size.
- */
-const SIZE: Partial<Record<BuildingPiece['kind'], number>> = {
-  plot: 1.25, wheatPlot: 1.25, barn: 1.45, bale: 1.45, granary: 1.3, sheaf: 1.4, ladder: 1.35, basket: 1.45, crates: 1.4,
-  cabin: 1.45, stump: 1.45, logPile: 1.4, bigLogPile: 1.35, sawhorse: 1.4, mill: 1.3, planks: 1.35, stall: 1.35, barrel: 1.5, sack: 1.5,
-};
-
 /** Every part of a tile building, standing on the ground. `owner`: the faction whose market it is, for its awnings. */
 export function buildingParts(plan: BuildingPlan, cx: number, cz: number, height: (lx: number, lz: number) => number, owner: FactionId | null): BufferGeometry[] {
   const awning = owner === null ? B.market : PLAYER_COLOURS[owner].main;
   const out: BufferGeometry[] = [];
-  for (const p of plan.pieces) out.push(...pieceOf(p, awning).done(cx + p.x, height(p.x, p.z), cz + p.z, p.rot, SIZE[p.kind] ?? 1));
+  for (const p of plan.pieces) out.push(...pieceOf(p, awning).done(cx + p.x, height(p.x, p.z), cz + p.z, p.rot, PIECE_SIZE[p.kind] ?? 1));
   return out;
 }
 

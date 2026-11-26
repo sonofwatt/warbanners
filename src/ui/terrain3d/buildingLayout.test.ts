@@ -2,9 +2,10 @@ import { expect, test } from 'vitest';
 import type { GlMap, GlTile } from './input';
 import {
   buildingPieceFits, buildingPlan, CHEST_BESIDE, CHEST_MS, chestOpen, chestPlays, chestSpot, chestSpots, COINS, coinAt, FADE_MS,
-  FIELD_BUILDINGS, HOLD_MS, LID_MS, LID_OPEN, WHEEL, wheelAngle, wheelSpots,
+  FIELD_BUILDINGS, FOUNDRY_CHIMNEY, HOLD_MS, LID_MS, LID_OPEN, PIECE_SIZE, SMOKE_PERIOD, SMOKE_PUFFS, smokePuff, smokeRate, smokeSpots,
+  WHEEL, wheelAngle, wheelSpots,
 } from './buildingLayout';
-import { edgeDist, tileSetup } from './layout';
+import { centre, edgeDist, tileSetup } from './layout';
 
 const bare: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false, town: null };
 
@@ -119,4 +120,56 @@ test('the mill wheel turns steadily with the motion clock and stands still when 
   expect(Math.abs(step)).toBeLessThan(0.1); // a 20 fps frame turns it a few degrees: calm, never a blur
   expect(wheelAngle(10.05, 0) - wheelAngle(10, 0)).toBeCloseTo(step, 9);
   expect(wheelSpots({ ...map, tiles: { '0,0': { ...map.tiles['0,0']!, city: true } } })).toEqual([]);
+});
+
+test('smoke rises from the lumber camp\'s stovepipe (a wisp), the mill\'s chimney and the foundry\'s (fuller); nowhere else', () => {
+  const map: GlMap = {
+    radius: 4, fog: [], tiles: {
+      '0,0': { ...bare, terrain: 'forest', building: 'lumberCamp' }, '1,0': { ...bare, terrain: 'forest', building: 'lumberMill' },
+      '2,0': { ...bare, terrain: 'mountain', building: 'foundry' }, '3,0': { ...bare, terrain: 'mountain', building: 'mine' },
+      '0,1': { ...bare, building: 'farm' }, '1,1': { ...bare, terrain: 'forest', building: 'lumberCamp', city: true },
+    },
+  };
+  const s = smokeSpots(map);
+  expect(s.map((x) => `${x.key}:${x.kind}`)).toEqual(['0,0:wisp', '1,0:full', '2,0:full']);
+  expect(SMOKE_PUFFS.full).toBeGreaterThan(SMOKE_PUFFS.wisp);
+  // Each starts at its chimney's top: above the cabin's and the mill's roofs, at the foundry chimney's cap.
+  const camp = s[0]!, mill = s[1]!;
+  const cabin = tileSetup(map, '0,0').building!.pieces.find((p) => p.kind === 'cabin')!;
+  const millP = tileSetup(map, '1,0').building!.pieces.find((p) => p.kind === 'mill')!;
+  expect(camp.y).toBeGreaterThan(10 * (PIECE_SIZE.cabin ?? 1));
+  expect(Math.hypot(camp.x - (cabin.x), camp.z - cabin.z)).toBeLessThan(cabin.foot);
+  expect(mill.y).toBeGreaterThan(17 * (PIECE_SIZE.mill ?? 1));
+  expect(Math.hypot(mill.x - (centre(1, 0).x + millP.x), mill.z - (centre(1, 0).z + millP.z))).toBeLessThan(millP.foot);
+  expect(s[2]!.y).toBe(FOUNDRY_CHIMNEY.y);
+});
+
+test('a puff of smoke rises, swells, drifts to the right and fades, smoothly, and the clock wraps seamlessly', () => {
+  for (let i = 0; i < SMOKE_PUFFS.full; i++) {
+    let prev = smokePuff(0, i, SMOKE_PUFFS.full, 0.3);
+    let maxStep = 0, maxAlpha = 0;
+    for (let f = 1; f < 20 * 30; f++) {
+      const p = smokePuff(f / 20, i, SMOKE_PUFFS.full, 0.3); // the ambient loop's 20 fps, 30 s
+      if (p.life > prev.life) {
+        // Within one life: up, wider, further right.
+        expect(p.y).toBeGreaterThan(prev.y);
+        expect(p.size).toBeGreaterThan(prev.size);
+        maxStep = Math.max(maxStep, Math.hypot(p.x - prev.x, p.y - prev.y));
+      }
+      maxAlpha = Math.max(maxAlpha, p.alpha);
+      prev = p;
+    }
+    expect(maxStep).toBeLessThan(0.5); // a gentle drift: under half a unit a frame
+    expect(maxAlpha).toBeGreaterThan(0.5);
+  }
+  const start = smokePuff(0, 0, 4, 0), born = smokePuff(0, 0, 4, 0.999);
+  expect(born.alpha).toBeLessThan(0.05); // a puff is born faint at the chimney
+  expect(smokePuff(10, 0, 4, 0).x).toBeGreaterThanOrEqual(-1); // drifts right, never far left
+  const late = Array.from({ length: 50 }, (_, j) => smokePuff(j * 0.71, 2, 6, 0.4)).filter((p) => p.life > 0.9);
+  for (const p of late) expect(p.alpha).toBeLessThan(0.05); // it fades away before it ends
+  expect(smokePuff(SMOKE_PERIOD + 1.25, 1, 4, 0.2).life).toBeCloseTo(smokePuff(1.25, 1, 4, 0.2).life, 6);
+  expect(start.y).toBeGreaterThanOrEqual(0);
+  // The clock stands still at rest and under reduced motion: the smoke holds one still shape.
+  expect(smokePuff(12.5, 3, 6, 0.1)).toEqual(smokePuff(12.5, 3, 6, 0.1));
+  for (let i = 0; i < 6; i++) expect(smokeRate(i, 0.3) * SMOKE_PERIOD % 1).toBeCloseTo(0, 9);
 });

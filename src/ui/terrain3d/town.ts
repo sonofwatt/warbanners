@@ -3,7 +3,7 @@
 // them. Spartan cities are whitewashed houses with gabled roofs round a columned hall; Mongol cities are round felt
 // tents round a great tent; both roof in the owner's colour. A village is two humble thatched huts.
 import {
-  BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, DodecahedronGeometry, ExtrudeGeometry, IcosahedronGeometry,
+  BoxGeometry, BufferAttribute, BufferGeometry, Float32BufferAttribute, ConeGeometry, CylinderGeometry, DodecahedronGeometry, ExtrudeGeometry, IcosahedronGeometry,
   OctahedronGeometry, Path, Shape,
 } from 'three';
 import type { FactionId } from '../../engine';
@@ -383,11 +383,22 @@ function piece(p: TownPiece, colour: Colour, accent: string, spartan: boolean): 
 
 /**
  * A mine built into the mountain: a rock face with a timber-framed tunnel going in, rails running out of it to an
- * ore cart, a lantern hanging inside (its light is drawn and flickers on the units canvas: lanterns.ts) and a spoil
- * heap. The foundry adds a stone furnace with a chimney and a glowing mouth.
+ * ore cart, a lantern hanging deep inside (its light is drawn and flickers on the units canvas: lanterns.ts) and a
+ * spoil heap. The foundry adds a stone furnace with a chimney (its drifting smoke is smoke.ts).
  */
 export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, seed: number): BufferGeometry[] {
-  const k = new Kit();
+  const w = worksPieces(kind, cx, cz, seed);
+  return [...w.outside, ...w.occluder, ...w.interior];
+}
+
+/**
+ * The mine in three sets: what stands outside (the cart, the spoil heap, the furnace), the front that hides the
+ * tunnel's inside from view (the rock face and its rim, the rocks above it, the mouth's frame), and the tunnel's
+ * inside (its lining, floor, back wall, the inner frames, the lantern, the rails and sleepers). The prop mesh draws
+ * all three; the lantern's light redraws the inside, lit by its flicker, behind a depth-only copy of the front.
+ */
+export function worksPieces(kind: 'mine' | 'foundry', cx: number, cz: number, seed: number): { outside: BufferGeometry[]; occluder: BufferGeometry[]; interior: BufferGeometry[] } {
+  const k = new Kit(), front = new Kit(), inside = new Kit();
   const { x: fx, z: fz, halfW, h, depth, openW, openH } = MINE;
   // The rock face, its front a cliff with the tunnel's mouth cut in it; extruded back, so the mouth's sides line the
   // tunnel. Its foot sinks a little into the ground.
@@ -403,13 +414,15 @@ export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, see
   const face = new ExtrudeGeometry(s, { depth, bevelEnabled: false });
   face.translate(fx, 0, fz - depth);
   const faceGeo = coloured(face, TOWN.rock, 0, 0);
-  // The tunnel's lining is dark earth, warmer near the lantern; the face's front is two rock tones in facets.
+  // The tunnel's lining is dark earth, warmer near the mouth; the face's front is two rock tones in facets.
+  const lining = (x: number, y: number, z: number): boolean => Math.abs(x - fx) < openW + 0.01 && y > -0.5 && y < openH + 0.01 && z < fz - 0.05 && z > fz - depth + 0.05;
   repaint(faceGeo, (x, y, z, nx, _ny, nz) => {
-    const inside = Math.abs(x - fx) < openW + 0.01 && y < openH + 0.01 && z < fz - 0.05 && z > fz - depth + 0.05;
-    if (inside) return z > fz - 3.5 ? TOWN.tunnel : TOWN.tunnelDeep;
+    if (lining(x, y, z)) return z > fz - 3.5 ? TOWN.tunnel : TOWN.tunnelDeep;
     if (nz > 0.9) return hash2(Math.floor(x / 3.2) + seed, Math.floor(y / 3.2)) > 0.5 ? TOWN.rockLight : TOWN.rock;
     return nx < 0 ? TOWN.rockLight : TOWN.rockDark;
   });
+  const [faceIn, faceOut] = splitTriangles(faceGeo, lining);
+  faceGeo.dispose();
   // A dark rim round the face's outline, a little behind it, so its silhouette reads against the scree as the toon
   // outlines of the other props do (the face itself has none: its hull would show inside the tunnel).
   const ring = new Shape();
@@ -422,11 +435,9 @@ export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, see
   ring.holes.push(inner);
   const rimGeo = new ExtrudeGeometry(ring, { depth: depth - 0.6, bevelEnabled: false });
   rimGeo.translate(fx + cx, 0, fz - depth + cz);
-  const parts: BufferGeometry[] = [faceGeo, coloured(rimGeo, '#3F3B37', 0, 0)];
   // The far end of the tunnel, and its floor in packed earth.
-  k.box(openW * 2 + 0.2, openH, 0.4, fx, 0, fz - depth + 0.3, TOWN.tunnelDeep, 0);
-  k.box(openW * 2, 0.12, depth, fx, 0.02, fz - depth / 2, TOWN.floor, 0);
-  // Inside, the sleepers are in the dark too.
+  inside.box(openW * 2 + 0.2, openH, 0.4, fx, 0, fz - depth + 0.3, TOWN.tunnelDeep, 0);
+  inside.box(openW * 2, 0.12, depth, fx, 0.02, fz - depth / 2, TOWN.floor, 0);
   // Rock above and beside the face, so it reads as part of the mountain (kept clear of the tunnel).
   const rocks: [number, number, number, number, string][] = [
     [-9.5, 9.5, -2.5, 4.6, TOWN.rockLight], [-1, 15, -3, 4.2, TOWN.rock], [6.5, 11.5, -2.8, 4.4, TOWN.rockDark], [-12, 3, 1, 3.4, TOWN.rockLight],
@@ -436,32 +447,34 @@ export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, see
     g.rotateY(seed + x);
     g.scale(1.15, 0.8, 1);
     g.translate(fx + x * kx, y * ky, fz + z);
-    k.add(g, c, 0.6);
+    front.add(g, c, 0.6);
   }
   // The timber frame at the mouth, and two more sets inside, smaller toward the dark.
-  const frame = (z: number, inset: number, out: number): void => {
+  const frame = (kit: Kit, z: number, inset: number, out: number): void => {
     const w = openW - inset;
-    k.box(1.2, openH - 1.2 - inset, 1.2, fx - w - 0.5, 0, z, TOWN.timber, out);
-    k.box(1.2, openH - 1.2 - inset, 1.2, fx + w + 0.5, 0, z, TOWN.timberDark, out);
-    k.box(2 * w + 3, 1.3, 1.4, fx, openH - 1.4 - inset, z, TOWN.timber, out);
+    kit.box(1.2, openH - 1.2 - inset, 1.2, fx - w - 0.5, 0, z, TOWN.timber, out);
+    kit.box(1.2, openH - 1.2 - inset, 1.2, fx + w + 0.5, 0, z, TOWN.timberDark, out);
+    kit.box(2 * w + 3, 1.3, 1.4, fx, openH - 1.4 - inset, z, TOWN.timber, out);
   };
-  frame(fz + 0.4, 0, 0.45);
-  k.box(1.0, 2.4, 1.0, fx - openW - 0.5, openH - 2.6, fz + 0.4, TOWN.timberDark, 0.2, 0.8); // a brace
-  frame(fz - 3, 0.6, 0);
-  frame(fz - 6, 0.6, 0);
-  // The lantern on its hook, on the first set's left post: a dark iron frame round warm glass.
+  frame(front, fz + 0.4, 0, 0.45);
+  front.box(1.0, 2.4, 1.0, fx - openW - 0.5, openH - 2.6, fz + 0.4, TOWN.timberDark, 0.2, 0.8); // a brace
+  frame(inside, fz - 3, 0.6, 0);
+  frame(inside, fz - 6, 0.6, 0);
+  // The lantern, deep in the tunnel: an iron frame round warm glass, hanging on a chain from the far frame's lintel.
   const L = LANTERN;
-  k.box(1.4, 0.35, 0.35, L.x - 0.6, L.y + 1.6, L.z, TOWN.iron, 0);
-  k.box(1.25, 1.6, 1.25, L.x, L.y - 0.8, L.z, TOWN.iron, 0);
-  k.box(0.95, 1.25, 1.5, L.x, L.y - 0.62, L.z, TOWN.glass, 0);
+  const lintel = openH - 1.4 - 0.6;
+  inside.box(0.22, lintel - (L.y + 1.25), 0.22, L.x, L.y + 1.25, L.z, TOWN.iron, 0);
+  inside.box(1.25, 1.6, 1.25, L.x, L.y - 0.8, L.z, TOWN.iron, 0);
+  inside.box(0.95, 1.25, 1.5, L.x, L.y - 0.62, L.z, TOWN.glass, 0);
+  inside.box(1.5, 1.25, 0.95, L.x, L.y - 0.62, L.z, TOWN.glass, 0);
   const cap = new ConeGeometry(0.95, 0.9, 4);
   cap.rotateY(Math.PI / 4);
-  cap.translate(L.x, L.y + 1.25, L.z);
-  k.add(cap, TOWN.iron, 0);
+  cap.translate(L.x, L.y + 0.8, L.z);
+  inside.add(cap, TOWN.iron, 0);
   // Rails out of the tunnel, on sleepers, to an ore cart in the yard.
   const r0 = fz - depth + 0.6, r1 = fz + 9;
-  for (const sx of [-1.35, 1.35]) k.box(0.4, 0.4, r1 - r0, fx + sx, 0.1, (r0 + r1) / 2, TOWN.rail, 0);
-  for (let z = r0 + 0.8; z < r1; z += 2.1) k.box(4.2, 0.28, 0.8, fx, 0, z, z < fz ? TOWN.tunnelDeep : TOWN.sleeper, 0);
+  for (const sx of [-1.35, 1.35]) inside.box(0.4, 0.4, r1 - r0, fx + sx, 0.1, (r0 + r1) / 2, TOWN.rail, 0);
+  for (let z = r0 + 0.8; z < r1; z += 2.1) (z < fz ? inside : k).box(4.2, 0.28, 0.8, fx, 0, z, z < fz ? TOWN.tunnelDeep : TOWN.sleeper, 0);
   const cartZ = fz + 5.8;
   k.box(4.2, 2.4, 4.8, fx, 1.1, cartZ, TOWN.timberDark, 0.4);
   k.box(4.5, 0.4, 5.1, fx, 3.4, cartZ, TOWN.iron, 0.2);
@@ -491,7 +504,8 @@ export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, see
       k.add(g, c, 0.35);
     }
   } else {
-    // The foundry's furnace: a stone block against the rock, its mouth glowing, with a chimney and smoke.
+    // The foundry's furnace: a stone block against the rock, its mouth glowing, with a chimney (its smoke drifts:
+    // smoke.ts).
     const { x, z } = FURNACE;
     k.box(8.4, 7.4, 7, x, -0.4, z, TOWN.furnace, 0.6);
     k.box(9, 1.0, 7.6, x, 6.6, z, TOWN.furnaceDark, 0.35);
@@ -500,13 +514,34 @@ export function worksParts(kind: 'mine' | 'foundry', cx: number, cz: number, see
     k.box(1.8, 0.8, 0.3, x, 1.1, z + 3.9, TOWN.emberHot, 0);
     k.box(3, 13, 3, x + 2.2, 6, z - 1.6, TOWN.furnaceDark, 0.5);
     k.box(3.6, 0.9, 3.6, x + 2.2, 18.6, z - 1.6, TOWN.furnace, 0.3);
-    for (const [dx, dy, r] of [[0.5, 21.5, 1.8], [2, 24.5, 1.5], [3.6, 27, 1.2]] as const) {
-      const g = new IcosahedronGeometry(r, 0);
-      g.translate(x + 2.2 + dx, dy, z - 1.6);
-      k.add(g, TOWN.smoke, 0.25);
-    }
   }
-  parts.push(...k.done(cx, 0, cz, 0));
-  for (const g of parts) if (g === faceGeo) g.translate(cx, 0, cz);
-  return parts;
+  for (const g of [faceIn, faceOut]) g.translate(cx, 0, cz);
+  return {
+    outside: k.done(cx, 0, cz, 0),
+    occluder: [faceOut, coloured(rimGeo, '#3F3B37', 0, 0), ...front.done(cx, 0, cz, 0)],
+    interior: [faceIn, ...inside.done(cx, 0, cz, 0)],
+  };
+}
+
+/** Split a non-indexed geometry's triangles in two by their centre: those `pick` takes, and the rest. */
+function splitTriangles(g: BufferGeometry, pick: (x: number, y: number, z: number) => boolean): [BufferGeometry, BufferGeometry] {
+  const p = g.attributes.position!;
+  const yes: number[] = [], no: number[] = [];
+  for (let i = 0; i + 2 < p.count; i += 3) {
+    const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3;
+    const y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3;
+    const z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+    (pick(x, y, z) ? yes : no).push(i, i + 1, i + 2);
+  }
+  const take = (idx: number[]): BufferGeometry => {
+    const out = new BufferGeometry();
+    for (const [name, attr] of Object.entries(g.attributes)) {
+      const a = attr as BufferAttribute;
+      const arr = new Float32Array(idx.length * a.itemSize);
+      idx.forEach((v, j) => { for (let c = 0; c < a.itemSize; c++) arr[j * a.itemSize + c] = a.array[v * a.itemSize + c]!; });
+      out.setAttribute(name, new Float32BufferAttribute(arr, a.itemSize));
+    }
+    return out;
+  };
+  return [take(yes), take(no)];
 }

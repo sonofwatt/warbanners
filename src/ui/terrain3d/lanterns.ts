@@ -3,11 +3,14 @@
 // when the mines change; the flicker is two uniforms (two voices, so neighbouring mines do not flicker together) set
 // from the ambient loop's clock, so a frame costs one draw call and no geometry upload. Drawn with the waterfalls on
 // the units canvas, which alone redraws in that loop; held at its steady glow at rest and under reduced motion.
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, ShaderMaterial } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, ShaderMaterial } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
 import type { GlMap } from './input';
-import { parse } from './layout';
-import { LANTERN, lanternFlicker, lanternSpots, MINE } from './townLayout';
+import { centre, hash2, parse } from './layout';
+import { propFrag, propVert } from './shaders';
+import { worksPieces } from './town';
+import { LANTERN, LANTERN_REACH, lanternFlicker, lanternSpots, MINE } from './townLayout';
 import type { LanternSpot } from './townLayout';
 
 export interface Lanterns {
@@ -16,6 +19,8 @@ export interface Lanterns {
   setVeil(veiled: readonly HexKey[]): void;
   /** The clock in seconds and the motion level (0: the steady glow). */
   setTime(t: number, level: number): void;
+  /** Triangles of the lit tunnel insides and of their depth-only fronts, for tests (0 without the tunnel light). */
+  tunnel(): { lit: number; front: number };
   /** The current brightness of each voice, for tests. */
   glow(): [number, number];
   boxes(): readonly LanternSpot['box'][];
@@ -79,8 +84,9 @@ function geometryOf(spots: readonly LanternSpot[]): BufferGeometry {
     const { q, r } = parse(s.key);
     if (s.kind === 'lantern') {
       // The pool first (it lies under the halo), from the lantern's foot out past the mouth.
-      const px = s.x + (MINE.x - LANTERN.x) * 0.45, pz = s.z + 1.2;
-      quad(px, 0.25, pz, 1, s.voice, MINE.openW - 0.6, 4.6, q, r);
+      // The pool spills out of the mouth onto the yard (inside, the tunnel itself is lit: tunnelGeometry).
+      const px = s.x + (MINE.x - LANTERN.x), pz = s.z + (MINE.z - LANTERN.z) + 1.4;
+      quad(px, 0.25, pz, 1, s.voice, MINE.openW - 0.6, 3.6, q, r);
       quad(s.x, s.y - 0.6, s.z, 0, s.voice, 4.2, 4.2, q, r);
     } else {
       quad(s.x, s.y, s.z, 2, s.voice, 5.2, 4.2, q, r);
@@ -96,7 +102,50 @@ function geometryOf(spots: readonly LanternSpot[]): BufferGeometry {
   return g;
 }
 
-export function createLanterns(shared: Record<string, { value: unknown }>): Lanterns {
+/**
+ * Each mine's tunnel inside (its lining, floor, back wall, inner frames, lantern, rails), with the lantern's place and
+ * voice on every corner, and the mine's front (face, rim, rocks, mouth frame) that hides it where it is not seen.
+ */
+function tunnelGeometry(map: GlMap, spots: readonly LanternSpot[]): { lit: BufferGeometry; front: BufferGeometry } | null {
+  const lit: BufferGeometry[] = [], front: BufferGeometry[] = [];
+  for (const s of spots) {
+    if (s.kind !== 'lantern') continue;
+    const t = map.tiles[s.key];
+    if (t === undefined || (t.building !== 'mine' && t.building !== 'foundry')) continue;
+    const { q, r } = parse(s.key);
+    const c = centre(q, r);
+    const w = worksPieces(t.building, c.x, c.z, hash2(q * 1.7, r * 0.9));
+    for (const g of w.outside) g.dispose();
+    const inside = mergeGeometries(w.interior)!;
+    for (const g of w.interior) g.dispose();
+    const n = inside.attributes.position!.count;
+    const lamp = new Float32Array(n * 4), hex = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      lamp[i * 4] = s.x; lamp[i * 4 + 1] = s.y; lamp[i * 4 + 2] = s.z; lamp[i * 4 + 3] = s.voice;
+      hex[i * 2] = q; hex[i * 2 + 1] = r;
+    }
+    inside.setAttribute('aLamp', new Float32BufferAttribute(lamp, 4));
+    inside.setAttribute('aHex', new Float32BufferAttribute(hex, 2));
+    lit.push(inside);
+    for (const g of w.occluder) {
+      const bare = new BufferGeometry();
+      bare.setAttribute('position', g.attributes.position!);
+      front.push(bare);
+    }
+  }
+  if (lit.length === 0) return null;
+  const out = { lit: mergeGeometries(lit)!, front: mergeGeometries(front)! };
+  for (const g of [...lit, ...front]) g.dispose();
+  return out;
+}
+
+const tris = (g: BufferGeometry): number => (g.attributes.position === undefined ? 0 : g.attributes.position.count / 3);
+
+/**
+ * `tunnel`: redraw each mine's tunnel inside lit by its lantern, behind a depth-only copy of the mine's front (only
+ * on the units canvas, over the terrain's own unlit copy; in the terrain scene it would draw the same faces twice).
+ */
+export function createLanterns(shared: Record<string, { value: unknown }>, tunnel = false): Lanterns {
   const g0 = { value: 1 }, g1 = { value: 1 };
   const mat = new ShaderMaterial({
     uniforms: { uVeilColor: shared.uVeilColor!, uGlow0: g0, uGlow1: g1 }, vertexShader: vert, fragmentShader: frag,
@@ -107,17 +156,31 @@ export function createLanterns(shared: Record<string, { value: unknown }>): Lant
   mesh.frustumCulled = false;
   mesh.renderOrder = 3;
   group.add(mesh);
+  // The lit tunnel: the front writes depth only, first; then the inside, lit, where the front lets it be seen. Both
+  // after the figures (opaque, higher render order), so a figure is never hidden by them, and before the glow.
+  const litMat = new ShaderMaterial({
+    uniforms: { ...shared, uOutline: { value: 0 }, uIsOutline: { value: false }, uGlow0: g0, uGlow1: g1, uReach: { value: LANTERN_REACH } },
+    vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, defines: { LAMP: '' },
+  });
+  const frontMat = new MeshBasicMaterial({ colorWrite: false });
+  const lit = new Mesh(new BufferGeometry(), litMat);
+  const front = new Mesh(new BufferGeometry(), frontMat);
+  front.renderOrder = 5;
+  lit.renderOrder = 6;
+  for (const m of [lit, front]) m.frustumCulled = false;
+  if (tunnel) group.add(front, lit);
   group.visible = false;
   let spots: LanternSpot[] = [];
   let sig = '';
   let veiledNow = new Set<number>();
   function paintVeil(): void {
-    const geo = mesh.geometry;
-    const hex = geo.attributes.aHex;
-    if (hex === undefined) return;
-    const arr = new Float32Array(hex.count);
-    for (let i = 0; i < hex.count; i++) arr[i] = veiledNow.has(hexId(hex.getX(i), hex.getY(i))) ? 1 : 0;
-    geo.setAttribute('aVeil', new Float32BufferAttribute(arr, 1));
+    for (const geo of [mesh.geometry, lit.geometry]) {
+      const hex = geo.attributes.aHex;
+      if (hex === undefined) continue;
+      const arr = new Float32Array(hex.count);
+      for (let i = 0; i < hex.count; i++) arr[i] = veiledNow.has(hexId(hex.getX(i), hex.getY(i))) ? 1 : 0;
+      geo.setAttribute('aVeil', new Float32BufferAttribute(arr, 1));
+    }
   }
   return {
     group,
@@ -129,6 +192,11 @@ export function createLanterns(shared: Record<string, { value: unknown }>): Lant
       spots = next;
       mesh.geometry.dispose();
       mesh.geometry = next.length ? geometryOf(next) : new BufferGeometry();
+      lit.geometry.dispose();
+      front.geometry.dispose();
+      const t = tunnel ? tunnelGeometry(map, next) : null;
+      lit.geometry = t?.lit ?? new BufferGeometry();
+      front.geometry = t?.front ?? new BufferGeometry();
       group.visible = next.length > 0;
       paintVeil();
     },
@@ -141,11 +209,16 @@ export function createLanterns(shared: Record<string, { value: unknown }>): Lant
       g1.value = lanternFlicker(t, level, 1);
     },
     glow: () => [g0.value, g1.value],
+    tunnel: () => ({ lit: tris(lit.geometry), front: tris(front.geometry) }),
     boxes: () => spots.map((s) => s.box),
     count: () => spots.length,
     dispose() {
       mesh.geometry.dispose();
+      lit.geometry.dispose();
+      front.geometry.dispose();
       mat.dispose();
+      litMat.dispose();
+      frontMat.dispose();
       group.clear();
     },
   };

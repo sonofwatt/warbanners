@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { GlMap, GlTile, GlTown } from './input';
-import { edgeDist, tileSetup } from './layout';
+import { COS_E, edgeDist, SQUASH, tileSetup } from './layout';
 import {
   housesFor, LANTERN, LANTERN_SWING, lanternFlicker, lanternSpots, MAX_HOUSES, MINE, pieceFits, tallFor, towersFor, townPlan,
   villagePlan, WALL_R,
@@ -161,4 +161,17 @@ test('the lantern flickers gently on the ambient clock, never strobes, and holds
   expect(Math.abs(lanternFlicker(3.3, 0.25) - 1)).toBeLessThanOrEqual(Math.abs(lanternFlicker(3.3, 1) - 1) * 0.25 + 1e-9);
   expect(lanternFlicker(3.3, 1, 0)).not.toBeCloseTo(lanternFlicker(3.3, 1, 1), 3);
   expect(lanternFlicker(1000.05, 1)).toBeCloseTo(lanternFlicker(0.05, 1), 6);
+});
+
+test('buildings3d: the lantern hangs deep inside the tunnel, and the camera sees it under the mouth\'s lintel', () => {
+  // Inside: well behind the mouth, between the tunnel's walls, under its roof.
+  expect(LANTERN.z).toBeLessThan(MINE.z - MINE.depth / 2);
+  expect(LANTERN.z).toBeGreaterThan(MINE.z - MINE.depth);
+  expect(Math.abs(LANTERN.x - MINE.x)).toBeLessThan(MINE.openW - 1);
+  expect(LANTERN.y + 1).toBeLessThan(MINE.openH - 2);
+  // Seen: the camera looks down at the elevation whose sine is SQUASH, so the line from the lantern's glass toward it
+  // climbs SQUASH / COS_E per unit toward the viewer; at the front of the mouth's lintel it must still pass beneath.
+  const lintelFront = MINE.z + 0.4 + 0.7, lintelBottom = MINE.openH - 1.4;
+  const glassTop = LANTERN.y;
+  expect(glassTop + (lintelFront - LANTERN.z) * (SQUASH / COS_E)).toBeLessThan(lintelBottom);
 });

@@ -323,3 +323,60 @@ if (what === 'chest' || what === 'claim') {
     await app.close();
   }
 }
+
+// buildings3d follow-ups: the chimney smoke and the mine's lit tunnel, at real pace on the page's held clock.
+//   life: a GIF and stills each of the lumber camp's and the mill's smoke, the foundry's smoke, and the mine's
+//         lantern lighting its tunnel, close up; mineboard: the mine and foundry at the phone's default zoom.
+if (what === 'life' || what === 'mineboard') {
+  const { state, keys } = showcase([
+    { name: 'camp', tile: { terrain: 'forest', building: 'lumberCamp' } },
+    { name: 'mill', tile: { terrain: 'forest', building: 'lumberMill' } },
+    { name: 'mine', tile: { terrain: 'mountain', resource: 'ore', building: 'mine' } },
+    { name: 'foundry', tile: { terrain: 'mountain', resource: 'ore', building: 'foundry' } },
+  ]);
+  const phone = what === 'mineboard';
+  const W = phone ? 412 : 700, H = phone ? 915 : 800, DPR = phone ? 2.6 : 3;
+  const app = await open(saveOf(state, 'life'), W, H, DPR, true);
+  try {
+    const { page } = app;
+    await on3d(page);
+    if (!phone) await zoom(page, 4);
+    const names = phone ? ['mine', 'foundry'] : ['camp', 'mill', 'foundry', 'mine'];
+    for (const name of names) {
+      const k = keys.get(name)!;
+      await bring(page, k, W / 2, H / 2 + (phone ? 0 : 60));
+      const [q, r] = k.split(',').map(Number) as [number, number];
+      const c = (await centreOf(page, k))!, n2 = (await centreOf(page, `${q + 1},${r}`))!;
+      const u = (n2.x - c.x) / 52;
+      // Smoke rises above its tile; the mine's tunnel is in its tile's front half.
+      const box = name === 'mine' || name === 'foundry'
+        ? { x: c.x - 30 * u, y: c.y - 44 * u, w: 60 * u, h: 66 * u }
+        : { x: c.x - 34 * u, y: c.y - 62 * u, w: 68 * u, h: 86 * u };
+      const crop = `crop=${Math.round(box.w * DPR)}:${Math.round(box.h * DPR)}:${Math.round(box.x * DPR)}:${Math.round(box.y * DPR)}`;
+      if (phone) {
+        const full = join(out, `${name}-board-3d-full.png`);
+        await page.screenshot({ path: full });
+        execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', full, '-vf', crop, join(out, `${name}-board-3d.png`)]);
+        continue;
+      }
+      // A wake for the ambient loop, off the board, then the page's clock held and stepped 50 ms a frame (20 fps).
+      await page.mouse.move(5, H - 5);
+      await page.mouse.move(8, H - 8);
+      const tmp = mkdtempSync(join(tmpdir(), `${name}-`));
+      await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+      const frames = 60;
+      for (let i = 0; i < frames; i++) {
+        await page.clock.runFor(50);
+        await page.screenshot({ path: join(tmp, `f${String(i).padStart(4, '0')}.png`) });
+        if (i % 20 === 0) execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', join(tmp, `f${String(i).padStart(4, '0')}.png`), '-vf', crop, join(out, `${name}-life-${String(i * 50).padStart(4, '0')}ms.png`)]);
+      }
+      const gif = join(out, `${name}-life.gif`);
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', '20', '-i', join(tmp, 'f%04d.png'),
+        '-vf', `${crop},scale=420:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer`, gif]);
+      console.log('wrote', gif);
+      await page.clock.resume();
+    }
+  } finally {
+    await app.close();
+  }
+}
