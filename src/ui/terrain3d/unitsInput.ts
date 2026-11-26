@@ -21,6 +21,11 @@ export interface GlUnit {
   gritty?: boolean;
   /** Its battle wear (engine wearLook), shown in Gritty only. */
   wear?: { stage: 0 | 1 | 2 | 3 | 4; blood: 0 | 1 | 2; scarred: boolean };
+  /**
+   * For comparison shots only (scripts/hoplite3d): the game never sets it. 'toon' draws the Bright toon figure with
+   * its wear; 'toonClosedHelm' a toon Hoplite in a closed T-opening helmet carrying the realistic Hoplite's shield.
+   */
+  variant?: 'toon' | 'toonClosedHelm';
 }
 
 /**

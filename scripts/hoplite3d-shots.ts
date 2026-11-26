@@ -46,6 +46,20 @@ try {
   await run('e-sides-and-crouch.png', [
     hop('Spartans', w(0)), hop('Mongols', w(0), 'mongols'), hop('hunkered', w(0), 'spartans', true, true), hop('broken, hunkered', w(4, 2), 'mongols', true, true),
   ], 6, 4, { cellW: 40, rowH: 76 });
+  const cat = (name: string, wear: W, faction: 'spartans' | 'mongols' = 'spartans', gritty = true) => ({ type: 'catapult', faction, gritty, wear, name });
+  await run('h-gritty-catapult-large.png', [cat('', w(0))], 15, 1, { cellW: 46, rowH: 46 });
+  await run('h2-catapult-broken-large.png', [cat('', w(4, 2))], 15, 1, { cellW: 46, rowH: 46 });
+  await run('i-catapult-stages.png', [
+    cat('clean', w(0)), cat('scuffed', w(1)), cat('dented', w(2)), cat('battered', w(3)), cat('battered + fire', w(3, 1)),
+    cat('broken + fire', w(4, 1)), cat('broken + more fire', w(4, 2)), cat('mended (scarred)', w(1, 0, true)), cat('mended, hit again', w(3, 1, true)),
+  ], 4.4, 9, { cellW: 46, rowH: 56 });
+  await run('j-catapult-bright-vs-gritty.png', [cat('Bright (toon)', w(0), 'spartans', false), cat('Gritty', w(0))], 7, 2, { cellW: 52, rowH: 72, bright: true });
+  const three = (wear: W) => [
+    { type: 'hoplite', faction: 'spartans', gritty: false, wear, variant: 'toon', name: 'Bright toon' },
+    { type: 'hoplite', faction: 'spartans', gritty: false, wear, variant: 'toonClosedHelm', name: 'toon, closed helm' },
+    hop('Gritty realistic', wear),
+  ];
+  await run('g-three-hoplites.png', [...three(w(0)), ...three(w(4, 2))], 7, 3, { cellW: 44, rowH: 74 });
   await run('f-phone-scale.png', [
     hop('', w(0)), hop('', w(2), 'mongols'), hop('', w(4, 2)), { type: 'warrior', faction: 'mongols', gritty: true, wear: w(3, 1), name: '' }, { type: 'archer', faction: 'spartans', gritty: true, wear: w(1), name: '' },
   ], 1.6, 5, { cellW: 30, rowH: 70 });

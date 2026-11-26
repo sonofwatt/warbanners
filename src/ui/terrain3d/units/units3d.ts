@@ -111,10 +111,10 @@ const styleOf = (gritty: boolean, f: Figure): Style => (!gritty ? 'bright' : f.r
 const SHADOW_ALPHA = 0.18;
 
 /** A unit's battle wear as the figures take it (none in Bright). */
-const wearOf = (u: { gritty?: boolean; wear?: GlUnit['wear'] }): Wear => (u.gritty === true && u.wear !== undefined ? u.wear : CLEAN);
+const wearOf = (u: { gritty?: boolean; wear?: GlUnit['wear']; variant?: GlUnit['variant'] }): Wear => ((u.gritty === true || u.variant !== undefined) && u.wear !== undefined ? u.wear : CLEAN);
 /** What a figure looks like: equal keys share one built figure. Gritty and each wear look are figures of their own. */
-const lookKey = (type: string, look: GlUnit['look'], hero: boolean, gritty = false, wear: Wear = CLEAN): string =>
-  `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}|${gritty ? `g${wear.stage}${wear.blood}${wear.scarred === true ? 's' : ''}` : ''}`;
+const lookKey = (type: string, look: GlUnit['look'], hero: boolean, gritty = false, wear: Wear = CLEAN, variant?: GlUnit['variant']): string =>
+  `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}|${gritty || variant !== undefined ? `g${wear.stage}${wear.blood}${wear.scarred === true ? 's' : ''}` : ''}${variant === undefined ? '' : `|${variant}`}`;
 
 /**
  * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,
@@ -255,11 +255,11 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   const looks = new Map<string, Figure>();
-  function figureOf(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, gritty: boolean, wear: Wear): Figure {
-    const k = lookKey(type, look, hero, gritty, wear);
+  function figureOf(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, gritty: boolean, wear: Wear, variant?: GlUnit['variant']): Figure {
+    const k = lookKey(type, look, hero, gritty, wear, variant);
     let f = looks.get(k);
     if (f === undefined) {
-      f = buildFigure(type, { look, wear, hero, gritty });
+      f = buildFigure(type, { look, wear, hero, gritty, variant });
       looks.set(k, f);
     }
     return f;
@@ -286,8 +286,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
    * One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower
    * on screen, as the svg feet. A fall brings its own see-through materials (`own`, made for the figure's style).
    */
-  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, gritty: boolean, wear: Wear, own?: (style: Style) => Dim): Built {
-    const f = figureOf(type, look, hero, gritty, wear);
+  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, gritty: boolean, wear: Wear, own?: (style: Style) => Dim, variant?: GlUnit['variant']): Built {
+    const f = figureOf(type, look, hero, gritty, wear, variant);
     const style = styleOf(gritty, f);
     const base = plainMats(style);
     const g = new Group();
@@ -407,7 +407,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         fc.spent = u.spent;
         fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
       }
-      const sig = lookKey(u.type, u.look, u.hero, u.gritty === true, wearOf(u));
+      const sig = lookKey(u.type, u.look, u.hero, u.gritty === true, wearOf(u), u.variant);
       let p = placed.get(u.id);
       if (p !== undefined && p.sig !== sig) {
         scene.remove(p.group);
@@ -415,7 +415,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       }
       if (p === undefined) {
         p = {
-          sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.gritty === true, wearOf(u)), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
+          sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.gritty === true, wearOf(u), undefined, u.variant), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
           moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null,
         };
         scene.add(p.group);

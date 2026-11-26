@@ -656,6 +656,12 @@ function chipped(x: number, y: number, cuts: readonly Cut[], jag: number): [numb
   return [x, y];
 }
 
+/** The realistic shield in its own frame (face toward +z), with its wear: also lent to the toon comparison Hoplite. */
+export function realShield(k: Kit, c: Look, w: Wear): void {
+  fineCount = 0;
+  shield(k, c, w);
+}
+
 function shield(k: Kit, c: Look, w: Wear): void {
   const broken = worn(w, 4);
   const cuts: Cut[] = [];

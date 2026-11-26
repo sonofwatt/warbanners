@@ -71,7 +71,7 @@ function label(text: string, x: number, y: number): void {
   wrap.appendChild(el);
 }
 
-interface Cell { type: UnitTypeId; faction: FactionId; gritty: boolean; wear?: GlUnit['wear']; name: string; hunkered?: boolean; yaw?: number }
+interface Cell { type: UnitTypeId; faction: FactionId; gritty: boolean; wear?: GlUnit['wear']; name: string; hunkered?: boolean; variant?: GlUnit['variant'] }
 
 /** A row (or rows) of figures, `perRow` to a row, at `scale` pixels per board unit; `bright` draws a Bright ground. */
 function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { bright?: boolean; rowH?: number; cellW?: number } = {}): void {
@@ -85,7 +85,7 @@ function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { brigh
     const x = (i % perRow) * CW, y = Math.floor(i / perRow) * RH;
     hex(x, y);
     label(c.name, x, y + 12);
-    list.push({ id: i + 1, type: c.type, look: look(c.faction), hero: false, x, y, spent: false, hunkered: c.hunkered === true, gritty: c.gritty, wear: c.wear });
+    list.push({ id: i + 1, type: c.type, look: look(c.faction), hero: false, x, y, spent: false, hunkered: c.hunkered === true, gritty: c.gritty, wear: c.wear, variant: c.variant });
   });
   u.setUnits(list, 0);
   u.pose(new Map(), []);

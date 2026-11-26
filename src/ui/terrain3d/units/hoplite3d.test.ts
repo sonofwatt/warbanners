@@ -44,13 +44,13 @@ const GRITTY_BUDGET = 6000;
 
 describe("Gritty's realistic Hoplite", () => {
   test('Gritty builds it for the Hoplite only; Bright builds the toon figure, the same to the last vertex as before', () => {
-    expect([...REAL_TYPES]).toEqual(['hoplite']);
+    expect([...REAL_TYPES].sort()).toEqual(['catapult', 'hoplite']);
     expect(real(CLEAN).real).toBe(true);
     const bright = buildFigure('hoplite', { look: RED, wear: CLEAN });
     expect(bright.real).toBe(false);
     expect(positions(buildFigure('hoplite', { look: RED, wear: CLEAN, gritty: false }))).toEqual(positions(bright));
     // Every other type keeps its toon figure in Gritty too.
-    for (const t of ALL_TYPES) if (t !== 'hoplite') expect(buildFigure(t, { look: RED, wear: CLEAN, gritty: true }).real).toBe(false);
+    for (const t of ALL_TYPES) if (!REAL_TYPES.has(t)) expect(buildFigure(t, { look: RED, wear: CLEAN, gritty: true }).real).toBe(false);
   });
 
   test('it is built from numbers alone: the same twice', () => {
@@ -90,6 +90,44 @@ describe("Gritty's realistic Hoplite", () => {
     expect(minY).toBeGreaterThanOrEqual(-0.1);
     expect(minY).toBeLessThan(0.6);
     expect(maxY).toBeLessThan(66); // the spear tip, a head and a half over the crest
+  });
+});
+
+describe("Gritty's realistic Catapult", () => {
+  const cat = (wear: Wear) => buildFigure('catapult', { look: RED, wear, gritty: true });
+  test('built in Gritty only, the same twice, each wear look different, inside the budget', () => {
+    expect(cat(CLEAN).real).toBe(true);
+    expect(buildFigure('catapult', { look: RED, wear: CLEAN }).real).toBe(false);
+    expect(positions(cat({ stage: 4, blood: 2 }))).toEqual(positions(cat({ stage: 4, blood: 2 })));
+    const seen = new Set<string>();
+    for (const w of LOOKS) {
+      const f = cat(w);
+      expect(f.triangles, JSON.stringify(w)).toBeLessThanOrEqual(GRITTY_BUDGET);
+      const sig = `${f.triangles}|${positions(f).reduce((a, v, i) => a + v * ((i % 7) + 1), 0).toFixed(3)}`;
+      expect(seen.has(sig), JSON.stringify(w)).toBe(false);
+      seen.add(sig);
+    }
+  });
+
+  test('its arm and stone turn on one axle, as the throw needs; broken, the arm is snapped and fixed', async () => {
+    const { ARM_COCKED, ARM_LONG } = await import('./figures');
+    const { REAL_ARM_COCKED, REAL_ARM_LONG } = await import('./catapult3d');
+    expect([REAL_ARM_COCKED, REAL_ARM_LONG]).toEqual([ARM_COCKED, ARM_LONG]);
+    const p = cat(CLEAN).pieces;
+    expect(Object.keys(p).sort()).toEqual(['arm', 'stone']);
+    expect(p.arm!.pivot).toEqual(p.stone!.pivot);
+    expect(Math.hypot(...p.arm!.axis)).toBeCloseTo(1, 5);
+    expect(Object.keys(cat({ stage: 4, blood: 0 }).pieces)).toEqual([]);
+  });
+});
+
+describe('the toon closed-helm Hoplite (comparison shots only)', () => {
+  test('built only when asked for; the game never asks', async () => {
+    const closed = buildFigure('hoplite', { look: RED, wear: CLEAN, variant: 'toonClosedHelm' });
+    expect(closed.real).toBe(false);
+    expect(positions(closed)).not.toEqual(positions(buildFigure('hoplite', { look: RED, wear: CLEAN })));
+    const { readFileSync } = await import('node:fs');
+    for (const f of ['src/ui/terrain3d/unitsInput.ts', 'src/ui/board/Board.tsx']) expect(readFileSync(f, 'utf8')).not.toMatch(/variant:/);
   });
 });
 
