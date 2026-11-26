@@ -660,6 +660,34 @@ function piper(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   return NARROW;
 }
 
+/**
+ * The rings the scout's cloak is laid on, top to hem (world units in his turn): the height, the centre (x, z), the
+ * reach to each side (rx: toward -x, where it sweeps out behind him, then toward +x) and back (rz), and how far round
+ * it goes each way from straight behind (radians: toward -x, his trailing side, and toward +x, his dagger side, where
+ * it stops short of the arm and the front knee).
+ * The hem's height is given per point instead (SCOUT_HEM).
+ */
+const SCOUT_CLOAK: readonly { y: number; c: [number, number]; rx: [number, number]; rz: number; from: number; to: number }[] = [
+  { y: 21.6, c: [0.6, -0.6], rx: [6.0, 6.0], rz: 4.8, from: -1.75, to: 1.66 },
+  { y: 16.0, c: [0, -0.5], rx: [10.2, 7.0], rz: 5.4, from: -1.75, to: 1.57 },
+  { y: 10.0, c: [-2.0, -0.8], rx: [12.0, 8.8], rz: 6.0, from: -1.71, to: 1.40 },
+  { y: 0, c: [-4.0, -1.2], rx: [10.6, 9.4], rz: 6.6, from: -1.66, to: 1.13 },
+];
+/** The hem's height at each of the cloak's nine points round it (from -x round to +x): torn points between notches. */
+const SCOUT_HEM = [2.6, 6.4, 3.6, 7.2, 4.4, 6.8, 3.4, 7.6, 5.2];
+/** In rags: the notches torn deeper and two points torn shorter. */
+const SCOUT_RAGS = [3.0, 9.4, 3.6, 10.6, 7.4, 9.8, 3.4, 11.0, 5.8];
+
+function scoutCloak(k: Kit, colour: string, rags: boolean): void {
+  const hem = rags ? SCOUT_RAGS : SCOUT_HEM;
+  const rows = SCOUT_CLOAK.map((ring, r) => hem.map((h, i): V3 => {
+    const a = ring.from + ((ring.to - ring.from) * i) / (hem.length - 1);
+    const y = r === SCOUT_CLOAK.length - 1 ? h : ring.y;
+    return [ring.c[0] + ring.rx[a < 0 ? 0 : 1] * Math.sin(a), y, ring.c[1] - ring.rz * Math.cos(a)];
+  }));
+  k.shell(rows, 0.8, colour, [0, -0.5]);
+}
+
 function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     // Crouched low: the back knee down, the front leg bent, ready to spring.
@@ -676,9 +704,9 @@ function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     const ts = (x: number, y: number) => tunicSurf(0.3)(x, y);
     if (worn(w, 1)) dirt(k, ts, 2.6, H(-3.4), 3.6, c.dark);
     if (worn(w, 3)) { const [lip, gap] = tearPolys(1.6, H(-9.4), 3.4, 3.0); k.decal(lip, mix(c.main, '#000000', 0.45), ts); k.decal(gap, SKIN, ts); }
-    // The hooded cloak in the owner's dark colour, sweeping down his back (in rags when broken).
-    const hem = worn(w, 4) ? [-6.6, 0.6, -8.4, -1.6, -9.8, 2.8, -11.4, -0.8, -13.4, 2] : [-6.6, 0.6, -13.4, 2];
-    k.slab([-1, -22.6, -1, -12.6, -5.6, -10, ...hem, -12.6, -10, -9, -21].map((v, i) => (i % 2 ? H(v) : v)), 1.4, c.dark, [0, 0, -2.4], [0, 0.3, 0]);
+    // The hooded cloak in the owner's dark colour: from under the hood it wraps his shoulders and back and sweeps
+    // out behind him (toward -x) as it falls, its hem torn into points (in rags when broken).
+    scoutCloak(k, c.dark, worn(w, 4));
     const hd = head(k, 2.2, -14.8, 5.4, 1.2, 0.6);
     k.ball([hd.c[0] - 0.4, hd.c[1] + 0.3, hd.c[2] - 1.6], 6.4, c.dark, { detail: 1 });
     k.dome([hd.c[0], hd.c[1] + 0.6, hd.c[2] - 0.2], 5.95, c.dark, { to: 0.9, seg: 12 });

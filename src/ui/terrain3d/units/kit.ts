@@ -179,6 +179,50 @@ export class Kit {
     this.add(g, colour, o);
   }
 
+  /**
+   * A curved sheet `depth` thick (a cloak): `rows` is a grid of points on its outer face, row by row (top to hem),
+   * each row the same number of points. The inner face lies `depth` in from the outer one, toward the vertical line
+   * through `axis` (x, z) that the sheet wraps round, and the edges are closed, so it has a hull like any solid.
+   */
+  shell(rows: readonly (readonly V3[])[], depth: number, colour: string, axis: readonly [number, number], o: PartOpts = {}): void {
+    const nr = rows.length, nc = rows[0]!.length;
+    const P = rows.map((r) => r.map((p) => new Vector3(...p)));
+    const at = (r: number, c: number): Vector3 => P[Math.max(0, Math.min(nr - 1, r))]![Math.max(0, Math.min(nc - 1, c))]!;
+    // Each point's outward normal, from its neighbours along and down the sheet, turned away from the axis.
+    const N = P.map((row, r) => row.map((p, c) => {
+      const du = at(r, c + 1).clone().sub(at(r, c - 1));
+      const dv = at(r + 1, c).clone().sub(at(r - 1, c));
+      const n = du.cross(dv).normalize();
+      if (n.x * (p.x - axis[0]) + n.z * (p.z - axis[1]) < 0) n.negate();
+      return n;
+    }));
+    const I = P.map((row, r) => row.map((p, c) => p.clone().addScaledVector(N[r]![c]!, -depth)));
+    const pos: number[] = [];
+    // A triangle wound to face along `ref`.
+    const tri = (a: Vector3, b: Vector3, c: Vector3, ref: Vector3): void => {
+      const f = b.clone().sub(a).cross(c.clone().sub(a));
+      const [p, q] = f.dot(ref) >= 0 ? [b, c] : [c, b];
+      pos.push(a.x, a.y, a.z, p.x, p.y, p.z, q.x, q.y, q.z);
+    };
+    const quad = (a: Vector3, b: Vector3, c: Vector3, d: Vector3, ref: Vector3): void => { tri(a, b, c, ref); tri(a, c, d, ref); };
+    for (let r = 0; r + 1 < nr; r++) for (let c = 0; c + 1 < nc; c++) {
+      const n = N[r]![c]!.clone().add(N[r]![c + 1]!).add(N[r + 1]![c]!).add(N[r + 1]![c + 1]!);
+      quad(P[r]![c]!, P[r]![c + 1]!, P[r + 1]![c + 1]!, P[r + 1]![c]!, n);
+      quad(I[r]![c]!, I[r]![c + 1]!, I[r + 1]![c + 1]!, I[r + 1]![c]!, n.clone().negate());
+    }
+    // The edges: each wall faces away from the sheet's next row or column in.
+    const wall = (r0: number, c0: number, r1: number, c1: number, ri: number, ci: number): void => {
+      const mid = P[r0]![c0]!.clone().add(P[r1]![c1]!).multiplyScalar(0.5);
+      const ref = mid.sub(at(ri, ci).clone().add(at(ri + (r1 - r0), ci + (c1 - c0))).multiplyScalar(0.5));
+      quad(P[r0]![c0]!, P[r1]![c1]!, I[r1]![c1]!, I[r0]![c0]!, ref);
+    };
+    for (let c = 0; c + 1 < nc; c++) { wall(0, c, 0, c + 1, 1, c); wall(nr - 1, c, nr - 1, c + 1, nr - 2, c); }
+    for (let r = 0; r + 1 < nr; r++) { wall(r, 0, r + 1, 0, r, 1); wall(r, nc - 1, r + 1, nc - 1, r, nc - 2); }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    this.add(g, colour, o);
+  }
+
   // ---- decals: texture-free marks, flat coloured polygons laid just over a surface, no hull ----
 
   /**
