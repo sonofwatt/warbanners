@@ -85,7 +85,7 @@ test("a Knight's card says momentum pays for the chain and a kill that earns a h
 test('the city panel shows growth, units and a row of units to train', () => {
   const c = open.cities[0]!;
   const html = renderToStaticMarkup(<CityPanel faction="spartans" level={c.level} growth={c.growth} growthNeeded={2} units={1} capacity={2} income={2} walls={false} commands={cityCommands(0, open, ix)} onCommand={noop} />);
-  expect(html).toContain('3/2'); expect(html).toContain('1/2');   // rules 9: the Spartan capital's head start of 3, banked until it gains growth expect(html).toContain('data-testid="shop-warrior"');
+  expect(html).toContain('0/2'); expect(html).toContain('1/2'); expect(html).toContain('data-testid="shop-warrior"');
   // nothing is picked yet, so no train button shows until a unit in the row is tapped
   expect(html).not.toContain('data-testid="cmd-train-warrior"');
   expect(html).toContain(T.ui.shopHint);
@@ -112,8 +112,7 @@ test('the tech sheet lists every tech of the tree in five branches and a researc
   // the Spartans build no walls: their walls tech is Deep stores, and says what it does against a blockade
   expect(html).toMatch(/data-testid="tech-walls".*?<strong>Deep stores<\/strong>/);
   expect(html).toContain(T.ui.storesBlockade); expect(html).not.toContain(T.ui.unlocksNone);
-  expect(html).toContain('data-testid="research-trapping"'); expect(html).not.toContain('data-testid="research-farming"');
-  expect(html).not.toContain('data-testid="research-foraging"');   // rules 9: the Spartans start with it
+  expect(html).toContain('data-testid="research-foraging"'); expect(html).not.toContain('data-testid="research-farming"');
 });
 test('a command that waits only on a tech names it and stays tappable; one short of gold does not', () => {
   const field = (Object.keys(open.tiles) as (keyof typeof open.tiles)[]).find((k) => {

@@ -43,7 +43,7 @@ test('tile commands: legal ones, blocked ones with a reason, and nothing irrelev
   expect(byId(tileCommands('-2,4', mined, ixOf(mined)))['build-mine']).toMatchObject({ enabled: true, cost: 5, action: { type: 'build', at: '-2,4', building: 'mine' } });
   const s42 = createMatch({ seed: 42, factions: ['spartans', 'mongols'] });
   expect(tileCommands('-1,5', s42, ixOf(s42))).toEqual([
-    expect.objectContaining({ id: 'harvest', label: T.harvestVerb.orchard, enabled: true }),   // rules 9: the Spartans start with Foraging
+    expect.objectContaining({ id: 'harvest', label: T.harvestVerb.orchard, enabled: false, why: `Needs ${T.tech.foraging}` }),
     expect.objectContaining({ id: 'build-orchard', enabled: false, why: `Needs ${T.tech.orchards}` }),
   ]);
   expect(tileCommands('-1,4', s42, ixOf(s42))).toEqual([expect.objectContaining({ id: 'build-market', enabled: false, why: `Needs ${T.tech.granary}` })]);
@@ -67,11 +67,10 @@ test('tech rows', () => {
   const rows = techRows(open, ixOf(open));
   expect(rows).toHaveLength(21);
   const st = Object.fromEntries(rows.map(r => [r.tech, r.status]));
-  // rules 8: Spartans start with Prospecting (and Foraging since rules 9); their column 2 techs and the other column 1
-  // techs are ready at 10 gold
-  expect(st).toMatchObject({ prospecting: 'owned', foraging: 'owned', spears: 'ready', mining: 'ready', defence: 'ready', orchards: 'ready',
-    trapping: 'ready', gathering: 'ready', fishing: 'ready', smithing: 'locked', foundry: 'locked', farming: 'locked', walls: 'locked' });
-  expect(rows.find(r => r.tech === 'trapping')!.price).toBe(techPrice(open, 0, 'trapping'));
+  // rules 8: Spartans start with Prospecting; its two column 2 techs and the other column 1 techs are ready at 10 gold
+  expect(st).toMatchObject({ prospecting: 'owned', spears: 'ready', mining: 'ready', foraging: 'ready', trapping: 'ready', gathering: 'ready',
+    fishing: 'ready', smithing: 'locked', foundry: 'locked', farming: 'locked', defence: 'locked' });
+  expect(rows.find(r => r.tech === 'foraging')!.price).toBe(techPrice(open, 0, 'foraging'));
   expect(rows.map(r => r.branch)).toEqual([...Array(5).fill('orchards'), ...Array(5).fill('hunting'), ...Array(5).fill('mountains'), ...Array(5).fill('plains'), 'waters']);
   expect(rows.filter(r => r.branch === 'orchards').map(r => r.row)).toEqual([null, 'top', 'top', 'bottom', 'bottom']);
 });

@@ -14,7 +14,7 @@ export { canHunker, canUnhunker, hunkerRefusal, unhunkerRefusal } from './hunker
 export { restHealAt } from './turn';
 export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, maxHpOf, mythTouched } from './heroes';
 export { trainable, unitCost } from './training';
-export { techPrice, canResearch, unitTech, harvestTech, buildingTech, startTech, startTechs, wallsTech, roadTech } from './tech';
+export { techPrice, canResearch, unitTech, harvestTech, buildingTech, startTech, wallsTech, roadTech } from './tech';
 export { blockadeOf, blockadeLoss, cityIncome, playerIncome, growthNeeded, addGrowth, unitCapacity } from './economy';
 export type { Blockade } from './economy';
 export { isConnected } from './connect';

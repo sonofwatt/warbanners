@@ -57,12 +57,11 @@ centre `(0,0)` is always a plain field.
 
 ## 4. Start of a match
 
-- Each player: their capital (level 1, territory radius 1), one starting unit on
+- Each player: their capital (level 1, territory radius 1; the Spartan capital starts at
+  level 2 since rules 9, see 13), one starting unit on
   the capital tile, their faction's starting tech (since rules 8 a column 1 tech, which
   trains no unit: see 7 and 13).
 - The first player starts with 10 gold and the second with 12 (both 10 before rules 7).
-- Since rules 9 the Spartan capital starts with 3 growth points banked and the
-  Spartans also know `foraging` from the start (section 13).
 - Each player has explored whatever their capital and starting unit can see.
 
 ## 5. Turn
@@ -93,9 +92,9 @@ option, and statuses on your units (taunted, blinded) wear off.
 - A city's territory is every tile within its radius (1, or 2 after the "borders"
   reward) that no other city already claims.
 - Growth points come from harvesting and buildings in the city's territory.
-- To go from level `L` to `L+1` a city needs `L+1` growth points, whatever its
-  faction (since rules 9; a Spartan city needed `L` in rules 7 and 8, and a Mongol
-  city `L+2` before rules 8). Spare points carry over.
+- To go from level `L` to `L+1` a city needs `L+1` growth points, and a Spartan city
+  from level 2 on 1 less, `L` (since rules 9; rules 7 and 8 gave the Spartans `L` from
+  level 1, and a Mongol city needed `L+2` before rules 8). Spare points carry over.
 - Connected cities (since rules 7): a city is connected when a chain of adjacent
   tiles joins it to its owner's capital, every tile of the chain being a road or
   a city of that owner. A road inside another player's territory breaks the
@@ -430,11 +429,12 @@ Spartans
 
 - Start with `prospecting` (`bronze` before rules 8). The starting Krypteia Scout is
   placed as before, but Spearmen and Hoplites wait for `spears`.
-- Head start (since rules 9): the Spartan capital starts the match with 3 growth
-  points banked, and the Spartans know `foraging` from the start as well as
-  `prospecting`. The banked points level the capital only when its owner adds
-  growth, never at the start of the match. (Rules 7 and 8 had a Spartan growth
-  discount instead: a Spartan city needed `L` growth to leave level `L`.)
+- The Spartan capital starts the match at level 2 (since rules 9). It never levelled
+  up, so there is no level 2 reward for it; its income, unit capacity and growth
+  need are a level 2 city's from the start.
+- From level 2 on a Spartan city needs 1 growth point less to level up: `L` to go
+  from level `L` to `L+1`. Leaving level 1 takes 2, as for anyone (since rules 9;
+  rules 7 and 8: `L` from level 1).
 - A Spartan unit standing in a Spartan city has cover 2. Spartans cannot build Walls.
   For them the `walls` tech is Deep stores (rules 8): a blockade of any Spartan city
   takes 15% of its income instead of half (section 6).
@@ -566,10 +566,12 @@ This list, the one above and the one below are the file's changelog.
 
 ## Rules 9 changes
 
-- No Spartan growth discount: every city needs `L+1` growth to leave level `L` (a
-  Spartan city needed `L`). Instead the Spartan capital starts with 3 growth banked
-  and the Spartans start with `foraging` too (sections 4, 6 and 13;
-  2026-11-25-rules9-report.md).
+- The Spartan capital starts at level 2, with no reward for it (David, 2026-11-25;
+  sections 4 and 13).
+- The Spartan growth discount starts at level 2: every city needs 2 growth points to
+  leave level 1 (a Spartan city needed 1), and from level 2 on a Spartan city needs
+  `L` as before (2 to leave level 2, 3 to leave level 3). Mongols are unchanged
+  (sections 6 and 13).
 - The level 2 `gold` reward is +5 gold (was +6). A champion or support reward with
   no free tile pays the same +5 (section 6). The treasure's +5 gold is a separate
   number and unchanged (section 12).

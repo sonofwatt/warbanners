@@ -1,5 +1,5 @@
 import { deepFreeze } from './freeze';
-import type { FactionId, TechId, UnitTypeId } from '../types';
+import type { FactionId, UnitTypeId } from '../types';
 
 // The tech each faction starts with is in the tech tree (data/techs.ts, TreeDef.start).
 export interface FactionDef {
@@ -17,26 +17,23 @@ export interface FactionDef {
   blockadeStores: boolean;
   agoge: boolean;                        // earns traits from the lower agogeThresholds
   mythTouch: boolean;                    // a hero beside another hero of its owner has +1 attack and +1 defence
-  // rules 9: growth points the faction's capital holds when the match starts. It is only banked: the capital levels on
-  // the first growth its owner adds, never at setup, even if this alone fills the bar.
-  capitalStartGrowth: number;
-  // rules 9: techs the faction knows from the start besides its tree's start tech (data/techs.ts, TreeDef.start)
-  extraStartTechs: readonly TechId[];
+  // rules 9: the level the faction's capital starts the match at. It never levelled up, so it has no reward pending;
+  // income, unit capacity and growth needs follow the level as for any city.
+  capitalStartLevel: number;
 }
 
 // rules 13
 export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
   spartans: {
     startUnit: 'scout', champion: 'kingsGuard', support: 'piper',
-    // rules 9: growthExtra 0 (-1 in rules 7 and 8): Spartan cities level at the common pace. Instead the capital starts
-    // with 3 growth banked (David, 2026-11-25: "give their capital a head start"), and the Spartans also start with
-    // Foraging, since their own start tech harvests almost nothing near the capital (2026-11-25-rules9-report.md)
-    cityCover: 2, canBuildWalls: false, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartGrowth: 3, extraStartTechs: ['foraging'],
+    // rules 9 (David, 2026-11-25): the capital starts at level 2, and from level 2 on a Spartan city needs 1 growth less
+    // than anyone's (growthExtra -1 from CONFIG.growthExtraFrom 2): 2 to leave level 1, then L to leave level L
+    cityCover: 2, canBuildWalls: false, growthExtra: -1, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartLevel: 2,
     forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true, blockadeStores: true, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: true, mythTouch: true,
   },
   mongols: {
     startUnit: 'horseman', champion: 'khansGuard', support: 'skyCaller',
-    cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 1, capitalStartGrowth: 0, extraStartTechs: [],
+    cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 1, capitalStartLevel: 1,
     // rules 8: no riding bonus (it was a half-point, ridden by territory) and relay riding for mounted units only.
     // growthExtra 0 (1 before rules 8): Mongol cities level as fast as anyone's, for the connection growth they lost
     // with their roads, and tribute 4 (3 before rules 8) for a village or a city's base (2026-11-24-rules8-tuning-report.md)

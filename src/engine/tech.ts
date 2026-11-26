@@ -1,5 +1,4 @@
 import { CONFIG } from './data/config';
-import { FACTIONS } from './data/factions';
 import { TECHS, TECH_TREE } from './data/techs';
 import { hasOwn } from './state';
 import type { Action, BuildingId, FactionId, Handler, MatchState, PlayerId, Resource, TechId, UnitTypeId } from './types';
@@ -10,8 +9,6 @@ export function unitTech(type: UnitTypeId): TechId | null { return TECH_TREE.uni
 export function harvestTech(resource: Resource): TechId | null { return TECH_TREE.harvest[resource] ?? null; }
 export function buildingTech(building: BuildingId): TechId | null { return TECH_TREE.buildings[building]?.tech ?? null; }
 export function startTech(faction: FactionId): TechId { return TECH_TREE.start[faction]; }
-// rules 9: every tech a faction holds when a match starts, the tree's start tech first
-export function startTechs(faction: FactionId): TechId[] { return [TECH_TREE.start[faction], ...FACTIONS[faction].extraStartTechs]; }
 export function wallsTech(): TechId { return TECH_TREE.walls; }
 export function roadTech(): TechId { return TECH_TREE.road; }
 

@@ -1,5 +1,5 @@
 // Bulk AI-against-AI matches for tuning: plays whole matches with the real turn driver and measures each side.
-import { CONFIG, FACTIONS, UNITS, createMatch, distance, isHero, parseKey, reachable, startTechs, unitTech } from '../engine';
+import { CONFIG, FACTIONS, UNITS, createMatch, distance, isHero, parseKey, reachable, startTech, unitTech } from '../engine';
 import type { Action, FactionId, HeroTraitId, MatchState, PlayerId, RewardId, TechId, Trait, TreasureOutcome, Unit, UnitTypeId } from '../engine';
 import { adaptStep, betweenMatches, gapOf, standingOf } from './adapt';
 import type { AdaptState } from './adapt';
@@ -370,7 +370,7 @@ export function census(results: readonly SimResult[]): Census {
   for (const r of results) for (const p of [0, 1] as const) {
     const f = r.factions[p];
     const side = r.sides[p];
-    const techs = new Set<TechId>([...side.techs, ...startTechs(f)]);
+    const techs = new Set<TechId>([...side.techs, startTech(f)]);
     for (const t of trainableTypes(f)) {
       const tech = unitTech(t);
       const row = out.units[f][t] ??= { had: 0, trained: 0, total: 0 };

@@ -110,9 +110,7 @@ test('an unexplored enemy capital tile stays a goal: the start is known to both'
   expect(objectives(b, 0, PERSONAS.spartans)).toContainEqual({ at: '2,-5', kind: 'enemyCapital', value: 14 });
 });
 test('moveScore is the change in valueOf for a move, plus 0.9 per newly explored tile', () => {
-  // (3, 88) since rules 9's Spartan head start: at (3, 90) a Knight's long moves now differ by whole points (as on
-  // (9, 90), which predates it: moveScore's own approximation for some long rider moves, not a new mismatch).
-  for (const [seed, turns] of [[3, 88]] as const) {
+  for (const [seed, turns] of [[3, 90]] as const) {
     const s = randomPlayout(seed, turns);
     if (s.winner !== null) continue;
     const b = believedState(aiInputFor(s, s.current));
