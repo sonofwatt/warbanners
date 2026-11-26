@@ -7,7 +7,7 @@ import { BuildingMark, CityMark, Grove, ResourceMark, Road, TerrainFeature, Trea
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
-import { StatusOverlay } from '../art/units';
+import { WarBanner } from '../art/banner';
 import {
   cameraBetween, centreOn, easeInOut, followAction, keepCorner, keepInView, NO_INSETS, panMs, refit, screenToBoard, slackFor, startCamera, panBy, zoomAt,
 } from './camera';
@@ -20,7 +20,7 @@ import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
-import { glUnitsOf, unitAlpha } from '../terrain3d/unitsInput';
+import { glUnitsOf, unitShown } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
 import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
 import type { AmbientLoop } from '../terrain3d/ambient';
@@ -249,15 +249,14 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
 }
 
 // `figure` false: the 3D figures draw the unit (and a hero's pennant) on their canvas, and this draws only what
-// stands around it: the status plate, its marks and the item badge, in the same places.
+// stands around it: the war banner, its marks and the item badge, in the same places.
 function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
-  const hidden = UNITS[unit.type].traits.includes('hidden');
   const maxHp = maxHpOf(unit);
-  const dim = unitAlpha({ mine: p.u.mine, spent: p.u.spent, hidden });
-  const opacity = dim < 1 ? dim : undefined;
+  // Spent: darker, never see-through (theme.css .unit-shade); hidden: the eye on the banner (unitsInput.ts).
+  const shown = unitShown({ mine: p.u.mine, spent: p.u.spent, hidden: UNITS[unit.type].traits.includes('hidden') });
   return (
     <g
       data-unit={unit.id}
@@ -265,25 +264,32 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
       className="board-unit"
       style={{ transform: unitTransform(p.u.at) }}
     >
-      {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and dims with it. */}
+      {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and darkens with it. */}
       <g className="unit-body">
         {p.figure === false ? null : (
-          <g opacity={opacity}>
-            {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
-            {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+          // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
+          <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
+            <g className={shown.shaded ? 'unit-shade spent' : 'unit-shade'}>
+              {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
+              {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+            </g>
           </g>
         )}
-        <StatusOverlay
+        <WarBanner
+          type={unit.type}
+          colour={playerColour(faction)}
           hp={unit.hp}
           maxHp={maxHp}
-          spent={p.u.spent}
+          spent={shown.shaded}
           fresh={unit.fresh}
           taunted={unit.taunted}
           blinded={unit.blinded}
           hunkered={unit.hunkered}
+          hero={isHero(unit)}
+          hidden={shown.eye}
         />
         {unit.item !== null ? (
-          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered))} 0)`}><ItemBadge item={unit.item} /></g>
+          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered, shown.eye))} 0)`}><ItemBadge item={unit.item} /></g>
         ) : null}
       </g>
     </g>

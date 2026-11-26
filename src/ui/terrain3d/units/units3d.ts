@@ -24,6 +24,9 @@ import { gaitKind, gaitPose, gaitWeight } from './gait';
 import type { GaitKind } from './gait';
 import { exchange, REACT_MS, reactPose, strikePose } from './strike';
 import type { ReactKind, StrikeKind } from './strike';
+import { CROUCH_MS, crouchAt, crouchBusy, crouchNow, crouchTo, guardOf } from './crouch';
+import { SHADE_MS, SHADE_STEPS, shadeStep } from './shade';
+import type { Crouch, Guard } from './crouch';
 
 export interface UnitsCamera { cx: number; cy: number; scale: number }
 export interface UnitsViewport { w: number; h: number }
@@ -47,9 +50,11 @@ export interface UnitFall { key: string; type: GlUnit['type']; look: GlUnit['loo
 
 export interface Units3d {
   /**
-   * The scene's units: new ones are added (in their rest facing), gone ones removed, changed ones rebuilt. One that
-   * stands on a new point turns to face the way it went, and one that has just hunkered turns back to rest; the turns
-   * start at `nowMs` (the clock tick is given; by default the last tick's time).
+   * The scene's units: new ones are added (in their rest facing, crouched if they are hunkered, darker if spent), gone
+   * ones removed, changed ones rebuilt. One that is newly spent darkens over SHADE_MS, and lightens the same way when
+   * its next turn starts (units/shade.ts); never see-through. One that stands on a new point turns to face the way it went, and one that has just
+   * hunkered turns back to rest and eases into its crouch (units/crouch.ts); one no longer hunkered stands up. The
+   * turns start at `nowMs` (the clock tick is given; by default the last tick's time).
    */
   setUnits(units: readonly GlUnit[], nowMs?: number, moveDelays?: ReadonlyMap<number, number>): void;
   /**
@@ -70,8 +75,8 @@ export interface Units3d {
    */
   forget(ids: Iterable<number>): void;
   /**
-   * Whether any figure is still turning (or waiting to turn), striking or blocking at `nowMs`, so its frames must go
-   * on being drawn.
+   * Whether any figure is still turning (or waiting to turn), crouching or standing up, darkening or lightening, striking or blocking at
+   * `nowMs`, so its frames must go on being drawn.
    */
   turning(nowMs: number): boolean;
   /** Where units stand this frame while they move (others stay on their tiles), and the falls playing. */
@@ -87,7 +92,7 @@ export interface Units3d {
   readonly extras: Group;
   draw(cam: UnitsCamera, vp: UnitsViewport, dpr: number): void;
   dispose(): void;
-  stats(): { triangles: number; calls: number; units: number; looks: number; falls: number; dims: number };
+  stats(): { triangles: number; calls: number; units: number; looks: number; falls: number; shades: number };
 }
 
 /** The figures' hull, a little thinner than the terrain's (0.55), as the figures are small. */
@@ -97,21 +102,32 @@ const SHADOW_ALPHA = 0.18;
 
 const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}`;
 
-/** A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow): its group, turned about its pivot. */
-interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3 }
-interface Built { group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; pieces: Map<string, Piece>; shadow: Mesh; shadowX: number }
+/**
+ * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,
+ * turned about its pivot, and its crouch guard (units/crouch.ts) in figure space: a turn about `gAxis` and a shift.
+ */
+interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3 }
+interface Built {
+  group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; pieces: Map<string, Piece>; shadow: Mesh; shadowX: number;
+  /** Its opaque meshes (a fall's see-through ones are not listed), and whether each is the hull: a shade repaints them. */
+  paint: { mesh: Mesh; hull: boolean }[];
+}
 /** A strike or a reaction under way or waiting its time, on one unit (ms on the frame clock). */
 type Act =
   | { kind: 'strike'; at: number; ms: number; strike: StrikeKind }
   | { kind: 'react'; at: number; react: ReactKind; dx: number; dz: number };
 interface Placed extends Built {
-  sig: string; unit: GlUnit; alpha: number; kind: IdleKind; gait: GaitKind;
+  sig: string; unit: GlUnit; kind: IdleKind; gait: GaitKind;
+  /** The shade step it is painted with now (0 as fresh, SHADE_STEPS fully spent). */
+  step: number;
   /** Moving in this frame (a slide or a lunge), and when it last was (ms), so its idle life eases back in. */
   moving: boolean; restSince: number; lunge: number | null;
   /** The idle weight shown last frame, so a unit that starts to move eases out of its idle pose. */
   weight: number;
   /** The last move (board points), how far along it the figure is (hexes) and through its travel (0 to 1, or null). */
   trip: { x0: number; y0: number } | null; stride: number; travel: number | null;
+  /** The crouch it takes when hunkered. */
+  guard: Guard;
 }
 /** The distance between neighbouring tile centres, in board units. */
 const TILE_STEP = R * SQ3;
@@ -122,13 +138,18 @@ const FEET_Z = 4 / SQUASH;
 /** The ground shadow sits this far right of the figure's own centre (the light is from the upper left) and back. */
 const SHADOW_DX = 1.2, SHADOW_DZ = -0.6;
 
-/** A unit's facing, kept by id across rebuilds (a unit that is spent after a move is rebuilt dimmed, still facing its move). */
+/** A unit's facing, kept by id across rebuilds (a unit seen again keeps the way it stood), with its crouch and shade. */
 interface Facing {
   type: GlUnit['type']; x: number; y: number; hunkered: boolean; face: Face;
   /** A move's turn that waits for its slide to start (an advance waits for its blow). */
   later: { yaw: number; at: number } | null;
   /** Strikes and reactions to play. */
   acts: Act[];
+  /** The hunker crouch, easing in or out. */
+  crouch: Crouch;
+  /** How spent it looks (0 fresh, 1 spent), easing as a crouch does. */
+  shade: Crouch;
+  spent: boolean;
 }
 
 /** Whether the player asks for less motion: turns are then made at once. Read when a turn starts, never at import. */
@@ -166,10 +187,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   const shadowGeo = new CircleGeometry(1, 20);
   const shadowMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA, depthWrite: false });
 
-  // A dimmed figure (an own spent or hidden unit, a fading fall) is see-through as one piece, as the svg group
-  // opacity draws it: a depth-only pass first, then the colour pass blends only the nearest surface, once.
+  // A fading fall is see-through as one piece, as the svg group opacity draws it: a depth-only pass first, then the
+  // colour pass blends only the nearest surface, once. (No standing unit is ever see-through.)
   interface Dim { depthFill: ShaderMaterial; depthHull: ShaderMaterial; fill: ShaderMaterial; hull: ShaderMaterial; shadow: MeshBasicMaterial }
-  const dims = new Map<number, Dim>();
   function makeDim(a: number): Dim {
     const mk = (outline: boolean, colour: boolean): ShaderMaterial => new ShaderMaterial({
       uniforms: uniforms(outline, a), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true,
@@ -187,15 +207,25 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     d.shadow.opacity = SHADOW_ALPHA * a;
   }
   const disposeDim = (d: Dim): void => { for (const m of [d.depthFill, d.depthHull, d.fill, d.hull, d.shadow]) m.dispose(); };
-  /** The shared materials of a steady dim level (spent 0.55, hidden 0.7). */
-  function dimOf(alpha: number): Dim {
-    const a = Math.round(alpha * 20) / 20;
-    let d = dims.get(a);
-    if (d === undefined) {
-      d = makeDim(a);
-      dims.set(a, d);
+  /** The shared opaque materials of each shade step (step 0 is the plain pair), made when first needed. */
+  const shades = new Map<number, { fill: ShaderMaterial; hull: ShaderMaterial }>();
+  function shadeMats(step: number): { fill: ShaderMaterial; hull: ShaderMaterial } {
+    if (step <= 0) return { fill: fillMat, hull: hullMat };
+    let m = shades.get(step);
+    if (m === undefined) {
+      const mk = (outline: boolean): ShaderMaterial => new ShaderMaterial({
+        uniforms: { ...uniforms(outline), uShade: { value: step / SHADE_STEPS } }, vertexShader: propVert, fragmentShader: propFrag,
+        vertexColors: true, side: outline ? BackSide : undefined, defines: { UNIT_SHADE: '', WORLD_NORMAL: '' },
+      });
+      m = { fill: mk(false), hull: mk(true) };
+      shades.set(step, m);
     }
-    return d;
+    return m;
+  }
+  /** Paint a figure's opaque meshes with a shade step. */
+  function repaint(b: Pick<Built, 'paint'>, step: number): void {
+    const m = shadeMats(step);
+    for (const p of b.paint) p.mesh.material = p.hull ? m.hull : m.fill;
   }
 
   const looks = new Map<string, Figure>();
@@ -210,12 +240,13 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   /** One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower on screen, as the svg feet. */
-  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, alpha: number, own?: Dim): Built {
+  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, own?: Dim): Built {
     const f = figureOf(type, look, hero);
     const g = new Group();
     const body = new Group();
     body.position.set(0, 0, FEET_Z);
-    const dim = own ?? (alpha < 1 ? dimOf(alpha) : null);
+    const dim = own ?? null;
+    const paint: Built['paint'] = [];
     // The shadow lies in the figure's group, not its body: idle life does not lift it, and a turn turns only its shape.
     const sh = new Mesh(shadowGeo, dim !== null ? dim.shadow : shadowMat);
     sh.scale.set(f.shadow.rx, f.shadow.rz, 1);
@@ -226,36 +257,55 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const d = dim;
       meshes.push(new Mesh(f.hull, d.depthHull), new Mesh(f.fill, d.depthFill), new Mesh(f.hull, d.hull), new Mesh(f.fill, d.fill));
     } else {
-      meshes.push(new Mesh(f.hull, hullMat), new Mesh(f.fill, fillMat));
+      const hull = new Mesh(f.hull, hullMat), fill = new Mesh(f.fill, fillMat);
+      meshes.push(hull, fill);
+      paint.push({ mesh: hull, hull: true }, { mesh: fill, hull: false });
     }
     for (const m of meshes) { m.frustumCulled = false; body.add(m); }
-    // Moving pieces (the trebuchet's arm and stone): each in a group at its pivot, so turning the group swings it.
+    // Moving pieces (the trebuchet's arm and stone, weapons, shields, legs, a rider): each in a group at its pivot,
+    // so turning the group swings it. A piece built inside another is carried by it (a rider's lance).
+    const guard = guardOf(type);
+    const inners = new Map<string, Group>();
+    const pieces = new Map<string, Piece>();
     const piece = (name: string): Group | null => {
       const pc = f.pieces[name];
       if (pc === undefined) return null;
+      const made = inners.get(name);
+      if (made !== undefined) return made;
       const at = new Group();
+      at.name = name;
       at.position.set(...pc.pivot);
       const inner = new Group();
       inner.position.set(-pc.pivot[0], -pc.pivot[1], -pc.pivot[2]);
       const ms = dim !== null
         ? [new Mesh(pc.hull, dim.depthHull), new Mesh(pc.fill, dim.depthFill), new Mesh(pc.hull, dim.hull), new Mesh(pc.fill, dim.fill)]
         : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
+      if (dim === null) paint.push({ mesh: ms[0]!, hull: true }, { mesh: ms[1]!, hull: false });
       for (const m of ms) { m.frustumCulled = false; inner.add(m); }
       at.add(inner);
-      body.add(at);
-      return at;
+      const carrier = pc.parent === null ? null : piece(pc.parent);
+      (carrier ?? body).add(at);
+      inners.set(name, inner);
+      // The guard is set in the piece's own frame: turned into figure space here, once.
+      const g = guard.pieces[name];
+      const [bx, by, bz] = pc.basis;
+      const inFigure = (v: readonly [number, number, number]): Vector3 => new Vector3(
+        bx[0] * v[0] + by[0] * v[1] + bz[0] * v[2], bx[1] * v[0] + by[1] * v[1] + bz[1] * v[2], bx[2] * v[0] + by[2] * v[1] + bz[2] * v[2],
+      );
+      pieces.set(name, {
+        group: at, pivot: new Vector3(...pc.pivot), axis: new Vector3(...pc.axis), fwd: new Vector3(...pc.fwd), up: new Vector3(...pc.up),
+        gAxis: g?.axis !== undefined ? inFigure(g.axis).normalize() : new Vector3(...pc.axis),
+        gAngle: g?.angle ?? 0, gShift: g !== undefined ? inFigure(g.shift) : new Vector3(),
+      });
+      return inner;
     };
-    const pieces = new Map<string, Piece>();
-    for (const [name, pc] of Object.entries(f.pieces)) {
-      const at = piece(name);
-      if (at !== null) pieces.set(name, { group: at, pivot: new Vector3(...pc.pivot), axis: new Vector3(...pc.axis), fwd: new Vector3(...pc.fwd), up: new Vector3(...pc.up) });
-    }
+    for (const name of Object.keys(f.pieces)) piece(name);
     const arm = pieces.get(ARM)?.group ?? null;
     const stone = pieces.get(STONE_PIECE)?.group ?? null;
     const axis = f.pieces[ARM]?.axis;
     g.add(body);
     g.add(sh);
-    const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x };
+    const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x, paint };
     placeShadow(built, 0);
     return built;
   }
@@ -286,7 +336,10 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         const was = unseen.get(u.id);
         unseen.delete(u.id);
         const face = was !== undefined && was.type === u.type ? heldAt(was.yaw) : REST_FACING;
-        facings.set(u.id, { type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, face, later: null, acts: [] });
+        facings.set(u.id, {
+          type: u.type, x: u.x, y: u.y, hunkered: u.hunkered, face, later: null, acts: [], crouch: crouchNow(u.hunkered, now),
+          shade: crouchNow(u.spent, now), spent: u.spent,
+        });
       } else {
         if (u.x !== fc.x || u.y !== fc.y) {
           // A move (a slide, a lure, an advance): face the way it went, as its slide starts (an advance waits for its
@@ -299,9 +352,14 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         } else if (u.hunkered && !fc.hunkered) {
           fc.face = turnNow(fc.face, 0, now, turnMs(TURN_MS));
         }
+        // Hunkered: it eases into its crouch; no longer hunkered (it moved, acted or was attacked out of it): it stands.
+        if (u.hunkered !== fc.hunkered) fc.crouch = crouchTo(fc.crouch, u.hunkered, now, turnMs(CROUCH_MS));
+        // Spent: it darkens; its next turn: it lightens (the same easing as the crouch, over SHADE_MS).
+        if (u.spent !== fc.spent) fc.shade = crouchTo(fc.shade, u.spent, now, turnMs(SHADE_MS));
+        fc.spent = u.spent;
         fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
       }
-      const sig = `${lookKey(u.type, u.look, u.hero)}|${u.alpha}`;
+      const sig = lookKey(u.type, u.look, u.hero);
       let p = placed.get(u.id);
       if (p !== undefined && p.sig !== sig) {
         scene.remove(p.group);
@@ -309,8 +367,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       }
       if (p === undefined) {
         p = {
-          sig, unit: u, ...makeGroup(u.type, u.look, u.hero, u.alpha), alpha: u.alpha, kind: idleKind(u.type), gait: gaitKind(u.type),
-          moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null,
+          sig, unit: u, ...makeGroup(u.type, u.look, u.hero), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
+          moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null, guard: guardOf(u.type),
         };
         scene.add(p.group);
         placed.set(u.id, p);
@@ -319,6 +377,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       if (trip !== undefined) { p.trip = trip; p.stride = 0; p.travel = null; }
       p.unit = u;
       ground(u.x, u.y, p.group.position);
+      const fs = facings.get(u.id);
+      const step = fs === undefined ? 0 : shadeStep(crouchAt(fs.shade, now));
+      if (step !== p.step) { repaint(p, step); p.step = step; }
     }
     for (const [id, p] of placed) {
       if (keep.has(id)) continue;
@@ -405,6 +466,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       fc.face = settle(fc.face, nowMs);
       if (fc.later !== null || facingBusy(fc.face, nowMs)) return true;
       if (fc.acts.some((a) => actEnd(a) > nowMs)) return true;
+      if (crouchBusy(fc.crouch, nowMs) || crouchBusy(fc.shade, nowMs)) return true;
     }
     for (const f of fallStrikes.values()) if (f.at + f.ms > nowMs) return true;
     return false;
@@ -435,7 +497,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       let g = fallen.get(k);
       if (g === undefined) {
         const dim = makeDim(f.alpha);
-        const b = makeGroup(f.type, f.look, false, f.alpha, dim);
+        const b = makeGroup(f.type, f.look, false, dim);
         // It falls facing the way it stood (or toward the unit it struck, if it struck as it fell).
         const at = spot(f.type, f.x, f.y);
         const yaw = fallStrikes.get(at)?.yaw ?? gone.get(at)?.yaw ?? 0;
@@ -462,10 +524,16 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   let clock = 0;
   const qa = new Quaternion(), qb = new Quaternion(), qc = new Quaternion(), qw = new Quaternion();
   const fwdM = new Vector3(), sideM = new Vector3(), sideA = new Vector3(), knockAxis = new Vector3();
-  /** A piece turned by `angle` about its axis and pushed along its fwd and up, from where it was built. */
-  function posePiece(pc: Piece, angle: number, push: number, lift: number): void {
+  const qg = new Quaternion();
+  /**
+   * A piece turned by `angle` about its axis and pushed along its fwd and up, from where it was built, on top of its
+   * crouch guard at `crouch` (0 standing, 1 crouched): a strike or a block plays from the guard.
+   */
+  function posePiece(pc: Piece, angle: number, push: number, lift: number, crouch = 0): void {
     pc.group.quaternion.setFromAxisAngle(pc.axis, angle);
+    if (crouch > 0 && pc.gAngle !== 0) pc.group.quaternion.premultiply(qg.setFromAxisAngle(pc.gAxis, pc.gAngle * crouch));
     pc.group.position.copy(pc.pivot).addScaledVector(pc.fwd, push).addScaledVector(pc.up, lift);
+    if (crouch > 0) pc.group.position.addScaledVector(pc.gShift, crouch);
   }
   function tick(nowMs: number, level: number): void {
     const dt = Math.min(100, Math.max(0, nowMs - clock));
@@ -476,9 +544,15 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const target = p.moving ? 0 : settleWeight(nowMs - p.restSince);
       // Into motion: ease out over EASE_OUT_MS rather than snap; back to rest: the settle curve brings it in.
       p.weight = target < p.weight ? Math.max(target, p.weight - dt / EASE_OUT_MS) : target;
-      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, p.weight * Math.min(1, Math.max(0, level)));
-      // The facing turns the body about its feet; the idle tilt stays a sway in the plane of the screen.
       const fc = facings.get(p.unit.id);
+      // The hunker crouch (0 standing, 1 crouched): idle life goes on in it, smaller.
+      const cr = fc === undefined ? 0 : crouchAt(fc.crouch, nowMs);
+      const step = fc === undefined ? 0 : shadeStep(crouchAt(fc.shade, nowMs));
+      if (step !== p.step) { repaint(p, step); p.step = step; }
+      const g = p.guard;
+      const idleScale = 1 - (1 - g.idle) * cr;
+      const ip = idlePose(p.kind, p.unit.id, nowMs / 1000, p.weight * Math.min(1, Math.max(0, level)) * idleScale);
+      // The facing turns the body about its feet; the idle tilt stays a sway in the plane of the screen.
       if (fc !== undefined) { startLater(fc, nowMs); fc.face = settle(fc.face, nowMs); }
       const face = fc === undefined ? 0 : facingYaw(fc.face, nowMs);
       // The gait along a slide, and the strike and the block of an attack, in world space about the feet.
@@ -496,26 +570,27 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const mh = fronts.move + face, ah = fronts.aim + face;
       fwdM.set(Math.sin(mh), 0, Math.cos(mh)); sideM.set(Math.cos(mh), 0, -Math.sin(mh));
       sideA.set(Math.cos(ah), 0, -Math.sin(ah));
-      p.body.position.set(ip.shift + sideM.x * gp.sway + rdx * rp.knock, ip.bob + gp.bob, FEET_Z + sideM.z * gp.sway + rdz * rp.knock);
-      // A positive turn about a side axis tips the figure's top forward along that heading.
-      qw.setFromAxisAngle(sideM, gp.pitch - sp.rear)
+      p.body.position.set(ip.shift + sideM.x * gp.sway + rdx * rp.knock, ip.bob + gp.bob - g.drop * cr, FEET_Z + sideM.z * gp.sway + rdz * rp.knock);
+      // A positive turn about a side axis tips the figure's top forward along that heading (a crouch leans in).
+      qw.setFromAxisAngle(sideM, gp.pitch - sp.rear + g.lean * cr)
         .multiply(qb.setFromAxisAngle(fwdM, gp.roll))
         .multiply(qc.setFromAxisAngle(sideA, sp.lean));
       if (rp.lean !== 0) qw.premultiply(qc.setFromAxisAngle(knockAxis.set(rdz, 0, -rdx), rp.lean));
       p.body.quaternion.copy(qw).multiply(qa.setFromAxisAngle(Z, ip.tilt)).multiply(qb.setFromAxisAngle(Y, face + ip.yaw));
       placeShadow(p, face);
-      p.body.scale.set(1, 1 + ip.breathe, 1);
-      // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too).
-      const weapon = p.pieces.get(WEAPON), weapon2 = p.pieces.get(WEAPON2), shield = p.pieces.get(SHIELD), arrow = p.pieces.get(ARROW);
-      const strikeOnShield = weapon === undefined;
-      if (weapon !== undefined) posePiece(weapon, sp.angle, sp.push, sp.lift);
-      if (weapon2 !== undefined) posePiece(weapon2, sp.angle, sp.push, sp.lift);
-      if (arrow !== undefined) { posePiece(arrow, 0, sp.draw, 0); arrow.group.visible = sp.arrow; }
-      if (shield !== undefined) {
-        posePiece(shield, rp.angle + (strikeOnShield ? sp.angle : 0), rp.push + (strikeOnShield ? sp.push : 0), rp.lift + (strikeOnShield ? sp.lift : 0));
+      p.body.scale.set(1, (1 + ip.breathe) * (1 - g.squash * cr), 1);
+      // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too); the rest of
+      // the pieces hold their guard.
+      const strikeOnShield = !p.pieces.has(WEAPON);
+      for (const [name, pc] of p.pieces) {
+        if (name === WEAPON || name === WEAPON2) posePiece(pc, sp.angle, sp.push, sp.lift, cr);
+        else if (name === ARROW) { posePiece(pc, 0, sp.draw, 0, cr); pc.group.visible = sp.arrow; }
+        else if (name === SHIELD) {
+          posePiece(pc, rp.angle + (strikeOnShield ? sp.angle : 0), rp.push + (strikeOnShield ? sp.push : 0), rp.lift + (strikeOnShield ? sp.lift : 0), cr);
+        } else if (name !== ARM && name !== STONE_PIECE) posePiece(pc, 0, 0, 0, cr);
       }
       if (p.arm !== null) {
-        const angle = armSwing(p.lunge) + ip.arm;
+        const angle = armSwing(p.lunge) + ip.arm + g.arm * cr;
         p.arm.quaternion.setFromAxisAngle(p.armAxis, angle);
         if (p.stone !== null) {
           p.stone.quaternion.copy(p.arm.quaternion);
@@ -582,8 +657,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     }
     looks.clear();
     const mats: Material[] = [fillMat, hullMat, shadowMat];
-    for (const d of dims.values()) mats.push(d.depthFill, d.depthHull, d.fill, d.hull, d.shadow);
-    dims.clear();
+    for (const m of shades.values()) mats.push(m.fill, m.hull);
+    shades.clear();
     for (const m of mats) m.dispose();
     shadowGeo.dispose();
     renderer.dispose();
@@ -592,7 +667,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
 
   return {
     setUnits, aim, strikes, forget, turning: anyTurning, pose, tick, onScreen, extras, draw, dispose,
-    stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, dims: dims.size }),
+    stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, shades: shades.size }),
   };
 }
 

@@ -688,6 +688,18 @@ input:focus { border-color: var(--blue); }
 .board-overlay { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .board-overlay[data-units3d] .fx-fall > * { visibility: hidden; }
 /* A unit's slide from tile to tile is played by Board.tsx on the unit's node, and skipped when less motion is asked for. */
+/* A hunkered unit's svg figure crouches: lowered and squashed a little about its feet (y 4), a touch wider, eased
+   in and out; at once when less motion is asked for. The 3D look draws its own crouch (terrain3d/units/crouch.ts). */
+.unit-crouch { transition: transform 230ms ease-in-out; }
+.unit-crouch.hunkered { transform: translate(0px, 0.8px) scale(1.06, 0.8); }
+/* An own unit with nothing left to do this turn: its svg figure and its war banner (art/banner.tsx) are drawn 40
+   percent darker and a little greyer, never see-through, eased in as it is spent and out as its next turn starts.
+   The 3D figure gets the same in its shader (terrain3d/units/units3d.ts). The marks round the banner keep their colour. */
+.unit-shade { transition: filter 200ms ease-in-out; }
+.unit-shade.spent { filter: brightness(0.6) saturate(0.75); }
+@media (prefers-reduced-motion: reduce) {
+  .unit-crouch, .unit-shade { transition: none; }
+}
 
 /* The veil (art/tiles.tsx): a veiled tile's art drawn again as one dark silhouette. Every shape in it takes
    the veil colour; what had no fill or no stroke keeps none, so the silhouette is the art's own outline. */
