@@ -178,7 +178,7 @@ export interface Setup {
 // Roads: as Road in features.tsx, a track from the tile centre to the middle of each edge whose neighbour has a
 // road or a city. Edge e has its normal at 60e degrees, so its middle is INR * (cos, sin) of that angle.
 /**
- * tracks3d: how much wider than ROAD_HALF a road is at a wear step (input.ts GlTracks: 0, a light road, to 3). The
+ * tracks3d: how much wider than ROAD_HALF a road is at a wear step (input.ts GlRoadWear: 0, a light road, to 3). The
  * ground shader widens the track by the same factor.
  */
 export const ROAD_GROW = 0.3;
@@ -189,8 +189,8 @@ export function roadLinks(map: GlMap, k: HexKey): RoadLinks | null {
   if (!t || !t.road || t.city) return null;
   const { q, r } = parse(k);
   const links: RoadLinks = [];
-  const tr = t.tracks;
-  if (tr !== undefined && t.terrain !== 'water') {
+  const tr = t.roadWear;
+  if (tr !== undefined) {
     let most = tr.road;
     for (let e = 0; e < 6; e++) most = Math.max(most, Math.floor(tr.edges / 4 ** e) % 4);
     if (most > 0) links.wide = 1 + ROAD_GROW * most;

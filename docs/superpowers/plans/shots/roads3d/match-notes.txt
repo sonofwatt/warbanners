@@ -1,0 +1,3 @@
+seed 5, 1418 actions, round 46, viewer 0
+busy roads the viewer sees: step 1 5, step 2 6, step 3 1
+close-ups centred on -1,4 (step 3, 6 figures on and around it)

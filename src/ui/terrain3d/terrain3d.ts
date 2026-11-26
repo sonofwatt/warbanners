@@ -79,7 +79,7 @@ export interface Terrain3d {
 export const MAX_DPR = 2;
 
 const code = (t: GlTile | undefined): string => (t === undefined ? 'x' : tileCode(t));
-// A neighbour's code: what of it the tile's own geometry reads (not its traffic marks).
+// A neighbour's code: what of it the tile's own geometry reads (not its road's wear).
 const nbCode = (t: GlTile | undefined): string => (t === undefined ? 'x' : tileCode(t, false));
 
 /**

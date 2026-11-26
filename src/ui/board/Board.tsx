@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Tracks, Treasure, Village } from '../art/features';
+import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
@@ -235,8 +235,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
   const body = (
     <>
       {layers.base ? <TileBase ground={groundFor(t.tile, t.city !== null)} /> : null}
-      {layers.tracks && t.tracks != null && t.city === null ? <Tracks tracks={t.tracks} /> : null}
-      {layers.road && t.tile.road && t.city === null ? <Road links={t.roadLinks} wear={t.tracks?.road ?? 0} edgeWear={t.roadWear} /> : null}
+      {layers.road && t.tile.road && t.city === null ? <Road links={t.roadLinks} wear={t.roadLevel ?? 0} edgeWear={t.roadWear} /> : null}
       {t.city !== null ? <CityArt city={t.city} factions={p.factions} viewer={p.viewer} town={layers.town} /> : <TileArt k={t.key} tile={t.tile} occupied={t.occupied} layers={layers} />}
     </>
   );

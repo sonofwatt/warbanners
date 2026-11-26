@@ -30,11 +30,11 @@ vec3 finish(vec3 col, float veil) { return mix(col * uTint, uVeilColor, veil); }
 // aVeil is 1 on a veiled tile's vertices (written in place when the veil changes), dimmed by the SVG veil's 0.3.
 export const groundVert = /* glsl */ `
 attribute vec4 aInfo; attribute vec4 aTile; attribute float aAO; attribute vec2 aLocal; attribute float aRoad; attribute float aVeil;
-attribute vec4 aTrack;
+attribute vec2 aRoadWear;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
-varying vec4 vTrack;
+varying vec2 vRoadWear;
 void main() {
-  vInfo = aInfo; vTile = aTile; vAO = aAO; vLocal = aLocal; vNormal = normal; vRoad = aRoad; vTrack = aTrack;
+  vInfo = aInfo; vTile = aTile; vAO = aAO; vLocal = aLocal; vNormal = normal; vRoad = aRoad; vRoadWear = aRoadWear;
   vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position, 1.0);
   vWorld = w.xyz;
@@ -45,7 +45,7 @@ export const groundFrag = /* glsl */ `
 ${NOISE}
 ${LIGHT}
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
-varying vec4 vTrack;
+varying vec2 vRoadWear;
 const float INR = ${INR.toFixed(4)};
 const float WALL = ${WALL.toFixed(4)};
 
@@ -105,82 +105,6 @@ vec3 roadField(vec2 l, float mask, float wc, float we) {
     if (dist < best.x) best = vec3(dist, dot(off, vec2(-d.y, d.x)), wear);
   }
   return best;
-}
-
-// tracks3d: one kind of mark along one line of travel (kind 0 foot, 1 hoof, 2 wheel). t runs along the line from the
-// tile's centre, s across it; level is the wear step (1 to 3), which adds lanes and fills in the gaps. How dark the
-// ground is pressed there, 0 to 1.
-float prints(int kind, float t, float s, float level, float seed) {
-  float dark = 0.0;
-  for (int j = 0; j < 3; j++) {
-    float jj = float(j);
-    if (jj >= level) break;
-    // Lanes at fixed offsets, so a lane meets the next tile's at the edge.
-    float lane = (j == 0 ? 0.0 : j == 1 ? 1.0 : -1.0) * (kind == 2 ? 1.0 : 2.1);
-    float ls = s - lane;
-    if (kind == 2) {
-      // Wheel ruts: two thin furrows a cart's width apart, broken here and there.
-      float r = min(abs(ls - 2.0), abs(ls + 2.0));
-      float line = 1.0 - smoothstep(0.18, 0.45, r);
-      float gap = smoothstep(0.22, 0.42, noise(vec2(t * 0.3 + seed * 7.0, jj * 3.0 + seed)));
-      dark = max(dark, line * mix(gap, 1.0, 0.25 * (level - 1.0)));
-      continue;
-    }
-    float stride = kind == 0 ? 3.4 : 3.0;
-    float tt = t + hash(vec2(seed, jj + 5.0)) * stride;
-    float cell = floor(tt / stride);
-    float present = step(hash(vec2(cell + seed * 13.0, jj + 11.0)), 0.4 + 0.2 * level);
-    float along = tt - (cell + 0.5) * stride;
-    float side = mod(cell, 2.0) * 2.0 - 1.0;
-    if (kind == 0) {
-      // Footprints: small ovals, left and right in turn.
-      vec2 q = vec2(along / 1.05, (ls - side * 0.75) / 0.58);
-      dark = max(dark, present * (1.0 - smoothstep(0.65, 1.0, length(q))));
-    } else {
-      // Hoof prints: small rings open at the heel, in pairs.
-      vec2 q = vec2(along, ls - side * 0.9);
-      float ring = 1.0 - smoothstep(0.16, 0.34, abs(length(q) - 0.78));
-      ring *= smoothstep(-0.65, -0.25, q.x);
-      dark = max(dark, present * ring);
-    }
-  }
-  return dark;
-}
-
-// tracks3d: the tile's traffic (input.ts GlTracks): each kind's marks along the edges it was used by, each line from
-// the tile's centre to the middle of an edge, bending a little in between (never at the ends, so the lines meet the
-// next tile's), and a flattened or beaten path under them. Returns how dark the marks are and how worn the path is.
-vec2 trackField(vec2 l, vec2 tileAt) {
-  float masks = floor(vTrack.x + 0.5), levels = floor(vTrack.y + 0.5);
-  float pathL = floor(levels / 64.0);
-  float dark = 0.0, path = 0.0;
-  float kb = 1.0, lb = 1.0;
-  for (int k = 0; k < 3; k++) {
-    float mask = mod(floor(masks / kb), 64.0);
-    float level = mod(floor(levels / lb), 4.0);
-    kb *= 64.0; lb *= 4.0;
-    if (level < 0.5) continue;
-    float eb = 1.0;
-    for (int e = 0; e < 6; e++) {
-      float on = mod(floor(mask / eb), 2.0);
-      eb *= 2.0;
-      if (on < 0.5) continue;
-      float a = float(e) * 1.0471976;
-      vec2 d = vec2(cos(a), sin(a));
-      float t = dot(l, d);
-      if (t < -2.5 || t > INR + 1.0) continue;
-      float seed = hash(tileAt * 0.0137 + vec2(float(e) * 1.7, float(k) * 3.1));
-      float u = clamp(t / INR, 0.0, 1.0);
-      float s = dot(l, vec2(-d.y, d.x)) - sin(u * 3.14159) * ((seed - 0.5) * 5.0 + 2.2 * (noise(vec2(t * 0.09 + seed * 31.0, float(e))) - 0.5));
-      float fade = smoothstep(-2.5, 0.0, t);
-      dark = max(dark, fade * prints(k, t, s, level, seed * 10.0) * (0.42 + 0.16 * level));
-      if (pathL > 0.5) {
-        float hw = 1.0 + 0.7 * pathL + 0.8 * (noise(l * 0.35 + seed * 9.0) - 0.5);
-        path = max(path, fade * (1.0 - smoothstep(hw, hw + 1.4, abs(s))) * (pathL > 1.5 ? 1.0 : 0.5));
-      }
-    }
-  }
-  return vec2(dark, path);
 }
 
 // Painted ground: two or three flat tones per terrain, broken into soft-edged patches by noise, the way a
@@ -264,21 +188,11 @@ void main() {
     col *= 1.0 - 0.12 * (1.0 - smoothstep(0.5, 3.5, shore));
   }
 
-  if (!wall && terrain != 3 && terrain != 4 && vTrack.y > 0.5) {
-    // tracks3d: footprints, hoof prints and wheel ruts pressed into the ground, and where traffic is heavy a beaten
-    // path of dry, trodden earth: always paler and narrower than a road. On a mountain they keep to its foot.
-    vec2 tf = trackField(vLocal, vTile.xy);
-    float low = terrain == 2 ? 1.0 - smoothstep(1.0, 2.2, h) : 1.0;
-    vec3 trodden = mix(col, vec3(0.76, 0.68, 0.47), 0.6);
-    col = mix(col, trodden, tf.y * 0.7 * low);
-    col = mix(col, col * vec3(0.55, 0.49, 0.40), tf.x * low);
-  }
-
   float onRoad = 0.0;
   if (vRoad > 0.5 && !wall) {
     // A packed earth track: wobbly edges, a darker worn rim, two faint wheel ruts and a few pebbles. A busy road
     // (tracks3d) is wider, its earth worn patchy, with a band of dead, yellow-brown grass either side.
-    vec3 rf = roadField(vLocal, vRoad, floor(vTrack.z + 0.5), floor(vTrack.w + 0.5));
+    vec3 rf = roadField(vLocal, vRoad, floor(vRoadWear.x + 0.5), floor(vRoadWear.y + 0.5));
     float wob = 0.7 * (noise(p * 0.35) - 0.5) + 0.35 * (noise(p * 1.3) - 0.5);
     float d = rf.x + wob; // below 0 on the road
     float grow = 1.0 + ${ROAD_GROW.toFixed(2)} * rf.z;

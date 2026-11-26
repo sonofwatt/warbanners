@@ -1,174 +1,153 @@
-# Tracks on the ground: report
+# Busy roads widen: report
 
-Branch `tracks3d`, cut from main at 0.7.1. Commits: 459e1c1 (code, tests, shot script), 9cf8888 (shots), and this
-report. No push, merge, version bump or deploy.
+Branch `tracks3d`, cut from main at 0.7.1. No push, merge, version bump or deploy.
 
-David asked for marks on the ground where units have walked (footprints, hoof prints, wheel ruts) that build up over
-the match, fainter than a road, and for busy roads to widen with the grass dying either side.
+## What David asked for, and what he kept
 
-## What it does
+David asked for:
+- marks where units walk (footprints, hoof prints, wheel ruts) that build up over the match;
+- busy roads that widen, with the grass dying either side.
 
-- **Visual only.** No engine change, no RULES_VERSION change, nothing new saved or sent online. Each phone replays
-  the match record it already has (`src/ui/board/tracks.ts`). Every phone of a match derives the same tracks, and so
-  does a reload or a resumed save.
-- **Route.** A move records only its start and end tile, with no path. So the route is the **straight hex line**
-  between the two (`hexLine`, with a fixed nudge so every phone rounds a seam the same way). Moves, the advance after
-  a kill, and lures all count. When the line crosses a water tile, that tile is skipped.
-- **Kinds.** Each unit leaves one kind of mark:
-  - foot: every unit not listed below;
-  - hoof: mounted units (Horseman, Knight, Horse Archer, Khan's Guard, Sky Caller);
-  - wheel: the Catapult and the Camp (siege or camp trait);
-  - a scout's pass counts half, so its tracks stay lighter.
-- **Wear.** Each tile counts wear for each kind, and the edges units came in by and left by. Wear is cut into a few
-  steps:
-  - each kind: faint at 0.5 (one pass), worn at 4, trodden at 12 (`KIND_STEPS`);
-  - the path under all traffic: flattened at 10, beaten at 24 (`PATH_STEPS`);
-  - the road: light (as today) below 16, then wider at 16, 30 and 45 (`ROAD_STEPS`). The last step is the cap.
+The first build drew both (commits 459e1c1, 9cf8888, 9d820b3). After seeing it, David decided: "Let's leave out all
+the ground tracks except for the widened road."
 
-  A kind's edges are fixed at the moment it crosses a step, from the edges it has used most. So a tile looks
-  different only when it crosses a step.
-- **Fog (the strict option).** The viewer's own units always leave tracks. An enemy move leaves tracks only when:
-  - the viewer could see that unit both before and after the action (the hidden trait counts), and
-  - the route tile itself was visible to the viewer both before and after the action.
+The follow-up commit removes, from both looks:
+- the footprints, hoof prints and wheel ruts;
+- the trodden path and the beaten band.
 
-  So nothing is left by a move through the fog, by a unit walking into or out of the fog, or by a scout leaving
-  hiding. Tracks are drawn only on explored tiles: buildScene gives tracks to explored tiles only. Both seats are
-  worked out in one replay, so pass-the-phone shows each player their own tracks.
-- **When it runs.** `useTracks` (Match.tsx) takes each new action in at once, which is one extra engine step. A long
-  history (a resumed save, a rejoined online match) is replayed in 8 ms slices between frames. Opening a match never
-  stalls, and the tracks appear when the replay catches up. Measured here: about 1.4 s in all for a 1418-action,
-  45-round match. Expect a few seconds on a phone.
+It keeps the road widening, the worn earth and the dead-grass band exactly as built. It also:
+- cuts the derivation down to what roads need;
+- turns the `?tracks=` developer sheet into a road sheet (`?roads=`);
+- replaces the shots.
+
+## What it does now
+
+### Where the wear comes from
+
+`src/ui/board/roadWear.ts` works out the wear.
+- **Visual only.** There is no engine change and no RULES_VERSION change, and nothing new is sent online. Each phone
+  replays the match record it already holds. So every phone agrees, and a reload or a resumed save shows the same
+  roads.
+- **Route.** A move records only its start and end tile, with no path in between. So the route is the **straight hex
+  line** between the two. Every phone rounds a line that runs along a seam the same way.
+- **What counts.** Moves, the advance after a kill, and lures. Each counts one pass on every road tile of its route
+  that has a road after the action. A city takes no wear.
+- **Steps.** 16, 30 and 45 passes give steps 1, 2 and 3 (`ROAD_STEPS`).
+  - Below 16 a road is the light road it always was.
+  - Step 3 is the cap.
+  - A road's look changes only when it crosses one of these steps.
+- **Fog (the strict rule, unchanged).**
+  - The viewer's own units always count.
+  - An enemy move counts only if the viewer could see that unit both before and after the action (the hidden trait
+    counts).
+  - Even then, it counts only on route tiles the viewer could see both before and after.
+
+  So a move through the fog, a unit walking into or out of it, or a scout leaving its hiding place adds nothing. Wear
+  is shown only on explored tiles. Pass-the-phone keeps a separate count for each seat.
+- **Keeping up with the match.** `useRoadWear` (in Match.tsx) takes each new action in at once, which costs one engine
+  step. A long history (a resumed save, or a rejoined online match) is replayed in 8 ms slices between frames.
+  Opening a match never stalls, and busy roads widen once the replay catches up.
 
 ### The 3D look
 
-Everything is drawn in the ground shader. There are no new meshes and no new triangles.
-- **Data.** The tile's traffic is packed into one `aTrack` vec4 on its ground vertices (`input.ts` GlTracks):
-  - the edge masks;
-  - the wear steps;
-  - the road's wear at the centre, and its wear where it meets each neighbour.
-- **Marks.** The marks run from the tile's centre to the middle of each edge used. They bend a little in between,
-  but never at the ends, so they meet the next tile's marks. More wear adds lanes and fills in gaps:
-  - footprints: small ovals, left and right in turn;
-  - hoof prints: rings open at the heel, in pairs;
-  - wheel ruts: twin thin furrows, broken here and there;
-  - from the path steps on, a pale trodden band. It is always narrower and paler than a road.
-- **Where marks are not drawn.**
-  - Not on water.
-  - Not on a city.
-  - On mountains, only at the foot: the marks fade out as the ground rises.
-  - Units, buildings, resources and every prop stand on top of them.
-- **Busy roads.** The road widens by `ROAD_GROW` (0.3) for each step. At step 3 it is 1.9 times as wide. Each road
-  spoke widens from the tile's own wear at the centre to the busier tile's wear at the shared edge, so two tiles meet
-  at one width. The earth wears patchy. A ragged band of dead, yellow-brown grass grows either side. A light road
-  (step 0) is drawn exactly as before. Props keep off the wider road (`roadDist` reads the width).
-- **Rebuilds.** A neighbour's signature leaves out the tile's tracks (`tileCode(t, false)`; the road's edge wear
-  lives in each tile's own data). So a step rebuilds that one tile, not its six neighbours. The border mesh also
-  ignores tracks.
+- **What the shader gets.** Each road tile carries its step at the centre and its step at each edge, as one `vec2`
+  attribute (`aRoadWear`). The edge step is the busier of the two roads that meet there.
+- **Width.** In the ground shader the road is `1 + 0.3 x step` times as wide. Each spoke widens from the tile's own
+  step at the centre to the edge step, so two tiles always meet at one width.
+- **Look of a busy road.** The earth wears patchy. A ragged band of dead, yellow-brown grass grows wider either side
+  with each step. There is no dead grass on mountain scree.
+- **Props.** Props keep off the wider road, because `roadDist` reads the width.
+- **Light roads.** A light road is drawn exactly as before.
+- **What rebuilds.** A neighbour's signature leaves the wear out. So a step rebuilds the road tile itself, plus the
+  linked roads whose edge step changed with it.
 
 ### The SVG look
 
-The SVG gets a subtle version (`features.tsx`):
-- **Marks.**
-  - footprints: faint round-dotted lines;
-  - hoof prints: wider dots;
-  - wheel ruts: thin paired lines;
-  - a pale DIRT band for the path.
-- **Strength.** The marks are drawn at 22 to 34 percent opacity, so they are always far fainter than a road.
-- **Busy roads.** A busy road is drawn as tapered bands, its own width at the centre and the shared width at each
-  edge, over an olive dead-grass band. A light road's markup is byte for byte the same as before.
+- **Busy road.** Each spoke is a tapered band, at the tile's own width at the centre and the shared width at the edge,
+  drawn over an olive dead-grass band.
+- **Light road.** Its markup is byte for byte the same as before.
 
-## Developer page
+### Developer page
 
-`?tracks=3d` and `?tracks=svg` (`TracksSheet.tsx`, routed in App.tsx, next to `?sheet` and `?board`) show every look
-side by side on a field map. The rows are:
-- footprints, then hoof prints, then wheel ruts, each at steps 1, 2 and 3;
-- the path, flattened then beaten;
-- a road rising from light to the busiest.
+`?roads=3d` or `?roads=svg` (`RoadSheet.tsx`) shows:
+- two roads rising from light to the busiest, one over fields and one through forest;
+- a road worn to step 2 all along, with a light tile at each end.
 
-## Shots (`shots/tracks3d/`)
+## Shots (`shots/roads3d/`)
 
-`npx tsx scripts/tracks3d-shots.ts sheet|match` (after `vite build`). All are taken at 412 x 915.
+Taken with `npx tsx scripts/roads3d-shots.ts sheet|match` after `vite build`, all at 412 x 915.
 
-- **Close-up sheet:**
-  - `sheet-3d-kinds.png` and `sheet-svg-kinds.png`: footprints, hoof prints and wheel ruts at each wear step;
-  - `sheet-3d-path-and-road.png` and `sheet-svg-path-and-road.png`: the trodden path, and the road from light to
-    busy;
+- **Road sheet.**
+  - `sheet-3d-rising.png` and `sheet-svg-rising.png`: wear rising west to east, over fields and through forest.
+  - `sheet-3d-even.png` and `sheet-svg-even.png`: a road at step 2.
   - `sheet-*-phone.png`: the whole sheet.
-- **Early game.** Seed 5, AI against AI (normal), played by the engine in the script (`runMatch`, as simai does). It
-  is saved as a pass-the-phone match after round 8 (77 actions), the way heroes.test.ts writes a save, then resumed
-  in the app. Shots: `early-{3d,svg}-phone.png`, `early-*-phone-tracks.png` and `early-*-close-tracks.png`. The marks
-  are faint.
-- **Late game.** The same match after 45 rounds (1418 actions). Shots: `late-{3d,svg}-phone.png`, then
-  `late-*-phone-road.png` and `late-*-close-road.png` (the busiest road, -4,6, wear 3), then `late-*-close-paths.png`
-  (the most worn ground, 1,-1, a beaten path).
-- `match-notes.txt` lists which tiles the shots centre on.
+- **Late game.** Seed 5, AI against AI at normal, 45 rounds (1418 actions), played by the engine in the script as
+  simai does. It is saved as a pass-the-phone match, the way heroes.test.ts writes one, and resumed in the app.
+  - `late-{3d,svg}-phone.png`: the opening view.
+  - `late-*-phone-road.png` and `late-*-close-road.png`: the busiest road in view, which is step 3 here.
+- `match-notes.txt` lists which tiles the shots centre on, and how many roads reached each step.
 
 ## Performance
 
-- **Triangles.** No new geometry. With the late seed 5 map, the ground and props are 145,819 triangles with tracks,
-  against 146,123 without: a busy road pushes a few props off it.
-- **Memory.** One more vec4 attribute on the ground: 16 bytes per ground vertex, about 0.7 MB for a full board.
-- **Shader.** The ground fragment shader does more work only on tiles with tracks: up to 3 kinds x 6 edges x 3
-  lanes. Tiles with no tracks skip it on a single test.
-- **Bundle.** Measured against a build of the branch's start:
-  - index: +8.3 KB (+3.1 KB gzipped);
-  - the lazy terrain3d chunk: +6.1 KB (+2.2 KB gzipped).
-- **Rebuild frequency.** Seed 5, viewer seat 0, played as AI against AI. Each "rebuild" is one `setMap` that rebuilds
-  the changed tile(s) only.
-  - During the other side's (AI) turns: 39 rebuilds over 45 turns and 669 actions, at most 6 in one turn, and
-    usually 0 to 3. Enemy moves are mostly in the fog and leave nothing.
-  - During the viewer's own turns: 234 rebuilds over 749 actions. That is about one move in three, up to 12 in a
-    turn, and it falls as tiles reach the cap.
-  - Cost on this machine: a tile rebuild takes about 3 to 5 ms, and re-merging the ground about 15 to 20 ms.
+The figures are for seed 5 with viewer seat 0, where 13 roads end up worn.
+
+- **Triangles.** No new geometry. The full board has 145,867 triangles against 146,123 without wear, because busy
+  roads push a few props off.
+- **Memory.** One more `vec2` on the ground, 8 bytes per ground vertex: about 0.35 MB for a full board.
+- **Shader.** The road field reads one more digit per spoke. Nothing new runs off the road.
+- **Rebuild frequency.**
+  - During the AI's turns: 0 rebuilds in 45 turns (669 actions).
+  - During the viewer's own turns: 19 rebuilds in 749 actions, at most 4 in one turn.
+  - Each rebuild redoes one to three tiles (about 3 to 5 ms each here) and re-merges the ground (about 15 to 20 ms
+    here).
+- **Replay.** About 1 s here for the whole 1418-action history, run in slices.
+- **Bundle.** The size change is in the table below.
+
+| Chunk | Before | After | Change |
+| --- | --- | --- | --- |
+| index | 551,355 B (170,524 B gzipped) | 556,715 B (172,543 B gzipped) | +5.4 KB (+2.0 KB gzipped) |
+| terrain3d | 682,636 B (190,323 B gzipped) | 684,583 B (191,010 B gzipped) | +1.9 KB (+0.7 KB gzipped) |
 
 ## Tests
 
-New:
-- `src/ui/board/tracks.test.ts`:
-  - the straight line;
-  - kinds, and a scout weighing half;
-  - per-tile counts, with entry and exit edges;
-  - nothing on water;
-  - wear steps, and that levels change only at steps;
-  - edges fixed between steps;
-  - road wear steps;
-  - the fog rule: an enemy through the fog leaves nothing; an enemy seen moving leaves tracks only on the seen tiles;
-    one walking into or out of the fog leaves nothing; the owner sees all of its own;
-  - a real seeded match: tracks only on explored tiles, never on water, the same whether replayed at once or
-    action by action, and a replay restarts on a changed record;
-  - sliced replays.
-- `src/ui/terrain3d/tracks.test.tsx`:
-  - the scene carries tracks and the road's edge wear, and none on water;
-  - the 3D edge order and packing, and tracks change the tile code;
-  - no tracks on a city;
-  - the ground's aTrack, zero on water;
-  - a busy road is wider in 3D, props keep off it, and a light road is unchanged;
-  - the SVG draws faint marks with 3D off and none with 3D on;
-  - the SVG light road is unchanged, and a busy road widens with dead grass;
-  - a neighbour's code ignores tracks.
-- `input.test.tsx`: the SVG layer list gains `tracks`.
+**`src/ui/board/roadWear.test.ts`**
+- the straight line;
+- passes counted only on road tiles of the route, and none on a city;
+- the steps, light roads left out, and only three changes however busy a road gets;
+- the fog rule:
+  - an enemy in the fog adds nothing, while its owner counts every tile;
+  - an enemy seen moving counts only on the tiles the viewer saw;
+  - an enemy walking out of sight, or out of the fog, adds nothing;
+- a real seeded match:
+  - wear only on explored roads;
+  - the same result replayed at once or action by action;
+  - a changed record restarts the replay;
+- sliced replays.
 
-Results:
+**`src/ui/terrain3d/roadWear.test.tsx`**
+- the scene carries each road's step and the busier step at each link;
+- the 3D edge order and packing;
+- the step changes the tile's own code, not its neighbours' codes;
+- a city tile carries no wear;
+- `aRoadWear` is on every ground vertex;
+- a busy road is wider in 3D and props keep off it, while a light road is unchanged;
+- the SVG light road is unchanged, and a busy one widens with dead grass, drawn by the SVG only with 3D off.
+
+**Results**
 - `npx tsc -b`: clean.
 - `npm run lint`: clean.
-- `npx vitest run`: 1424 passed, 138 skipped.
+- `npx vitest run`: 1418 passed, 138 skipped.
 - `GITHUB_PAGES_BASE=/warbanners/ npm run test:browser`: ai 6 passed; the rest 64 passed and 2 skipped.
 - `npm run test:online`: 2 passed.
 
 ## Concerns
 
-- **The route is a guess.** Straight lines are not the real paths. A unit that went round a lake or a mountain shows
-  a track cutting across, and a line through a water tile drops that tile. Real paths would need either the
-  engine's path in the record (an engine change) or a pathfinder replay on each phone.
-- **Early marks are very faint.** Step 1 is subtle by design, and in the early shot the marks are hard to find among
-  the figures. Raise them in `shaders.ts` (the darkness `0.42 + 0.16 * level`) and in `features.tsx` (`strength`) if
-  David wants them bolder. All the step thresholds are in `tracks.ts`.
-- **Late-game crowding.** In the late AI match the busiest roads and paths are mostly under figures, so the road
-  close-ups show the widened road and dead grass only between them. The sheet is the clearest view.
-- **Long histories.** A first open replays every action on the phone, a few seconds for a long match, before the
-  tracks appear. Each later action costs one more engine step (about 0.6 ms here).
-- **Online.** Online matches use the same record, so they behave the same. Nothing new is sent, and I did not touch
-  `src/net`, `src/online` or the database rules.
-- **Hotseat.** With two people on one phone, tracks are per viewer. The second player's tracks therefore differ from
-  the first's, as fog does.
-- **The developer page.** `?tracks=` is a new developer route, like `?board` and `?sheet`.
+- **Straight-line routes.** A unit that went round a lake or a mountain counts on road tiles the straight line
+  crosses. That only matters where a road runs beside such a detour.
+- **Wear before the road.** Wear counts only from when a tile has a road, so a road built on an old trail starts
+  light.
+- **Crowded late game.** In the late AI match the busiest roads run between crowds of figures. The road sheet is the
+  clearest view.
+- **First open is slower.** A long match replays every action once on the phone, a few seconds before the roads
+  widen.
+- **Hotseat.** Wear is per viewer, the same as fog. Two people on one phone can see different road widths.

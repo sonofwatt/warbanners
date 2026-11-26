@@ -1,8 +1,0 @@
-early: 77 actions, round 9, viewer 0, 22 tiles with tracks, busiest road none (wear 0), most worn off-road 2,1 (path 0)
-early 3d tracks: centred on 2,1
-early svg tracks: centred on 2,1
-late: 1418 actions, round 46, viewer 0, 78 tiles with tracks, busiest road -4,6 (wear 3), most worn off-road 1,-1 (path 2)
-late 3d road: centred on -4,6
-late 3d paths: centred on 1,-1
-late svg road: centred on -4,6
-late svg paths: centred on 1,-1

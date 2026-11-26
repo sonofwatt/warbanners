@@ -3,7 +3,7 @@ import { useApp } from '../app/useApp';
 import { Version } from './Version';
 import { ArtSheet } from './art/ArtSheet';
 import { BoardDemo } from './board/BoardDemo';
-import { TracksSheet } from './board/TracksSheet';
+import { RoadSheet } from './board/RoadSheet';
 import { Home } from './screens/Home';
 import { Join } from './screens/Join';
 import { Lobby } from './screens/Lobby';
@@ -31,18 +31,18 @@ function wantsBoard(): { seed: number; turns: number } | null {
   return { seed, turns: Number.isFinite(turns) ? Math.max(0, Math.min(turns, 200)) : 0 };
 }
 
-/** The tracks sheet's look when the URL asks for it (?tracks=3d or ?tracks=svg), else null. Null in Node. */
-function wantsTracks(): '3d' | 'svg' | null {
+/** The road sheet's look when the URL asks for it (?roads=3d or ?roads=svg), else null. Null in Node. */
+function wantsRoads(): '3d' | 'svg' | null {
   if (typeof location === 'undefined') return null;
-  const v = new URLSearchParams(location.search).get('tracks');
+  const v = new URLSearchParams(location.search).get('roads');
   return v === '3d' || v === 'svg' ? v : null;
 }
 
-// The art sheet, the demo board and the tracks sheet are developer pages; everything else is the game.
+// The art sheet, the demo board and the road sheet are developer pages; everything else is the game.
 export function App(home: HomeProps = {}): ReactElement {
   if (wantsArtSheet()) return <ArtSheet />;
-  const tracks = wantsTracks();
-  if (tracks !== null) return <TracksSheet look3d={tracks === '3d'} />;
+  const roads = wantsRoads();
+  if (roads !== null) return <RoadSheet look3d={roads === '3d'} />;
   const board = wantsBoard();
   if (board !== null) return <BoardDemo seed={board.seed} turns={board.turns} />;
   return <ScreenGuard><Screens {...home} /></ScreenGuard>;
