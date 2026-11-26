@@ -26,6 +26,9 @@ import { createSmoke } from './smoke';
 import { createFish, createSurface, frontOf } from './water';
 import { chestPlays, chestSpots } from './buildingLayout';
 import type { Units3d } from './units/units3d';
+import { createWeather } from './weather';
+import { skyLight } from './sky';
+import type { Look } from '../../app/advanced';
 
 export interface TerrainCamera { cx: number; cy: number; scale: number }
 export interface TerrainViewport { w: number; h: number }
@@ -69,6 +72,13 @@ export interface Terrain3d {
   borderTriangles(): number;
   /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
   readonly units: Units3d | null;
+  /**
+   * The match's weather and time of day (a look only), at the round both players share (dawn and dusk change over
+   * the match: daylight.ts). Takes effect on the next frame drawn.
+   */
+  setLook(look: Look, round?: number): void;
+  /** The look in use and its weather's particles and triangles, for tests and tuning. */
+  look(): Look & { particles: number; triangles: number; clock: number };
   /** Free every GPU resource and the context. */
   dispose(): void;
   /** Triangles and draw calls of the last frame, for tests and tuning. */
@@ -108,10 +118,16 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uTint: { value: new Color(1, 1, 1) }, // a time of day grade, multiplied in last
     uVeilColor: { value: new Color('#1E2833') }, // theme.css .veil
     uTime: { value: 0 },
+    // The match's look (sky.ts): snow dusting, wet ground, lit windows, and the lanterns' brightness.
+    uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uGlowBoost: { value: 1 },
+    // The light on mist and smoke (1 by day), and how dark the figures' cast shadows are (units3d.ts).
+    uAir: { value: new Color(1, 1, 1) }, uCast: { value: 0.42 },
   };
   // The unit figures draw on a second canvas, above the tile svg (cities, villages and marks) and below the svg
-  // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders.
-  const units = opts.units ? createUnits3d(opts.units, shared) : null;
+  // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders,
+  // but their own lighter grade and no snow or wet, so the figures stay readable at night and in any weather.
+  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 } };
+  const units = opts.units ? createUnits3d(opts.units, unitShared) : null;
   // The waterfalls go with the figures, whose canvas redraws on its own; without it they stand still on the terrain.
   const falls = createFalls(shared);
   // Territory borders lie on the ground; what stands in front of one hides it, and it shows through faintly.
@@ -127,6 +143,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   // water3d: the clear surface over the beds lies on the terrain; the fish swim on the figures' canvas, which redraws.
   const surface = createSurface(shared);
   const fish = createFish(shared, units !== null);
+  // The weather (rain, snow, cloud shadows): with the figures, which redraw in the ambient loop.
+  const weather = createWeather(shared);
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
   const propMat = new ShaderMaterial({ uniforms: propUniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true });
@@ -138,8 +156,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
   scene.add(ground, outline, props, surface.mesh, borders.group);
-  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, chestsFx!.group, fish.group);
-  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group, fish.group);
+  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, chestsFx!.group, fish.group, weather.group);
+  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group, fish.group, weather.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
   const cache = new Map<string, TilePieces>();
@@ -191,6 +209,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
       }
     }
     fish.setMap(map, occluders);
+    weather.setMap(map);
     paintVeil();
     noteChests(map);
   }
@@ -285,6 +304,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     wheels.setTime(flow);
     smoke.setTime(flow);
     fish.setTime(flow);
+    weather.setTime(flow);
     chestsFx?.tick(nowMs);
     // The lanterns flicker on the wall clock, scaled by the level: at rest and under reduced motion they hold steady.
     lanterns.setTime(nowMs / 1000, level);
@@ -293,12 +313,35 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     if (units === null) return false;
     if (units.onScreen(cam, vp)) return true;
     if (chestsFx?.playing(performance.now()) === true) return true;
+    if (weather.active()) return true; // rain, snow and clouds cover the whole board
     const hw = vp.w / 2 / cam.scale, hh = vp.h / 2 / cam.scale;
     const view = { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh };
     return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view) || anyInView(smoke.boxes(), view) || anyInView(fish.boxes(), view);
   }
 
+  // The match's weather and time of day: new light, grade and weather, no geometry rebuilt. Day and Clear are the
+  // light the board always had.
+  let lookNow: Look = { weather: 'clear', time: 'day' };
+  const setRgb = (u: { value: unknown }, c: readonly [number, number, number]): void => { (u.value as Color).setRGB(c[0], c[1], c[2]); };
+  function setLook(look: Look, round = 1): void {
+    lookNow = look;
+    const sky = skyLight(look, round);
+    (shared.uLightDir.value).set(sky.dir[0], sky.dir[1], sky.dir[2]).normalize();
+    setRgb(shared.uLightColor, sky.light);
+    setRgb(shared.uShadowColor, sky.shadow);
+    setRgb(shared.uTint, sky.tint);
+    setRgb(unitShared.uTint, sky.unitTint);
+    shared.uGlowBoost.value = sky.glow;
+    shared.uWindows.value = sky.windows;
+    setRgb(shared.uAir, sky.air);
+    shared.uCast.value = sky.cast;
+    shared.uSnow.value = look.weather === 'snow' ? 1 : 0;
+    shared.uWet.value = look.weather === 'rain' ? 1 : 0;
+    weather.setWeather(look.weather);
+  }
+
   function dispose(): void {
+    weather.dispose();
     falls.dispose();
     borders.dispose();
     lanterns.dispose();
@@ -319,6 +362,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
 
   return {
     setMap, setVeil, draw, drawUnits, tick, animating, dispose, units, falls: () => falls.count(),
+    setLook, look: () => { const w = weather.stats(); return { ...lookNow, particles: w.particles, triangles: w.triangles, clock: w.time }; },
     lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow(), tunnel: lanterns.tunnel() }),
     smoke: () => ({ count: smoke.count(), time: smoke.time() }),
     water: () => ({ surface: surface.triangles(), fish: fish.stats() }),

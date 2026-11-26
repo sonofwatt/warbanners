@@ -31,6 +31,20 @@ function deps(over: Partial<Deps> = {}) {
 const SETUP: Setup = { names: ['Ann', 'Ben'], factions: ['spartans', 'mongols'] };
 const started = (over: Partial<Deps> = {}) => { const x = deps(over); const store = createAppStore(x.d); store.getState().startMatch(SETUP); return { ...x, store, get: store.getState }; };
 
+test('the advanced choices go into the match settings, and only those that are not the default', () => {
+  const x = deps();
+  const store = createAppStore(x.d);
+  store.getState().startMatch({ ...SETUP, advanced: { chests: 'many', weather: 'snow', time: 'day' } });
+  expect(store.getState().record!.settings).toEqual({ seed: 7, factions: ['spartans', 'mongols'], chests: 'many', weather: 'snow' });
+  expect(Object.values(store.getState().state!.tiles).filter((t) => t.treasure)).toHaveLength(8);
+  const y = deps();
+  const plain = createAppStore(y.d);
+  plain.getState().startMatch(SETUP);
+  expect(plain.getState().record!.settings).toEqual({ seed: 7, factions: ['spartans', 'mongols'] });
+  plain.getState().startMatch({ ...SETUP, advanced: { chests: 'normal', weather: 'clear', time: 'day' } });
+  expect(plain.getState().record!.settings).toEqual({ seed: 7, factions: ['spartans', 'mongols'] });
+});
+
 test('a new match starts behind the curtain and is saved at once', () => {
   const { get, d } = started();
   expect(get()).toMatchObject({ screen: 'pass', viewer: null, notice: null });

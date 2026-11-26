@@ -933,3 +933,21 @@ input:focus { border-color: var(--blue); }
 .result-tally th[scope="row"] { text-align: left; color: var(--ink-soft); }
 .result-tally thead th { font-weight: 850; overflow-wrap: anywhere; }
 .result-tally tbody tr + tr { border-top: 1px solid var(--paper-edge); }
+
+/* Setup: the Advanced section, closed at first; it opens in place under its button. */
+.advanced { display: flex; flex-direction: column; gap: var(--s2); }
+.advanced-toggle { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 var(--s3); font-weight: 750; }
+.advanced-toggle .chevron { transition: transform 160ms ease; }
+.advanced.open .advanced-toggle .chevron { transform: rotate(180deg); }
+.advanced-body { display: flex; flex-direction: column; gap: var(--s2); }
+.advanced-row .chips { gap: 6px; }
+.advanced-row .chip { flex: 1 1 0; min-width: 0; padding: 0 2px; font-size: var(--t-m); white-space: nowrap; }
+.advanced-row { gap: 2px; }
+.advanced-note { font-size: var(--t-s); color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .advanced-toggle .chevron { transition: none; } }
+
+/* The time of day's grade on the SVG art (Board.tsx Graded): every shape in the copy takes the grade's colour. */
+.grade, .grade :not([fill="none"]) { fill: var(--grade); }
+.grade [stroke]:not([stroke="none"]) { stroke: var(--grade); }
+/* The sea beyond the board's edge, by the match's time of day and weather (terrain3d/sky.ts keeps the same values). */
+.board-slot[data-sea] { background: var(--slot-sea); }

@@ -1,5 +1,5 @@
 // The public face of the engine. Nothing inside the engine imports from here.
-export { createMatch } from './state';
+export { createMatch, treasuresPerHalf } from './state';
 export { applyAction, legalActions, replay } from './apply';
 export { hashState, canonical } from './hash';
 export { rngNext, rngInt } from './rng';

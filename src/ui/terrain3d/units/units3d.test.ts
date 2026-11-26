@@ -7,17 +7,18 @@ import type { GlUnit } from '../unitsInput';
 
 // The units renderer without a GPU: three.js runs for real except the WebGLRenderer, which is a stand-in that
 // counts what it is asked to draw.
-const drawn: { scene: { children: unknown[] } }[] = [];
+const drawn: { scene: { children: unknown[] }; cast?: boolean }[] = [];
 vi.mock('three', async (orig) => {
   const three = await orig<typeof import('three')>();
   class FakeRenderer {
-    info = { render: { triangles: 0, calls: 0 } };
+    info = { render: { triangles: 0, calls: 0 }, reset(): void {} };
     outputColorSpace = '';
+    clear(): void {}
     disposed = false;
     setClearColor(): void {}
     setPixelRatio(): void {}
     setSize(): void {}
-    render(scene: { children: unknown[] }): void { drawn.push({ scene }); }
+    render(scene: { children: unknown[]; overrideMaterial?: unknown }): void { drawn.push({ scene, cast: scene.overrideMaterial != null }); }
     dispose(): void { this.disposed = true; }
     forceContextLoss(): void {}
   }
@@ -805,6 +806,53 @@ describe('the 3D unit figures', () => {
       } finally {
         vi.unstubAllGlobals();
       }
+    });
+  });
+
+  describe('light and shadow', () => {
+    type Mesh = import('three').Mesh;
+    const meshesOf = (g: Group): Mesh[] => { const out: Mesh[] = []; g.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); }); return out; };
+    const lit = (dir: [number, number, number], cast = 0.24) => ({ uLightDir: { value: new Vector3(...dir).normalize() }, uCast: { value: cast } });
+
+    test('each frame lays the cast shadows first (the figures\' fills only, squashed onto the ground), then the figures', () => {
+      const u = createUnits3d({} as HTMLCanvasElement, lit([-0.55, 0.8, 0.28]))!;
+      u.setUnits([unit(1, { type: 'knight' }), unit(2, { type: 'hoplite', hunkered: true })], 0);
+      const before = drawn.length;
+      u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
+      expect(drawn.slice(before).map((d) => d.cast)).toEqual([true, false]);
+      for (const g of figuresIn(u) as Group[]) {
+        const ms = meshesOf(g);
+        const casting = ms.filter((m) => m.layers.isEnabled(1));
+        expect(casting.length).toBeGreaterThan(0);
+        // Only opaque fills cast: never the hull (drawn on the back faces) or the blob.
+        for (const m of casting) expect((m.material as { side: number }).side).not.toBe(1);
+        for (const m of ms) expect(m.layers.isEnabled(0)).toBe(true);
+      }
+    });
+
+    test('the blob under a figure sits away from the light: right and back by day, left under an evening sun in the west', () => {
+      const blobX = (dir: [number, number, number]): { x: number; z: number } => {
+        const u = createUnits3d({} as HTMLCanvasElement, lit(dir))!;
+        u.setUnits([unit(1, { x: 0 })], 0);
+        u.tick(0, 0);
+        u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
+        const g = (figuresIn(u) as Group[])[0]!;
+        const blob = meshesOf(g).find((m) => (m.geometry as { type: string }).type === 'CircleGeometry')!;
+        return { x: blob.position.x, z: blob.position.z };
+      };
+      const day = blobX([-0.55, 0.8, 0.28]);
+      expect(day.x).toBeGreaterThan(1.1);
+      expect(day.x).toBeLessThan(2.0);
+      const dusk = blobX([0.95, 0.25, 0.38]);
+      expect(dusk.x).toBeLessThan(0);
+    });
+
+    test('no cast pass when the light throws no shadow', () => {
+      const u = createUnits3d({} as HTMLCanvasElement, lit([-0.55, 0.8, 0.28], 0))!;
+      u.setUnits([unit(1)], 0);
+      const before = drawn.length;
+      u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
+      expect(drawn.slice(before).map((d) => d.cast)).toEqual([false]);
     });
   });
 });

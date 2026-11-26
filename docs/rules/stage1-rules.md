@@ -51,7 +51,12 @@ centre `(0,0)` is always a plain field.
    from every village already chosen and from every mirrored village. A village
    tile becomes a field with no resource.
 5. Treasures: 2 in `H` (4 on the map), chosen the same way from tiles at least 3
-   from both capitals and at least 2 from every village and treasure.
+   from both capitals and at least 2 from every village and treasure. The match's
+   chest setting (the new match screen's Advanced section, `MatchSettings.chests`)
+   changes the count: Few 1 in `H` (2 on the map), Normal 2 (the default, also when
+   the setting is absent), Many 4 (8 on the map). With Many an attempt needs only 2
+   in `H` and keeps as many more as fit, up to 4 (4 fitted on every seed from 0 to
+   1999 checked). The rest of the map is drawn from the same rolls whatever the count.
 6. Check: from capital 0, walking over non-water tiles, capital 1 and every village
    and treasure must be reachable. If not, try again with attempt number + 1. The
    seed for attempt `n` is `(seed + n * 0x9E3779B9) >>> 0`. After 50 failed attempts

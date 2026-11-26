@@ -49,6 +49,7 @@ void main() {
 
 const frag = /* glsl */ `
 uniform vec3 uVeilColor;
+uniform float uGlowBoost; // brighter in the dark (sky.ts glow)
 varying vec4 vGlow; varying float vBright; varying float vVeil;
 void main() {
   float d = length(vGlow.zw);
@@ -61,7 +62,7 @@ void main() {
   vec3 c = mix(warm, vec3(1.0, 0.95, 0.75), core);
   float a = max(core * 0.95, halo);
   if (kind > 0.5 && kind < 1.5) { a = 0.4 * (1.0 - smoothstep(0.0, 1.0, d)); c = warm; }
-  a *= clamp(vBright, 0.0, 1.4) * (1.0 - vVeil * 2.0);
+  a *= clamp(vBright * uGlowBoost, 0.0, 1.4 * uGlowBoost) * (1.0 - vVeil * 2.0);
   gl_FragColor = vec4(mix(c, uVeilColor, vVeil), clamp(a, 0.0, 1.0));
 }`;
 
@@ -148,7 +149,7 @@ const tris = (g: BufferGeometry): number => (g.attributes.position === undefined
 export function createLanterns(shared: Record<string, { value: unknown }>, tunnel = false): Lanterns {
   const g0 = { value: 1 }, g1 = { value: 1 };
   const mat = new ShaderMaterial({
-    uniforms: { uVeilColor: shared.uVeilColor!, uGlow0: g0, uGlow1: g1 }, vertexShader: vert, fragmentShader: frag,
+    uniforms: { uVeilColor: shared.uVeilColor!, uGlowBoost: shared.uGlowBoost ?? { value: 1 }, uGlow0: g0, uGlow1: g1 }, vertexShader: vert, fragmentShader: frag,
     transparent: true, depthWrite: false,
   });
   const group = new Group();

@@ -143,6 +143,15 @@ export function ClockIcon(): ReactElement {
   );
 }
 
+/** A small arrowhead pointing down: a section that opens below (turned up by CSS when open). */
+export function ChevronIcon(): ReactElement {
+  return (
+    <Svg className="chevron">
+      <path d="M5.4 9l6.6 6.4L18.6 9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 /** A bold arrow to the right: on to the next player. */
 export function NextIcon(): ReactElement {
   return (

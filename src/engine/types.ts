@@ -85,7 +85,16 @@ export interface MatchState {
   nextUnitId: number; nextCityId: number;
   winner: PlayerId | null;
 }
-export interface MatchSettings { seed: number; factions: [FactionId, FactionId]; }
+// The advanced match options. Each is optional and its absence means the default (today's game), so older records,
+// saves and replays read the same. Only `chests` is a rule (mapgen reads it); weather and time of day are looks the
+// engine never reads, kept here so a resumed or online match keeps them. 'random' is resolved by the app from the seed.
+export type ChestSetting = 'few' | 'normal' | 'many';
+export type WeatherSetting = 'clear' | 'cloudy' | 'rain' | 'snow' | 'random';
+export type TimeSetting = 'day' | 'dawn' | 'dusk' | 'night' | 'random';
+export interface MatchSettings {
+  seed: number; factions: [FactionId, FactionId];
+  chests?: ChestSetting; weather?: WeatherSetting; time?: TimeSetting;
+}
 
 export type Action =
   | { type: 'move'; unit: number; to: HexKey }

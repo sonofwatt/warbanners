@@ -114,13 +114,14 @@ void main() {
 
 const mistFrag = /* glsl */ `
 ${LIGHT}
+uniform vec3 uAir; // the time of day's light on mist (sky.ts air): 1 by day, the moonlight's blue at night
 varying vec2 vCorner; varying float vAlpha; varying float vVeil;
 void main() {
   float d = length(vCorner);
   if (d > 1.0) discard;
   // Toon softness: a firm core and one soft outer band.
   float a = mix(0.5, 0.22, smoothstep(0.45, 0.55, d)) * (1.0 - smoothstep(0.85, 1.0, d));
-  vec3 c = mix(vec3(0.86, 0.93, 0.98), vec3(1.0), 1.0 - smoothstep(0.0, 0.6, d));
+  vec3 c = mix(vec3(0.86, 0.93, 0.98), vec3(1.0), 1.0 - smoothstep(0.0, 0.6, d)) * uAir;
   gl_FragColor = vec4(finish(c, vVeil), a * (0.35 + 0.65 * vAlpha));
 }`;
 
