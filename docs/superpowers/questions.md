@@ -3,7 +3,17 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-No open questions.
+## Q1. Rules 10 result (2026-11-26)
+
+- Built on branch rules10: each turn, the first tile a mounted Mongol unit enters by relay riding costs a normal
+  step; later relay tiles stay cheap. Horseman, Horse Archer and Sky Caller ride 3 at home (was 4); Knight and
+  Khan's Guard 5 (was 6). Counted per turn, so a move, an attack and a retreat lose one tile in total, not two.
+- Sims, 400 matches: hard Spartans 55.2 / Mongols 42.4 (rules 9: 49.1 / 49.1); normal 54.2 / 43.1 (rules 9: 57.2 /
+  39.4). Mongol riders travel 13 to 19% less. Stalls 3 to 8.5%.
+- So hard tips toward the Spartans; normal moves a little toward the Mongols but still leans Spartan.
+- The slow Adaptive AI check passes again (it failed on rules 9).
+- Options: A, ship rules 10 now with the Advanced menu and let the balance session tune both sides next (my pick);
+  B, hold it and have the balance session tune it first.
 
 ## Answered
 
