@@ -1,4 +1,4 @@
-// Shots of Gritty's realistic 3D Hoplite (scripts/hoplite3d-shots.ts drives it in Chromium through Vite's dev server).
+// Shots of Gritty's 3D Hoplite and Catapult (scripts/hoplite3d-shots.ts drives it in Chromium through Vite's dev server).
 // Not part of the app: it draws the figures straight from units3d on a plain overcast ground with hex outlines,
 // exactly as the board hands them over (GlUnit with `gritty` and `wear`).
 import { Color, ColorManagement, Vector3 } from 'three';
@@ -71,7 +71,7 @@ function label(text: string, x: number, y: number): void {
   wrap.appendChild(el);
 }
 
-interface Cell { type: UnitTypeId; faction: FactionId; gritty: boolean; wear?: GlUnit['wear']; name: string; hunkered?: boolean; variant?: GlUnit['variant'] }
+interface Cell { type: UnitTypeId; faction: FactionId; gritty: boolean; wear?: GlUnit['wear']; name: string; hunkered?: boolean; aim?: [number, number] }
 
 /** A row (or rows) of figures, `perRow` to a row, at `scale` pixels per board unit; `bright` draws a Bright ground. */
 function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { bright?: boolean; rowH?: number; cellW?: number; dy?: number } = {}): void {
@@ -85,9 +85,11 @@ function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { brigh
     const x = (i % perRow) * CW, y = Math.floor(i / perRow) * RH;
     hex(x, y);
     label(c.name, x, y + 12);
-    list.push({ id: i + 1, type: c.type, look: look(c.faction), hero: false, x, y, spent: false, hunkered: c.hunkered === true, gritty: c.gritty, wear: c.wear, variant: c.variant });
+    list.push({ id: i + 1, type: c.type, look: look(c.faction), hero: false, x, y, spent: false, hunkered: c.hunkered === true, gritty: c.gritty, wear: c.wear });
   });
   u.setUnits(list, 0);
+  // A figure may be turned to face a point (dx, dy) from its tile, as an attack turns it.
+  cells.forEach((c, i) => { if (c.aim) u.aim(i + 1, list[i]!.x + c.aim[0], list[i]!.y + c.aim[1], 0); });
   u.pose(new Map(), []);
   u.tick(10_000, 0);
   u.draw({ cx: view.cx, cy: view.cy, scale: view.scale }, { w: view.w, h: view.h }, 1);

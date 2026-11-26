@@ -1,22 +1,21 @@
-// A detailed toon Hoplite, for comparison only (David, third pass: "I'm leaning towards toon, but lets try to give
-// it more detail"). The game never builds it: figures.ts makes it only for the shot-only `toonClosedHelm` variant.
+// Gritty's Hoplite: a detailed toon figure (David: "I'm leaning towards toon, but lets try to give it more detail").
+// Built only in Gritty (figures.ts); Bright keeps the toon Hoplite.
 //
 // Toon style (faceted parts, toon bands, the dark hull outline, bold colours, chunky friendly proportions, the toon
-// Hoplite's own place on the board), with more shape: a closed bronze helm (a domed crown sweeping into flared cheek
-// plates that nearly meet at the mouth, a nose guard, a T opening cut in with a bronze lip round it, a raised brow
-// ridge, a neck guard flaring at the back) under a chunky fanned crest on its holder; a muscled bronze cuirass, a belt
+// Hoplite's own place on the board), with more shape: a closed helm of faceted bronze plates over a dome (below), on
+// a neck clear of the body; a muscled cuirass of moulded red-brown leather, a belt
 // and leather strips over a pleated tunic, greaves on shaped legs with knees, bare arms with wrist wraps and real
 // hands (fingers and a thumb round the spear, a hand on the shield's grip), a cloak with folds, and the realistic
 // Hoplite's shield. Same moving pieces as the toon Hoplite (WEAPON, SHIELD, LEGS, FEET).
-import { CylinderGeometry, Quaternion, TorusGeometry, Vector3 } from 'three';
+import { BufferGeometry, CylinderGeometry, Float32BufferAttribute, Quaternion, SphereGeometry, TorusGeometry, Vector3 } from 'three';
 import { flat, H, Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
 import {
   ANKLE, BLOOD, crack, dent, ell, FEET, groundDrops, helmBroken, LEGS, SCAR, SCRATCH, scratches, setYaw, SKIN, smear,
-  spear, tearPolys, worn,
+  spear, tearPolys, viewSphere, worn,
 } from './parts';
 import type { Look, Wear } from './parts';
-import { realShield, shell } from './hoplite3d';
+import { bronzeShield, vivid } from './shield3d';
 
 const WEAPON = 'weapon';
 const SHIELD = 'shield';
@@ -25,136 +24,135 @@ const YAW = 0.38;
 
 const LEATHER = '#7A5232';
 const LEATHER_DARK = '#4E331F';
-const BRONZE_LIP = '#E8C77E';
-const BRONZE_IN = '#2A1C10';
-/** The cut faces inside the opening: deep in shadow, so the T reads dark. */
-const BRONZE_DEEP = '#1E140B';
+const CUIRASS_LEATHER = '#7B4428';
 const SANDAL = '#5E3E24';
 const SKIN_SHADE = '#C99B72';
 const GREAVE = '#B48236';
 
-// ---- the helm ----
+// ---- the helm: after a closed Greek helm, our own: faceted plates over a smooth dome ----
+//
+// A ridge down the middle of the brow runs into a long pointed nose guard; two wedge eye openings angle out and up;
+// the cheek plates are flat blades sweeping down to points at the chin with a narrow gap between them, so the eyes,
+// the channels beside the nose guard and that gap make one dark Y. Behind the plates a smooth dome, a flared neck
+// guard, a tall square post with a full, soft plume, rivets at the temples; aged bronze, its edges and ridge in gold.
 
-const HC: V3 = [0, H(-22.4) + 1.4, 0.3];
-const HA = 6.5, HB = 6.3, HD = 6.4;
-const DROP_F = 6.2, DROP_B = 7.0;
-const NU = 20, NV = 10;
-/** Rows: four over the crown to the brow, six from the brow down the cheek plates. */
-const VROW = (j: number): number => (j <= 4 ? j / 8 : 0.5 + ((j - 4) / 6) * 0.5);
+/** The helm's centre (its local origin); points below are local, x to the figure's left on screen being negative. */
+const HELM: V3 = [0, 35.2, 0.4];
+const AGED = '#86652F';
+const AGED_DARK = '#5C4320';
+const GOLD_EDGE = '#EBC46A';
+const DARK_IN = '#20150C';
 
-/** A point of the helm at angle th (0 the front) and height v (0 crown, 0.5 the brow line, 1 the rim), pushed in by `inset`. */
-function helmAt(th: number, v: number, inset = 0): Vector3 {
-  const front = Math.max(0, Math.cos(th)), back = Math.max(0, -Math.cos(th));
-  let rad: number, y: number;
-  if (v <= 0.5) { const ph = v * Math.PI; rad = Math.sin(ph); y = HB * Math.cos(ph); } else {
-    const t = (v - 0.5) * 2;
-    // The cheek plates flare out under the brow, then close in toward the mouth; the neck guard flares at the back.
-    rad = (1 + 0.08 * t - 0.12 * t * t) * (1 - 0.2 * t * t * front * front) * (1 + 0.16 * t * t * back);
-    y = -(DROP_F + (DROP_B - DROP_F) * back) * t;
+type P3 = readonly [number, number, number];
+/** The front plates' corners, the figure's right half (x positive); the left half mirrors it. */
+const PT = {
+  R0: [0, 5.3, 3.4], R1: [0, 1.7, 5.4], N: [0, -3.1, 5.05], G1: [0.95, 1.15, 5.05], G2: [0.5, -1.7, 4.95],
+  T: [4.7, 4.1, 0.9], B: [5.0, 1.9, 1.7], EO: [4.3, 1.55, 2.75], EI: [1.1, 0.75, 4.9], FI: [1.1, -0.65, 4.85],
+  FO: [4.2, 0.35, 2.85], CO: [5.0, 0.15, 1.9], CB: [4.6, -3.3, 1.3], CP: [0.95, -5.7, 3.5], CI: [1.15, -0.95, 4.8],
+} as const satisfies Record<string, P3>;
+const at = (p: P3, side: number): V3 => [HELM[0] + p[0] * side, HELM[1] + p[1], HELM[2] + p[2]];
+/** The near cheek blade snapped off along a jagged line (broken), from its outer edge to its inner one. */
+const SNAP: readonly P3[] = [[4.85, -1.1, 1.85], [3.7, -0.7, 2.6], [2.7, -1.7, 3.5], [1.7, -1.1, 4.4]];
+
+/** A flat-faced plate through `pts` (a ring of corners), faceted, its face turned away from the helm's centre. */
+function plate(k: Kit, pts: readonly V3[], colour: string, o: { gloss?: number; hull?: number } = {}): void {
+  const c = pts.reduce((m, p) => [m[0] + p[0] / pts.length, m[1] + p[1] / pts.length, m[2] + p[2] / pts.length], [0, 0, 0]);
+  const out = new Vector3(c[0] - HELM[0], c[1] - HELM[1] + 1.0, c[2] - HELM[2] + 2.0);
+  const pos: number[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = new Vector3(...pts[i]!), b = new Vector3(...pts[(i + 1) % pts.length]!), m = new Vector3(...c);
+    const n = b.clone().sub(a).cross(m.clone().sub(a));
+    const tri = n.dot(out) >= 0 ? [a, b, m] : [a, m, b];
+    for (const v of tri) pos.push(v.x, v.y, v.z);
   }
-  const p = new Vector3(HC[0] + HA * rad * Math.sin(th), HC[1] + y, HC[2] + HD * rad * Math.cos(th) * (1 + 0.06 * front));
-  if (inset > 0) { const c = new Vector3(HC[0], Math.min(HC[1], p.y + 2), HC[2]); p.sub(p.clone().sub(c).normalize().multiplyScalar(inset)); }
-  return p;
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  k.add(g, colour, { gloss: o.gloss ?? 0.45, hull: o.hull ?? 0.8 });
 }
-const thOf = (i: number): number => ((i + 0.5) / NU - 0.5) * Math.PI * 2;
 
-/** The helm's surface for marks: x across (about world units at the brow), y up from its centre. */
-const helmSurf: Surface = (x, y) => {
-  const th = x / HA;
-  const v = y >= 0 ? Math.acos(Math.min(1, y / HB)) / Math.PI : 0.5 + Math.min(1, -y / DROP_F) / 2;
-  const p = helmAt(th, v), e = 0.01;
-  const n = helmAt(th + e, v).sub(helmAt(th - e, v)).cross(helmAt(th, Math.min(1, v + e)).sub(helmAt(th, Math.max(0, v - e)))).normalize();
-  if (n.dot(p.clone().sub(new Vector3(...HC))) < 0) n.negate();
-  return { p: [p.x, p.y, p.z], n: [n.x, n.y, n.z] };
-};
-
-/**
- * The cells cut away for the T: the column at the front is the nose guard down to its tip, the cells either side of
- * it at the brow are the eye slits, and below the nose the front column is the slot between the cheek plates.
- */
-const MID = NU / 2; // the front column, centred on the face: the nose guard
-function isOpening(i: number, j: number): boolean {
-  const off = Math.abs(i - MID);
-  if ((j === 4 || j === 5) && (off === 1 || off === 2)) return true; // the eye slits, two cells either side
-  if (j >= 7 && off === 0) return true; // the slot under the nose guard, down to the rim
-  return false;
+/** A gold edge along a chain of points. */
+function edge(k: Kit, pts: readonly V3[], r = 0.2, colour = GOLD_EDGE): void {
+  for (let i = 0; i + 1 < pts.length; i++) k.rod(pts[i]!, pts[i + 1]!, r, colour, { seg: 3, caps: false, hull: 0, gloss: 0.6 });
 }
-/** Broken: the near cheek plate gone (the figure's left, toward the viewer). */
-const GAP = new Set(['6,5', '7,5', '6,6', '6,7', '6,8', '6,9', '7,6', '7,7', '7,8', '7,9', '8,6', '8,7', '8,8', '8,9', '5,7', '5,8', '5,9', '9,8', '9,9']);
+
+/** A surface on the plane through three points (x, y given; z solved), for marks on a plate. */
+function onPlane(a: V3, b: V3, c: V3): Surface {
+  const n = new Vector3(...b).sub(new Vector3(...a)).cross(new Vector3(...c).sub(new Vector3(...a))).normalize();
+  if (n.z < 0) n.negate();
+  return (x, y) => ({ p: [x, y, a[2] - (n.x * (x - a[0]) + n.y * (y - a[1])) / n.z], n: [n.x, n.y, n.z] });
+}
 
 function helm(k: Kit, c: Look, w: Wear): void {
   const broken = helmBroken(w);
-  // Inside: the face, in shadow (or, broken, the face in the gap with its wound).
-  k.ball([HC[0], HC[1] - 1.2, HC[2] - 0.1], 5.3, broken ? SKIN : '#3A2416', { detail: 1, hull: 0, s: [1, 1.08, 1] });
-  shell(k, {
-    nu: NU, nv: NV, wrapU: true,
-    front: (i, j) => helmAt(thOf(i - 1), VROW(j)),
-    back: (i, j) => helmAt(thOf(i - 1), VROW(j), 0.7),
-    keep: (i, j) => !isOpening(i, j) && !(broken && GAP.has(`${i},${j}`)),
-    backKeep: (i, j) => j >= 4 && (j <= 6 || Math.abs(i - MID) <= 6),
-    inside: new Vector3(...HC),
-  }, c.accent, BRONZE_IN, BRONZE_DEEP, { gloss: 0.45 });
-  openingLips(k, broken);
-  // The brow ridge over the eyes, a bead along the rim, and the crest's holder.
-  const brow = (x: number): V3 => { const s = helmSurf(x, 0.35); return [s.p[0] + s.n[0] * 0.3, s.p[1] + s.n[1] * 0.3, s.p[2] + s.n[2] * 0.3]; };
-  for (const side of broken ? [1] : [-1, 1]) {
-    let prev = brow(side * 0.9);
-    for (const x of [2.0, 3.2, 4.4]) { const nx = brow(side * x); k.rod(prev, nx, 0.42, mix(c.accent, '#FFFFFF', 0.15), { seg: 5, gloss: 0.5 }); prev = nx; }
-  }
-  k.box([HC[0], HC[1] + HB - 0.1, HC[2] - 1.2], [1.6, 1.5, 9.4], mix(c.accent, '#000000', 0.3), { gloss: 0.3 });
-  if (worn(w, 1)) scratches(k, helmSurf, [[-3.6, 4.4, -1.4, 5.8], [1.6, 5.4, 3.8, 4.2]], SCRATCH, 0.55);
-  if (worn(w, 2)) { dent(k, helmSurf, 2.9, 3.0, 1.1, c.accent); dent(k, helmSurf, -1.6, 5.4, 0.8, c.accent); }
-  if (worn(w, 3)) crack(k, helmSurf, [4.4, 2.6, 4.0, 1.4, 4.8, 0.4], 0.5);
-  crest(k, c, w);
-  if (broken) {
-    // The face in the gap: its cheek, its eye, and blood (or, healed, a pale scar).
-    const face = (x: number, y: number) => { const s = helmSurf(x, y); const d = 0.9; return { p: [s.p[0] - s.n[0] * d, s.p[1] - s.n[1] * d, s.p[2] - s.n[2] * d] as V3, n: s.n }; };
-    if (w.scarred && w.blood === 0) {
-      k.line([-5.6, -1.6, -4.4, -4.8], 0.8, SCAR, face);
-      for (const t of [0.3, 0.65]) { const x = -5.6 + 1.2 * t, y = -1.6 - 3.2 * t; k.line([x - 0.6, y, x + 0.6, y], 0.3, '#A8735B', face); }
+  // Inside: the face in deep shadow; broken, the face itself, seen in the gap.
+  const faceC: V3 = [HELM[0], HELM[1] - 0.7, HELM[2] + 0.4];
+  k.ball(faceC, 4.0, broken ? SKIN : DARK_IN, { detail: broken ? 1 : 0, hull: 0, s: [1.18, 1.18, 1.0] });
+  // The dome: a cap over the crown, and a band round the sides and back (open at the front, where the plates are).
+  const cap = new SphereGeometry(5.2, 11, 3, 0, Math.PI * 2, 0, 1.0);
+  const band = new SphereGeometry(5.2, 10, 3, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 1.0, 1.05);
+  for (const g of [cap, band]) { g.translate(HELM[0], HELM[1] + 0.4, HELM[2] - 0.9); k.add(g, AGED, { gloss: 0.4, smooth: true }); }
+  // The neck guard flaring at the back.
+  k.frustum([HELM[0], 0, HELM[2] - 0.9], HELM[1] - 3.4, HELM[1] - 1.9, 5.6, 4.7, AGED_DARK, { arc: [Math.PI * 0.62, Math.PI * 0.76], seg: 10, sz: 1, gloss: 0.4 });
+  // The front plates, both sides: the brow, the nose guard, the temple and the cheek blade.
+  for (const side of [1, -1]) {
+    const q = (n: keyof typeof PT): V3 => at(PT[n], side);
+    const snapped = broken && side < 0;
+    plate(k, [q('R0'), q('R1'), q('G1'), q('EI'), q('EO'), q('B'), q('T')], AGED);
+    plate(k, [q('R1'), q('N'), q('G2'), q('G1')], AGED);
+    plate(k, [q('B'), q('EO'), q('FO'), q('CO')], AGED_DARK);
+    if (!snapped) plate(k, [q('CI'), q('FI'), q('FO'), q('CO'), q('CB'), q('CP')], AGED);
+    else {
+      const jag = SNAP.map((p) => at(p, side));
+      plate(k, [q('CI'), q('FI'), q('FO'), q('CO'), ...jag], AGED);
+      // The torn edge, bright fresh bronze.
+      edge(k, [q('CO'), ...jag, q('CI')], 0.3, '#F7E2A6');
     }
-    if (w.blood >= 1) smear(k, face, -5.2, -1.6, 0.1, -1, 3.6, 1.5);
-    if (w.blood >= 2) { smear(k, face, -3.9, -2.4, -0.1, -1, 3.4, 1.2); k.decal(ell(-4.6, -5.0, 0.8, 0.6, 6), BLOOD, face); }
+    // Gold on the edges and the ridge; a rivet at the temple.
+    edge(k, [q('T'), q('R0')]);
+    edge(k, [q('G1'), q('EI'), q('EO')]);
+    edge(k, [q('FI'), q('FO')], 0.16);
+    if (!snapped) edge(k, [q('CI'), q('CP'), q('CB')]);
+    k.ball(at([4.75, 2.6, 1.6], side), 0.36, GOLD_EDGE, { detail: 0, hull: 0, gloss: 0.6 });
   }
+  edge(k, [at(PT.R0, 1), at(PT.R1, 1), at(PT.N, 1)], 0.26);
+  // Wear on the right brow and blade: scratches, dents, a crack.
+  const brow = onPlane(at(PT.R1, 1), at(PT.B, 1), at(PT.T, 1));
+  const blade = onPlane(at(PT.CI, 1), at(PT.CO, 1), at(PT.CP, 1));
+  if (worn(w, 1)) scratches(k, brow, [[HELM[0] + 1.4, HELM[1] + 3.6, HELM[0] + 3.0, HELM[1] + 2.6]], SCRATCH, 0.3);
+  if (worn(w, 1)) scratches(k, blade, [[HELM[0] + 2.0, HELM[1] - 2.0, HELM[0] + 3.2, HELM[1] - 3.2]], SCRATCH, 0.3);
+  if (worn(w, 2)) { dent(k, brow, HELM[0] + 3.0, HELM[1] + 3.3, 0.6, AGED); dent(k, blade, HELM[0] + 2.6, HELM[1] - 1.2, 0.55, AGED); }
+  if (worn(w, 3)) crack(k, blade, [HELM[0] + 3.6, HELM[1] - 0.4, HELM[0] + 3.0, HELM[1] - 1.8, HELM[0] + 3.4, HELM[1] - 3.0], 0.3);
+  if (broken) {
+    // The face in the gap: blood from the cheek down to the jaw (or, healed, a pale scar).
+    const s = viewSphere(faceC, 4.4);
+    if (w.scarred && w.blood === 0) {
+      k.line([-3.0, -0.6, -2.4, -3.0], 0.6, SCAR, s);
+      for (const t of [0.3, 0.7]) { const x = -3.0 + 0.6 * t, y = -0.6 - 2.4 * t; k.line([x - 0.5, y, x + 0.5, y], 0.24, '#A8735B', s); }
+    }
+    if (w.blood >= 1) smear(k, s, -2.8, -0.8, 0.1, -1, 2.6, 1.1);
+    if (w.blood >= 2) { smear(k, s, -1.8, -1.4, -0.1, -1, 2.4, 0.9); k.decal(ell(-2.4, -3.2, 0.6, 0.45, 6), BLOOD, s); }
+  }
+  plume(k, c, w);
 }
 
-/** A bright bronze lip round the T, along the front edge of each opening cell. */
-function openingLips(k: Kit, broken: boolean): void {
-  const P = (i: number, j: number): V3 => { const p = helmAt(thOf(i - 1), VROW(j), -0.12); return [p.x, p.y, p.z]; };
-  // Broken, the edge of the gap is a lip too: bright torn bronze, a little thicker.
-  const open = (i: number, j: number): boolean => isOpening(i, j) || (broken && GAP.has(`${i},${j}`));
-  for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) {
-    if (!open(i, j)) continue;
-    const torn = !isOpening(i, j);
-    const edges: [number, number, number, number][] = [];
-    if (!open(i, j - 1)) edges.push([i, j, i + 1, j]);
-    if (j + 1 < NV && !open(i, j + 1)) edges.push([i, j + 1, i + 1, j + 1]);
-    if (!open(i - 1, j)) edges.push([i, j, i, j + 1]);
-    if (!open(i + 1, j)) edges.push([i + 1, j, i + 1, j + 1]);
-    for (const [a, b, c2, d] of edges) k.rod(P(a, b), P(c2, d), torn ? 0.32 : 0.2, torn ? '#F6DFA0' : BRONZE_LIP, { seg: 3, hull: 0, gloss: 0.6, caps: false });
-  }
-}
-
-/** The crest: a chunky fan of horsehair on the holder, front to back; torn short from battered. */
-function crest(k: Kit, c: Look, w: Wear): void {
-  const top = HC[1] + HB + 0.6;
+/** The crest: a tall square post on the crown holding a full, soft plume; torn short from battered. */
+function plume(k: Kit, c: Look, w: Wear): void {
+  const top = HELM[1] + 5.6;
+  k.box([HELM[0], top + 1.6, HELM[2] - 0.8], [1.5, 3.6, 1.5], AGED, { gloss: 0.45 });
+  k.box([HELM[0], top + 3.5, HELM[2] - 0.8], [1.8, 0.4, 1.8], GOLD_EDGE, { hull: 0, gloss: 0.6 });
+  const red = vivid(c.main), deep = mix(red, '#000000', 0.32), light = mix(red, '#FFFFFF', 0.14);
   const torn = worn(w, 3);
-  const dark = mix(c.main, '#000000', 0.3);
-  const root = (t: number): V3 => [0, top, HC[2] + 3.4 - t * 9.6];
-  const N = 9;
-  // The core, a fan slab, then the tufts over it.
-  const core: number[] = [];
-  const edge = (t: number): [number, number] => { const a = Math.PI * (0.08 + 0.86 * t); return [HC[2] - 1.6 + Math.cos(a) * 7.2, top - 1.2 + Math.sin(a) * 9.6 + (t > 0.5 ? -3.6 * (t - 0.5) : 0)]; };
-  const reach = torn ? 0.5 : 1;
-  for (let n = 0; n <= 12; n++) { const [z, y] = edge((n / 12) * reach); core.push(z, y); }
-  for (let n = 12; n >= 0; n--) { const r = root((n / 12) * reach); core.push(r[2], r[1]); }
-  k.slab(core, 1.5, dark, [0, 0, 0], [0, -Math.PI / 2, 0], { hull: 0.6 });
-  for (let n = 0; n < N; n++) {
-    const t = ((n + 0.5) / N) * reach;
-    const [z, y] = edge(t);
-    const jag = [0.4, -0.5, 0.7, -0.2, 0.5, -0.6, 0.3, -0.3, 0.6][n]!;
-    k.rod(root(t), [n % 2 ? 0.45 : -0.45, y + jag, z + jag * 0.5], 1.15, n % 3 === 1 ? dark : c.main, { r1: 0.45, seg: 4 });
-  }
+  // Tufts along an arc from front to back, big and overlapping, so it reads as one soft mass.
+  const TUFTS: readonly [number, number, number, number][] = [
+    [3.0, 1.0, 1.8, 0], [1.8, 3.2, 2.3, 1], [0.0, 4.6, 2.6, 0], [-2.0, 5.0, 2.6, 2], [-4.0, 4.2, 2.4, 0], [-5.6, 2.4, 2.1, 1],
+    [-6.4, 0.2, 1.7, 0], [-6.6, -1.8, 1.3, 2], [0.9, 2.0, 1.9, 2], [-1.2, 2.8, 2.0, 1], [-3.4, 2.2, 1.9, 2], [-5.0, 0.4, 1.7, 1],
+  ];
+  TUFTS.forEach(([z, y, r, tone], i) => {
+    if (torn && z < -0.8) return;
+    const col = tone === 0 ? red : tone === 1 ? deep : light;
+    k.ball([HELM[0] + (i % 2 ? 0.3 : -0.3), top + 3.8 + y, HELM[2] - 0.8 + z], r, col, { detail: i >= 1 && i <= 4 ? 1 : 0, s: [0.9, 0.92, 1.0], hull: 0.6 });
+  });
+  if (torn) for (const [dz, dy] of [[-1.4, 2.6], [-1.8, 1.2]] as const) k.rod([HELM[0], top + 3.8 + dy, HELM[2] - 0.8 - 0.6], [HELM[0] + 0.2, top + 3.8 + dy + 0.4, HELM[2] - 0.8 + dz - 0.8], 0.45, deep, { r1: 0.1, seg: 4, hull: 0 });
 }
 
 // ---- the body ----
@@ -163,7 +161,8 @@ const CUIRASS: readonly (readonly [number, number])[] = [[6.0, 12.6], [5.7, 14.6
 const CUIRASS_SZ = 0.72;
 
 function cuirass(k: Kit, c: Look, w: Wear): void {
-  const bronze = mix(c.accent, '#5A3A14', 0.18);
+  // Moulded leather, a deep red-brown: clearly not the bronze of the helm, so head and body never merge.
+  const bronze = CUIRASS_LEATHER;
   const g = new CylinderGeometry(1, 1, 1, 12, CUIRASS.length - 1, true);
   // Shape the cylinder's rings to the profile (faceted, like the toon figures).
   const pos = g.attributes.position!;
@@ -175,8 +174,8 @@ function cuirass(k: Kit, c: Look, w: Wear): void {
   g.rotateY(Math.PI / 12);
   k.add(g, bronze, { gloss: 0.4 });
   // The neck opening's rim, the flared lower lip, the pectoral plates and the muscle lines.
-  k.frustum([0, 0, 0], 26.2, 27.0, 5.1, 4.2, mix(bronze, '#000000', 0.2), { sz: CUIRASS_SZ + 0.04, seg: 12, gloss: 0.4 });
-  k.frustum([0, 0, 0], 12.2, 13.2, 6.5, 6.0, mix(bronze, '#000000', 0.2), { sz: CUIRASS_SZ + 0.04, seg: 12, gloss: 0.4 });
+  k.frustum([0, 0, 0], 26.2, 27.0, 5.1, 4.2, mix(bronze, '#000000', 0.2), { sz: CUIRASS_SZ + 0.04, seg: 12, gloss: 0.4, open: true });
+  k.frustum([0, 0, 0], 12.2, 13.2, 6.5, 6.0, mix(bronze, '#000000', 0.2), { sz: CUIRASS_SZ + 0.04, seg: 12, gloss: 0.4, open: true });
   for (const s of [-1, 1]) k.ball([s * 2.6, 22.4, 4.0], 1, bronze, { s: [2.7, 1.8, 1.0], detail: 0, gloss: 0.5, hull: 0 });
   const front: Surface = (x, y) => ({ p: [x, y, CUIRASS_SZ * Math.sqrt(Math.max(1, 6.4 * 6.4 - x * x)) + 0.25], n: [x / 12, 0, 1] });
   const line = mix(bronze, '#000000', 0.45);
@@ -203,10 +202,10 @@ function waist(k: Kit, c: Look, w: Wear): void {
   }
   g.translate(0, 9.9, 0);
   k.add(g, c.main);
-  k.frustum([0, 0, 0], 7.4, 8.3, 7.4, 7.2, c.dark, { sz: 0.74, seg: 16 });
+  k.frustum([0, 0, 0], 7.4, 8.3, 7.4, 7.2, c.dark, { sz: 0.74, seg: 16, open: true });
   if (worn(w, 3)) { const [lip, gap] = tearPolys(-2.6, 9.6, 2.6, 2.4); const s = flat(5.3); k.decal(lip, mix(c.main, '#000000', 0.45), s); k.decal(gap, SKIN, s); }
   // The belt, with a bronze buckle.
-  k.frustum([0, 0, 0], 12.0, 13.2, 6.2, 6.1, LEATHER_DARK, { sz: CUIRASS_SZ + 0.06, seg: 12 });
+  k.frustum([0, 0, 0], 12.0, 13.2, 6.2, 6.1, LEATHER_DARK, { sz: CUIRASS_SZ + 0.06, seg: 12, open: true });
   k.box([0, 12.6, 4.6], [1.8, 1.4, 0.6], c.accent, { gloss: 0.5 });
   // The pteruges: leather strips hanging from under the cuirass round the front and sides.
   for (let i = 0; i < 7; i++) {
@@ -220,9 +219,9 @@ function waist(k: Kit, c: Look, w: Wear): void {
 function fist(k: Kit, p: V3, axis: V3, back: V3, r = 0.9): void {
   const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), new Vector3(...axis).normalize());
   // Four fingers as two rings round the bar, a gap where the palm closes over the back.
-  // The fingers as one band round the bar, ridged where they part (two rings, close together).
-  for (const o of [-0.45, 0.45]) {
-    const t = new TorusGeometry(r, 0.55, 4, 6, Math.PI * 1.6);
+  // The fingers as one thick band round the bar.
+  for (const o of [0]) {
+    const t = new TorusGeometry(r, 0.85, 4, 6, Math.PI * 1.6);
     t.applyQuaternion(q);
     const off = new Vector3(...axis).normalize().multiplyScalar(o);
     t.translate(p[0] + off.x, p[1] + off.y, p[2] + off.z);
@@ -237,9 +236,9 @@ function fist(k: Kit, p: V3, axis: V3, back: V3, r = 0.9): void {
 /** A bare arm: the shoulder's cap, the upper arm, the forearm with its wrist wrap, ending at the wrist. */
 function arm(k: Kit, shoulder: V3, elbow: V3, wrist: V3): void {
   k.ball(shoulder, 1, SKIN, { s: [2.0, 2.2, 2.0], detail: 0 });
-  k.rod(shoulder, elbow, 1.6, SKIN, { r1: 1.25, seg: 7 });
+  k.rod(shoulder, elbow, 1.6, SKIN, { r1: 1.25, seg: 6 });
   k.ball(elbow, 1.3, SKIN_SHADE, { detail: 0, hull: 0 });
-  k.rod(elbow, wrist, 1.35, SKIN, { r1: 1.0, seg: 7 });
+  k.rod(elbow, wrist, 1.35, SKIN, { r1: 1.0, seg: 6 });
   const d = new Vector3(...wrist).sub(new Vector3(...elbow)).normalize();
   for (const t of [0.6, 1.2]) {
     const at = new Vector3(...wrist).addScaledVector(d, -t);
@@ -290,7 +289,8 @@ export function detailedToonHoplite(k: Kit, { look: c, wear: w }: ToonOpts): { r
     legs(k, w);
     waist(k, c, w);
     cuirass(k, c, w);
-    k.rod([0, 26.0, -0.2], [0, 28.8, 0], 2.1, SKIN, { seg: 7 });
+    // The neck, clear between the cuirass and the cheek blades.
+    k.rod([0, 26.0, -0.2], [0, 31.5, 0.4], 1.9, SKIN, { seg: 7 });
     // The spear arm; the hand round the shaft goes with the spear when it strikes.
     arm(k, [5.8, 24.8, 0], [9.6, 19.6, 0.4], [12.0, 19.2, 2.4]);
     const butt: V3 = [12, 0.6, 2.4], top: V3 = [14.4, H(-30), 2.4];
@@ -306,7 +306,7 @@ export function detailedToonHoplite(k: Kit, { look: c, wear: w }: ToonOpts): { r
       arm(k, [-5.8, 24.8, 0], [-9.6, 20.2, 1.2], [-10.2, 17.6, 4.4]);
       fist(k, [-10.2, 17.2, 5.0], [1, 0, 0], [0, 0, -1], 1.1);
       k.box([-10.2, 17.2, 5.0], [4.6, 0.5, 0.5], LEATHER_DARK, { hull: 0 });
-      k.frame([-10.2, H(-9.6) + 1.6, 7.0], [-0.34, -0.18, 0], () => realShield(k, c, w, 16));
+      k.frame([-10.2, H(-9.6) + 1.6, 7.0], [-0.34, -0.18, 0], () => bronzeShield(k, c, w, 14));
     }, { axis: TIP_FORWARD });
     if (w.blood >= 1) groundDrops(k, 3, 9, true, w.blood >= 2);
   });

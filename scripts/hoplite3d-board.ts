@@ -1,7 +1,6 @@
 // The phone-size board (412 x 915) in Gritty, with several Hoplites (clean and worn) and a Catapult beside other units, in the svg
-// look (the muted svg figures) and the 3D look (the realistic Hoplite, the muted toon figures).
-// Run after `npx vite build`:  npx tsx scripts/hoplite3d-board.ts <out dir> [toon]
-// With `toon`, the Hoplites are the detailed toon Hoplite (the developer's storage switch), in the 3D look only.
+// look (the muted svg figures) and the 3D look (Gritty's own Hoplite and Catapult, the muted toon figures).
+// Run after `npx vite build`:  npx tsx scripts/hoplite3d-board.ts <out dir>
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { newRecord } from '../src/app/record';
@@ -53,16 +52,14 @@ place('archer', enemy, 1, { battles: 1, scar: 0, bleeding: false });
 place('horseman', enemy, 0.7, { battles: 2, scar: 0, bleeding: false });
 console.log('player', me, 'capital', capital.pos, 'units placed', id);
 
-const toon = process.argv[3] === 'toon';
-for (const look of toon ? ['3d' as const] : (['svg', '3d'] as const)) {
+for (const look of ['svg', '3d'] as const) {
   const app = await openApp('', {
     width: 412, height: 915, webgl: look === '3d',
     beforeOpen: (c) => {
-      void c.addInitScript(([items, t]: readonly [[string, string][], boolean]) => {
+      void c.addInitScript((items: [string, string][]) => {
         for (const [k, v] of items) localStorage.setItem(k, v);
         localStorage.setItem('banners.artMode', 'gritty');
-        if (t) localStorage.setItem('banners.dev.toonHoplite', '1');
-      }, [saveOf(state), toon] as const);
+      }, saveOf(state));
     },
   });
   const { page } = app;
@@ -82,7 +79,7 @@ for (const look of toon ? ['3d' as const] : (['svg', '3d'] as const)) {
     }
     await cameraStill(page);
     await frames(page);
-    await page.screenshot({ path: join(out, toon ? 'k4-detailed-toon-board.png' : `d-board-gritty-${look}-412x915.png`) });
+    await page.screenshot({ path: join(out, look === '3d' ? 'k4-detailed-toon-board.png' : 'd-board-gritty-svg-412x915.png') });
     console.log('wrote', look);
   } finally {
     await app.close();

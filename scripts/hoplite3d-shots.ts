@@ -1,5 +1,5 @@
-// Shots of Gritty's realistic 3D Hoplite, rendered by the real units renderer in Chromium: the figure large, every
-// wear stage in a row, the Bright toon Hoplite beside it, and its hunker crouch.
+// Shots of Gritty's 3D Hoplite (the detailed toon) and Catapult, rendered by the real units renderer in Chromium: each
+// large, broken, every wear stage in a row, beside the Bright figures, the Hoplite's head close up and its crouch.
 // Run: npx tsx scripts/hoplite3d-shots.ts <out dir>
 // (The phone-size board in Gritty is shot by scripts/hoplite3d-board.ts, which needs `npx vite build` first.)
 import { mkdirSync } from 'node:fs';
@@ -32,22 +32,24 @@ try {
     await page.locator('#wrap').screenshot({ path: join(out, name) });
     console.log(join(out, name));
   };
-  await run('a-gritty-hoplite-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('a2-broken-large.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('a3-scarred-large.png', [hop('', w(1, 0, true))], 14, 1, { cellW: 46, rowH: 72 });
-  // Head close-ups, broken with heavy blood and healed with a scar.
-  await run('a4-head-close.png', [hop('broken, more blood', w(4, 2)), hop('scarred', w(1, 0, true))], 26, 2, { cellW: 16, rowH: 16, dy: -22 });
-  await run('b-wear-stages.png', [
+  // Gritty's Hoplite (the detailed toon): large, broken, its stages, its head close up, beside the Bright one.
+  await run('k-detailed-toon-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('k2-detailed-toon-broken.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('k3-detailed-toon-stages.png', [
     hop('clean', w(0)), hop('scuffed', w(1)), hop('dented', w(2)), hop('battered', w(3)), hop('battered + blood', w(3, 1)),
     hop('broken + blood', w(4, 1)), hop('broken + more blood', w(4, 2)), hop('healed, scarred', w(1, 0, true)), hop('scarred, wounded again', w(3, 1, true)),
   ], 4.2, 9, { cellW: 40, rowH: 76 });
-  await run('b2-wear-close.png', [
-    hop('dented', w(2)), hop('battered + blood', w(3, 1)), hop('broken + blood', w(4, 1)), hop('broken + more blood', w(4, 2)), hop('healed, scarred', w(1, 0, true)),
-  ], 9, 5, { cellW: 34, rowH: 70 });
-  await run('c-bright-vs-gritty.png', [hop('Bright (toon)', w(0), 'spartans', false), hop('Gritty', w(0))], 9, 2, { cellW: 40, rowH: 72, bright: true });
+  await run('k5-helmet-close.png', [
+    { ...hop('front', w(0)), aim: [-4, 30] }, hop('three-quarter', w(0)), { ...hop('broken, front', w(4, 2)), aim: [-4, 30] }, hop('scarred', w(1, 0, true)),
+  ], 22, 4, { cellW: 22, rowH: 24, dy: -21 });
+  await run('g-bright-vs-gritty-hoplite.png', [hop('Bright', w(0), 'spartans', false), hop('Gritty', w(0)), hop('Bright, broken', w(4, 2), 'spartans', false), hop('Gritty, broken', w(4, 2))], 7, 2, { cellW: 44, rowH: 74 });
   await run('e-sides-and-crouch.png', [
     hop('Spartans', w(0)), hop('Mongols', w(0), 'mongols'), hop('hunkered', w(0), 'spartans', true, true), hop('broken, hunkered', w(4, 2), 'mongols', true, true),
   ], 6, 4, { cellW: 40, rowH: 76 });
+  await run('f-phone-scale.png', [
+    hop('', w(0)), hop('', w(2), 'mongols'), hop('', w(4, 2)), { type: 'warrior', faction: 'mongols', gritty: true, wear: w(3, 1), name: '' }, { type: 'archer', faction: 'spartans', gritty: true, wear: w(1), name: '' },
+  ], 1.6, 5, { cellW: 30, rowH: 70 });
+  // The Catapult.
   const cat = (name: string, wear: W, faction: 'spartans' | 'mongols' = 'spartans', gritty = true) => ({ type: 'catapult', faction, gritty, wear, name });
   await run('h-gritty-catapult-large.png', [cat('', w(0))], 15, 1, { cellW: 46, rowH: 46 });
   await run('h2-catapult-broken-large.png', [cat('', w(4, 2))], 15, 1, { cellW: 46, rowH: 46 });
@@ -56,22 +58,6 @@ try {
     cat('broken + fire', w(4, 1)), cat('broken + more fire', w(4, 2)), cat('mended (scarred)', w(1, 0, true)), cat('mended, hit again', w(3, 1, true)),
   ], 4.4, 9, { cellW: 46, rowH: 56 });
   await run('j-catapult-bright-vs-gritty.png', [cat('Bright (toon)', w(0), 'spartans', false), cat('Gritty', w(0))], 7, 2, { cellW: 52, rowH: 72, bright: true });
-  const three = (wear: W) => [
-    { type: 'hoplite', faction: 'spartans', gritty: false, wear, variant: 'toon', name: 'Bright toon' },
-    { type: 'hoplite', faction: 'spartans', gritty: false, wear, variant: 'toonClosedHelm', name: 'toon, closed helm' },
-    hop('Gritty realistic', wear),
-  ];
-  await run('g-three-hoplites.png', [...three(w(0)), ...three(w(4, 2))], 7, 3, { cellW: 44, rowH: 74 });
-  const toon = (name: string, wear: W) => ({ type: 'hoplite', faction: 'spartans', gritty: false, wear, variant: 'toonClosedHelm', name });
-  await run('k-detailed-toon-large.png', [toon('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('k2-detailed-toon-broken.png', [toon('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('k3-detailed-toon-stages.png', [
-    toon('clean', w(0)), toon('scuffed', w(1)), toon('dented', w(2)), toon('battered', w(3)), toon('battered + blood', w(3, 1)),
-    toon('broken + blood', w(4, 1)), toon('broken + more blood', w(4, 2)), toon('healed, scarred', w(1, 0, true)), toon('scarred, wounded again', w(3, 1, true)),
-  ], 4.2, 9, { cellW: 40, rowH: 76 });
-  await run('f-phone-scale.png', [
-    hop('', w(0)), hop('', w(2), 'mongols'), hop('', w(4, 2)), { type: 'warrior', faction: 'mongols', gritty: true, wear: w(3, 1), name: '' }, { type: 'archer', faction: 'spartans', gritty: true, wear: w(1), name: '' },
-  ], 1.6, 5, { cellW: 30, rowH: 70 });
 } finally {
   await browser.close();
   await server.close();

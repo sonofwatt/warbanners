@@ -270,7 +270,7 @@ vec3 shade(vec3 c) { return mix(c, mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))
 vec3 shade(vec3 c) { return c; }
 #endif
 // Gritty's figures (units/units3d.ts) define GRITTY_MUTE: their colours a little less saturated and a touch darker,
-// to sit in the overcast board. The realistic ones (units/hoplite3d.ts) also define GRITTY_LIGHT: no toon bands but a
+// to sit in the overcast board. The realistic ones (units/catapult3d.ts) also define GRITTY_LIGHT: no toon bands but a
 // soft, low overcast key from the upper left, a cool sky fill and a warm bounce from the ground, a broad sheen on
 // bronze and iron, and a faint cool rim so the figure stands off the ground; their outline is thin and very dark.
 #ifdef GRITTY_MUTE

@@ -21,7 +21,7 @@ import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
-import { devHopliteVariant, glUnitsOf, unitShown } from '../terrain3d/unitsInput';
+import { glUnitsOf, unitShown } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
 import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
 import type { AmbientLoop } from '../terrain3d/ambient';
@@ -730,7 +730,7 @@ export function Board(p: BoardProps): ReactElement {
 
   // The 3D unit figures: exactly the scene's units (the viewer's own view, so fog hides them as it hides the svg
   // ones), rebuilt only when what they show or where they stand changes, before the browser paints.
-  // In Gritty the figures carry their battle wear and Gritty's own looks (the realistic Hoplite, muted colours).
+  // In Gritty the figures carry their battle wear and Gritty's own looks (its own Hoplite and Catapult, muted colours).
   const gritty = artLook === 'gritty';
   // The 3D terrain takes Gritty's grade too (it is set when the terrain is made, and again when the mode changes).
   const grittyRef = useRef(gritty);
@@ -741,7 +741,7 @@ export function Board(p: BoardProps): ReactElement {
     t.setGritty(gritty);
     write();
   }, [glReady, gritty, write]);
-  const unitsData = useMemo(() => (glWanted ? glUnitsOf(p.items, p.factions, gritty, devHopliteVariant()) : null), [glWanted, p.items, p.factions, gritty]);
+  const unitsData = useMemo(() => (glWanted ? glUnitsOf(p.items, p.factions, gritty) : null), [glWanted, p.items, p.factions, gritty]);
   const unitsLatest = useRef(unitsData);
   useLayoutEffect(() => {
     unitsLatest.current = unitsData;

@@ -21,11 +21,6 @@ export interface GlUnit {
   gritty?: boolean;
   /** Its battle wear (engine wearLook), shown in Gritty only. */
   wear?: { stage: 0 | 1 | 2 | 3 | 4; blood: 0 | 1 | 2; scarred: boolean };
-  /**
-   * For comparison shots only (scripts/hoplite3d): the game never sets it. 'toon' draws the Bright toon figure with
-   * its wear; 'toonClosedHelm' a toon Hoplite in a closed T-opening helmet carrying the realistic Hoplite's shield.
-   */
-  variant?: 'toon' | 'toonClosedHelm';
 }
 
 /**
@@ -42,20 +37,7 @@ export function unitShown(u: { mine: boolean; spent: boolean; hidden: boolean })
  * The 3D figures for the scene, and their signature (equal signatures need no rebuild). Exactly the scene's units:
  * the scene is built from the viewer's own view, so a unit the viewer cannot see is never in it, and never here.
  */
-/**
- * A developer's switch for comparison shots (scripts/hoplite3d-board.ts sets it): with `banners.dev.toonHoplite` set
- * to 1 in storage, the 3D Hoplites are drawn as the detailed toon Hoplite. The game itself never sets it. Read only
- * when called, never at load.
- */
-export function devHopliteVariant(): GlUnit['variant'] {
-  try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('banners.dev.toonHoplite') === '1' ? 'toonClosedHelm' : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function glUnitsOf(items: readonly SceneItem[], factions: readonly FactionId[], gritty = false, hopliteVariant?: GlUnit['variant']): { units: GlUnit[]; key: string } {
+export function glUnitsOf(items: readonly SceneItem[], factions: readonly FactionId[], gritty = false): { units: GlUnit[]; key: string } {
   const units: GlUnit[] = [];
   for (const it of items) {
     if (it.kind !== 'unit') continue;
@@ -68,9 +50,8 @@ export function glUnitsOf(items: readonly SceneItem[], factions: readonly Factio
       spent: it.mine && it.spent,
       hunkered: u.hunkered,
       ...(gritty ? { gritty: true, wear: wearLook(u, maxHpOf(u)) } : {}),
-      ...(hopliteVariant !== undefined && u.type === 'hoplite' ? { variant: hopliteVariant } : {}),
     });
   }
-  const key = units.map((u) => `${u.id}:${u.type}:${u.look.main}${u.look.dark}${u.look.accent}:${u.hero ? 'h' : ''}:${u.x},${u.y}:${u.spent ? 's' : ''}:${u.hunkered ? 'k' : ''}${u.gritty === true && u.wear !== undefined ? `:g${u.wear.stage}${u.wear.blood}${u.wear.scarred ? 's' : ''}` : ''}${u.variant ?? ''}`).join(' ');
+  const key = units.map((u) => `${u.id}:${u.type}:${u.look.main}${u.look.dark}${u.look.accent}:${u.hero ? 'h' : ''}:${u.x},${u.y}:${u.spent ? 's' : ''}:${u.hunkered ? 'k' : ''}${u.gritty === true && u.wear !== undefined ? `:g${u.wear.stage}${u.wear.blood}${u.wear.scarred ? 's' : ''}` : ''}`).join(' ');
   return { units, key };
 }

@@ -1,7 +1,7 @@
 // The Gritty Catapult in 3D: a heavy counterweight engine of rough-hewn dark timber, our own design. Two long rails
 // on four iron-tyred spoked wheels, an A-frame each side carrying an iron axle, a throwing arm with a plank-and-iron
 // box of stones hung from its short end and an iron-bound cup at its long end, a windlass and its rope at the back,
-// rope lashings at the joints, and the owner's colour (deep, unmuted, as on the Gritty Hoplite) as a cloth wrapped
+// rope lashings at the joints, and the owner's colour (deep and unmuted, shield3d.ts vivid) as a cloth wrapped
 // on the arm, a cloth over the counterweight and a pennant. Drawn with the Gritty light (shaders.ts GRITTY_LIGHT).
 //
 // Same figure space and moving pieces as the toon trebuchet (figures.ts): the arm (ARM) and the stone (STONE_PIECE)
@@ -11,10 +11,11 @@
 // broken, the arm's tip is snapped off with its cup on the ground, a wheel's rim is broken, the counterweight box is
 // split and spilling stones. Crews do not bleed: the blood levels are fire instead (scorch on the timber, then burnt
 // wreckage and scorched ground). Scarred: the repairs show, a pale new spoke and a splint lashed to the arm.
-import { Color, CylinderGeometry, IcosahedronGeometry, LatheGeometry, Quaternion, TorusGeometry, Vector2, Vector3 } from 'three';
+import { CylinderGeometry, IcosahedronGeometry, LatheGeometry, Quaternion, TorusGeometry, Vector2, Vector3 } from 'three';
 import { flat, ground, Kit, mix } from './kit';
 import type { PartOpts, Surface, V3 } from './kit';
 import { ell, heavy, setYaw, worn } from './parts';
+import { vivid } from './shield3d';
 import type { Look, Wear } from './parts';
 
 const TIMBER = '#4E3C2B';
@@ -44,14 +45,6 @@ export const REAL_ARM_LONG = 16;
 const YAW = 0.38 * 0.6;
 /** The whole engine grown to the toon trebuchet's height on the board. */
 const SIZE = 1.3;
-
-/** The owner's colour, deepened and saturated as on the Gritty Hoplite. */
-function vivid(hex: string): string {
-  const col = new Color(hex), hsl = { h: 0, s: 0, l: 0 };
-  col.getHSL(hsl);
-  col.setHSL((hsl.h + 0.975) % 1, Math.min(1, hsl.s * 1.35 + 0.1), Math.max(0.18, hsl.l * 0.7));
-  return '#' + col.getHexString();
-}
 
 /**
  * A squared timber from a to b (the figure frame), w wide across the screen and d deep, its front face toward +z of

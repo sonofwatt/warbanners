@@ -18,15 +18,14 @@ vi.mock('three', async (orig) => {
   return { ...three, WebGLRenderer: FakeRenderer };
 });
 
-const { ALL_TYPES, buildFigure, REAL_TYPES } = await import('./figures');
+const { ALL_TYPES, buildFigure, GRITTY_TYPES, REAL_TYPES } = await import('./figures');
 const { CLEAN } = await import('./parts');
-const { guardOf } = await import('./crouch');
 const { createUnits3d } = await import('./units3d');
 const { mute } = await import('../../art/palette');
 
 const RED = { main: '#B3261E', dark: '#8E1D17', accent: '#C8963E' };
 const positions = (f: { fill: { attributes: { position?: { array: ArrayLike<number> } } } }): number[] => Array.from(f.fill.attributes.position!.array);
-const real = (wear: Wear) => buildFigure('hoplite', { look: RED, wear, gritty: true });
+const gritty = (wear: Wear) => buildFigure('hoplite', { look: RED, wear, gritty: true });
 
 /** Every look the wear can take: the five stages, blood 1 and 2, scarred, and scarred and wounded again. */
 const LOOKS: Wear[] = [
@@ -35,32 +34,34 @@ const LOOKS: Wear[] = [
 ];
 
 /**
- * Triangle budgets. The toon figures stay under 2000 at their most worn. The realistic Hoplite is smooth and has
- * real anatomy, a shell helmet and a domed shield, so it gets its own budget, about three times a toon figure's: a
- * phone board seldom shows more than a dozen or two of it (20 x 6000 = 120k triangles, well inside a phone's frame).
+ * Triangle budgets. The Bright toon figures stay under 2000 at their most worn. Gritty's own figures have more
+ * shape: the detailed toon Hoplite (a faceted helm with its plume, a domed shield, hands) gets 3100, and the
+ * realistic Catapult (timber, iron and fire) 6000; a phone board seldom shows more than a dozen or two of them.
  */
 const TOON_BUDGET = 2000;
+const HOPLITE_BUDGET = 3100;
 const GRITTY_BUDGET = 6000;
 
-describe("Gritty's realistic Hoplite", () => {
-  test('Gritty builds it for the Hoplite only; Bright builds the toon figure, the same to the last vertex as before', () => {
-    expect([...REAL_TYPES].sort()).toEqual(['catapult', 'hoplite']);
-    expect(real(CLEAN).real).toBe(true);
+describe("Gritty's Hoplite (the detailed toon)", () => {
+  test('Gritty builds it for the Hoplite; Bright builds the toon figure, the same to the last vertex as before', () => {
+    expect([...REAL_TYPES]).toEqual(['catapult']);
+    expect([...GRITTY_TYPES].sort()).toEqual(['catapult', 'hoplite']);
     const bright = buildFigure('hoplite', { look: RED, wear: CLEAN });
-    expect(bright.real).toBe(false);
+    expect(gritty(CLEAN).real, 'a toon figure, drawn in the toon light').toBe(false);
+    expect(positions(gritty(CLEAN))).not.toEqual(positions(bright));
     expect(positions(buildFigure('hoplite', { look: RED, wear: CLEAN, gritty: false }))).toEqual(positions(bright));
-    // Every other type keeps its toon figure in Gritty too.
-    for (const t of ALL_TYPES) if (!REAL_TYPES.has(t)) expect(buildFigure(t, { look: RED, wear: CLEAN, gritty: true }).real).toBe(false);
+    // Every other type keeps its toon figure in Gritty.
+    for (const t of ALL_TYPES) if (!GRITTY_TYPES.has(t)) expect(positions(buildFigure(t, { look: RED, wear: CLEAN, gritty: true }))).toEqual(positions(buildFigure(t, { look: RED, wear: CLEAN })));
   });
 
   test('it is built from numbers alone: the same twice', () => {
-    for (const w of [CLEAN, { stage: 4, blood: 2 } as Wear]) expect(positions(real(w))).toEqual(positions(real(w)));
+    for (const w of [CLEAN, { stage: 4, blood: 2 } as Wear]) expect(positions(gritty(w))).toEqual(positions(gritty(w)));
   });
 
   test('every wear look is a different model', () => {
     const seen = new Set<string>();
     for (const w of LOOKS) {
-      const f = real(w);
+      const f = gritty(w);
       const sig = `${f.triangles}|${positions(f).reduce((a, v, i) => a + v * ((i % 7) + 1), 0).toFixed(3)}`;
       expect(seen.has(sig), JSON.stringify(w)).toBe(false);
       seen.add(sig);
@@ -68,28 +69,25 @@ describe("Gritty's realistic Hoplite", () => {
   });
 
   test('it stays inside its triangle budget at every wear look; the toon figures inside theirs', () => {
-    for (const w of LOOKS) expect(real(w).triangles, JSON.stringify(w)).toBeLessThanOrEqual(GRITTY_BUDGET);
+    for (const w of LOOKS) expect(gritty(w).triangles, JSON.stringify(w)).toBeLessThanOrEqual(HOPLITE_BUDGET);
     for (const t of ALL_TYPES) {
       expect(buildFigure(t, { look: RED, wear: { stage: 4, blood: 2 } }).triangles, t).toBeLessThanOrEqual(TOON_BUDGET);
     }
   });
 
-  test('it keeps the moving pieces the strike, block and crouch drive, and the thighs bend in its own crouch', () => {
-    expect(Object.keys(real(CLEAN).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'thighs', 'weapon']);
-    expect(Object.keys(real({ stage: 4, blood: 2 }).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'thighs', 'weapon']);
-    expect(guardOf('hoplite', true).pieces.thighs).toBeDefined();
-    expect(guardOf('hoplite', false)).toBe(guardOf('hoplite'));
-    expect(guardOf('warrior', true)).toBe(guardOf('warrior'));
+  test('it keeps the moving pieces the strike, block and crouch drive', () => {
+    expect(Object.keys(gritty(CLEAN).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'weapon']);
+    expect(Object.keys(gritty({ stage: 4, blood: 2 }).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'weapon']);
   });
 
-  test('its feet stand on the ground and it is about as tall as a man with a crest and a spear', () => {
-    const f = real(CLEAN);
+  test('its feet stand on the ground', () => {
+    const f = gritty(CLEAN);
     const p = [...positions(f), ...Object.values(f.pieces).flatMap((pc) => Array.from(pc.fill.attributes.position!.array))];
     let minY = Infinity, maxY = -Infinity;
     for (let i = 1; i < p.length; i += 3) { minY = Math.min(minY, p[i]!); maxY = Math.max(maxY, p[i]!); }
     expect(minY).toBeGreaterThanOrEqual(-0.1);
     expect(minY).toBeLessThan(0.6);
-    expect(maxY).toBeLessThan(66); // the spear tip, a head and a half over the crest
+    expect(maxY).toBeLessThan(60);
   });
 });
 
@@ -118,22 +116,6 @@ describe("Gritty's realistic Catapult", () => {
     expect(p.arm!.pivot).toEqual(p.stone!.pivot);
     expect(Math.hypot(...p.arm!.axis)).toBeCloseTo(1, 5);
     expect(Object.keys(cat({ stage: 4, blood: 0 }).pieces)).toEqual([]);
-  });
-});
-
-describe('the toon closed-helm Hoplite (comparison shots only)', () => {
-  test('built only when asked for; the game never asks', async () => {
-    const closed = buildFigure('hoplite', { look: RED, wear: CLEAN, variant: 'toonClosedHelm' });
-    expect(closed.real).toBe(false);
-    expect(positions(closed)).not.toEqual(positions(buildFigure('hoplite', { look: RED, wear: CLEAN })));
-    // The game reaches it only through the developer's storage switch, which nothing in the game sets.
-    const { readFileSync } = await import('node:fs');
-    for (const f of ['src/ui/terrain3d/unitsInput.ts', 'src/ui/board/Board.tsx']) expect(readFileSync(f, 'utf8')).not.toMatch(/variant: '/);
-    const { devHopliteVariant } = await import('../unitsInput');
-    expect(devHopliteVariant()).toBeUndefined();
-    // In Gritty it stays the toon figure (the realistic build does not take its place).
-    expect(buildFigure('hoplite', { look: RED, wear: CLEAN, gritty: true, variant: 'toonClosedHelm' }).real).toBe(false);
-    expect(buildFigure('hoplite', { look: RED, wear: { stage: 4, blood: 2 }, variant: 'toonClosedHelm' }).triangles).toBeLessThanOrEqual(3800);
   });
 });
 

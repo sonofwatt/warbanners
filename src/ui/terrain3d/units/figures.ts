@@ -1,7 +1,8 @@
 // The 17 unit figures in 3D, one builder each, from the SVG figures' own shapes and coordinates (art/units.tsx and
 // art/factionUnits.tsx): x as on screen, heights through H(svgY) so every part lands where the SVG draws it.
 // Every builder takes the owner's look and a Wear and returns one model. Bright passes CLEAN; Gritty passes each
-// unit's own battle wear, and builds the realistic Hoplite (hoplite3d.ts) in place of the toon one.
+// unit's own battle wear, and builds Gritty's own figures where it has them: the detailed toon Hoplite
+// (toonHoplite.ts) and the realistic Catapult (catapult3d.ts).
 import { Vector3 } from 'three';
 import { flat, H, Kit, mix } from './kit';
 import type { BuiltFigure, Surface, V3 } from './kit';
@@ -13,7 +14,6 @@ import {
   STEEL_DARK, STONE, STRING, sword, tearPolys, TUNIC, tunicSurf, tunicWear, viewSphere, VISOR, WOOD, WOOD_DARK, worn,
 } from './parts';
 import type { Cut, Look, Wear } from './parts';
-import { realHoplite } from './hoplite3d';
 import { detailedToonHoplite } from './toonHoplite';
 import { realCatapult } from './catapult3d';
 
@@ -22,19 +22,26 @@ export type UnitType =
   | 'hoplite' | 'kingsGuard' | 'piper' | 'scout' | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp';
 
 /** `gritty`: the Gritty art style, which has its own realistic figures for some types (so far the Hoplite). */
-export interface FigureOpts { look: Look; wear: Wear; hero?: boolean; gritty?: boolean; variant?: 'toon' | 'toonClosedHelm' }
+export interface FigureOpts { look: Look; wear: Wear; hero?: boolean; gritty?: boolean }
 /**
  * A built figure plus the size of its ground shadow (an ellipse at the feet, in world units). `real`: a Gritty
  * realistic figure, smooth shaded and drawn with the Gritty light; the rest are the toon figures.
  */
 export interface Figure extends BuiltFigure { shadow: { rx: number; rz: number; x: number }; real: boolean }
 
-/** The unit types that have a realistic figure in Gritty, and their builders. */
+/**
+ * Gritty's own figures, by type: realistic ones (smooth, drawn with the Gritty light) and toon ones (Gritty's toon
+ * look, muted like the other toon figures). Bright never builds them.
+ */
 const REAL_BUILDERS: Partial<Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; rz: number; x: number }>> = {
-  hoplite: realHoplite,
   catapult: realCatapult,
 };
+const GRITTY_TOON_BUILDERS: Partial<Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; rz: number; x: number }>> = {
+  hoplite: detailedToonHoplite,
+};
 export const REAL_TYPES: ReadonlySet<UnitType> = new Set<UnitType>(Object.keys(REAL_BUILDERS) as UnitType[]);
+/** The unit types with a figure of their own in Gritty (realistic or toon). */
+export const GRITTY_TYPES: ReadonlySet<UnitType> = new Set<UnitType>([...REAL_TYPES, ...Object.keys(GRITTY_TOON_BUILDERS) as UnitType[]]);
 
 /** How far the figures turn toward the right of the screen: a three-quarter view, so they read as solid. */
 export const STAND_YAW = 0.38;
@@ -905,10 +912,10 @@ export const FIGURES: Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; 
 export function buildFigure(type: UnitType, o: FigureOpts): Figure {
   const k = new Kit();
   if (o.hero) heroMark(k, o.look.accent);
-  const closed = o.variant === 'toonClosedHelm' && type === 'hoplite';
-  const realBuild = o.gritty === true && !closed ? REAL_BUILDERS[type] : undefined;
+  const realBuild = o.gritty === true ? REAL_BUILDERS[type] : undefined;
+  const toonBuild = o.gritty === true ? GRITTY_TOON_BUILDERS[type] : undefined;
   const real = realBuild !== undefined;
-  const shadow = realBuild !== undefined ? realBuild(k, o) : closed ? detailedToonHoplite(k, o) : FIGURES[type](k, o);
+  const shadow = (realBuild ?? toonBuild ?? FIGURES[type])(k, o);
   setYaw(0);
   return { ...k.build(), shadow, real };
 }
