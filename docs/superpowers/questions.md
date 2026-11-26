@@ -3,22 +3,7 @@
 Background for each question in chat, in point form. Numbers match the chat and never change; answered questions
 move to the bottom.
 
-## Q1. Spartan head start result (2026-11-25)
-
-- Built on rules9 (2eff62e): Spartan growth costs equal to everyone's (2, 3, 4, 5); the Spartan capital starts with
-  growth banked; one extra Spartan lever allowed.
-- Head start alone (seed 1, 200 matches, Spartans hard / normal): 1 gives 29 / 32%, 2 gives 35 / 35%, 3 gives 39 / 46%.
-  With Foraging as a starting tech: 2 gives 41 / 42%, 3 gives 46.5 / 49% (kept).
-- Final, 400 matches: hard Spartans 49.4 / Mongols 48.5, stalls 4.3%; normal 51.3 / 44.9, stalls 7.8%. All 32 seeded
-  AI matches now end (the old deadlock too).
-- Catch: surplus growth carries over, so with 3 banked the Spartan capital reaches level 2 on its first harvest and
-  level 3 on its second (rules 8: level 2 on the first, level 3 on the third). Any head start levels it on its first
-  harvest. Other Spartan cities pay full price. The card would show 3/2 growth on turn 1.
-- Options: A, ship it (David: no, 2026-11-25); B, head start 2 plus a different second lever, so level 3 takes three
-  harvests (needs another tuning round); C, back to the tuned two-lever form (it is the 2, 1, 2, 3 curve David
-  turned down: a free growth point at level 2, then 1 less from level 3).
-- Separately: the slow Adaptive AI check now misses by one seed (11 of 16 above 0, bound 12; mean 0.18, bound 0.15).
-  I will look at it before 0.7.0 ships.
+No open questions.
 
 ## Answered
 
@@ -73,3 +58,5 @@ move to the bottom.
   Spartan costs to leave each level become 2, 1, 2, 3, 4 (everyone else 2, 3, 4, 5, 6); re-measured before release.
 - Q1 (Spartan growth curve), 2026-11-25 (David): Spartan growth costs the same as everyone's; the Spartan capital
   gets a head start of banked growth (size tuned by sims; at most one more non-growth Spartan lever if needed).
+- Q1 (Spartan head start), 2026-11-25 (David): the Spartan capital starts at level 2, and Spartan levels from there are
+  1 growth cheaper. Ship it; balance testing later.
