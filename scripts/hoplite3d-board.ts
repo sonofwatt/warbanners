@@ -1,4 +1,4 @@
-// The phone-size board (412 x 915) in Gritty, with several Hoplites (clean and worn) beside other units, in the svg
+// The phone-size board (412 x 915) in Gritty, with several Hoplites (clean and worn) and a Catapult beside other units, in the svg
 // look (the muted svg figures) and the 3D look (the realistic Hoplite, the muted toon figures).
 // Run after `npx vite build`:  npx tsx scripts/hoplite3d-board.ts <out dir>
 import { mkdirSync } from 'node:fs';
@@ -43,6 +43,7 @@ const place = (type: UnitTypeId, owner: number, hpFrac: number, wear: Unit['wear
   state.units.push(u);
 };
 place('hoplite', me, 1, { battles: 0, scar: 0, bleeding: false });
+place('catapult', me, 0.6, { battles: 3, scar: 0, bleeding: false });
 place('hoplite', me, 0.6, { battles: 2, scar: 0, bleeding: false });
 place('hoplite', me, 0.2, { battles: 6, scar: 0, bleeding: true });
 place('hoplite', me, 1, { battles: 3, scar: 3, bleeding: false });
