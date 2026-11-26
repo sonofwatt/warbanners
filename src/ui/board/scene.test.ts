@@ -85,3 +85,22 @@ test('a tile knows whether a unit stands on it', () => {
   const occupied = t.filter((x) => x.occupied).map((x) => x.key);
   expect(occupied).toEqual(playerView(s, 0).units.map((u) => u.pos));
 });
+
+test('the selected city\'s land: only its explored tiles carry an outline, with edges where its land ends', () => {
+  const view = playerView(s, 0);
+  const capital = view.cities.find((c) => c.owner === 0 && c.capital)!;
+  const none = tiles(buildScene(input()));
+  expect(none.every((x) => x.cityEdges === null)).toBe(true);
+  const t = tiles(buildScene(input({ cityLand: capital.id })));
+  const inLand = t.filter((x) => x.cityEdges !== null);
+  expect(inLand.length).toBeGreaterThan(1);
+  for (const x of t) {
+    expect(x.cityEdges !== null, x.key).toBe(!x.fog && x.tile?.cityId === capital.id);
+  }
+  // The capital's own tile sits inside its land: no edge of it is an edge of the land.
+  expect(t.find((x) => x.key === capital.pos)!.cityEdges).toEqual([]);
+  // Each outlined edge faces a tile outside the land, and the outline closes round it.
+  expect(inLand.some((x) => x.cityEdges!.length > 0)).toBe(true);
+  // Another city (or none) outlines nothing of this one's.
+  expect(tiles(buildScene(input({ cityLand: 999 }))).every((x) => x.cityEdges === null)).toBe(true);
+});

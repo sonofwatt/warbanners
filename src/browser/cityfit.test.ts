@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { frames, openApp, tapTile } from './harness';
 
-// A city's card fits on the phone with nothing to scroll until a unit is picked; the picked unit's Train button
-// then sits at the card's top right, with the other cards' actions. Seed 7: Player 1's capital is at -2,5.
-// Set SHOT_DIR to save pictures.
+// A city's card opens collapsed with its whole row of units to train in sight, and pulled up it fits on the phone
+// with nothing to scroll until a unit is picked; the picked unit's Train button then sits at the card's top right,
+// with the other cards' actions. Seed 7: Player 1's capital is at -2,5. Set SHOT_DIR to save pictures.
 
 const SIZES = [[430, 839], [390, 763], [412, 780], [360, 640]] as const;
 
@@ -28,6 +28,16 @@ describe.runIf(process.env.BROWSER === '1')('the city card', () => {
         await page.locator('.shop').waitFor();
         await frames(page);
         const box = page.locator('.selection');
+        // Collapsed: the row of units is wholly in sight.
+        const row = await page.locator('.shop-strip').evaluate((el) => {
+          const r = el.getBoundingClientRect(), c = el.closest('.selection')!.getBoundingClientRect();
+          return { top: r.top - c.top, bottom: c.bottom - r.bottom };
+        });
+        expect(row.top).toBeGreaterThanOrEqual(0); expect(row.bottom).toBeGreaterThanOrEqual(-0.5);
+        // Pulled up (a tap on the handle): the whole card, nothing to scroll.
+        await page.getByTestId('sheet-handle').tap();
+        await expect.poll(() => box.getAttribute('data-sheet')).toBe('expanded');
+        await page.waitForTimeout(300); // the card's height eases over about 200 ms
         const fit = await box.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
         if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/city-${w}x${h}.png` });
         expect(fit.scroll, `nothing to scroll (${fit.scroll} in ${fit.client})`).toBeLessThanOrEqual(fit.client + 1);
@@ -43,7 +53,8 @@ describe.runIf(process.env.BROWSER === '1')('the city card', () => {
         expect(await train.getAttribute('class')).toContain('primary');
         expect(await train.textContent()).toContain('Train');
         const near = await train.evaluate((el) => {
-          const b = el.getBoundingClientRect(); const c = el.closest('.selection')!.getBoundingClientRect();
+          // From the top of the card's content, under its grab handle.
+          const b = el.getBoundingClientRect(); const c = el.closest('.selection')!.querySelector('.sheet-body')!.getBoundingClientRect();
           return { top: b.top - c.top, right: c.right - b.right };
         });
         expect(near.top).toBeLessThan(40); expect(near.right).toBeLessThan(40);

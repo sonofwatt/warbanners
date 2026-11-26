@@ -10,11 +10,16 @@ import { UnitPicture } from './Picture';
 // A city's units to train: a row of pictures that scrolls sideways. Tapping one opens its card under the row (its
 // numbers, what it does and its traits) and puts its Train button in the city card's head (CityPanel); tapping it
 // again closes the card. A unit the city cannot train now stays in the row, faded, and its card says why.
-export function UnitShop({ commands, faction, picked, onPick }: {
+// `part`: the row alone (the top of the city card, shown collapsed) or the hint and picked unit's card alone (shown
+// when the city card is pulled up); both when left out.
+export function UnitShop({ commands, faction, picked, onPick, part }: {
   commands: Command[]; faction: FactionId; picked: UnitTypeId | null; onPick: (t: UnitTypeId | null) => void;
+  part?: 'strip' | 'details';
 }): ReactElement | null {
   if (commands.length === 0) return null;
   const chosen = commands.find((c) => c.unit === picked);
+  const details = chosen === undefined ? <p className="shop-hint">{T.ui.shopHint}</p> : <ShopCard command={chosen} />;
+  if (part === 'details') return <div className="shop-details">{details}</div>;
   return (
     <div className="shop">
       <ul className="shop-strip" aria-label={T.ui.trainUnits}>
@@ -34,7 +39,7 @@ export function UnitShop({ commands, faction, picked, onPick }: {
           );
         })}
       </ul>
-      {chosen === undefined ? <p className="shop-hint">{T.ui.shopHint}</p> : <ShopCard command={chosen} />}
+      {part === 'strip' ? null : details}
     </div>
   );
 }

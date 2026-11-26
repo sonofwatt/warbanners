@@ -35,46 +35,96 @@ function clampScale(scale: number, bounds: Box, vp: Viewport): number {
 }
 
 /**
- * Where the view centre may be along one axis. When the board is larger than the screen on that axis,
- * the view may run at most EDGE_PX past the board's edge; when it is smaller, it is centred.
+ * What a panel lying over the board covers of the slot, in slot pixels from each edge (the unit card at the bottom
+ * in portrait, the side column in landscape). The slot itself keeps its size; only the part not covered counts for
+ * the dead zone and for keeping a selection in sight, and the clamp lets the view run that much further on the
+ * covered side, so the map's edge tiles can still be brought out from under the panel.
  */
-function clampAxis(c: number, lo: number, hi: number, scale: number, screenPx: number): number {
-  if ((hi - lo) * scale <= screenPx) return (lo + hi) / 2;
-  const reach = (screenPx / 2 - EDGE_PX) / scale;
-  return clamp(c, lo + reach, hi - reach);
+export interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/**
+ * Where the view centre may be along one axis. When the board is larger than the screen on that axis,
+ * the view may run at most EDGE_PX past the board's edge; when it is smaller, it is centred. `padLo` and `padHi`
+ * (pixels) let it run that much further past the low (top or left) and high (bottom or right) edges.
+ */
+function axisRange(lo: number, hi: number, scale: number, screenPx: number, padLo = 0, padHi = 0): [number, number] {
+  let a: number, b: number;
+  if ((hi - lo) * scale <= screenPx) {
+    a = b = (lo + hi) / 2;
+  } else {
+    const reach = (screenPx / 2 - EDGE_PX) / scale;
+    a = lo + reach;
+    b = hi - reach;
+  }
+  return [a - padLo / scale, b + padHi / scale];
 }
 
-function clampCamera(c: Camera, bounds: Box, vp: Viewport): Camera {
+function clampCamera(c: Camera, bounds: Box, vp: Viewport, slack: Insets = NO_INSETS): Camera {
   const scale = clampScale(c.scale, bounds, vp);
+  const [x0, x1] = axisRange(bounds.minX, bounds.maxX, scale, vp.w, slack.left, slack.right);
+  const [y0, y1] = axisRange(bounds.minY, bounds.maxY, scale, vp.h, slack.top, slack.bottom);
+  return { cx: clamp(c.cx, x0, x1), cy: clamp(c.cy, y0, y1), scale };
+}
+
+/**
+ * The room the clamp gives a move that starts from `c`: on each side, what the panel covers there, or how far `c`
+ * already runs past the plain limit on that side, whichever is more. So a view left past the plain limit when a
+ * panel closed stays where it is (nothing eases it back), and the next drag or zoom never jumps it in: it can only
+ * come back toward the board, never run further out.
+ */
+export function slackFor(c: Camera, bounds: Box, vp: Viewport, cover: Insets = NO_INSETS): Insets {
+  const [x0, x1] = axisRange(bounds.minX, bounds.maxX, c.scale, vp.w);
+  const [y0, y1] = axisRange(bounds.minY, bounds.maxY, c.scale, vp.h);
+  const past = (v: number): number => Math.max(0, v * c.scale);
   return {
-    cx: clampAxis(c.cx, bounds.minX, bounds.maxX, scale, vp.w),
-    cy: clampAxis(c.cy, bounds.minY, bounds.maxY, scale, vp.h),
-    scale,
+    left: Math.max(cover.left, past(x0 - c.cx)),
+    right: Math.max(cover.right, past(c.cx - x1)),
+    top: Math.max(cover.top, past(y0 - c.cy)),
+    bottom: Math.max(cover.bottom, past(c.cy - y1)),
   };
 }
 
-export function startCamera(focus: Pt, bounds: Box, vp: Viewport): Camera {
-  return clampCamera({ cx: focus.x, cy: focus.y, scale: DEFAULT_TILE_PX / TILE_W }, bounds, vp);
+/** The part of the slot a panel does not cover, in slot pixels. */
+export function uncovered(vp: Viewport, cover: Insets = NO_INSETS): Box {
+  return { minX: cover.left, minY: cover.top, maxX: vp.w - cover.right, maxY: vp.h - cover.bottom };
 }
 
-/** The camera moved so the board point p is in the middle of the slot (as near as the clamp allows), zoom kept. */
-export function centreOn(c: Camera, p: Pt, bounds: Box, vp: Viewport): Camera {
-  return clampCamera({ cx: p.x, cy: p.y, scale: c.scale }, bounds, vp);
+/** The opening view: the default zoom, the focus in the middle of the part of the slot no panel or bar covers. */
+export function startCamera(focus: Pt, bounds: Box, vp: Viewport, cover: Insets = NO_INSETS): Camera {
+  const scale = clampScale(DEFAULT_TILE_PX / TILE_W, bounds, vp);
+  return centreOn({ cx: focus.x, cy: focus.y, scale }, focus, bounds, vp, cover);
+}
+
+/**
+ * The camera moved so the board point p is in the middle of the part of the slot no panel covers (as near as the
+ * clamp allows), zoom kept.
+ */
+export function centreOn(c: Camera, p: Pt, bounds: Box, vp: Viewport, cover: Insets = NO_INSETS, slack: Insets = cover): Camera {
+  const u = uncovered(vp, cover);
+  const sx = (u.minX + u.maxX) / 2, sy = (u.minY + u.maxY) / 2;
+  return clampCamera({ cx: p.x - (sx - vp.w / 2) / c.scale, cy: p.y - (sy - vp.h / 2) / c.scale, scale: c.scale }, bounds, vp, slack);
 }
 
 /** Dragging by (dx, dy) pixels moves the board with the finger, so the centre moves the other way. */
-export function panBy(c: Camera, dxPx: number, dyPx: number, bounds: Box, vp: Viewport): Camera {
-  return clampCamera({ cx: c.cx - dxPx / c.scale, cy: c.cy - dyPx / c.scale, scale: c.scale }, bounds, vp);
+export function panBy(c: Camera, dxPx: number, dyPx: number, bounds: Box, vp: Viewport, slack: Insets = NO_INSETS): Camera {
+  return clampCamera({ cx: c.cx - dxPx / c.scale, cy: c.cy - dyPx / c.scale, scale: c.scale }, bounds, vp, slack);
 }
 
 /** The board point under atPx stays under it (unless a clamp stops it). */
-export function zoomAt(c: Camera, factor: number, atPx: Pt, bounds: Box, vp: Viewport): Camera {
+export function zoomAt(c: Camera, factor: number, atPx: Pt, bounds: Box, vp: Viewport, slack: Insets = NO_INSETS): Camera {
   const scale = clampScale(c.scale * factor, bounds, vp);
   const p = screenToBoard(c, vp, atPx);
   return clampCamera(
     { cx: p.x - (atPx.x - vp.w / 2) / scale, cy: p.y - (atPx.y - vp.h / 2) / scale, scale },
     bounds,
     vp,
+    slack,
   );
 }
 
@@ -100,27 +150,37 @@ export function keepCorner(c: Camera, was: Viewport, now: Viewport, bounds: Box)
   };
 }
 
-const KEEP_PX = 8; // the room keepInView leaves between a kept box and the slot's edge
+const KEEP_PX = 8; // the room keepInView leaves between a kept box and the slot's edge, unless told otherwise
 
-/** The least pan that brings `box` (board units) inside the slot with a small margin; none when it is already. */
-export function keepInView(c: Camera, vp: Viewport, box: Box, bounds: Box): Camera {
+/**
+ * The least pan that brings `box` (board units) inside the part of the slot no panel covers, `margin` pixels clear
+ * of its edges; none when it is already there (then `c` itself comes back). Used for a new selection: a tile the
+ * player can see where the panel leaves the board never moves the view.
+ */
+export function keepInView(
+  c: Camera, vp: Viewport, box: Box, bounds: Box, opts: { cover?: Insets; margin?: number; slack?: Insets } = {},
+): Camera {
+  const m = opts.margin ?? KEEP_PX;
+  const cover = opts.cover ?? NO_INSETS;
+  const u = uncovered(vp, cover);
   const lo = boardToScreen(c, vp, { x: box.minX, y: box.minY });
   const hi = boardToScreen(c, vp, { x: box.maxX, y: box.maxY });
-  const shift = (a: number, b: number, size: number): number => {
-    if (b - a > size - 2 * KEEP_PX) return a < KEEP_PX ? KEEP_PX - a : 0; // too big to fit: show its start
-    if (a < KEEP_PX) return KEEP_PX - a;
-    if (b > size - KEEP_PX) return size - KEEP_PX - b;
+  const shift = (a: number, b: number, from: number, to: number): number => {
+    if (b - a > to - from - 2 * m) return a < from + m ? from + m - a : 0; // too big to fit: show its start
+    if (a < from + m) return from + m - a;
+    if (b > to - m) return to - m - b;
     return 0;
   };
-  const dx = shift(lo.x, hi.x, vp.w);
-  const dy = shift(lo.y, hi.y, vp.h);
+  const dx = shift(lo.x, hi.x, u.minX, u.maxX);
+  const dy = shift(lo.y, hi.y, u.minY, u.maxY);
   if (dx === 0 && dy === 0) return c;
-  return panBy(c, dx, dy, bounds, vp);
+  const next = panBy(c, dx, dy, bounds, vp, opts.slack ?? cover);
+  return Math.abs(next.cx - c.cx) * c.scale < 0.5 && Math.abs(next.cy - c.cy) * c.scale < 0.5 ? c : next;
 }
 
 /** After a rotation or resize: same centre, scale re-clamped. */
-export function refit(c: Camera, bounds: Box, vp: Viewport): Camera {
-  return clampCamera(c, bounds, vp);
+export function refit(c: Camera, bounds: Box, vp: Viewport, slack: Insets = NO_INSETS): Camera {
+  return clampCamera(c, bounds, vp, slack);
 }
 
 export function screenToBoard(c: Camera, vp: Viewport, px: Pt): Pt {
@@ -133,15 +193,17 @@ export function boardToScreen(c: Camera, vp: Viewport, p: Pt): Pt {
 
 /**
  * The dead zone: the middle part of the slot (this share of its width and of its height) where an action can happen
- * without the view following it. The board slot sits between the top bar and the bottom panel, so the zone keeps
- * clear of both.
+ * without the view following it. The board slot sits under the top bar; a panel lying over it (the unit card, the
+ * side column) is left out first, so the zone is the middle of what the player can see.
  */
 export const DEAD_ZONE = 0.6;
 
-/** The dead zone in slot pixels. */
-export function deadZone(vp: Viewport, zone = DEAD_ZONE): Box {
-  const mx = (vp.w * (1 - zone)) / 2, my = (vp.h * (1 - zone)) / 2;
-  return { minX: mx, minY: my, maxX: vp.w - mx, maxY: vp.h - my };
+/** The dead zone in slot pixels: the middle share of the part of the slot no panel covers. */
+export function deadZone(vp: Viewport, zone = DEAD_ZONE, cover: Insets = NO_INSETS): Box {
+  const u = uncovered(vp, cover);
+  const w = u.maxX - u.minX, h = u.maxY - u.minY;
+  const mx = (w * (1 - zone)) / 2, my = (h * (1 - zone)) / 2;
+  return { minX: u.minX + mx, minY: u.minY + my, maxX: u.maxX - mx, maxY: u.maxY - my };
 }
 
 /**
@@ -150,8 +212,11 @@ export function deadZone(vp: Viewport, zone = DEAD_ZONE): Box {
  * than the zone along an axis, centres it along that axis. Clamped to the board as every pan is, so near the board's
  * edge the view may stop short.
  */
-export function followAction(c: Camera, vp: Viewport, box: Box, bounds: Box, zone = DEAD_ZONE): Camera {
-  const z = deadZone(vp, zone);
+export function followAction(
+  c: Camera, vp: Viewport, box: Box, bounds: Box, opts: { zone?: number; cover?: Insets; slack?: Insets } = {},
+): Camera {
+  const cover = opts.cover ?? NO_INSETS;
+  const z = deadZone(vp, opts.zone ?? DEAD_ZONE, cover);
   const lo = boardToScreen(c, vp, { x: box.minX, y: box.minY });
   const hi = boardToScreen(c, vp, { x: box.maxX, y: box.maxY });
   const shift = (a: number, b: number, zlo: number, zhi: number): number => {
@@ -163,7 +228,7 @@ export function followAction(c: Camera, vp: Viewport, box: Box, bounds: Box, zon
   const dx = shift(lo.x, hi.x, z.minX, z.maxX);
   const dy = shift(lo.y, hi.y, z.minY, z.maxY);
   if (dx === 0 && dy === 0) return c;
-  const next = panBy(c, dx, dy, bounds, vp);
+  const next = panBy(c, dx, dy, bounds, vp, opts.slack ?? cover);
   return Math.abs(next.cx - c.cx) * c.scale < 0.5 && Math.abs(next.cy - c.cy) * c.scale < 0.5 ? c : next;
 }
 

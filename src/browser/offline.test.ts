@@ -7,7 +7,7 @@ import { build } from 'vite';
 import { describe, expect, test } from 'vitest';
 import { RULES_VERSION } from '../engine';
 import { T } from '../ui/text';
-import { frames, openApp, tapTile } from './harness';
+import { deselect, frames, openApp, tapTile } from './harness';
 
 // The installed game with no connection, in a real browser with its service worker running.
 // Seed 7 facts (see flow.test.ts): Player 1 moves first with one Warrior (unit 0) on -2,5, which can move to -1,4.
@@ -26,6 +26,7 @@ async function throughCurtain(page: Page, name: string): Promise<void> {
 }
 
 async function endTurn(page: Page): Promise<void> {
+  await deselect(page); // a selection's card holds the bar's place
   await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
   await page.getByTestId('end-turn').tap();
 }

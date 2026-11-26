@@ -246,6 +246,9 @@ const ui = {
   whatsNewLabel: 'What is new',
   trainUnits: 'Units to train',
   shopHint: 'Tap a unit to see it and train it.',
+  sheetMore: 'Show more', sheetLess: 'Show less',
+  turnActions: 'Your turn',
+  connectedToCapital: 'Connected to the capital', levelOf: 'Level {n}',
   // rules 8 (0.6.0) in two sentences, its numbers and names from CONFIG and the tables
   whatsNew: `New in rules 8: climbing onto or off a mountain takes a whole turn${CONFIG.mountain.tech === null ? '' : ` and needs ${tech[CONFIG.mountain.tech]}`}, and ranged units up there shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther; cities see only their own land, the ${unit.scout.name} sees ${tilesWord(UNITS.scout.sight)}, Mongol riders ride their own land like a road but build no roads, and a hunkered unit heals at the end of its turn. The tech tree has ${BRANCHES.length} branches now, each opening with a resource to gather (${resource.jewels.toLowerCase()} and ${resource.fish.toLowerCase()} are new) and splitting into a row of units and a row of land improvements you can upgrade. A city with enemy units on ${CONFIG.blockade.minTiles} or more of the tiles around it as its turn starts is blockaded and loses ${pct(CONFIG.blockade.cut)}% of its income for that turn (${pct(CONFIG.blockade.cutWalls)}% with Walls, ${pct(CONFIG.blockade.cutSpartanTech)}% for Spartans with ${techFor.spartans!.walls!}), never less than ${CONFIG.blockade.minCut} gold.`,
   relayRiding: 'Rides Mongol land',

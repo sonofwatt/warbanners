@@ -16,19 +16,24 @@ export interface TilePanelProps {
 export function TilePanel(p: TilePanelProps): ReactElement {
   return (
     <section className="panel tile-panel">
+      <div className="card-peek">
       <CardHead
         picture={<TilePicture terrain={p.terrain} resource={p.resource} building={p.building} harvested={p.harvested} />} title={T.terrain[p.terrain]}
         actions={<CommandList commands={p.commands} onCommand={p.onCommand} />}
-      >
-        {p.terrain === 'mountain' ? <p className="blurb">{T.ui.mountainBlurb}</p> : null}
-        {p.harvested === true && p.resource !== null && p.building === null ? <p className="blurb">{T.ui.harvestedBlurb}</p> : null}
-      </CardHead>
+      />
       <Stats stats={[
         { icon: <PeakIcon />, label: T.ui.terrain, value: T.terrain[p.terrain] },
         { icon: <WheatIcon />, label: T.ui.resourceWord, value: p.resource === null ? T.ui.none : p.harvested === true ? `${T.resource[p.resource]} (${T.ui.harvestedTag})` : T.resource[p.resource] },
         { icon: <HutIcon />, label: T.ui.buildingWord, value: p.building === null ? T.ui.none : T.building[p.building] },
         { icon: <RoadIcon />, label: T.ui.roadWord, value: p.road ? T.ui.yes : T.ui.no },
       ]} />
+      </div>
+      {p.terrain === 'mountain' || (p.harvested === true && p.resource !== null && p.building === null) ? (
+        <div className="card-more">
+          {p.terrain === 'mountain' ? <p className="blurb">{T.ui.mountainBlurb}</p> : null}
+          {p.harvested === true && p.resource !== null && p.building === null ? <p className="blurb">{T.ui.harvestedBlurb}</p> : null}
+        </div>
+      ) : null}
     </section>
   );
 }
