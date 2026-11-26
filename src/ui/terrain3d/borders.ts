@@ -141,7 +141,7 @@ export function createBorders(): Borders {
       // The strips follow the ground, which depends on the tile and its neighbours: they rebuild when those change.
       const ground = (map.borders ?? []).map((b) => {
         const { q, r } = parse(b.key);
-        return [b.key, ...EDGE_NB.map(([dq, dr]) => `${q + dq},${r + dr}`)].map((k) => { const t = map.tiles[k]; return t === undefined ? 'x' : tileCode(t); }).join(',');
+        return [b.key, ...EDGE_NB.map(([dq, dr]) => `${q + dq},${r + dr}`)].map((k) => { const t = map.tiles[k]; return t === undefined ? 'x' : tileCode(t, false); }).join(',');
       }).join(' ');
       const k = `${bordersKey(map.borders)}|${ground}`;
       if (k === sig) return;

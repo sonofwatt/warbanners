@@ -8,11 +8,17 @@ import type { GlBorder, GlTile } from './input';
  */
 export const THICK_3D = 45;
 
-/** Everything about a tile the 3D geometry shows, as a short code: equal codes build equal geometry. */
-export function tileCode(t: GlTile): string {
+/**
+ * Everything about a tile the 3D geometry shows, as a short code: equal codes build equal geometry. `tracks` false
+ * leaves out the traffic (tracks3d): a tile's neighbours read nothing of it (the road's wear where two tiles meet is
+ * in each tile's own tracks), so a step on one tile rebuilds that tile alone.
+ */
+export function tileCode(t: GlTile, tracks = true): string {
   const town = t.town === null ? '' : `[${t.town.faction[0]}${t.town.level}${t.town.capital ? 'C' : ''}${t.town.walls ? 'W' : ''}]`;
-  return `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}${t.beside === true ? 'b' : ''}${t.owner ? `(${t.owner[0]})` : ''}${town}`;
+  return `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}${t.beside === true ? 'b' : ''}${t.owner ? `(${t.owner[0]})` : ''}${town}${tracks ? tracksCode(t) : ''}`;
 }
+
+const tracksCode = (t: GlTile): string => (t.tracks === undefined ? '' : `~${t.tracks.masks}.${t.tracks.levels}.${t.tracks.road}.${t.tracks.edges}`);
 
 /** The borders' own signature: the border mesh is rebuilt only when it changes. */
 export function bordersKey(borders: readonly GlBorder[] | undefined): string {

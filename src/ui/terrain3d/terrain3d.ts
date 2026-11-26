@@ -79,6 +79,8 @@ export interface Terrain3d {
 export const MAX_DPR = 2;
 
 const code = (t: GlTile | undefined): string => (t === undefined ? 'x' : tileCode(t));
+// A neighbour's code: what of it the tile's own geometry reads (not its traffic marks).
+const nbCode = (t: GlTile | undefined): string => (t === undefined ? 'x' : tileCode(t, false));
 
 /**
  * Make the renderer, or null when this device has no WebGL 2 (the board then stays all SVG). The options are for
@@ -149,7 +151,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     const sigOf = new Map<HexKey, string>();
     for (const k of Object.keys(map.tiles)) {
       const { q, r } = parse(k);
-      const sig = `${k}|${map.seed ?? 0}|${code(map.tiles[k])}|${EDGE_NB.map(([dq, dr]) => code(map.tiles[`${q + dq},${r + dr}`])).join(',')}`;
+      const sig = `${k}|${map.seed ?? 0}|${code(map.tiles[k])}|${EDGE_NB.map(([dq, dr]) => nbCode(map.tiles[`${q + dq},${r + dr}`])).join(',')}`;
       want.set(sig, () => tilePieces(map, k));
       sigOf.set(k, sig);
     }

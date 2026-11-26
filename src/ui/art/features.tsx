@@ -529,16 +529,117 @@ export function BuildingMark(p: { building: BuildingId }): ReactElement {
 
 const DIRT = '#D8B977';
 
-export function Road(p: { links: readonly number[] }): ReactElement {
-  const ink = new Ink();
-  for (const d of [...p.links].sort((a, b) => a - b)) {
-    const [a, b] = edgeCorners(d);
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2;
-    ink.stroke(`M 0 0 L ${r1(mx)} ${r1(my)}`, DIRT, 4.6);
+/** How much wider a road is per wear step (tracks3d), as in the 3D look (terrain3d/layout.ts ROAD_GROW). */
+const ROAD_GROW = 0.3;
+const DEAD_GRASS = '#C2B45C';
+
+/**
+ * A road from the tile centre to each linked edge. tracks3d: a busy road (`wear` 1 to 3 at the centre, `edgeWear` for
+ * each link where it meets that neighbour) is wider, with dead grass either side. Each spoke's outer half takes the
+ * edge's wear, so two tiles' roads meet at one width. With no wear the road is drawn exactly as it always was.
+ */
+export function Road(p: { links: readonly number[]; wear?: number; edgeWear?: readonly number[] }): ReactElement {
+  const wear = p.wear ?? 0;
+  const edgeWear = p.edgeWear ?? [];
+  const sorted = [...p.links].map((d, i) => ({ d, w: edgeWear[i] ?? 0 })).sort((a, b) => a.d - b.d);
+  const hubR: [number, number] = p.links.length === 0 ? [4.5, 3] : [3.4, 2.4];
+  if (wear === 0 && sorted.every((l) => l.w === 0)) {
+    const ink = new Ink();
+    for (const { d } of sorted) {
+      const [a, b] = edgeCorners(d);
+      ink.stroke(`M 0 0 L ${r1((a.x + b.x) / 2)} ${r1((a.y + b.y) / 2)}`, DIRT, 4.6);
+    }
+    ink.ellipse(0, 0, hubR[0], hubR[1], DIRT);
+    return ink.done();
   }
-  ink.ellipse(0, 0, p.links.length === 0 ? 4.5 : 3.4, p.links.length === 0 ? 3 : 2.4, DIRT);
-  return ink.done();
+  // A busy road: each spoke a band that widens from the centre's wear to the wear where it meets the neighbour, over
+  // a wider band of dead grass.
+  const grow = (w: number): number => 1 + ROAD_GROW * w;
+  const band = (d: number, half0: number, half1: number): string => {
+    const [a, b] = edgeCorners(d);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const len = Math.hypot(mx, my) || 1;
+    const nx = -my / len, ny = mx / len;
+    return [[nx * half0, ny * half0], [mx + nx * half1, my + ny * half1], [mx - nx * half1, my - ny * half1], [-nx * half0, -ny * half0]]
+      .map(([x, y]) => `${r1(x!)},${r1(y!)}`).join(' ');
+  };
+  const dead = (w: number): number => 2.3 * grow(w) + 1.4 * w;
+  return (
+    <g data-road-wear={wear}>
+      <g fill={DEAD_GRASS} opacity={0.75}>
+        {sorted.map(({ d, w }) => <polygon key={d} points={band(d, dead(wear), dead(w))} />)}
+        <ellipse rx={r1(hubR[0] * grow(wear) + 1.4 * wear)} ry={r1(hubR[1] * grow(wear) + 1 * wear)} />
+      </g>
+      <g fill={DIRT}>
+        {sorted.map(({ d, w }) => <polygon key={d} points={band(d, 2.3 * grow(wear), 2.3 * grow(w))} />)}
+        <ellipse rx={r1(hubR[0] * grow(wear))} ry={r1(hubR[1] * grow(wear))} />
+      </g>
+    </g>
+  );
+}
+
+/** tracks3d: the traffic on one tile, as the flat look draws it (see board/tracks.ts). */
+export interface TracksMarks {
+  foot: { level: number; edges: number }; hoof: { level: number; edges: number }; wheel: { level: number; edges: number }; path: number;
+}
+const MARK_INK = '#5E4A2E';
+
+/**
+ * tracks3d: faint marks along the ways units crossed the tile, from the centre to the middle of each edge used: dots
+ * for footprints, wider dots for hoof prints, thin paired lines for wheel ruts, and a pale trodden band once the
+ * traffic is heavy. More lanes and stronger marks with each wear step, always far fainter than a road.
+ */
+export function Tracks(p: { tracks: TracksMarks }): ReactElement | null {
+  const { tracks } = p;
+  const spoke = (d: number): { mx: number; my: number; nx: number; ny: number } => {
+    const [a, b] = edgeCorners(d);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const len = Math.hypot(mx, my) || 1;
+    return { mx, my, nx: -my / len, ny: mx / len };
+  };
+  const dirs = (edges: number): number[] => [0, 1, 2, 3, 4, 5].filter((d) => (edges >> d) & 1);
+  // A line from the centre to edge d's middle, shifted `o` across it (squashed as the board is).
+  const line = (d: number, o: number): string => {
+    const { mx, my, nx, ny } = spoke(d);
+    const ox = nx * o, oy = ny * o * 0.62;
+    return `M ${r1(ox)} ${r1(oy)} L ${r1(mx + ox)} ${r1(my + oy)}`;
+  };
+  const lanes = (level: number, gap: number): number[] => [0, gap, -gap].slice(0, level);
+  const strength = (level: number): number => 0.16 + 0.06 * level;
+  const out: ReactElement[] = [];
+  if (tracks.path > 0) {
+    out.push(
+      <g key="path" data-tracks="path" opacity={0.22 * tracks.path}>
+        {dirs(tracks.foot.edges | tracks.hoof.edges | tracks.wheel.edges).map((d) => (
+          <path key={d} d={line(d, 0)} stroke={DIRT} strokeWidth={2.2 + 1.2 * tracks.path} strokeLinecap="round" fill="none" />
+        ))}
+      </g>,
+    );
+  }
+  const dotted = (kind: 'foot' | 'hoof', width: number, dash: string, gap: number): void => {
+    const k = tracks[kind];
+    if (k.level <= 0) return;
+    out.push(
+      <g key={kind} data-tracks={kind} opacity={strength(k.level)}>
+        {dirs(k.edges).flatMap((d) => lanes(k.level, gap).map((o, j) => (
+          <path key={`${d}.${j}`} d={line(d, o)} stroke={MARK_INK} strokeWidth={width} strokeDasharray={dash} strokeDashoffset={j * 1.1} strokeLinecap="round" fill="none" />
+        )))}
+      </g>,
+    );
+  };
+  dotted('foot', 0.9, '0.1 2.4', 1.4);
+  dotted('hoof', 1.4, '0.1 2.8', 1.6);
+  const w = tracks.wheel;
+  if (w.level > 0) {
+    out.push(
+      <g key="wheel" data-tracks="wheel" opacity={strength(w.level)}>
+        {dirs(w.edges).flatMap((d) => lanes(w.level, 0.8).flatMap((o, j) => [-1.5, 1.5].map((side) => (
+          <path key={`${d}.${j}.${side}`} d={line(d, o + side)} stroke={MARK_INK} strokeWidth={0.5} fill="none" />
+        ))))}
+      </g>,
+    );
+  }
+  return out.length === 0 ? null : <g data-tracks-tile="true" pointerEvents="none">{out}</g>;
 }
 
 const HUT: HouseColours = { front: '#E6D5B0', side: '#C9B68E', roof: '#9A8878', roofSide: '#7E6E60' };

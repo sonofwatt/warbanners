@@ -62,6 +62,7 @@ function walls(cx: number, cz: number, g: number, top: number, v: number, skip: 
   geo.setAttribute('aAO', new Float32BufferAttribute(wa, 1));
   geo.setAttribute('aLocal', new Float32BufferAttribute(wl, 2));
   geo.setAttribute('aRoad', new Float32BufferAttribute(new Float32Array(sides.length * 4), 1));
+  geo.setAttribute('aTrack', new Float32BufferAttribute(new Float32Array(sides.length * 16), 4));
   const wIndex: number[] = [];
   for (let i = 0; i < sides.length; i++) { const o = i * 4; wIndex.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
   geo.setIndex(wIndex);
@@ -88,6 +89,7 @@ export function fogGeometry(k: HexKey): BufferGeometry {
   top.setAttribute('aAO', new Float32BufferAttribute(new Float32Array(7).fill(1), 1));
   top.setAttribute('aLocal', new Float32BufferAttribute(local, 2));
   top.setAttribute('aRoad', new Float32BufferAttribute(new Float32Array(7), 1));
+  top.setAttribute('aTrack', new Float32BufferAttribute(new Float32Array(28), 4));
   const index: number[] = [];
   for (let i = 0; i < 6; i++) index.push(0, 1 + ((i + 1) % 6), 1 + i);
   top.setIndex(index);
@@ -114,7 +116,10 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
   });
   const resId = RES_ID[setup.res ?? 'none'] + (setup.faded ? RES_HARVESTED : 0);
 
-  const pos: number[] = [], info: number[] = [], tile: number[] = [], ao: number[] = [], local: number[] = [], road: number[] = [];
+  const pos: number[] = [], info: number[] = [], tile: number[] = [], ao: number[] = [], local: number[] = [], road: number[] = [], track: number[] = [];
+  // tracks3d: the tile's traffic (input.ts GlTracks), the same on every vertex; none on water or a city.
+  const tr = isWater || map.tiles[k]!.city ? undefined : map.tiles[k]!.tracks;
+  const trackV = tr === undefined ? [0, 0, 0, 0] : [tr.masks, tr.levels, setup.links ? tr.road : 0, setup.links ? tr.edges : 0];
   const idx = new Map<string, number>();
   const ux = (R / N) * Math.cos(Math.PI / 6), uz = (R / N) * Math.sin(Math.PI / 6);
   const vz = R / N;
@@ -133,6 +138,7 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
       tile.push(c.x, c.z, resId, setup.v);
       local.push(lx, lz);
       road.push(roadMask);
+      track.push(...trackV);
       let shade = 1;
       for (const [bx, bz, br, bs] of setup.blobs) {
         // Light from the upper left: shadows fall to the right and a little back.
@@ -158,6 +164,7 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
   top.setAttribute('aAO', new Float32BufferAttribute(ao, 1));
   top.setAttribute('aLocal', new Float32BufferAttribute(local, 2));
   top.setAttribute('aRoad', new Float32BufferAttribute(road, 1));
+  top.setAttribute('aTrack', new Float32BufferAttribute(track, 4));
   top.setIndex(index);
   top.computeVertexNormals();
   // Between two water tiles there is no wall: the bed runs on under the one surface.

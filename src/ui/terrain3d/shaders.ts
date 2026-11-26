@@ -1,6 +1,6 @@
 // The terrain's shaders: toon light in three soft bands, painted ground, packed earth roads, and today's flat fog.
 // Veiled tiles are dimmed toward the board's veil colour by the same 0.3 the SVG veil uses.
-import { INR, RES_HARVESTED, ROAD_HALF, WALL, WATER_Y } from './layout';
+import { INR, RES_HARVESTED, ROAD_GROW, ROAD_HALF, WALL, WATER_Y } from './layout';
 import { BED_DEPTH } from './waterLayout';
 
 export const NOISE = /* glsl */ `
@@ -30,9 +30,11 @@ vec3 finish(vec3 col, float veil) { return mix(col * uTint, uVeilColor, veil); }
 // aVeil is 1 on a veiled tile's vertices (written in place when the veil changes), dimmed by the SVG veil's 0.3.
 export const groundVert = /* glsl */ `
 attribute vec4 aInfo; attribute vec4 aTile; attribute float aAO; attribute vec2 aLocal; attribute float aRoad; attribute float aVeil;
+attribute vec4 aTrack;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
+varying vec4 vTrack;
 void main() {
-  vInfo = aInfo; vTile = aTile; vAO = aAO; vLocal = aLocal; vNormal = normal; vRoad = aRoad;
+  vInfo = aInfo; vTile = aTile; vAO = aAO; vLocal = aLocal; vNormal = normal; vRoad = aRoad; vTrack = aTrack;
   vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position, 1.0);
   vWorld = w.xyz;
@@ -43,6 +45,7 @@ export const groundFrag = /* glsl */ `
 ${NOISE}
 ${LIGHT}
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
+varying vec4 vTrack;
 const float INR = ${INR.toFixed(4)};
 const float WALL = ${WALL.toFixed(4)};
 
@@ -80,24 +83,104 @@ vec3 side(int terrain, float d, float along) {
   return mix(top, soil, smoothstep(lip - 0.25, lip + 0.25, d));
 }
 
-// Roads: distance from the track's centre line (x) and the signed offset across it (y), for the edges in the
-// tile's bit mask (bit e = the edge whose normal is at 60e degrees; 64 = a road with no links, a bare patch).
-vec2 roadField(vec2 l, float mask) {
+// Roads: for the edges in the tile's bit mask (bit e = the edge whose normal is at 60e degrees; 64 = a road with no
+// links, a bare patch), the distance from the road's side (negative on the road), the signed offset across the track
+// from its centre line, and the road's wear there (tracks3d: wc at the tile's centre, we a base 4 digit per edge for
+// where it meets that neighbour, so two tiles' roads meet at one width). Wear 0 is the light road as it always was.
+vec3 roadField(vec2 l, float mask, float wc, float we) {
   float bare = step(63.5, mask);
-  vec2 best = vec2(length(l) - mix(3.4, 4.5, bare) + ${ROAD_HALF.toFixed(2)}, 0.0);
-  float bit = 1.0;
+  vec3 best = vec3(length(l) - mix(3.4, 4.5, bare) * (1.0 + ${ROAD_GROW.toFixed(2)} * wc), 0.0, wc);
+  float bit = 1.0, wb = 1.0;
   for (int e = 0; e < 6; e++) {
     bool on = mod(floor(mask / bit + 0.01), 2.0) > 0.5;
-    bit *= 2.0;
+    float wEdge = mod(floor(we / wb), 4.0);
+    bit *= 2.0; wb *= 4.0;
     if (!on) continue;
     float a = float(e) * 1.0471976;
     vec2 d = vec2(cos(a), sin(a));
     float t = clamp(dot(l, d), 0.0, INR + 1.0);
     vec2 off = l - d * t;
-    float dist = length(off);
-    if (dist < best.x) best = vec2(dist, dot(off, vec2(-d.y, d.x)));
+    float wear = mix(wc, wEdge, smoothstep(0.3, 1.0, t / INR));
+    float dist = length(off) - ${ROAD_HALF.toFixed(2)} * (1.0 + ${ROAD_GROW.toFixed(2)} * wear);
+    if (dist < best.x) best = vec3(dist, dot(off, vec2(-d.y, d.x)), wear);
   }
   return best;
+}
+
+// tracks3d: one kind of mark along one line of travel (kind 0 foot, 1 hoof, 2 wheel). t runs along the line from the
+// tile's centre, s across it; level is the wear step (1 to 3), which adds lanes and fills in the gaps. How dark the
+// ground is pressed there, 0 to 1.
+float prints(int kind, float t, float s, float level, float seed) {
+  float dark = 0.0;
+  for (int j = 0; j < 3; j++) {
+    float jj = float(j);
+    if (jj >= level) break;
+    // Lanes at fixed offsets, so a lane meets the next tile's at the edge.
+    float lane = (j == 0 ? 0.0 : j == 1 ? 1.0 : -1.0) * (kind == 2 ? 1.0 : 2.1);
+    float ls = s - lane;
+    if (kind == 2) {
+      // Wheel ruts: two thin furrows a cart's width apart, broken here and there.
+      float r = min(abs(ls - 2.0), abs(ls + 2.0));
+      float line = 1.0 - smoothstep(0.18, 0.45, r);
+      float gap = smoothstep(0.22, 0.42, noise(vec2(t * 0.3 + seed * 7.0, jj * 3.0 + seed)));
+      dark = max(dark, line * mix(gap, 1.0, 0.25 * (level - 1.0)));
+      continue;
+    }
+    float stride = kind == 0 ? 3.4 : 3.0;
+    float tt = t + hash(vec2(seed, jj + 5.0)) * stride;
+    float cell = floor(tt / stride);
+    float present = step(hash(vec2(cell + seed * 13.0, jj + 11.0)), 0.4 + 0.2 * level);
+    float along = tt - (cell + 0.5) * stride;
+    float side = mod(cell, 2.0) * 2.0 - 1.0;
+    if (kind == 0) {
+      // Footprints: small ovals, left and right in turn.
+      vec2 q = vec2(along / 1.05, (ls - side * 0.75) / 0.58);
+      dark = max(dark, present * (1.0 - smoothstep(0.65, 1.0, length(q))));
+    } else {
+      // Hoof prints: small rings open at the heel, in pairs.
+      vec2 q = vec2(along, ls - side * 0.9);
+      float ring = 1.0 - smoothstep(0.16, 0.34, abs(length(q) - 0.78));
+      ring *= smoothstep(-0.65, -0.25, q.x);
+      dark = max(dark, present * ring);
+    }
+  }
+  return dark;
+}
+
+// tracks3d: the tile's traffic (input.ts GlTracks): each kind's marks along the edges it was used by, each line from
+// the tile's centre to the middle of an edge, bending a little in between (never at the ends, so the lines meet the
+// next tile's), and a flattened or beaten path under them. Returns how dark the marks are and how worn the path is.
+vec2 trackField(vec2 l, vec2 tileAt) {
+  float masks = floor(vTrack.x + 0.5), levels = floor(vTrack.y + 0.5);
+  float pathL = floor(levels / 64.0);
+  float dark = 0.0, path = 0.0;
+  float kb = 1.0, lb = 1.0;
+  for (int k = 0; k < 3; k++) {
+    float mask = mod(floor(masks / kb), 64.0);
+    float level = mod(floor(levels / lb), 4.0);
+    kb *= 64.0; lb *= 4.0;
+    if (level < 0.5) continue;
+    float eb = 1.0;
+    for (int e = 0; e < 6; e++) {
+      float on = mod(floor(mask / eb), 2.0);
+      eb *= 2.0;
+      if (on < 0.5) continue;
+      float a = float(e) * 1.0471976;
+      vec2 d = vec2(cos(a), sin(a));
+      float t = dot(l, d);
+      if (t < -2.5 || t > INR + 1.0) continue;
+      float seed = hash(tileAt * 0.0137 + vec2(float(e) * 1.7, float(k) * 3.1));
+      float u = clamp(t / INR, 0.0, 1.0);
+      float s = dot(l, vec2(-d.y, d.x)) - sin(u * 3.14159) * ((seed - 0.5) * 5.0 + 2.2 * (noise(vec2(t * 0.09 + seed * 31.0, float(e))) - 0.5));
+      float fade = smoothstep(-2.5, 0.0, t);
+      dark = max(dark, fade * prints(k, t, s, level, seed * 10.0) * (0.42 + 0.16 * level));
+      if (pathL > 0.5) {
+        float hw = 1.0 + 0.7 * pathL + 0.8 * (noise(l * 0.35 + seed * 9.0) - 0.5);
+        path = max(path, fade * (1.0 - smoothstep(hw, hw + 1.4, abs(s))) * (pathL > 1.5 ? 1.0 : 0.5));
+      }
+    }
+  }
+  return vec2(dark, path);
 }
 
 // Painted ground: two or three flat tones per terrain, broken into soft-edged patches by noise, the way a
@@ -181,23 +264,44 @@ void main() {
     col *= 1.0 - 0.12 * (1.0 - smoothstep(0.5, 3.5, shore));
   }
 
+  if (!wall && terrain != 3 && terrain != 4 && vTrack.y > 0.5) {
+    // tracks3d: footprints, hoof prints and wheel ruts pressed into the ground, and where traffic is heavy a beaten
+    // path of dry, trodden earth: always paler and narrower than a road. On a mountain they keep to its foot.
+    vec2 tf = trackField(vLocal, vTile.xy);
+    float low = terrain == 2 ? 1.0 - smoothstep(1.0, 2.2, h) : 1.0;
+    vec3 trodden = mix(col, vec3(0.76, 0.68, 0.47), 0.6);
+    col = mix(col, trodden, tf.y * 0.7 * low);
+    col = mix(col, col * vec3(0.55, 0.49, 0.40), tf.x * low);
+  }
+
   float onRoad = 0.0;
   if (vRoad > 0.5 && !wall) {
-    // A packed earth track: wobbly edges, a darker worn rim, two faint wheel ruts and a few pebbles.
-    vec2 rf = roadField(vLocal, vRoad);
+    // A packed earth track: wobbly edges, a darker worn rim, two faint wheel ruts and a few pebbles. A busy road
+    // (tracks3d) is wider, its earth worn patchy, with a band of dead, yellow-brown grass either side.
+    vec3 rf = roadField(vLocal, vRoad, floor(vTrack.z + 0.5), floor(vTrack.w + 0.5));
     float wob = 0.7 * (noise(p * 0.35) - 0.5) + 0.35 * (noise(p * 1.3) - 0.5);
-    float d = rf.x + wob;
-    float hw = ${ROAD_HALF.toFixed(2)};
-    onRoad = 1.0 - smoothstep(hw - 0.35, hw + 0.35, d);
+    float d = rf.x + wob; // below 0 on the road
+    float grow = 1.0 + ${ROAD_GROW.toFixed(2)} * rf.z;
+    onRoad = 1.0 - smoothstep(-0.35, 0.35, d);
     vec3 earth = mix(vec3(0.80, 0.66, 0.42), vec3(0.86, 0.73, 0.48), noise(p * 0.5 + 2.0));
-    earth = mix(earth, vec3(0.66, 0.52, 0.32), smoothstep(hw - 1.3, hw - 0.2, d)); // worn rim
-    float rut = smoothstep(0.45, 0.0, abs(abs(rf.y) - 1.15) + 0.25 * (noise(p * 0.8) - 0.5));
+    earth = mix(earth, earth * vec3(0.88, 0.84, 0.78), (rf.z / 3.0) * smoothstep(0.4, 0.7, noise(p * 0.3 + 4.0)));
+    earth = mix(earth, vec3(0.66, 0.52, 0.32), smoothstep(-1.3, -0.2, d)); // worn rim
+    float rut = smoothstep(0.45, 0.0, abs(abs(rf.y) - 1.15 * grow) + 0.25 * (noise(p * 0.8) - 0.5));
     earth *= 1.0 - 0.13 * rut * step(0.5, abs(rf.y) + 0.5) * smoothstep(3.0, 6.0, length(vLocal));
     earth *= 1.0 - 0.18 * smoothstep(0.82, 0.88, noise(p * 1.7 + 5.0));
     col = mix(col, earth, onRoad);
     // The grass verge either side is trodden a little darker and drier.
-    float verge = (1.0 - smoothstep(hw + 0.2, hw + 2.2, d)) * (1.0 - onRoad);
+    float verge = (1.0 - smoothstep(0.2, 2.2, d)) * (1.0 - onRoad);
     col = mix(col, col * vec3(0.9, 0.88, 0.8), verge * 0.7);
+    if (rf.z > 0.01 && terrain != 2) {
+      // Dead grass along a busy road, wider and thicker the busier it is, ragged at its outer edge.
+      float reach = 1.5 + 2.4 * rf.z + 2.0 * (noise(p * 0.18 + 9.0) - 0.5) * rf.z;
+      float dead = (1.0 - smoothstep(reach * 0.45, reach, d)) * (1.0 - onRoad) * min(1.0, 0.45 + rf.z / 2.0);
+      dead *= 0.75 + 0.25 * smoothstep(0.3, 0.6, noise(p * 0.5 + 3.0));
+      vec3 straw = mix(vec3(0.78, 0.69, 0.42), vec3(0.66, 0.56, 0.34), noise(p * 0.6 + 1.0));
+      straw *= 0.94 + 0.1 * noise(vec2(p.x * 0.4 + p.y * 0.2, p.y * 1.1));
+      col = mix(col, straw, dead * 0.85);
+    }
   }
 
   float band = toon(n);

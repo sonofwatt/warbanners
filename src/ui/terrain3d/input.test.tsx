@@ -21,7 +21,7 @@ const html = (t: SceneTile, gl: boolean): string =>
 const part = (el: React.ReactElement): string => renderToStaticMarkup(el).replace(/^<g>|<\/g>$/g, '');
 
 test('with the option off every layer is drawn, as today', () => {
-  const all = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true, treasure: true };
+  const all = { base: true, road: true, feature: true, resource: true, town: true, village: true, building: true, border: true, treasure: true, tracks: true };
   expect(svgLayers({ fog: false, tile: tile() }, false)).toEqual(all);
   expect(svgLayers({ fog: true, tile: null }, false)).toEqual(all);
 });

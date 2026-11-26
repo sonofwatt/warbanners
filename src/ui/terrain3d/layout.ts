@@ -177,11 +177,24 @@ export interface Setup {
 
 // Roads: as Road in features.tsx, a track from the tile centre to the middle of each edge whose neighbour has a
 // road or a city. Edge e has its normal at 60e degrees, so its middle is INR * (cos, sin) of that angle.
-export function roadLinks(map: GlMap, k: HexKey): number[] | null {
+/**
+ * tracks3d: how much wider than ROAD_HALF a road is at a wear step (input.ts GlTracks: 0, a light road, to 3). The
+ * ground shader widens the track by the same factor.
+ */
+export const ROAD_GROW = 0.3;
+/** A road tile's links, carrying how wide its road is at its widest (1 = a light road): props keep off all of it. */
+export type RoadLinks = number[] & { wide?: number };
+export function roadLinks(map: GlMap, k: HexKey): RoadLinks | null {
   const t = map.tiles[k];
   if (!t || !t.road || t.city) return null;
   const { q, r } = parse(k);
-  const links: number[] = [];
+  const links: RoadLinks = [];
+  const tr = t.tracks;
+  if (tr !== undefined && t.terrain !== 'water') {
+    let most = tr.road;
+    for (let e = 0; e < 6; e++) most = Math.max(most, Math.floor(tr.edges / 4 ** e) % 4);
+    if (most > 0) links.wide = 1 + ROAD_GROW * most;
+  }
   EDGE_NB.forEach(([dq, dr], e) => {
     const nt = map.tiles[`${q + dq},${r + dr}`];
     if (nt && (nt.road || nt.city)) links.push(e);
@@ -190,11 +203,14 @@ export function roadLinks(map: GlMap, k: HexKey): number[] | null {
 }
 export function roadDist(links: readonly number[] | null, lx: number, lz: number): number {
   if (!links) return Infinity;
-  let m = Math.hypot(lx, lz) - (links.length ? 3.4 : 4.5) + ROAD_HALF;
+  // A widened road (tracks3d) reads as nearer by its extra half width, so whatever keeps off a road keeps off it all.
+  const wide = (links as RoadLinks).wide ?? 1;
+  const extra = (ROAD_HALF + 1.5) * (wide - 1);
+  let m = Math.hypot(lx, lz) - (links.length ? 3.4 : 4.5) * wide + ROAD_HALF;
   for (const e of links) {
     const ex = INR * Math.cos((e * Math.PI) / 3), ez = INR * Math.sin((e * Math.PI) / 3);
     const t = Math.max(0, Math.min(1, (lx * ex + lz * ez) / (INR * INR)));
-    m = Math.min(m, Math.hypot(lx - ex * t, lz - ez * t));
+    m = Math.min(m, Math.hypot(lx - ex * t, lz - ez * t) - extra);
   }
   return m;
 }
