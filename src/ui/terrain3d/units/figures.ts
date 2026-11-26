@@ -51,6 +51,11 @@ export const RIDER = 'rider';
 export const BOW = 'bow';
 /** The swordsman's arms, each carrying its blade: brought in across the body. */
 export const ARM_R = 'armR';
+/**
+ * The arm that holds a spear or a lance (units/strike.ts jab and couch): it turns and reaches from the shoulder so its
+ * hand stays on the grip as the weapon is thrust along its own line.
+ */
+export const SPEAR_ARM = 'spearArm';
 export const ARM_L = 'armL';
 /** The seat of a rider in the rider's own turn (every mounted figure sits there). */
 const SEAT: V3 = [0, H(-10), 0.6];
@@ -75,6 +80,14 @@ const WIDE = { rx: 17, rz: 8.5, x: 0 };
 function turned(k: Kit, yaw: number, f: () => void): void {
   setYaw(yaw);
   k.frame([0, 0, 0], [0, yaw, 0], f);
+}
+
+/** The direction from `a` to `b`. */
+const lineOf = (a: V3, b: V3): V3 => [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+
+/** The arm that holds a spear or a lance: its own piece about the shoulder, so it can reach with the weapon. */
+function spearArm(k: Kit, shoulder: V3, hand: V3, sleeve: string): void {
+  k.pivot(SPEAR_ARM, shoulder, () => arm(k, shoulder, hand, sleeve), { hand });
 }
 
 /** Blood on the ground at the feet, from battered: a spot and a drop; more at the second level. */
@@ -170,8 +183,8 @@ function spearman(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [10, H(-11), 2.4], () => {
       spear(k, [10, 0.6, 2.4], [10, H(-29.6), 2.4], (36 - 29.6) / 0.785 + 0.6, { nick: worn(w, 2), snap: worn(w, 4) ? 0.62 : undefined, blood: w.blood });
-    }, { axis: TIP_FORWARD });
-    arm(k, [5.4, H(-15.6), 0], [10, H(-11), 3.0], c.main);
+    }, { axis: TIP_FORWARD, shaft: [0, 1, 0] });
+    spearArm(k, [5.4, H(-15.6), 0], [10, H(-11), 3.0], c.main);
     standingBody(k, c, w);
     const hd = head(k, 0, -23);
     helmet(k, hd, c.accent, w, { r: 7.1, lift: 0.8 });
@@ -342,7 +355,7 @@ function horseman(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
   turned(k, RIDER_YAW, () => {
     k.pivot(RIDER, SEAT, () => {
       rider(k, [0, H(-10), 0.6], c, c.main, w);
-      arm(k, [4.0, H(-19.4), 0.6], [5, H(-14.8), 4.2], c.main);
+      spearArm(k, [4.0, H(-19.4), 0.6], [5, H(-14.8), 4.2], c.main);
       arm(k, [-4.0, H(-19.4), 0.6], [-5.0, H(-13.6), 3.4], c.main);
       const hd = head(k, 0, -25.6, 5.4);
       // A soft cloth cap with a falling tail, no armour.
@@ -355,7 +368,7 @@ function horseman(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
       // A short spear held high in front of him, pointing forward: it comes down level and drives forward.
       k.pivot(WEAPON, [5, H(-14.8), 4.4], () => {
         spear(k, [2, H(-8), 4.4], [12.4, H(-31.6), 4.4], 5.6, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood }, 0.75);
-      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0], shaft: lineOf([2, H(-8), 4.4], [12.4, H(-31.6), 4.4]) });
     }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
@@ -392,7 +405,7 @@ function knight(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
       k.frustum([0, 0, 0.9], H(-11), H(-18.6), 5.7, 4.9, c.dark, { sz: 0.72 });
       const ts = tunicSurf(1.1);
       if (worn(w, 2)) dent(k, ts, -1.4, H(-16), 1.2, c.dark);
-      arm(k, [4.2, top - 1.6, 0.6], [-1, H(-17.2), 5.2], STEEL_DARK);
+      spearArm(k, [4.2, top - 1.6, 0.6], [-1, H(-17.2), 5.2], STEEL_DARK);
       arm(k, [-4.2, top - 1.6, 0.6], [-6.4, H(-12.6), 3.8], STEEL_DARK);
       if (!(worn(w, 4) || w.scarred)) k.ball([-4.8, top - 1.0, 0.4], 2.6, STEEL, { s: [1.2, 0.8, 1.1], detail: 1, gloss: 0.3 });
       const hc: V3 = [0, H(-27.2), 0.4];
@@ -419,7 +432,7 @@ function knight(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
           k.rod(tip, [19.6, H(-35.4), 5.6], 1.5, STEEL_DARK, { r1: 0.05, seg: 6, gloss: 0.5 });
           if (bloody(w, 1)) k.ball([17.0, H(-33), 6.4], 0.9, BLOOD, { detail: 0, hull: 0 });
         }
-      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0], shaft: lineOf(butt, tip) });
       k.slab([0, 0, 4.6, 1.8, 0.6, 4.4], 0.6, c.accent, [-1.6, H(-12.6), 6.4], [0, 0, 0.55]);
     }, { axis: HUNCH });
   });
@@ -537,8 +550,8 @@ function hoplite(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [13, H(-11), 2.4], () => {
       spear(k, [12, 0.6, 2.4], [14.4, H(-30), 2.4], (36 - 30) / 0.785 + 0.8, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood });
-    }, { axis: TIP_FORWARD });
-    arm(k, [5.4, H(-15.6), 0], [13, H(-11), 2.8], c.main);
+    }, { axis: TIP_FORWARD, shaft: lineOf([12, 0.6, 2.4], [14.4, H(-30), 2.4]) });
+    spearArm(k, [5.4, H(-15.6), 0], [13, H(-11), 2.8], c.main);
     standingBody(k, c, w);
     const hd = head(k, 0, -22.4);
     helmet(k, hd, c.accent, w, { r: 7.1, lift: 0.4 });
@@ -563,7 +576,7 @@ function kingsGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [13, H(-12.6), 1.6], () => {
       spear(k, [13, 0.6, 1.6], [13, H(-33.6), 1.6], (40 - 33.6) / 0.785 + 0.8, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood }, 0.85);
-    }, { axis: TIP_FORWARD });
+    }, { axis: TIP_FORWARD, shaft: [0, 1, 0] });
     // A long cape falls behind him to his heels (torn when broken).
     const capeHem = worn(w, 4) ? [12.6, 2.6, 8.6, -1.6, 5.0, 2.6, 1.4, -2.4, -2.6, 2.6, -6.4, -0.6, -12.8, 2.6] : [13, 2.6, -13, 2.6];
     const cape = [-7, -21, 7, -21, 11.6, -13, ...capeHem, -14, -3, -12, -12];
@@ -585,7 +598,7 @@ function kingsGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     if (worn(w, 2)) dent(k, bs, 2.4, H(-19), 1.2, c.accent);
     if (worn(w, 3)) crack(k, bs, [-2.6, H(-21), -1.6, H(-18.6), -2.6, H(-16.4)]);
     if (bloody(w, 2)) smear(k, bs, 1.2, H(-13.4), 0.2, -1, 3.2, 1.6);
-    arm(k, [5.6, H(-19.6), 0], [13, H(-12.6), 2.4], c.main);
+    spearArm(k, [5.6, H(-19.6), 0], [13, H(-12.6), 2.4], c.main);
     const hd = head(k, 0, -26.6);
     helmet(k, hd, c.accent, w, { r: 7.1, lift: 0.4 });
     if (!worn(w, 4) && !w.scarred) cheekGuard(k, hd, 1, c.accent);

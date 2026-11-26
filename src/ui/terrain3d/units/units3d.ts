@@ -14,7 +14,7 @@ import type { Material } from 'three';
 import type { GlUnit } from '../unitsInput';
 import { COS_E, R, SQ3, SQUASH } from '../layout';
 import { propFrag, propVert } from '../shaders';
-import { ARM, ARROW, buildFigure, SHIELD, STONE_PIECE, WEAPON, WEAPON2 } from './figures';
+import { ARM, ARROW, buildFigure, RIDER, SHIELD, SPEAR_ARM, STONE_PIECE, WEAPON, WEAPON2 } from './figures';
 import type { Figure } from './figures';
 import { CLEAN } from './parts';
 import { armSwing, idleKind, idlePose, settleWeight, stoneLoaded } from './idle';
@@ -23,8 +23,8 @@ import { AIM_TURN_MS, aimYaw, facingBusy, facingYaw, frontsOf, heldAt, moveYaw, 
 import type { Facing as Face } from './facing';
 import { gaitKind, gaitPose, gaitWeight } from './gait';
 import type { GaitKind } from './gait';
-import { exchange, REACT_MS, reactPose, strikePose } from './strike';
-import type { ReactKind, StrikeKind } from './strike';
+import { exchange, levelTurn, REACT_MS, reactPose, strikePose } from './strike';
+import type { ReactKind, StrikeKind, StrikePose } from './strike';
 import { CROUCH_MS, crouchAt, crouchBusy, crouchNow, crouchTo, guardOf } from './crouch';
 import { SHADE_MS, SHADE_STEPS, shadeStep } from './shade';
 import type { Crouch, Guard } from './crouch';
@@ -107,7 +107,16 @@ const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `
  * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,
  * turned about its pivot, and its crouch guard (units/crouch.ts) in figure space: a turn about `gAxis` and a shift.
  */
-interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3 }
+interface Piece {
+  group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3;
+  /** A spear's or a lance's line (figure space, unit length) and the turn about `axis` that levels it at the target. */
+  shaft: Vector3 | null; levelTurn: number;
+  /**
+   * An arm that reaches with its weapon: the group that stretches it along its length (turned so its x runs from the
+   * shoulder to the hand), the shoulder-to-hand line at rest (unit length) and its length.
+   */
+  reach: { stretch: Group; dir: Vector3; len: number } | null;
+}
 interface Built {
   group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; pieces: Map<string, Piece>; shadow: Mesh; shadowX: number;
   /** Its opaque meshes (a fall's see-through ones are not listed), and whether each is the hull: a shade repaints them. */
@@ -342,6 +351,21 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       at.position.set(...pc.pivot);
       const inner = new Group();
       inner.position.set(-pc.pivot[0], -pc.pivot[1], -pc.pivot[2]);
+      // An arm that reaches: stretched along its own shoulder-to-hand line, between a turn that lays that line on x
+      // and the turn back.
+      let reach: Piece['reach'] = null;
+      if (pc.hand !== null) {
+        const line = new Vector3(pc.hand[0] - pc.pivot[0], pc.hand[1] - pc.pivot[1], pc.hand[2] - pc.pivot[2]);
+        const len = line.length();
+        const dir = line.divideScalar(len);
+        const stretch = new Group(), back = new Group();
+        stretch.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), dir);
+        back.quaternion.copy(stretch.quaternion).invert();
+        at.add(stretch);
+        stretch.add(back);
+        back.add(inner);
+        reach = { stretch, dir, len };
+      }
       const ms = dim !== null
         ? [new Mesh(pc.hull, dim.depthHull), new Mesh(pc.fill, dim.depthFill), new Mesh(pc.hull, dim.hull), new Mesh(pc.fill, dim.fill)]
         : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
@@ -350,7 +374,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         ms[1]!.layers.enable(CAST_LAYER);
       }
       for (const m of ms) { m.frustumCulled = false; inner.add(m); }
-      at.add(inner);
+      if (reach === null) at.add(inner);
       const carrier = pc.parent === null ? null : piece(pc.parent);
       (carrier ?? body).add(at);
       inners.set(name, inner);
@@ -364,6 +388,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         group: at, pivot: new Vector3(...pc.pivot), axis: new Vector3(...pc.axis), fwd: new Vector3(...pc.fwd), up: new Vector3(...pc.up),
         gAxis: g?.axis !== undefined ? inFigure(g.axis).normalize() : new Vector3(...pc.axis),
         gAngle: g?.angle ?? 0, gShift: g !== undefined ? inFigure(g.shift) : new Vector3(),
+        shaft: pc.shaft === null ? null : new Vector3(...pc.shaft), levelTurn: pc.shaft === null ? 0 : levelTurn(pc.shaft, pc.axis), reach,
       });
       return inner;
     };
@@ -603,6 +628,35 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     pc.group.position.copy(pc.pivot).addScaledVector(pc.fwd, push).addScaledVector(pc.up, lift);
     if (crouch > 0) pc.group.position.addScaledVector(pc.gShift, crouch);
   }
+  const grip = new Vector3(), toHand = new Vector3();
+  /**
+   * The weapon (and a second blade) at strike pose `sp` from the guard at `crouch`; a spear or a lance is levelled
+   * and driven along its own line, and the arm that holds it reaches so its hand stays on the grip.
+   */
+  function poseWeapons(pieces: ReadonlyMap<string, Piece>, sp: StrikePose, crouch: number): void {
+    const w = pieces.get(WEAPON), w2 = pieces.get(WEAPON2);
+    grip.set(0, 0, 0);
+    if (w !== undefined) {
+      if (w.shaft === null || (sp.level === 0 && sp.reach === 0)) posePiece(w, sp.angle, sp.push, sp.lift, crouch);
+      else {
+        // Levelled out of its guard: a spear that slid up through the hand in the crouch comes back down into it.
+        posePiece(w, sp.angle + sp.level * w.levelTurn, sp.push, sp.lift, crouch * (1 - sp.level));
+        grip.copy(w.shaft).applyQuaternion(w.group.quaternion).multiplyScalar(sp.reach).addScaledVector(w.fwd, sp.push).addScaledVector(w.up, sp.lift);
+        w.group.position.add(grip);
+      }
+    }
+    if (w2 !== undefined) posePiece(w2, sp.angle, sp.push, sp.lift, crouch);
+    const a = pieces.get(SPEAR_ARM);
+    if (a !== undefined && a.reach !== null) {
+      // The hand goes where the grip goes; the arm turns from the shoulder toward it and stretches to reach it.
+      const r = a.reach;
+      toHand.copy(r.dir).multiplyScalar(r.len).add(grip);
+      const len = toHand.length();
+      a.group.position.copy(a.pivot);
+      a.group.quaternion.setFromUnitVectors(r.dir, toHand.divideScalar(len));
+      r.stretch.scale.set(len / r.len, 1, 1);
+    }
+  }
   function tick(nowMs: number, level: number): void {
     const dt = Math.min(100, Math.max(0, nowMs - clock));
     clock = nowMs;
@@ -638,7 +692,10 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const mh = fronts.move + face, ah = fronts.aim + face;
       fwdM.set(Math.sin(mh), 0, Math.cos(mh)); sideM.set(Math.cos(mh), 0, -Math.sin(mh));
       sideA.set(Math.cos(ah), 0, -Math.sin(ah));
-      p.body.position.set(ip.shift + sideM.x * gp.sway + rdx * rp.knock, ip.bob + gp.bob - g.drop * cr, FEET_Z + sideM.z * gp.sway + rdz * rp.knock);
+      p.body.position.set(
+        ip.shift + sideM.x * gp.sway + rdx * rp.knock + Math.sin(ah) * sp.step, ip.bob + gp.bob - g.drop * cr,
+        FEET_Z + sideM.z * gp.sway + rdz * rp.knock + Math.cos(ah) * sp.step,
+      );
       // A positive turn about a side axis tips the figure's top forward along that heading (a crouch leans in).
       qw.setFromAxisAngle(sideM, gp.pitch - sp.rear + g.lean * cr)
         .multiply(qb.setFromAxisAngle(fwdM, gp.roll))
@@ -650,8 +707,10 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too); the rest of
       // the pieces hold their guard.
       const strikeOnShield = !p.pieces.has(WEAPON);
+      poseWeapons(p.pieces, sp, cr);
       for (const [name, pc] of p.pieces) {
-        if (name === WEAPON || name === WEAPON2) posePiece(pc, sp.angle, sp.push, sp.lift, cr);
+        if (name === WEAPON || name === WEAPON2 || name === SPEAR_ARM) continue;
+        if (name === RIDER) posePiece(pc, sp.hunch, 0, 0, cr);
         else if (name === ARROW) { posePiece(pc, 0, sp.draw, 0, cr); pc.group.visible = sp.arrow; }
         else if (name === SHIELD) {
           posePiece(pc, rp.angle + (strikeOnShield ? sp.angle : 0), rp.push + (strikeOnShield ? sp.push : 0), rp.lift + (strikeOnShield ? sp.lift : 0), cr);
@@ -673,9 +732,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const f = fallStrikes.get(g.spot);
       if (f === undefined) continue;
       const sp = strikePose(f.strike, nowMs < f.at ? null : (nowMs - f.at) / f.ms);
-      const weapon = g.pieces.get(WEAPON), weapon2 = g.pieces.get(WEAPON2), shield = g.pieces.get(SHIELD), arrow = g.pieces.get(ARROW);
-      if (weapon !== undefined) posePiece(weapon, sp.angle, sp.push, sp.lift);
-      if (weapon2 !== undefined) posePiece(weapon2, sp.angle, sp.push, sp.lift);
+      const weapon = g.pieces.get(WEAPON), shield = g.pieces.get(SHIELD), arrow = g.pieces.get(ARROW), rider = g.pieces.get(RIDER);
+      poseWeapons(g.pieces, sp, 0);
+      if (rider !== undefined) posePiece(rider, sp.hunch, 0, 0);
       if (weapon === undefined && shield !== undefined) posePiece(shield, sp.angle, sp.push, sp.lift);
       if (arrow !== undefined) { posePiece(arrow, 0, sp.draw, 0); arrow.group.visible = sp.arrow; }
     }

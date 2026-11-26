@@ -3,8 +3,8 @@
 import { describe, expect, test } from 'vitest';
 import { CYCLES_PER_HEX, gaitKind, gaitPose, gaitWeight, STILL } from './gait';
 import {
-  AT_REST, BLOCK_LEAD_MS, COUNTER_AFTER_MS, exchange, impactMs, MELEE_HIT, REACT_MS, reactKind, reactPose, STRIKE_MS,
-  strikeKind, strikePose, UNMOVED,
+  AT_REST, BLOCK_LEAD_MS, COUNTER_AFTER_MS, COUNTER_STRIKE_MS, exchange, impactMs, JAB_HOLD, JAB_WIND, LEVEL_TILT, levelTurn,
+  MELEE_HIT, REACT_MS, reactKind, reactPose, STRIKE_MS, strikeKind, strikePose, UNMOVED,
 } from './strike';
 import { ALL_TYPES } from './figures';
 import {
@@ -122,8 +122,8 @@ describe('strikes and blocks', () => {
   test('each weapon has its strike', () => {
     expect(strikeKind('warrior')).toBe('swing');
     expect(strikeKind('swordsman')).toBe('swing');
-    expect(strikeKind('hoplite')).toBe('thrust');
-    expect(strikeKind('knight')).toBe('thrust');
+    expect(strikeKind('hoplite')).toBe('jab');
+    expect(strikeKind('knight')).toBe('couch');
     expect(strikeKind('archer')).toBe('bow');
     expect(strikeKind('horseArcher')).toBe('bow');
     expect(strikeKind('catapult')).toBe('sling');
@@ -155,11 +155,73 @@ describe('strikes and blocks', () => {
     }
   });
 
-  test('a spear thrust levels the spear and drives it forward at the hit', () => {
+  test('a dagger thrust tips the blade and drives it forward at the hit', () => {
     const hit = strikePose('thrust', MELEE_HIT);
     expect(hit.angle).toBeGreaterThan(0.8);
     expect(hit.push).toBeGreaterThan(3);
     expect(strikePose('thrust', 0.14).push).toBeLessThan(0);
+  });
+
+  test('every spear jabs and every lance is couched; swords, the dagger, bows and the rest keep their strike', () => {
+    for (const t of ['spearman', 'hoplite', 'kingsGuard']) expect(strikeKind(t), t).toBe('jab');
+    for (const t of ['horseman', 'knight']) expect(strikeKind(t), t).toBe('couch');
+    for (const t of ['warrior', 'swordsman', 'sellsword']) expect(strikeKind(t), t).toBe('swing');
+    expect(strikeKind('scout')).toBe('thrust');
+    // The Khan's Guard's lance is a standard planted behind the saddle, not a weapon in hand: the horse still rears.
+    expect(strikeKind('khansGuard')).toBe('rear');
+    expect(strikeKind('horseArcher')).toBe('bow');
+  });
+
+  test('a jab levels the spear and draws it back, drives it out along its line to the hit, holds, and comes back to rest', () => {
+    for (const kind of ['jab', 'couch'] as const) {
+      const wound = strikePose(kind, JAB_WIND), hit = strikePose(kind, MELEE_HIT), held = strikePose(kind, JAB_HOLD - 0.01);
+      expect(wound.level, `${kind}: levelled by the end of the wind up`).toBeCloseTo(1, 9);
+      expect(wound.reach, `${kind}: drawn back`).toBeLessThan(-1);
+      // Straight out: from the wind up to the hold the spear stays level and does not turn, so it moves only along
+      // its own line.
+      for (let p = JAB_WIND; p <= JAB_HOLD - 0.01; p += 0.01) {
+        const q = strikePose(kind, p);
+        expect(q.level).toBe(1);
+        expect(q.angle).toBe(0);
+        expect(q.push).toBe(0);
+        expect(q.lift).toBe(0);
+      }
+      expect(hit.reach - wound.reach, `${kind}: a long thrust`).toBeGreaterThan(kind === 'jab' ? 8 : 4.5);
+      expect(held.reach).toBe(hit.reach);
+      expect(hit.step, `${kind}: the figure steps in`).toBeGreaterThan(2);
+      expect(strikePose(kind, 1)).toBe(AT_REST);
+      const late = strikePose(kind, 0.995);
+      for (const v of [late.level, late.reach, late.lean, late.step, late.hunch, late.rear]) expect(Math.abs(v)).toBeLessThan(0.01);
+    }
+    expect(strikePose('jab', MELEE_HIT).lean, 'the body leans into it').toBeGreaterThan(0.1);
+    expect(strikePose('jab', JAB_WIND).lean, 'and back a little as it draws').toBeLessThan(0);
+    const c = strikePose('couch', MELEE_HIT);
+    expect(c.hunch, 'the rider drives the lance home').toBeGreaterThan(0.2);
+    expect(c.rear, 'the horse lunges, its front down').toBeLessThan(0);
+    // The thrust is fast (the wind up to the hit is about 70 ms) and smooth: no jump of more than 5 units, or more than
+    // the sword turns, in a 60 fps frame, at the counter's quicker pace too.
+    expect((MELEE_HIT - JAB_WIND) * STRIKE_MS).toBeLessThan(80);
+    for (const ms of [STRIKE_MS, COUNTER_STRIKE_MS]) for (const kind of ['jab', 'couch'] as const) {
+      let prev = AT_REST;
+      for (let t = 0; t <= ms; t += 1000 / 60) {
+        const q = strikePose(kind, t / ms);
+        expect(Math.abs(q.reach - prev.reach)).toBeLessThan(5);
+        expect(Math.abs(q.level - prev.level), "under the sword's 0.9 radians a frame for an upright spear").toBeLessThan(0.6);
+        prev = q;
+      }
+    }
+  });
+
+  test('the levelling turn brings a spear from its rest to point just above level, whatever its rest angle', () => {
+    // Upright, turned about the side axis toward +z.
+    expect(levelTurn([0, 1, 0], [1, 0, 0])).toBeCloseTo(Math.PI / 2 - LEVEL_TILT, 9);
+    // Already leaning forward 0.7 toward +x, turned about -z (which tips the top toward +x).
+    const s: [number, number, number] = [Math.sin(0.7), Math.cos(0.7), 0];
+    const a = levelTurn(s, [0, 0, -1]);
+    expect(a).toBeCloseTo(Math.PI / 2 - 0.7 - LEVEL_TILT, 9);
+    // Turned by that, it points LEVEL_TILT above level.
+    const turned = [Math.sin(0.7 + a), Math.cos(0.7 + a)];
+    expect(Math.atan2(turned[1]!, turned[0]!)).toBeCloseTo(LEVEL_TILT, 9);
   });
 
   test('a bow is drawn, the arrow leaves the string, and a new one is nocked', () => {
@@ -208,9 +270,9 @@ describe('strikes and blocks', () => {
   test('a counter strike comes once the block is up, and the attacker takes it the same way', () => {
     const ex = exchange({ attacker: 'swordsman', defender: 'spearman', hexes: 1, survives: true, counter: true });
     expect(ex.counter!.at).toBe(135 + COUNTER_AFTER_MS);
-    expect(ex.counter!.kind).toBe('thrust');
+    expect(ex.counter!.kind).toBe('jab');
     expect(ex.counterReact!.kind).toBe('flinch');
-    expect(ex.counterReact!.at).toBe(ex.counter!.at + impactMs('thrust', ex.counter!.ms, 1));
+    expect(ex.counterReact!.at).toBe(ex.counter!.at + impactMs('jab', ex.counter!.ms, 1));
     // The whole exchange ends within about 200 ms of today's 450 ms lunge (and within the counter's number, 600 ms).
     expect(ex.end).toBeLessThanOrEqual(STRIKE_MS + 200);
     expect(ex.counterReact!.at + REACT_MS).toBe(ex.end);

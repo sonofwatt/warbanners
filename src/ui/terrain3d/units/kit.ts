@@ -48,6 +48,10 @@ export interface BuiltPiece {
   basis: readonly [V3, V3, V3];
   /** The piece it was built inside, which carries it (a rider's lance moves with the rider), or null. */
   parent: string | null;
+  /** A spear's or a lance's own line, from butt to point (unit length, figure space), for a jab along it; or null. */
+  shaft: V3 | null;
+  /** For an arm that follows its weapon's grip: where its hand is (figure space); or null. */
+  hand: V3 | null;
 }
 
 export interface BuiltFigure {
@@ -67,22 +71,25 @@ export class Kit {
   private readonly stack: Matrix4[] = [];
   private decals = 0;
   private piece: string | null = null;
-  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3; basis: readonly [V3, V3, V3]; parent: string | null }>();
+  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3; basis: readonly [V3, V3, V3]; parent: string | null; shaft: V3 | null; hand: V3 | null }>();
 
   /**
    * Run `f` with every part it adds going to the moving piece `name`, which turns about `at` (in this frame) and
    * this frame's z axis (toward the viewer before any turn, so the piece swings in the figure's own plane), or the
    * axis `o.axis` of this frame. `o.fwd` (default this frame's z) and `o.up` (its y) say which way the piece pushes
    * toward a target and which way it lifts. A piece made inside another piece is carried by it. Calling it again
-   * with the same name adds more parts to the same piece (its pivot is taken from the first call).
+   * with the same name adds more parts to the same piece (its pivot is taken from the first call). `o.shaft` is the
+   * line of a spear or lance in it (butt to point, this frame), for a jab; `o.hand` marks an arm whose hand (a point in
+   * this frame) follows its weapon's grip.
    */
-  pivot(name: string, at: V3, f: () => void, o: { axis?: V3; fwd?: V3; up?: V3 } = {}): void {
-    const p = new Vector3(...at).applyMatrix4(this.mat);
+  pivot(name: string, at: V3, f: () => void, o: { axis?: V3; fwd?: V3; up?: V3; shaft?: V3; hand?: V3 } = {}): void {
+    const pt = (v: V3): V3 => { const q = new Vector3(...v).applyMatrix4(this.mat); return [q.x, q.y, q.z]; };
     const dir = (v: V3): V3 => { const d = new Vector3(...v).transformDirection(this.mat); return [d.x, d.y, d.z]; };
     if (!this.pivots.has(name)) {
       this.pivots.set(name, {
-        pivot: [p.x, p.y, p.z], axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]),
+        pivot: pt(at), axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]),
         basis: [dir([1, 0, 0]), dir([0, 1, 0]), dir([0, 0, 1])], parent: this.piece,
+        shaft: o.shaft === undefined ? null : dir(o.shaft), hand: o.hand === undefined ? null : pt(o.hand),
       });
     }
     const was = this.piece;
@@ -273,7 +280,7 @@ export class Kit {
     for (const k of groups.keys()) {
       if (k === null) continue;
       const at = this.pivots.get(k)!;
-      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up, basis: at.basis, parent: at.parent };
+      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up, basis: at.basis, parent: at.parent, shaft: at.shaft, hand: at.hand };
     }
     return { ...mergeOf(null), triangles, pieces };
   }
