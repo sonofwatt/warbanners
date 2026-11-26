@@ -47,6 +47,29 @@ export function grade(colour: string): string {
   return hex;
 }
 
+/**
+ * Gritty's figures: a milder grade than the scenery's, the same the 3D figures get (terrain3d/shaders.ts mute):
+ * 78 percent of the colour kept and 90 percent of the light, so they sit in the overcast board and still tell sides apart.
+ */
+export const MUTE = { keep: 0.78, light: 0.9 };
+
+const muted = new Map<string, string>();
+
+/** A #RRGGBB colour as Gritty draws a figure; anything else (none, a url, rgba) is returned as it is. */
+export function mute(colour: string): string {
+  const hit = muted.get(colour);
+  if (hit !== undefined) return hit;
+  const m = /^#([0-9a-f]{6})$/i.exec(colour);
+  if (m === null) return colour;
+  const n = Number.parseInt(m[1]!, 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const luma = 0.2126 * rgb[0]! + 0.7152 * rgb[1]! + 0.0722 * rgb[2]!;
+  const out = rgb.map((c) => Math.round((luma + (c - luma) * MUTE.keep) * MUTE.light));
+  const hex = `#${out.map((c) => Math.max(0, Math.min(255, c)).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+  muted.set(colour, hex);
+  return hex;
+}
+
 export const SKIN = '#E8B88A';
 
 export const PLAYER_COLOURS: Record<FactionId, { main: string; dark: string }> = {

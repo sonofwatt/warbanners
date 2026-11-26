@@ -7,7 +7,7 @@ import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, Terrain
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, ReadyGlow, TileBase, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
-import { useArtLook } from '../art/mode';
+import { muteFigure, useArtLook } from '../art/mode';
 import { WarBanner } from '../art/banner';
 import {
   cameraBetween, centreOn, easeInOut, followAction, keepCorner, keepInView, NO_INSETS, panMs, refit, screenToBoard, slackFor, startCamera, panBy, zoomAt,
@@ -262,7 +262,8 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
   const maxHp = maxHpOf(unit);
   // Spent: darker, never see-through (theme.css .unit-shade); hidden: the eye on the banner (unitsInput.ts).
   const shown = unitShown({ mine: p.u.mine, spent: p.u.spent, hidden: UNITS[unit.type].traits.includes('hidden') });
-  const wear = useArtLook() === 'gritty' ? wearLook(unit, maxHp) : undefined;   // battle wear shows in Gritty only
+  const artLook = useArtLook();
+  const wear = artLook === 'gritty' ? wearLook(unit, maxHp) : undefined;   // battle wear shows in Gritty only
   return (
     <g
       data-unit={unit.id}
@@ -276,8 +277,8 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
           // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
           <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
             <g className={shown.shaded ? 'unit-shade spent' : 'unit-shade'}>
-              {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
-              {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction], wear })}
+              {isHero(unit) ? muteFigure(HeroMark({ accent: ACCENT[faction] }), artLook) : null}
+              {muteFigure(FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction], wear }), artLook)}
             </g>
           </g>
         )}
@@ -347,6 +348,7 @@ function boxOf(keys: readonly HexKey[]): Box | null {
  * once per animation frame and never re-renders React.
  */
 export function Board(p: BoardProps): ReactElement {
+  const artLook = useArtLook();
   const svgRef = useRef<SVGSVGElement>(null);
   const camRef = useRef<SVGGElement>(null);
   // The 3D terrain's state lives up here: its taller walls widen the board's bounds once it draws.
@@ -727,7 +729,9 @@ export function Board(p: BoardProps): ReactElement {
 
   // The 3D unit figures: exactly the scene's units (the viewer's own view, so fog hides them as it hides the svg
   // ones), rebuilt only when what they show or where they stand changes, before the browser paints.
-  const unitsData = useMemo(() => (glWanted ? glUnitsOf(p.items, p.factions) : null), [glWanted, p.items, p.factions]);
+  // In Gritty the figures carry their battle wear and Gritty's own looks (the realistic Hoplite, muted colours).
+  const gritty = artLook === 'gritty';
+  const unitsData = useMemo(() => (glWanted ? glUnitsOf(p.items, p.factions, gritty) : null), [glWanted, p.items, p.factions, gritty]);
   const unitsLatest = useRef(unitsData);
   useLayoutEffect(() => {
     unitsLatest.current = unitsData;
