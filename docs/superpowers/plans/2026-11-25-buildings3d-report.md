@@ -39,7 +39,7 @@ times), so it reads at the phone's default zoom about as boldly as the svg mark.
   colours either way, no faded resource beside it). In a forest the camp and the mill stand before part of the grove;
   grove trees that would stand inside a building make way (tested), and at least two stay. The ground under a field
   building is nearly level, so the rows and stalls sit flat on rolling land.
-- The mine and the foundry are unchanged from `cities3d`.
+- The mine and the foundry come from `cities3d`; their lantern, lit tunnel and smoke changed in the follow-ups below.
 
 ### The water wheel (`wheels.ts`)
 
@@ -85,9 +85,62 @@ times), so it reads at the phone's default zoom about as boldly as the svg mark.
   as it does for strikes and turns; no new loop.
 - Reduced motion: nothing plays; the chest is simply gone.
 
+## Follow-ups: chimney smoke and the lit mine tunnel
+
+David, after the first round: "Yeah, let's add some smoke coming out of that chimney stack. It should drift a little
+bit. Also, let's add smoke to the upgrade for the logging camp. And for the mine, I wanted that lantern to be on the
+inside of the tunnel. And the light should flicker a bit in the tunnel, illuminating the inside of the tunnel."
+
+### Chimney smoke (`smoke.ts`, `buildingLayout.ts` `smokeSpots` and `smokePuff`)
+
+- The lumber camp's cabin stovepipe sends up a thin wisp: 4 puffs. Its stovepipe was raised so it stands clear of the
+  ridge.
+- The lumber mill has a new stone chimney through its roof, with fuller smoke: 6 larger puffs.
+- The foundry's three still smoke balls are gone; its chimney now smokes on the same drifting system (6 puffs). It
+  was cheap: the same mesh, one more spot. All smoke matches.
+- Each puff is a quad turned to face the camera, moved in the vertex shader: it rises 22 units over a 3 to 4 s life,
+  swells from under half to one and a half times its size, drifts to the right (more as it rises, with a slight
+  sway) and fades in quickly and out slowly, greying as it thins. Toon soft: a firm core and one soft band, lit from
+  the upper left.
+- One mesh for the whole map, rebuilt only when the chimneys change: one draw call and no geometry upload a frame.
+- It runs on the terrain's motion clock, as the waterfalls' mist: inside the existing ambient loop (20 fps, rests
+  after 20 s quiet, pauses when covered or hidden), and at rest and under reduced motion the clock stands still and
+  the smoke holds one still shape. Each puff lives a whole number of times per 1000 s, so the clock wraps
+  seamlessly. `animating()` counts smoke in view.
+- Drawn with the waterfalls on the units canvas (in the terrain scene, still, without one).
+
+### The mine's lantern inside the tunnel, lighting it (`townLayout.ts` `LANTERN`, `town.ts` `worksPieces`, `lanterns.ts`, `shaders.ts`)
+
+- The lantern now hangs deep in the tunnel, 5.6 units in (the tunnel is 9 deep), on a chain from the far frame's
+  lintel, low enough that the camera sees it under the mouth's lintel (tested with the camera's elevation). Before,
+  it hung on the first inner post, 3 units in, by the entrance.
+- The light lights the tunnel's inside: its lining, floor, back wall, both inner frames, the lantern and the rails
+  get a warm light that falls off from the lantern (to 9.5 units, in two soft steps, stronger on faces turned to it)
+  and breathes with the existing `lanternFlicker` value of the lantern's voice. The timber frames recede into the
+  glow.
+- How: the mine is split into three sets (`worksPieces`): outside (cart, spoil heap, furnace), the front (rock face,
+  rim, rocks above, the mouth's frame) and the inside. The prop mesh still draws all three, unlit, as before. On the
+  units canvas, which alone redraws in the ambient loop, the lantern draws the front depth-only, then the inside again
+  with the prop shader plus a `LAMP` define (the lantern's place and voice on every corner, the two voice brightness
+  uniforms the halo already uses), where the front lets it be seen. Both draw after the figures, so a figure is never
+  hidden by them, and a figure in front of the mouth still hides the tunnel. One mesh each for the whole map, rebuilt
+  only when the mines change: two draw calls a frame, no upload.
+- No new loop: the flicker is the lanterns' existing two uniforms, set in the ambient loop. Under reduced motion and at
+  rest it is the steady glow (the tunnel stays lit, not flickering).
+- Without a units canvas the lantern draws in the terrain scene, which already has the inside, so no second copy is
+  made (tested).
+- The foundry's mine part gets the same lantern, the same lit tunnel.
+- The halo round the lantern is now hidden by the mine's front where it would spill over the rock, and the floor pool
+  moved out to the mouth.
+
+- Cost: the lit inside is 234 triangles a mine and its depth-only front 294, on the units canvas (2 draw calls for
+  all mines). A mine tile in the prop mesh is now 1196 triangles (1184 before; the lantern got a chain and a second
+  pane), a foundry 1136 (its three smoke balls went). Smoke is 2 triangles a puff: 8 for a camp, 12 for a mill or a
+  foundry, one draw call for all. The mill with its chimney is 1072 (was 1048).
+
 ## Files
 
-- New: `src/ui/terrain3d/buildingLayout.ts` (pure), `buildings.ts`, `wheels.ts`, `chests.ts`, and their tests
+- New: `src/ui/terrain3d/buildingLayout.ts` (pure), `buildings.ts`, `wheels.ts`, `chests.ts`, `smoke.ts`, and their tests
   `buildingLayout.test.ts`, `chests.test.ts`; `scripts/buildings3d-shots.ts` takes every shot below.
 - Changed in `terrain3d`: `input.ts` (`GL_BUILDING` now all nine, `GlTile.owner` and `beside`, the svg `treasure`
   layer), `codes.ts`, `layout.ts` (`Setup.building` and `chest`, grove trees make way, level ground), `build.ts`,
@@ -127,7 +180,7 @@ Bundle (`GITHUB_PAGES_BASE=/warbanners/ npx vite build`, gzip -9, the branch's s
 | chunk | cities3d | buildings3d |
 | --- | --- | --- |
 | index (main) | 535.1 kB, 165.4 kB gzip | 535.8 kB, 165.6 kB gzip (+0.7 kB, +0.2 kB gzip) |
-| terrain3d (lazy) | 632.0 kB, 172.2 kB gzip | 652.6 kB, 179.6 kB gzip (+20.6 kB, +7.4 kB gzip) |
+| terrain3d (lazy) | 632.0 kB, 172.2 kB gzip | 659.6 kB, 181.9 kB gzip (+27.6 kB, +9.7 kB gzip; +20.6 and +7.4 before the follow-ups) |
 
 - No new chunk. The new 3D files are only reached from the lazy chunk; the main chunk gains `claimsOf` and the svg
   layer flag.
@@ -154,17 +207,29 @@ Bundle (`GITHUB_PAGES_BASE=/warbanners/ npx vite build`, gzip -9, the branch's s
   the chest on every land terrain, not under a building or village; triangle ceilings.
 - `layout.test.ts`: the camp and the mill keep a grove behind them, and no tree stands in a building.
 - `effects.test.ts`: `claimsOf` finds a claim for both sides where it is seen and nowhere it is not, one per tile.
+- Follow-ups:
+  - `buildingLayout.test.ts`: smoke rises from the camp (a wisp), the mill and the foundry (fuller) and nowhere else,
+    starting at each chimney's top; a puff rises, swells, drifts right and fades smoothly at 20 fps, is born faint and
+    gone before its life ends, and the clock wraps seamlessly.
+  - `chests.test.ts`: the smoke is one mesh on the motion clock and holds still at level 0; the lantern's lit tunnel
+    and its depth-only front are built with a units canvas and not without one; the three sets of the mine add up to
+    the whole and everything lit lies inside the tunnel.
+  - `townLayout.test.ts`: the lantern hangs deep inside the tunnel, between its walls, and the camera sees its glass
+    under the mouth's lintel.
 
 Results (2026-11-25, this branch):
 
 - `npx tsc -b`: clean.
 - `npm run lint`: clean.
-- `npx vitest run` (under the heavy-tests lock): 1340 passed, 126 skipped (the browser suites without BROWSER=1).
+- `npx vitest run` (under the heavy-tests lock): 1340 passed, 126 skipped (the browser suites without BROWSER=1);
+  after the follow-ups 1345 passed, 126 skipped.
 - `GITHUB_PAGES_BASE=/warbanners/ npx vite build`: ok.
 - `npm run test:browser` (with the sub-path): AI suite 6 passed; the rest 51 passed, 2 skipped (the online suite,
   which needs the emulator), 1 failed: `resize3d.test.ts` "stay aligned at pixel ratio 2.625" saw one frame with the
   canvases' buffers not yet resized for a 445 px slot. It passed 3 times out of 3 on its own and the whole set passed
   on a second run (52 passed, 2 skipped), so it reads as a timing flake under load; see Concerns.
+- After the follow-ups: tsc and lint clean, the sub-path build ok, `npm run test:browser`: AI suite 6 passed, the
+  rest 52 passed and 2 skipped (no flake this time).
 - `npm run test:emu`: not run; nothing in `src/net`, `src/online` or `database.rules.json` changed.
 
 ## Shots (`shots/buildings3d/`)
@@ -184,6 +249,17 @@ Taken by `scripts/buildings3d-shots.ts` on the built app with software WebGL (Sw
   find's words show above. `claim-closeup.gif` is the chest alone from the tap on, and `claim-closeup-frames.png` its
   frames at 160, 240, 320, 480, 600, 760 and 920 ms. Stills: `claim-<ms>ms.png`, `claim-closeup-<ms>ms.png`.
 - The wheel's turn is not filmed (it is a slow turn; the tests check it).
+- The sheets, boards and chest shots above were taken before the follow-ups: their mines still have the lantern by
+  the entrance and the foundry its still smoke balls, and the camp and mill have no smoke.
+- Follow-ups (the real app, motion on, the page's clock held and stepped 50 ms a frame, so each GIF is at real pace,
+  20 fps, 3 s):
+  - `camp-life.gif`, `camp-life-<ms>ms.png`: the lumber camp's stovepipe wisp drifting right.
+  - `mill-life.gif`, `mill-life-<ms>ms.png`: the lumber mill's chimney smoke (and its wheel turning).
+  - `foundry-life.gif`, `foundry-life-<ms>ms.png`: the foundry's chimney smoke, now drifting, and its lit tunnel.
+  - `mine-life.gif`, `mine-life-<ms>ms.png`: the mine close up, the lantern deep in the tunnel and its flicker
+    lighting the lining, floor and frames.
+  - `mine-board-3d.png`, `foundry-board-3d.png` (crops) and `-full.png` (the whole screen): the mine and foundry at
+    the phone's default zoom, 412 x 915.
 
 ## Concerns
 
@@ -203,6 +279,12 @@ Taken by `scripts/buildings3d-shots.ts` on the built app with software WebGL (Sw
 - `resize3d.test.ts` failed once in the full browser run (one frame painted before the canvases' buffers caught up
   with a smaller slot) and passed on every rerun. Nothing in this branch touches the resize path; the one new draw
   (`drawUnits` when a claim starts) only runs on a claim, which that test does not make. Worth watching in CI.
+- Smoke, the wheel, the opening chest and the lit tunnel are all on the units canvas, above the tile svg: a
+  selection or move highlight on those tiles sits under them. The lit tunnel only covers the mouth's opening.
+- The lit tunnel is a second copy of the tunnel's inside drawn over the terrain's; with antialiasing a faint edge can
+  show where the two meet at the mouth. Not visible in the shots.
+- The camp's wisp is thin on purpose (as ruled); at the phone's default zoom it is a soft white smudge above the
+  cabin. Knobs: `SMOKE_PUFFS`, `SMOKE_RISE`, `SMOKE_DRIFT` in `buildingLayout.ts` and the puff sizes in `smoke.ts`.
 - `THREE.Material: parameter 'side' has value of undefined` is logged by `units3d.ts`'s dimmed figures (from
   before this branch); not touched.
 - Merge points with other branches: `Board.tsx` (`TileArt`, `BoardAttacks`, the attacks layout effect, the follow
