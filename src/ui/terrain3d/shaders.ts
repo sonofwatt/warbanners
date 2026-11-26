@@ -1,6 +1,7 @@
 // The terrain's shaders: toon light in three soft bands, painted ground, packed earth roads, and today's flat fog.
 // Veiled tiles are dimmed toward the board's veil colour by the same 0.3 the SVG veil uses.
 import { INR, RES_HARVESTED, ROAD_HALF, WALL, WATER_Y } from './layout';
+import { BED_DEPTH } from './waterLayout';
 
 export const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -148,17 +149,20 @@ void main() {
     vec3 rock = mix(rockBase, vec3(0.67, 0.64, 0.59), smoothstep(9.0, 10.0, h + 3.0 * noise(p * 0.12)));
     col = mix(ground, rock, smoothstep(1.4, 2.6, h));
     if (res == 4) col = mix(col, vec3(0.62, 0.49, 0.40), 0.4 * resTint); // ore: rust-tinted scree
-  } else if (terrain == 3) { // water
-    float depth = smoothstep(2.0, 16.0, shore);
-    col = mix(vec3(0.53, 0.80, 0.93), vec3(0.41, 0.72, 0.89), depth);
-    // Painted swells: short, soft highlight strokes running across the tile.
-    vec2 q = vec2(p.x * 0.11 + 0.6 * sin(p.y * 0.09), p.y * 0.28);
-    float band = noise(q + vec2(uTime * 0.05, 0.0));
-    float crest = smoothstep(0.72, 0.76, band) * smoothstep(0.35, 0.6, noise(p * 0.06 + 9.0));
-    col = mix(col, vec3(0.80, 0.93, 0.98), crest * 0.85);
-    // Foam where the water meets land.
-    float foam = 1.0 - smoothstep(1.0, 2.6, shore + 0.9 * (noise(p * 0.5) - 0.5));
-    col = mix(col, vec3(0.93, 0.98, 1.0), foam * 0.9);
+  } else if (terrain == 3) { // water3d: the bed under the clear surface (WATER below), sand to pebbles to deep green
+    float d = clamp((${WATER_Y.toFixed(2)} - h) / ${BED_DEPTH.toFixed(2)}, 0.0, 1.0);
+    vec3 sand = patches(vec3(0.86, 0.80, 0.61), vec3(0.90, 0.85, 0.66), vec3(0.80, 0.73, 0.55), p, 13.0);
+    // Sand ripples: soft parallel bands, wobbling.
+    float rip = sin(p.x * 0.55 + p.y * 0.25 + 2.5 * noise(p * 0.08));
+    sand *= 0.96 + 0.05 * smoothstep(0.3, 0.9, rip);
+    vec3 mid = patches(vec3(0.70, 0.73, 0.58), vec3(0.76, 0.78, 0.63), vec3(0.62, 0.67, 0.53), p, 17.0);
+    // Pebbles in the middle depths: small pale stones with dark rims.
+    float peb = noise(p * 0.7 + 3.0) * step(0.5, noise(p * 0.11 + 8.0));
+    mid = mix(mid, vec3(0.74, 0.71, 0.62), smoothstep(0.82, 0.86, peb));
+    mid = mix(mid, vec3(0.42, 0.45, 0.38), smoothstep(0.76, 0.8, peb) * (1.0 - smoothstep(0.82, 0.86, peb)));
+    vec3 deep = patches(vec3(0.46, 0.60, 0.58), vec3(0.52, 0.66, 0.62), vec3(0.40, 0.54, 0.54), p, 19.0);
+    col = mix(sand, mid, smoothstep(0.12, 0.45, d));
+    col = mix(col, deep, smoothstep(0.5, 0.95, d));
   } else { // sand: a city's ground
     col = patches(vec3(0.91, 0.84, 0.63), vec3(0.95, 0.89, 0.70), vec3(0.85, 0.77, 0.56), p, 11.0);
   }
@@ -197,7 +201,7 @@ void main() {
   }
 
   float band = toon(n);
-  if (!wall && terrain != 3) {
+  if (!wall) {
     // Soft relief light on the low ground, so rolling hills and foothills read without leaving the toon bands.
     col *= clamp(1.0 + 1.25 * (dot(n, uLightDir) - dot(vec3(0.0, 1.0, 0.0), uLightDir)), 0.82, 1.15);
   }
@@ -293,3 +297,25 @@ void main() {
 #endif
   gl_FragColor = vec4(shade(finish(lit, vVeil)), ALPHA);
 }`;
+
+
+// water3d: the water's surface, laid over what lies under it. `deep` is how much water the eye looks through (world
+// units), `shore` the distance to the land (foam), p the surface point (world x, z). The tones are the old opaque
+// water's: pale in the shallows, a little deeper blue out in open water, with the same painted swells and foam; the
+// deeper the water, the more of the surface's colour covers what is under it, so depth reads.
+export const WATER = /* glsl */ `
+vec4 waterSurface(vec2 p, float shore, float deep) {
+  float f = clamp(deep / ${BED_DEPTH.toFixed(2)}, 0.0, 1.0);
+  vec3 col = mix(vec3(0.58, 0.84, 0.95), vec3(0.45, 0.75, 0.92), f);
+  float a = mix(0.14, 0.5, smoothstep(0.0, 1.0, f));
+  vec2 q = vec2(p.x * 0.11 + 0.6 * sin(p.y * 0.09), p.y * 0.28);
+  float band = noise(q + vec2(uTime * 0.05, 0.0));
+  float crest = smoothstep(0.72, 0.76, band) * smoothstep(0.35, 0.6, noise(p * 0.06 + 9.0));
+  col = mix(col, vec3(0.82, 0.94, 0.99), crest * 0.85);
+  a = mix(a, 0.8, crest * 0.85);
+  float foam = 1.0 - smoothstep(1.0, 2.6, shore + 0.9 * (noise(p * 0.5) - 0.5));
+  col = mix(col, vec3(0.93, 0.98, 1.0), foam * 0.9);
+  a = mix(a, 0.95, foam * 0.9);
+  return vec4(col, a);
+}
+`;

@@ -37,6 +37,9 @@ export interface GlMap {
   // Territory borders, drawn in the 3D scene so a mountain, a city or a tree in front of one hides it (it shows faintly
   // through). Optional, so a map built by hand for a test or a sample can leave them out.
   borders?: GlBorder[];
+  // water3d: the match's seed, for the choices the look makes from the map alone (which mountains join in a ridge,
+  // ridges.ts), so every viewer and every redraw agrees. 0 when left out.
+  seed?: number;
 }
 /**
  * A tile's territory border: its edges (the engine's direction order, as SceneTile.borderEdges), the owner's colour,
@@ -87,7 +90,7 @@ export function svgLayers(t: { fog: boolean; tile: Tile | null; city?: City | nu
  * The terrain map for the scene, its signature (equal signatures need no rebuild), and the veiled tiles with
  * their own signature (a change of veil only repaints, it never rebuilds geometry).
  */
-export function glMapOf(items: readonly SceneItem[], radius: number, factions: readonly FactionId[] = []): { map: GlMap; key: string; veiled: HexKey[]; veilKey: string } {
+export function glMapOf(items: readonly SceneItem[], radius: number, factions: readonly FactionId[] = [], seed = 0): { map: GlMap; key: string; veiled: HexKey[]; veilKey: string } {
   const tiles: Record<HexKey, GlTile> = {};
   const fog: HexKey[] = [];
   const veiled: HexKey[] = [];
@@ -122,11 +125,11 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
   }
   borders.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   const keys = Object.keys(tiles).sort();
-  const key = `${radius}|${keys.map((k) => {
+  const key = `${radius}|${seed}|${keys.map((k) => {
     const t = tiles[k]!;
     return `${k}:${tileCode(t)}`;
   }).join(' ')}|${fog.slice().sort().join(' ')}|${bordersKey(borders)}`;
-  return { map: { radius, tiles, fog, borders }, key, veiled, veilKey: veiled.slice().sort().join(' ') };
+  return { map: { radius, tiles, fog, borders, seed }, key, veiled, veilKey: veiled.slice().sort().join(' ') };
 }
 
 function townOf(city: City | null, factions: readonly FactionId[]): GlTown | null {

@@ -370,7 +370,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         onOpenMenu={() => setSheet('menu')}
       />
       <div className="board-slot" data-testid="board-slot" ref={slotRef}>
-        <Board items={items} radius={data.radius} factions={data.factions} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
+        <Board items={items} radius={data.radius} factions={data.factions} seed={state?.seed ?? 0} focus={focusHeld.current?.focus ?? '0,0'} viewer={viewer}
           terrain3d={terrain3d} attacks={attacks}
           covered={sheet !== 'none' || (digest.length > 0 && peeked === undefined) || rewardCity !== undefined || desync}
           onTap={peeked !== undefined ? noTap : tap}

@@ -12,8 +12,9 @@ const piecesOf = (t: Partial<GlTile>) => {
 };
 const colours = (t: Partial<GlTile>): Float32Array => piecesOf(t).props!.attributes.color!.array as Float32Array;
 
+// Fish swim on the figures' canvas (water.ts, water.test.ts), so the water tile's props are its bed's, unfaded.
 test('every rules 8 resource has 3D props, and a harvested one is the same shape, faded', () => {
-  for (const [terrain, resource] of [['mountain', 'jewels'], ['water', 'fish'], ['field', 'orchard'], ['field', 'cropland'], ['forest', 'game'], ['mountain', 'ore']] as const) {
+  for (const [terrain, resource] of [['mountain', 'jewels'], ['field', 'orchard'], ['field', 'cropland'], ['forest', 'game'], ['mountain', 'ore']] as const) {
     const fresh = piecesOf({ terrain, resource });
     const cut = piecesOf({ terrain, resource, harvested: true });
     expect(fresh.props, resource).not.toBeNull();

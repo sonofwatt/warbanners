@@ -23,6 +23,7 @@ import { createUnits3d } from './units/units3d';
 import { createWheels } from './wheels';
 import { createChests } from './chests';
 import { createSmoke } from './smoke';
+import { createFish, createSurface, frontOf } from './water';
 import { chestPlays, chestSpots } from './buildingLayout';
 import type { Units3d } from './units/units3d';
 
@@ -49,6 +50,8 @@ export interface Terrain3d {
    * tunnel insides and their depth-only fronts, for tests.
    */
   lanterns(): { count: number; glow: [number, number]; tunnel: { lit: number; front: number } };
+  /** water3d: the water's surface triangles, and the fish (tiles, fish, their clock, triangles, occluder), for tests. */
+  water(): { surface: number; fish: { tiles: number; fish: number; time: number; triangles: number; occluder: number } };
   /** The smoking chimneys on the map and the smoke's clock now, for tests. */
   smoke(): { count: number; time: number };
   /**
@@ -119,6 +122,9 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   // Chimney smoke (camps, mills, foundries) drifts on the same clock as the waterfalls' mist.
   const smoke = createSmoke(shared);
   const chestsFx = units ? createChests(shared) : null;
+  // water3d: the clear surface over the beds lies on the terrain; the fish swim on the figures' canvas, which redraws.
+  const surface = createSurface(shared);
+  const fish = createFish(shared, units !== null);
   const groundMat = new ShaderMaterial({ uniforms: shared, vertexShader: groundVert, fragmentShader: groundFrag });
   const propUniforms = (outline: boolean): Record<string, { value: unknown }> => ({ ...shared, uOutline: { value: outline ? 0.55 : 0 }, uIsOutline: { value: outline } });
   const propMat = new ShaderMaterial({ uniforms: propUniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true });
@@ -129,9 +135,9 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const props = new Mesh(new BufferGeometry(), propMat);
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
-  scene.add(ground, outline, props, borders.group);
-  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, chestsFx!.group);
-  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group);
+  scene.add(ground, outline, props, surface.mesh, borders.group);
+  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, chestsFx!.group, fish.group);
+  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group, fish.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
   const cache = new Map<string, TilePieces>();
@@ -140,10 +146,12 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
 
   function setMap(map: GlMap): void {
     const want = new Map<string, () => TilePieces>();
+    const sigOf = new Map<HexKey, string>();
     for (const k of Object.keys(map.tiles)) {
       const { q, r } = parse(k);
-      const sig = `${k}|${code(map.tiles[k])}|${EDGE_NB.map(([dq, dr]) => code(map.tiles[`${q + dq},${r + dr}`])).join(',')}`;
+      const sig = `${k}|${map.seed ?? 0}|${code(map.tiles[k])}|${EDGE_NB.map(([dq, dr]) => code(map.tiles[`${q + dq},${r + dr}`])).join(',')}`;
       want.set(sig, () => tilePieces(map, k));
+      sigOf.set(k, sig);
     }
     for (const k of map.fog) want.set(`fog|${k}`, () => ({ ground: fogGeometry(k), props: null }));
     for (const [sig, pieces] of cache) {
@@ -165,12 +173,23 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     outline.geometry = props.geometry;
     oldGround.dispose();
     oldProps.dispose();
-    paintVeil();
     falls.setMap(map);
     borders.setMap(map);
     lanterns.setMap(map);
     wheels.setMap(map);
     smoke.setMap(map);
+    surface.setMap(map);
+    // What stands in front of each fish tile hides its fish, on the figures' canvas too.
+    const occluders: BufferGeometry[] = [];
+    for (const [k, t] of Object.entries(map.tiles)) {
+      if (t.resource !== 'fish' || t.terrain !== 'water') continue;
+      for (const f of frontOf(k)) {
+        const g = cache.get(sigOf.get(f) ?? '')?.props;
+        if (g) occluders.push(g);
+      }
+    }
+    fish.setMap(map, occluders);
+    paintVeil();
     noteChests(map);
   }
 
@@ -203,7 +222,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   let veiledNow = new Set<number>();
   const hexId = (q: number, r: number): number => (q + 512) * 1024 + (r + 512);
   function paintVeil(): void {
-    for (const geo of [ground.geometry, props.geometry]) {
+    for (const geo of [ground.geometry, props.geometry, surface.mesh.geometry]) {
       const hex = geo.attributes.aHex;
       if (hex === undefined) continue;
       let veil = geo.attributes.aVeil as Float32BufferAttribute | undefined;
@@ -223,6 +242,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     lanterns.setVeil(veiled);
     wheels.setVeil(veiled);
     smoke.setVeil(veiled);
+    fish.setVeil(veiled);
   }
 
   // The SVG board's camera (cx, cy, scale in board units and px per unit) and viewport, unchanged. The camera looks
@@ -262,6 +282,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     falls.setTime(flow);
     wheels.setTime(flow);
     smoke.setTime(flow);
+    fish.setTime(flow);
     chestsFx?.tick(nowMs);
     // The lanterns flicker on the wall clock, scaled by the level: at rest and under reduced motion they hold steady.
     lanterns.setTime(nowMs / 1000, level);
@@ -272,7 +293,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     if (chestsFx?.playing(performance.now()) === true) return true;
     const hw = vp.w / 2 / cam.scale, hh = vp.h / 2 / cam.scale;
     const view = { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh };
-    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view) || anyInView(smoke.boxes(), view);
+    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view) || anyInView(smoke.boxes(), view) || anyInView(fish.boxes(), view);
   }
 
   function dispose(): void {
@@ -281,6 +302,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     lanterns.dispose();
     wheels.dispose();
     smoke.dispose();
+    surface.dispose();
+    fish.dispose();
     chestsFx?.dispose();
     units?.dispose();
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
@@ -296,6 +319,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     setMap, setVeil, draw, drawUnits, tick, animating, dispose, units, falls: () => falls.count(),
     lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow(), tunnel: lanterns.tunnel() }),
     smoke: () => ({ count: smoke.count(), time: smoke.time() }),
+    water: () => ({ surface: surface.triangles(), fish: fish.stats() }),
     chests, playing: (nowMs) => chestsFx?.playing(nowMs) === true,
     wheels: () => ({ count: wheels.count(), angle: wheels.angle(), triangles: wheels.triangles() }),
     opening: () => chestsFx?.state() ?? [],

@@ -43,6 +43,8 @@ export interface BoardProps {
   // The 3D terrain: a WebGL canvas under the svg draws the ground, roads, terrain features and resources, loaded
   // only when this is on. When the device cannot draw it, or loses the context, the board shows SVG instead.
   terrain3d?: boolean;
+  // The match's seed, for the 3D look's choices made from the map alone (mountain ridges): every viewer agrees.
+  seed?: number;
   // A sheet, menu or dialog covers the board: the 3D board's idle animation pauses until it is gone.
   covered?: boolean;
   // The attacks of the action just shown (its lunges, with their delays) and the units it killed: each new seq turns
@@ -646,7 +648,7 @@ export function Board(p: BoardProps): ReactElement {
   // svg keeps drawing the ground until the terrain has drawn its first frame. No WebGL 2 or a chunk that cannot
   // load leaves this board all SVG; a lost context shows SVG until the context is restored. Neither touches the
   // stored option.
-  const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius, p.factions) : null), [glWanted, p.items, p.radius, p.factions]);
+  const glData = useMemo(() => (glWanted ? glMapOf(p.items, p.radius, p.factions, p.seed ?? 0) : null), [glWanted, p.items, p.radius, p.factions, p.seed]);
   const glLatest = useRef(glData);
   useLayoutEffect(() => {
     glLatest.current = glData;

@@ -12,6 +12,10 @@ import { MINE_FLAT, townPlan, villagePlan } from './townLayout';
 import type { TownPlan } from './townLayout';
 import { buildingPlan, chestSpot, FIELD_BUILDINGS } from './buildingLayout';
 import type { BuildingPlan, ChestSpot, FieldBuilding } from './buildingLayout';
+import { bedBits, bedDepthFn, openEdges, shallowEdges } from './waterLayout';
+import type { BedBit } from './waterLayout';
+import { ridgeHalves } from './ridges';
+import type { RidgeHalf } from './ridges';
 
 export const R = 30; // board/layout.ts
 export const SQUASH = 0.62; // board/layout.ts
@@ -162,6 +166,13 @@ export interface Setup {
   // treasure chest.
   building: BuildingPlan | null;
   chest: ChestSpot | null;
+  // water3d: a water tile's bed (waterLayout.ts): the edges where it comes up shallow, those that meet more water (no
+  // wall there), and the stones and weeds lying on it. Empty on land.
+  shallow: number[];
+  open: number[];
+  bed: BedBit[];
+  // water3d: this mountain's halves of the ridges joining it to its neighbours (ridges.ts), in world space.
+  ridges: RidgeHalf[];
 }
 
 // Roads: as Road in features.tsx, a track from the tile centre to the middle of each edge whose neighbour has a
@@ -241,13 +252,30 @@ export function peaksFor(v: number, turn: number, shared: boolean, mine: boolean
   return out;
 }
 
+/** A tile's resource as the 3D look draws it: none under a city, a village, a building or a treasure. */
+export function shownResource(t: GlTile): GlTile['resource'] {
+  return !t.city && t.building === null && !t.village && !t.treasure && t.resource ? t.resource : null;
+}
+
+/**
+ * A mountain tile's peaks, from the tile alone (no neighbours): the main peak first. Shared with ridges.ts, which
+ * joins neighbouring mountains' main peaks. Empty for any other tile.
+ */
+export function mountainPeaks(t: GlTile, q: number, r: number): Peak[] {
+  if (t.terrain !== 'mountain' || t.city) return [];
+  const res = shownResource(t);
+  const works = MOUNTAIN_WORKS.has(t.building ?? '');
+  const shared = res === 'ore' || res === 'jewels' || works || t.treasure;
+  return peaksFor(variantOf(q, r), turnOf(q, r), shared, works);
+}
+
 export function tileSetup(map: GlMap, k: HexKey): Setup {
   const t = map.tiles[k]!;
   const { q, r } = parse(k);
   const v = variantOf(q, r);
   const turn = turnOf(q, r);
   const city = t.city;
-  const res = !city && t.building === null && !t.village && !t.treasure && t.resource ? t.resource : null;
+  const res = shownResource(t);
   // A mine (or the foundry it is upgraded to) replaces its ore. A mountain that shares its tile with ore, jewels, a
   // mine, a foundry or a treasure keeps its full peak, moved a little back and aside; the ore or jewels shrink into
   // the front corner instead.
@@ -259,7 +287,13 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
     t, q, r, v, turn, res, faded, links, trees: [], peaks: [], props: [], bits: [], blobs: [], tufts: [], hillEdges: [],
     town: null, works: t.terrain === 'mountain' && works && !city ? (t.building as 'mine' | 'foundry') : null,
     building: null, chest: city ? null : chestSpot(t),
+    shallow: [], open: [], bed: [], ridges: [],
   };
+  if (t.terrain === 'water' && !city) {
+    out.shallow = shallowEdges(map, k);
+    out.open = openEdges(map, k);
+    out.bed = bedBits(q, r, v);
+  }
   if (city) {
     if (t.town !== null) {
       out.town = townPlan(t.town, q, r);
@@ -280,7 +314,8 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   const seed = hash2(q, r) * 6.28;
   const free = res === null && t.building === null && !t.village && !t.treasure;
   if (t.terrain === 'mountain') {
-    out.peaks = peaksFor(v, turn, shared, works);
+    out.peaks = mountainPeaks(t, q, r);
+    out.ridges = ridgeHalves(map, k);
     for (const p of out.peaks) out.blobs.push([p.x + 6 * (p.h / 47), p.z + 3, p.b * 1.05, p.snow === 2 ? 0.28 : 0.2]);
   }
   if (t.terrain === 'forest') {
@@ -361,7 +396,7 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
     }
   }
   if (res === 'fish') {
-    // Fish: two fish leaping over rings of ripples, as the SVG mark; water only, so no road to keep off.
+    // Fish: where the fish swim (water.ts draws them, under the surface, on the figures' canvas); water only.
     const m = turn % 2 === 0 ? 1 : -1;
     const [x, z] = ([[0, 4], [-3, 6], [3, 3], [-1, 7]] as const)[v]!;
     out.props.push({ kind: 'fish', x: x * m, z, s: 1.3, flip: m < 0, seed });
@@ -370,7 +405,7 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
   if (free && (t.terrain === 'field' || t.terrain === 'water')) out.bits.push(...bitsFor(t.terrain, v, turn, q, r, links, map));
   for (const [x, z, s] of out.trees) out.blobs.push([x, z, 6.5 * s, 0.32]);
   for (const p of out.props) {
-    if (p.kind === 'fish') continue; // leaping over water: no shadow on the ground
+    if (p.kind === 'fish') continue; // swimming under the surface: no shadow on the ground
     out.blobs.push([p.x, p.z, (p.kind === 'orchard' ? 7 : p.kind === 'jewels' ? 6 : 8) * p.s, (faded ? 0.45 : 1) * 0.3]);
   }
   for (const b of out.bits) if (b.kind === 'bush') out.blobs.push([b.x, b.z, 4.5 * b.s, 0.22]);
@@ -470,6 +505,12 @@ function bitsFor(terrain: 'field' | 'water', v: number, turn: number, q: number,
   return out;
 }
 
+/** The depth of water over a water tile's bed (local coordinates); 0 on land. */
+export function bedFn(setup: Setup): (lx: number, lz: number) => number {
+  if (setup.t.terrain !== 'water' || setup.t.city) return () => 0;
+  return bedDepthFn(setup.shallow, setup.q, setup.r);
+}
+
 /** Ground height under the tile (local coordinates), shared by the lattice and by anything standing on it. */
 export function heightFn(setup: Setup): (lx: number, lz: number) => number {
   const { q, r } = setup;
@@ -480,6 +521,16 @@ export function heightFn(setup: Setup): (lx: number, lz: number) => number {
       // Low scree foothills rising into the foot of each peak.
       const d = Math.hypot(lx - p.x, lz - p.z);
       h = Math.max(h, 4.0 * (p.snow === 2 ? 1 : 0.7) * smooth(p.b + 9, p.b * 0.6, d));
+    }
+    if (setup.ridges.length) {
+      // Scree foothills along a ridge's crest, as at a peak's foot.
+      const c = centre(q, r);
+      for (const half of setup.ridges) {
+        for (const sct of half.sections) {
+          const d = Math.hypot(lx - (sct.x - c.x), lz - (sct.z - c.z));
+          h = Math.max(h, 3.4 * smooth(sct.w + 8, sct.w * 0.6, d) * Math.min(1, sct.h / 6));
+        }
+      }
     }
     if (setup.peaks.length) h += 1.6 * vnoise(lx * 0.12 + q * 3.1, lz * 0.12 + r * 1.3);
     if (setup.hillEdges.length) {

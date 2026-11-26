@@ -3,14 +3,16 @@
 // so a change on one tile rebuilds only that tile.
 import {
   BoxGeometry, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DodecahedronGeometry, Euler, Float32BufferAttribute,
-  IcosahedronGeometry, OctahedronGeometry, TorusGeometry, Vector3,
+  IcosahedronGeometry, OctahedronGeometry, Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
 import type { GlMap } from './input';
 import {
-  centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_HARVESTED, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
+  bedFn, centre, distToEdges, EDGE_NB, edgeDist, hash2, heightFn, INR, parse, R, RES_HARVESTED, RES_ID, TERRAIN_ID, tileSetup, WALL, WATER_Y,
 } from './layout';
+import type { BedBit } from './waterLayout';
+import type { RidgeHalf } from './ridges';
 import type { Bit, Peak, Prop, Setup } from './layout';
 import { at, coloured } from './geom';
 import { townParts, worksParts } from './town';
@@ -35,10 +37,11 @@ function hexAttr(geo: BufferGeometry, q: number, r: number): void {
   geo.setAttribute('aHex', new Float32BufferAttribute(a, 2));
 }
 
-function walls(cx: number, cz: number, g: number, top: number, v: number): BufferGeometry {
+function walls(cx: number, cz: number, g: number, top: number, v: number, skip: readonly number[] = []): BufferGeometry {
   const wp: number[] = [], wi: number[] = [], wt: number[] = [], wa: number[] = [], wl: number[] = [], wn: number[] = [];
   const corner = (i: number): [number, number] => { const a = ((30 + 60 * i) * Math.PI) / 180; return [R * Math.cos(a), R * Math.sin(a)]; };
-  for (let e = 0; e < 6; e++) {
+  const sides = [0, 1, 2, 3, 4, 5].filter((e) => !skip.includes(e));
+  for (const e of sides) {
     // Edge e (normal at 60e degrees) runs from corner e-1 to corner e (corners at 30 + 60i).
     const [ax, az] = corner((e + 5) % 6), [bx, bz] = corner(e);
     const nx = Math.cos((e * Math.PI) / 3), nz = Math.sin((e * Math.PI) / 3);
@@ -58,9 +61,9 @@ function walls(cx: number, cz: number, g: number, top: number, v: number): Buffe
   geo.setAttribute('aTile', new Float32BufferAttribute(wt, 4));
   geo.setAttribute('aAO', new Float32BufferAttribute(wa, 1));
   geo.setAttribute('aLocal', new Float32BufferAttribute(wl, 2));
-  geo.setAttribute('aRoad', new Float32BufferAttribute(new Float32Array(24), 1));
+  geo.setAttribute('aRoad', new Float32BufferAttribute(new Float32Array(sides.length * 4), 1));
   const wIndex: number[] = [];
-  for (let e = 0; e < 6; e++) { const o = e * 4; wIndex.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
+  for (let i = 0; i < sides.length; i++) { const o = i * 4; wIndex.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
   geo.setIndex(wIndex);
   return geo;
 }
@@ -117,12 +120,14 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
   const vz = R / N;
   let n = 0;
   const height = heightFn(setup);
+  // water3d: a water tile's top is its bed, under the clear surface (water.ts), deepest away from the shore.
+  const bed = bedFn(setup);
   const roadMask = setup.links ? (setup.links.length ? setup.links.reduce((m, e) => m + (1 << e), 0) : 64) : 0;
   for (let i = -N; i <= N; i++) {
     for (let j = -N; j <= N; j++) {
       if (Math.abs(i + j) > N) continue;
       const lx = i * ux, lz = i * uz + j * vz;
-      const h = base + height(lx, lz);
+      const h = base + height(lx, lz) - bed(lx, lz);
       pos.push(c.x + lx, h, c.z + lz);
       info.push(g, 0, Math.max(0, edgeDist(lx, lz)), Math.min(60, distToEdges(lx, lz, shoreEdges)));
       tile.push(c.x, c.z, resId, setup.v);
@@ -155,10 +160,11 @@ export function tilePieces(map: GlMap, k: HexKey): TilePieces {
   top.setAttribute('aRoad', new Float32BufferAttribute(road, 1));
   top.setIndex(index);
   top.computeVertexNormals();
-  const ground = mergeGeometries([top, walls(c.x, c.z, g, base, setup.v)])!;
+  // Between two water tiles there is no wall: the bed runs on under the one surface.
+  const ground = mergeGeometries([top, walls(c.x, c.z, g, base, setup.v, isWater ? setup.open : [])])!;
   top.dispose();
   hexAttr(ground, q, r);
-  const parts = propsFor(setup, c, height);
+  const parts = propsFor(setup, c, height, bed);
   let props: BufferGeometry | null = null;
   if (parts.length) {
     props = mergeGeometries(parts)!;
@@ -179,8 +185,8 @@ const PAL = {
   deer: '#A8693A', deerBelly: '#E1BC8A', deerLeg: '#6E4222', antler: '#EFE3CC', nose: '#3A2516',
   oreDark: '#4E4B58', oreMid: '#6B6778', crystal: '#BFE3FA', crystalDeep: '#7FB8E6',
   gems: ['#E0405A', '#9B6BE0', '#36C08C', '#F2B233'],
-  fish: '#D98A3D', fishBelly: '#F4C27E', fishFin: '#B96A28', ripple: '#EAF7FF',
   bush: '#4E9A4A', bushLight: '#62AE55', stone: '#A39D93', stoneDark: '#8E887F',
+  bedStone: '#B8AE98', bedStoneDark: '#8F8878', bedPebble: '#CFC3A6', weed: '#4E8F4C', weedLight: '#6BA65A',
   flowers: ['#F7F3E8', '#F4CF4A', '#E98BB0', '#B9A2E8'], lily: '#5FA85A', lilyFlower: '#F2B6CF', reed: '#7D9B4A', reedTop: '#8A6A3E',
 } as const;
 
@@ -308,44 +314,6 @@ function gemCluster(x: number, z: number, s: number, seed: number, flip: boolean
   return p;
 }
 
-/** Fish: two fish leaping over rings of ripples (as the SVG mark), facing each other, and a fin breaking the water. */
-function fishLeap(x: number, z: number, s: number, flip: boolean): BufferGeometry[] {
-  const out: BufferGeometry[] = [];
-  const m = flip ? -1 : 1;
-  const y0 = WATER_Y;
-  for (const [dx, dz, h, dir, size] of [[-5, 1, 5.4, 1, 1], [6, -4, 7.4, -1, 0.85]] as const) {
-    const k = s * size, d = dir * m, fx = x + dx * s * m, fz = z + dz * s;
-    const body = new IcosahedronGeometry(1, 1);
-    body.scale(3.6 * k, 1.45 * k, 1.1 * k);
-    body.rotateZ(0.45 * d);
-    body.translate(fx, y0 + h * k, fz);
-    out.push(coloured(body, PAL.fish, 0.6, 0.3));
-    const belly = new IcosahedronGeometry(1, 1);
-    belly.scale(2.8 * k, 0.7 * k, 0.9 * k);
-    belly.rotateZ(0.45 * d);
-    belly.translate(fx + 0.35 * k * d, y0 + (h - 0.75) * k, fz + 0.2 * k);
-    out.push(coloured(belly, PAL.fishBelly, 0, 0.15));
-    const tail = new ConeGeometry(1.5 * k, 2.6 * k, 4);
-    tail.rotateZ((Math.PI / 2) * d + 0.45 * d);
-    tail.scale(1, 1, 0.4);
-    tail.translate(fx - 3.9 * k * d, y0 + (h - 1.9) * k, fz);
-    out.push(coloured(tail, PAL.fishFin, 0, 0.25));
-    const eye = new IcosahedronGeometry(0.42 * k, 0);
-    eye.translate(fx + 2.3 * k * d, y0 + (h + 1.3) * k, fz + 0.95 * k);
-    out.push(coloured(eye, PAL.nose, 0, 0));
-    const ring = new TorusGeometry(2.6 * k, 0.3, 3, 14);
-    ring.rotateX(Math.PI / 2);
-    ring.scale(1, 1, 0.8);
-    ring.translate(fx - 2.5 * k * d, y0 + 0.15, fz + 1.2 * k);
-    out.push(coloured(ring, PAL.ripple, 0, 0));
-  }
-  const fin = new ConeGeometry(1.0 * s, 2.2 * s, 3);
-  fin.scale(1, 1, 0.3);
-  fin.translate(x + 11 * s * m, y0 + 1.0 * s, z + 6 * s);
-  out.push(coloured(fin, PAL.fishFin, 0, 0.2));
-  return out;
-}
-
 /**
  * Fade a harvested resource's parts (rules 8), as the SVG draws its mark at 0.45 opacity over the ground: the colour
  * goes most of the way to the ground's own tone, the glint dims and the outline thins. Opaque, so the merged prop
@@ -447,6 +415,63 @@ function matterhorn(cx: number, cz: number, y0: number, P: Peak, seed: number): 
   return [g];
 }
 
+/**
+ * water3d: one tile's half of a mountain ridge (ridges.ts), as faceted rock: each section a seven point profile (foot,
+ * low shoulder, high shoulder, crest and back down), joined section to section. The faces alternate light and dark
+ * rock as a peak's do, snow above the snow line, scree at the foot. The half's open end at its peak is capped (it lies
+ * inside the peak's rock); the crossing end meets the neighbour's half exactly, so it needs none.
+ */
+const PROFILE: readonly [number, number][] = [[-1, -2], [-0.74, 0.28], [-0.38, 0.7], [0.03, 1], [0.4, 0.68], [0.76, 0.26], [1, -2]];
+function ridgeRock(half: RidgeHalf, ore: boolean): BufferGeometry {
+  const pos: number[] = [], col: number[] = [], gl: number[] = [], od: number[] = [];
+  const c = new Color();
+  const snowLine = 0.5 * half.peak;
+  type P = [number, number, number, number, number, number]; // x, y, z, and the outline's push
+  const ring = half.sections.map((s): P[] => {
+    const px = -s.tz, pz = s.tx; // across the ridge
+    // A little unevenness on the shoulders, from the section's place, so both halves agree at the crossing.
+    const j = hash2(s.x * 0.37, s.z * 0.53);
+    return PROFILE.map(([l, y], i) => {
+      const wob = i > 0 && i < PROFILE.length - 1 ? 1 + 0.16 * (hash2(j * 9 + i, s.x * 0.11) - 0.5) : 1;
+      const lat = l * s.w * wob, yy = y < 0 ? y : y * s.h * (i === 3 ? 1 : wob);
+      const ol = Math.hypot(l, y * 0.6) || 1;
+      return [s.x + px * lat, yy, s.z + pz * lat, (px * l) / ol, (y * 0.6) / ol, (pz * l) / ol];
+    });
+  });
+  // Each triangle is wound to face out: along `out` when given (the cap), else along its corners' outline push.
+  const tri = (a: P, b: P, d: P, face: number, band: number, out?: [number, number, number]): void => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const o = out ?? [a[3] + b[3] + d[3], a[4] + b[4] + d[4], a[5] + b[5] + d[5]];
+    if (nx * o[0] + ny * o[1] + nz * o[2] < 0) [b, d] = [d, b];
+    const my = (a[1] + b[1] + d[1]) / 3;
+    const tone = ore ? (face % 2 ? PAL.oreRockLight : PAL.oreRockDark) : (face % 2 ? PAL.rockLight : PAL.rockDark);
+    c.set(my > snowLine ? PAL.snow : band === 0 || band === PROFILE.length - 2 ? PAL.scree : tone);
+    for (const v of [a, b, d]) { pos.push(v[0], v[1], v[2]); col.push(c.r, c.g, c.b); gl.push(-1); od.push(v[3], v[4], v[5]); }
+  };
+  for (let i = 0; i + 1 < ring.length; i++) {
+    const A = ring[i]!, B = ring[i + 1]!;
+    // Tones go by stretch of the ridge and by side, so each run of rock reads as one painted plane.
+    const stretch = Math.floor(hash2(half.sections[i]!.x * 0.05, half.sections[i]!.z * 0.05) * 4 + i / 3);
+    for (let k = 0; k + 1 < PROFILE.length; k++) {
+      const face = stretch + (k < 3 ? 0 : 1);
+      tri(A[k]!, B[k]!, B[k + 1]!, face, k);
+      tri(A[k]!, B[k + 1]!, A[k + 1]!, face, k);
+    }
+  }
+  // Cap the start, inside the peak.
+  const first = ring[0]!, s0 = half.sections[0]!, s1 = half.sections[1]!;
+  const back: [number, number, number] = [s0.x - s1.x, 0, s0.z - s1.z];
+  for (let k = 1; k + 1 < PROFILE.length; k++) tri(first[0]!, first[k + 1]!, first[k]!, 0, 1, back);
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  g.setAttribute('color', new Float32BufferAttribute(col, 3));
+  g.setAttribute('aGloss', new Float32BufferAttribute(gl, 1));
+  g.setAttribute('aOut', new Float32BufferAttribute(od, 3));
+  return g;
+}
+
 // A wild tuft: a clump of blades leaning every way. About half are short green grass; the rest are wheat
 // gone wild, taller straw-gold stalks with ears, a few green blades still at their foot. No rows, no plots.
 function tuft(x: number, y: number, z: number, size: number, seed: number, grassOnly = false): BufferGeometry[] {
@@ -482,7 +507,7 @@ function tuft(x: number, y: number, z: number, size: number, seed: number, grass
 }
 
 /** The small details of open fields and water. */
-function bit(b: Bit, x: number, y: number, z: number): BufferGeometry[] {
+function bit(b: Bit, x: number, y: number, z: number, deep = 0): BufferGeometry[] {
   const s = b.s;
   switch (b.kind) {
     case 'grass':
@@ -527,15 +552,16 @@ function bit(b: Bit, x: number, y: number, z: number): BufferGeometry[] {
     case 'reed': {
       const out: BufferGeometry[] = [];
       for (let i = 0; i < 4; i++) {
-        const L = (4 + 3 * hash2(b.seed, i)) * s;
+        // Rooted on the bed, seen through the clear water, and standing out of it as before.
+        const L = (4 + 3 * hash2(b.seed, i)) * s + deep;
         const g = new ConeGeometry(0.35 * s, L, 3, 1, true);
         g.translate(0, L / 2, 0);
         g.rotateZ((hash2(i, b.seed) - 0.5) * 0.4);
-        g.translate(x + (i - 1.5) * 1.1 * s, WATER_Y, z + (hash2(b.seed * 2, i) - 0.5) * 2);
+        g.translate(x + (i - 1.5) * 1.1 * s, WATER_Y - deep, z + (hash2(b.seed * 2, i) - 0.5) * 2);
         out.push(coloured(g, PAL.reed, 0, 0.1));
         if (i % 2 === 0) {
           const top = new CylinderGeometry(0.45 * s, 0.45 * s, 1.6 * s, 4);
-          top.translate(x + (i - 1.5) * 1.1 * s, WATER_Y + L * 0.8, z + (hash2(b.seed * 2, i) - 0.5) * 2);
+          top.translate(x + (i - 1.5) * 1.1 * s, WATER_Y - deep + L * 0.8, z + (hash2(b.seed * 2, i) - 0.5) * 2);
           out.push(coloured(top, PAL.reedTop, 0, 0.12));
         }
       }
@@ -550,12 +576,51 @@ function bit(b: Bit, x: number, y: number, z: number): BufferGeometry[] {
         g.translate(x + dx * s, WATER_Y + 0.6, z + dz * s);
         out.push(coloured(g, r > 3 ? PAL.stone : PAL.stoneDark, 0, 0.3));
       }
+      // The islet stands on the bed: its foot of rock shows through the clear water.
+      const foot = new CylinderGeometry(3.4 * s, 4.6 * s, deep + 0.4, 6);
+      foot.rotateY(b.seed * 3);
+      foot.translate(x + 0.6 * s, WATER_Y - deep / 2, z + 0.6 * s);
+      out.push(coloured(foot, PAL.stoneDark, 0, 0));
       return out;
     }
   }
 }
 
-function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number, lz: number) => number): BufferGeometry[] {
+/** The bed's stones, weeds and pebbles, under the water: no outline, so the surface lies clean over them. */
+function bedBit(b: BedBit, x: number, y: number, z: number): BufferGeometry[] {
+  const s = b.s;
+  if (b.kind === 'rock') {
+    const g = new DodecahedronGeometry(2.2 * s, 0);
+    g.rotateX(b.seed * 3); g.rotateY(b.seed * 5);
+    g.scale(1.25, 0.55, 1);
+    g.translate(x, y + 0.5 * s, z);
+    return [coloured(g, b.seed > 0.5 ? PAL.bedStone : PAL.bedStoneDark, 0, 0)];
+  }
+  if (b.kind === 'pebbles') {
+    const out: BufferGeometry[] = [];
+    for (let i = 0; i < 4; i++) {
+      const a = b.seed * 9 + i * 1.9, d = (1 + 1.6 * hash2(i, b.seed)) * s;
+      const g = new DodecahedronGeometry((0.7 + 0.4 * hash2(b.seed, i)) * s, 0);
+      g.scale(1.2, 0.6, 1);
+      g.translate(x + Math.cos(a) * d, y + 0.25, z + Math.sin(a) * d * 0.8);
+      out.push(coloured(g, i % 2 ? PAL.bedStone : PAL.bedPebble, 0, 0));
+    }
+    return out;
+  }
+  const out: BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const L = (2.6 + 2.6 * hash2(b.seed * 3, i)) * s;
+    const g = new ConeGeometry(0.55 * s, L, 3, 1, true);
+    g.translate(0, L / 2, 0);
+    g.rotateZ((hash2(i, b.seed) - 0.5) * 0.9);
+    g.rotateX((hash2(b.seed, i * 2) - 0.5) * 0.6);
+    g.translate(x + (hash2(i * 1.3, b.seed) - 0.5) * 3 * s, y - 0.2, z + (hash2(b.seed * 2, i) - 0.5) * 2 * s);
+    out.push(coloured(g, i % 2 ? PAL.weed : PAL.weedLight, 0, 0));
+  }
+  return out;
+}
+
+function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number, lz: number) => number, bed: (lx: number, lz: number) => number): BufferGeometry[] {
   const out: BufferGeometry[] = [];
   const { q, r } = setup;
   const seed = hash2(q, r) * 6.28;
@@ -571,7 +636,7 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
   for (const p of setup.props as Prop[]) {
     if (p.kind === 'orchard') put(res(fruitTree(c.x + p.x, c.z + p.z, p.s, p.seed)), p.x, p.z);
     if (p.kind === 'deer') put(res(deer(c.x + p.x, c.z + p.z, p.s, p.flip)), p.x, p.z);
-    if (p.kind === 'fish') out.push(...res(fishLeap(c.x + p.x, c.z + p.z, p.s, p.flip)));
+    // Fish swim under the surface on the figures' canvas (water.ts): nothing here.
     if (p.kind === 'ore' || p.kind === 'jewels') {
       const parts = res((p.kind === 'ore' ? oreCluster : gemCluster)(c.x + p.x, c.z + p.z, p.s, p.seed, p.flip));
       if (p.y === undefined) put(parts, p.x, p.z);
@@ -579,11 +644,17 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
     }
   }
   setup.peaks.forEach((p, i) => out.push(...matterhorn(c.x + p.x, c.z + p.z, 0, p, seed + i * 3.7)));
+  for (const half of setup.ridges) {
+    out.push(ridgeRock(half, setup.peaks[0]?.ore === true));
+    const t = half.tooth;
+    if (t !== null) out.push(...matterhorn(t.x, t.z, 0, { x: 0, z: 0, h: t.h, b: t.b, rot: t.rot, shoulder: -1, snow: t.h > 0.5 * half.peak ? 1 : 0 }, t.rot * 3.1));
+  }
   if (setup.town !== null) out.push(...townParts(setup.town, c.x, c.z, height));
   if (setup.works !== null) out.push(...worksParts(setup.works, c.x, c.z, hash2(q * 1.7, r * 0.9)));
   if (setup.building !== null) out.push(...buildingParts(setup.building, c.x, c.z, height, setup.t.owner ?? null));
   if (setup.chest !== null) out.push(...chestPropParts(setup.chest, c.x, c.z, height(setup.chest.x, setup.chest.z)));
   for (const [x, z, size, sd] of setup.tufts) out.push(...res(tuft(c.x + x, height(x, z), c.z + z, size, sd)));
-  for (const b of setup.bits) out.push(...bit(b, c.x + b.x, setup.t.terrain === 'water' ? 0 : height(b.x, b.z), c.z + b.z));
+  for (const b of setup.bits) out.push(...bit(b, c.x + b.x, setup.t.terrain === 'water' ? 0 : height(b.x, b.z), c.z + b.z, bed(b.x, b.z)));
+  for (const b of setup.bed) out.push(...bedBit(b, c.x + b.x, WATER_Y - bed(b.x, b.z), c.z + b.z));
   return out;
 }
