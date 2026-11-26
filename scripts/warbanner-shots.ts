@@ -8,8 +8,21 @@ import { newRecord } from '../src/app/record';
 import type { MatchRecord } from '../src/app/record';
 import { writeSave } from '../src/app/saves';
 import { createMatch, hashState } from '../src/engine';
-import type { HexKey, Unit, UnitTypeId } from '../src/engine';
-import { addUnit } from '../src/engine/testkit';
+import { freshDeeds, UNITS } from '../src/engine';
+import type { HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../src/engine';
+
+// Scripts reach the engine only through its index (src/boundaries.test.ts), so the testkit's addUnit is not used:
+// a unit ready to act, made from the exported data.
+function addUnit(s: MatchState, type: UnitTypeId, owner: PlayerId, q: number, r: number, patch?: Partial<Unit>): Unit {
+  const u: Unit = {
+    id: s.nextUnitId++, type, owner, pos: `${q},${r}`, hp: UNITS[type].hp, mp: 2 * UNITS[type].move, bonusMp: 0,
+    attacks: UNITS[type].atk === 0 ? 0 : 1, home: null, enteredTurn: 0, moved: false, acted: false, rested: false,
+    taunted: false, blinded: false, lure: null, fresh: false, deeds: freshDeeds(), heroTraits: [], item: null,
+    hunkered: false, momentum: 0, turnEnded: false, itemTurn: null, ...patch,
+  };
+  s.units.push(u);
+  return u;
+}
 import { frames, openApp } from '../src/browser/harness';
 
 const SPENT: Partial<Unit> = { mp: 0, bonusMp: 0, attacks: 0, moved: true, acted: true };
