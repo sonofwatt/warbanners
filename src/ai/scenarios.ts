@@ -1,5 +1,5 @@
 // Small hand-built positions the AI tests share. Test support, not game code.
-import type { MatchState } from '../engine';
+import type { FactionId, HexKey, MatchState, UnitTypeId } from '../engine';
 import { key, parseKey, range, visibleTiles } from '../engine';
 import { addCity, addUnit, blankMatch, setTile } from '../engine/testkit';
 
@@ -123,4 +123,21 @@ export function pipersTaunt(): MatchState {
   addUnit(s, 'horseman', 1, 0, -1);
   for (const p of s.players) p.gold = 0;
   return finish(s);
+}
+
+// rules 11: a Woodland city (player 0) and a forest at 2,1, one tile off its land; a Mongol unit of
+// player 1, to move, at (q, r). Every tile is explored, so no guessed terrain plays a part. `rival` swaps the city's owner
+// to another faction, whose units do not hide in forests, for the comparison. `skirmisher` adds a Woodland Skirmisher
+// hidden on the forest (its id is the last, so the Mongol unit's id does not change).
+export function forestByWoodland(opts: {
+  type: UnitTypeId; q: number; r: number; hp?: number; rival?: FactionId; skirmisher?: boolean;
+}): { state: MatchState; unit: number; forest: HexKey } {
+  const s = blankMatch({ factions: [opts.rival ?? 'woodland', 'mongols'] });
+  addCity(s, 0, 0, 3);
+  addCity(s, 1, 0, -3);
+  s.current = 1;
+  setTile(s, 2, 1, { terrain: 'forest' });
+  const unit = addUnit(s, opts.type, 1, opts.q, opts.r, opts.hp === undefined ? undefined : { hp: opts.hp }).id;
+  if (opts.skirmisher === true) addUnit(s, 'skirmisher', 0, 2, 1);
+  return { state: s, unit, forest: key({ q: 2, r: 1 }) };
 }

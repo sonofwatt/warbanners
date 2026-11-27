@@ -1,6 +1,8 @@
-import { RULES_VERSION, startTech, key, mirror, parseKey, playerView, range } from '../engine';
-import type { HexKey, MatchState, Player, PlayerId, Tile } from '../engine';
+import { FACTIONS, RULES_VERSION, startTech, key, mirror, parseKey, playerView, range } from '../engine';
+import type { HexKey, MatchState, Player, PlayerId, TechId, Tile } from '../engine';
 import type { AiInput, Rival } from './types';
+
+const ARCHERY_BELIEF_TURNS = 4;    // rules 11: a Woodland rival this many turns in is believed to know Archery
 
 // The only AI function that reads a real match state. It copies out what the player could know.
 export function aiInputFor(state: MatchState, player: PlayerId): AiInput {
@@ -24,14 +26,18 @@ function guessTile(input: AiInput, k: HexKey): Tile {
 
 // A playable engine state rebuilt from the input: unknown tiles are guessed, unseen units are absent. rules 11: the
 // player's own snares are copied in (the view holds no other), so its planning knows where they are; absent when none.
+// A rival is believed to know only its starting tech, except that a Woodland rival (a faction that hides in forests)
+// with ARCHERY_BELIEF_TURNS turns taken is believed to know Archery too, so its Skirmishers are costed as shooting.
 export function believedState(input: AiInput): MatchState {
   const tiles: Record<HexKey, Tile> = {};
   for (const h of range({ q: 0, r: 0 }, input.radius)) tiles[key(h)] = guessTile(input, key(h));
   const players: Player[] = [];
   players[input.me] = structuredClone(input.self);
   for (const r of input.rivals) {
+    const techs: TechId[] = [startTech(r.faction)];
+    if (FACTIONS[r.faction].forestHidden && r.turnsTaken >= ARCHERY_BELIEF_TURNS && !techs.includes('archery')) techs.push('archery');
     players[r.id] = {
-      id: r.id, faction: r.faction, gold: 0, techs: [startTech(r.faction)], explored: [],
+      id: r.id, faction: r.faction, gold: 0, techs, explored: [],
       alive: r.alive, turnsTaken: r.turnsTaken,
     };
   }

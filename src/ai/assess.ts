@@ -3,7 +3,7 @@ import {
   CONFIG, FACTIONS, UNITS, ambushes, attackOf, blockadeLoss, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, isHidden, key,
   maxHpOf, maxMp, mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
-import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
+import type { City, Hex, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
 
 const WARRIOR_DEF = 3;            // danger is measured against a Warrior's defence
@@ -165,6 +165,81 @@ export function threatOn(b: MatchState, me: PlayerId, danger: DangerMap, u: Unit
   return coverHidden(b, u) ? Math.min(danger[u.pos] ?? 0, hiddenDanger(b, me, u.pos)) : danger[u.pos] ?? 0;
 }
 
+// rules 11, ambushes (spec section 7): where a Woodland rival may lie hidden, from the believed state alone. A forest
+// tile is "unseen" when the AI cannot see units on it: it is not in the AI's visible set, or it is, but no own unit
+// (not blinded) or own city stands within CONFIG.hiddenRevealRange of it, so a Woodland unit there would stay hidden. A
+// tile with a seen unit on it is never unseen (nothing else can stand there). Unexplored tiles count by their guessed
+// terrain. For each rival whose faction hides in forests (the Woodland Nations), an unseen forest counts when it lies
+// within RISK_NEAR of that rival's territory (its seen cities' tiles) or of one of its units the AI sees now. The risky
+// tiles are those within RISK_NEAR of such a forest. Without such a rival both sets are empty.
+export const RISK_NEAR = 2;
+export const RISK_WEIGHT = 0.6;     // per share of lost health, for a unit ending on a risky tile
+export const WEAK_RISK = 0.3;       // and this much more for a unit with defence 2 or less
+export const REVEAL_CREDIT = 0.2;   // a sturdy unit ending next to an unseen forest, which it reveals
+const STURDY_HP = 15;
+const STURDY_DEF = 4;
+const WEAK_DEF = 2;
+
+export interface Risk { forests: ReadonlySet<HexKey>; tiles: ReadonlySet<HexKey> }
+
+export function riskOf(b: MatchState, me: PlayerId): Risk {
+  const forests = new Set<HexKey>();
+  const tiles = new Set<HexKey>();
+  const rivals = b.players.filter((p) => p !== undefined && p.id !== me && p.alive && FACTIONS[p.faction].forestHidden);
+  if (rivals.length === 0) return { forests, tiles };
+  const visible = visibleTiles(b, me);
+  const occupied = new Set(b.units.map((u) => u.pos));
+  const spotters = [
+    ...b.units.filter((u) => u.owner === me && !u.blinded).map((u) => parseKey(u.pos)),
+    ...b.cities.filter((c) => c.owner === me).map((c) => parseKey(c.pos)),
+  ];
+  const near: Hex[] = [];            // rival territory tiles and seen rival units
+  const ids = new Set(rivals.map((p) => p.id));
+  const rivalCities = new Set(b.cities.filter((c) => ids.has(c.owner)).map((c) => c.id));
+  for (const [k, t] of Object.entries(b.tiles)) if (t.cityId !== null && rivalCities.has(t.cityId)) near.push(parseKey(k));
+  for (const u of b.units) if (ids.has(u.owner)) near.push(parseKey(u.pos));
+  if (near.length === 0) return { forests, tiles };
+  for (const [k, t] of Object.entries(b.tiles)) {
+    if (t.terrain !== 'forest' || occupied.has(k)) continue;
+    const at = parseKey(k);
+    if (visible.has(k) && spotters.some((h) => distance(h, at) <= CONFIG.hiddenRevealRange)) continue;
+    if (!near.some((h) => distance(h, at) <= RISK_NEAR)) continue;
+    forests.add(k);
+    for (const h of range(at, RISK_NEAR)) if (b.tiles[key(h)] !== undefined) tiles.add(key(h));
+  }
+  return { forests, tiles };
+}
+
+// The tiles within RISK_NEAR of an unseen forest a Woodland rival may hide in (riskOf).
+export function riskyTiles(b: MatchState, me: PlayerId): Set<HexKey> {
+  return new Set(riskOf(b, me).tiles);
+}
+
+// What the risk makes of the own unit u standing on `at`: minus RISK_WEIGHT times its share of lost health and minus
+// WEAK_RISK for a weak unit on a risky tile; plus REVEAL_CREDIT for a sturdy unit next to an unseen forest.
+function riskAt(risk: Risk, u: Unit, at: HexKey): number {
+  let v = 0;
+  const def = UNITS[u.type].def;
+  if (risk.tiles.has(at)) v -= RISK_WEIGHT * (1 - u.hp / maxHpOf(u)) + (def <= WEAK_DEF ? WEAK_RISK : 0);
+  if (u.hp >= STURDY_HP && def >= STURDY_DEF) {
+    const there = parseKey(at);
+    // next to the forest, not on it: a step onto it would be refused if a hidden unit stands there
+    for (const f of risk.forests) {
+      if (distance(parseKey(f), there) === 1) { v += REVEAL_CREDIT; break; }
+    }
+  }
+  return v;
+}
+
+// The risk term of a move of u to `to`: by where the move ends only, not as a change from where u stands, so a unit
+// already on a risky tile earns no credit for leaving it. (The change was tried: the seeded Woodland playouts in
+// woodland.test.ts then cast no smoke.) Tune in Task 19.
+export function riskScore(ctx: Ctx, u: Unit, to: HexKey): number {
+  const risk = ctx.risk;
+  if (risk === undefined || (risk.tiles.size === 0 && risk.forests.size === 0)) return 0;
+  return riskAt(risk, u, to);
+}
+
 export interface Objective {
   at: HexKey;
   kind: 'village' | 'enemyCity' | 'enemyCapital' | 'treasure' | 'explore' | 'defend';
@@ -232,6 +307,7 @@ export interface Ctx {
   me: PlayerId; skill: Skill; persona: Persona;
   danger: DangerMap; goals: Objective[];
   hurt: Set<number>;               // enemy unit ids hit this turn (read by the planner)
+  risk?: Risk;                     // rules 11: where a Woodland rival may hide (riskOf); moveScore reads it, absent is none
 }
 
 // An own city with no unit on its tile that a seen enemy could walk into next turn (full movement,
@@ -419,6 +495,7 @@ export function moveScore(b: MatchState, ctx: Ctx, unitId: number, to: HexKey, m
   const after = b.units.map((x) => (x.id === unitId ? moved : x));
   let score = unitTerms(b, ctx, moved, lazyVisible({ ...b, units: after }, ctx.me)) - unitTerms(b, ctx, u, lazyVisible(b, ctx.me));
   score += ctx.persona.formation * (formationTotal(b, after, ctx.me) - formationTotal(b, b.units, ctx.me));
+  score += riskScore(ctx, u, to);
   for (const c of b.cities) {
     if (c.pos === u.pos || c.pos === to) score -= exposureCost({ ...b, units: after }, ctx, c) - exposureCost(b, ctx, c);
   }

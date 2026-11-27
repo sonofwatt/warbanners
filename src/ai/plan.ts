@@ -1,13 +1,13 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
-  ABILITIES, CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
+  ABILITIES, CONFIG, FACTIONS, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
   canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, dashTargets, defenceOf, distance, maxHpOf, harvestRefusal, key,
   lureApplies, neighbors, normalRange, parseKey, reachable, restHealAt, roadRefusal, rngInt, techPrice, trainRefusal, unitCapacity, unitCost,
   unitsOf, visibleTiles, wallsRefusal,
 } from '../engine';
 import type { AbilityId, Action, BuildingId, City, GameEvent, Hex, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import {
-  GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, strikeEstimate, tauntCredit, unitValue,
+  GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, riskOf, strikeEstimate, tauntCredit, unitValue,
   unitWorth, valueOf,
 } from './assess';
 import type { Ctx } from './assess';
@@ -158,15 +158,19 @@ class TurnPlanner {
   private readonly pledged = new Map<number, number>();
   // The persona the unit mix reads: its counter weight grows with the skill, exactly as given at normal.
   private readonly mixPersona: Persona;
+  // rules 11: a live rival's units hide in forests (the Woodland Nations), so the planner weighs risky tiles
+  private readonly hidingRival: boolean;
 
   constructor(input: AiInput, private readonly opts: PlanOpts) {
     this.b = believedState(input);
     this.me = input.me;
+    this.hidingRival = input.rivals.some((r) => r.alive && FACTIONS[r.faction].forestHidden);
     const persona = PERSONAS[input.self.faction];
     this.ctx = {
       me: this.me, skill: skillFor(opts.dial), persona,
       danger: dangerMap(this.b, this.me), goals: objectives(this.b, this.me, persona), hurt: new Set(),
     };
+    this.refreshRisk();
     this.mixPersona = { ...persona, counter: persona.counter * this.ctx.skill.focus / NORMAL_FOCUS };
     this.work = this.ctx.skill.evals - 1;
     this.refused = new Set(opts.refused.map(actionKey));
@@ -231,6 +235,14 @@ class TurnPlanner {
       this.ctx.danger = dangerMap(this.b, this.me);
       this.ctx.goals = objectives(this.b, this.me, this.ctx.persona);
     }
+    this.refreshRisk();
+  }
+
+  // rules 11: what the planner sees changes with every step, so the risky tiles are worked out again after each action.
+  // Only against a rival that hides in forests; otherwise ctx.risk stays absent and no score changes.
+  private refreshRisk(): void {
+    if (!this.hidingRival) return;
+    this.ctx.risk = riskOf(this.b, this.me);
   }
 
   private endTurn(): void {
