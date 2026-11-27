@@ -9,8 +9,8 @@ import type { Surface, V3 } from './kit';
 import { BLOOD, crack, dent, dirt, discPoly, ell, groundDrops, scratches, smear, spear, tearPolys, worn } from './parts';
 import type { Cut } from './parts';
 import type { Look, Wear } from './parts';
-import { bareFace, crestBrush, fineDecal, GT, helmBroken, metalEdge, plate, tornEdge, vivid } from './grittyToon';
-import { drape, drapeSurf, flank, grittyHorse, HEAD_RINGS, loftPoint, loftSheet, NECK_RINGS, section, tearLine } from './grittyHorse';
+import { bareFace, crestBrush, GT, helmBroken, metalEdge, plate, tornEdge, vivid } from './grittyToon';
+import { drape, drapeSurf, flank, grittyHorse, HEAD_RINGS, loftPoint, loftSheet, NECK_RINGS, patch, section, tearLine } from './grittyHorse';
 import type { Coat } from './grittyHorse';
 import {
   ARROW, DRAW_BACK, fist, HEAD_C, HEAD_R, HUNCH, lapSkirt, MOUNT_YAW, neck, RIDER, RIDER_YAW, riderArm, riderLegs, SEAT,
@@ -213,7 +213,6 @@ export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
     k.pivot(RIDER, SEAT, () => {
       // Mail under a surcoat in the owner's colour, belted; steel on the shoulders.
       lapSkirt(k, c.main, { r0: 5.8 });
-      torso(k, MAIL);
       torso(k, c.main, { grow: 1.04 });
       const front = torsoFront(0.22, 1.04);
       k.line([0, 22.8, 0, 30.4], 1.2, c.accent, front);
@@ -427,7 +426,7 @@ function guardBarding(k: Kit, c: Look, w: Wear): void {
   const ds = drapeSurf(OFF + 0.02);
   const colX = (i: number): number => X0 + ((X1 - X0) * i) / NX;
   const gone = (x: number, y: number): boolean => broken && x > colX(3) && x < colX(6) && y < 13.4;
-  lamellae(k, ds, X0 + 0.4, X1 - 0.4, [18.6, 16.6, 14.6, 12.6, 10.8], lace, 1.7, gone);
+  lamellae(k, ds, X0 + 0.4, X1 - 0.4, [18.6, 16.6, 14.6, 12.6, 10.8], lace, 2.1, gone);
   for (let i = 0; i < NX; i++) if (!(broken && i >= 2 && i <= 6)) k.line([colX(i), 10.0, colX(i + 1), 10.0], 0.55, GT.GOLD_EDGE, ds);
   if (broken) tearLine(k, ds, [colX(3), 10.2, colX(3) + 1.0, 12.8, colX(4) + 0.5, 13.6, colX(5) + 0.4, 13.2, colX(6) - 1.0, 12.6, colX(6), 10.2], plates);
   if (worn(w, 3)) for (const [x, y, a] of [[4.4, 11.2, 0.4], [-10.6, 11.6, -0.3]] as const) k.box([x, y, (section(x).w + OFF + 0.4)], [1.5, 2.0, 0.3], plates, { rot: [0, 0, a], hull: 0.4 });
@@ -514,10 +513,9 @@ export function grittyKhansGuard(k: Kit, { look: c, wear: w }: RiderOpts): Shado
       }
       // A deel under lamellar armour lacquered in the owner's colour, gold at the edges, a fur collar.
       lapSkirt(k, plates, { r0: 6.1, y0: 17.4 });
-      torso(k, c.dark);
       torso(k, plates, { grow: 1.06, gloss: 0.4 });
       const ls = torsoFront(0.26, 1.06);
-      lamellae(k, ls, -4.6, 4.6, [29.2, 27.4, 25.6, 23.8, 22.0], lace, 1.3);
+      lamellae(k, ls, -4.6, 4.6, [29.2, 27.4, 25.6, 23.8, 22.0], lace, 1.5);
       k.frustum([0, 0, 0], 21.0, 22.0, 4.5, 4.4, GT.GOLD_EDGE, { sz: 0.8, seg: 10, open: true, hull: 0.5, gloss: 0.6 });
       k.frustum([0, 0, 0], 19.0, 21.0, 4.7, 4.5, GT.LEATHER_DARK, { sz: 0.8, seg: 10, open: true, hull: 0.5 });
       k.box([0, 20.0, 3.7], [1.6, 1.4, 0.5], GT.GOLD_EDGE, { gloss: 0.6, hull: 0.4 });
@@ -593,9 +591,9 @@ export function grittySkyCaller(k: Kit, { look: c, wear: w }: RiderOpts): Shadow
     // The piebald's big dark patches.
     const fl = flank(0.05);
     const PIE = '#5E4532';
-    fineDecal(k, [-13.2, 15.4, -11.4, 18.8, -8.0, 19.4, -6.0, 16.8, -6.8, 13.2, -9.4, 11.6, -12.2, 12.4], PIE, fl, 1.2, 0.08);
-    fineDecal(k, [3.4, 13.8, 5.8, 15.2, 8.0, 13.0, 7.2, 10.2, 4.6, 10.4], PIE, fl, 1.2, 0.08);
-    fineDecal(k, [-5.8, 9.6, -3.4, 10.4, -1.4, 9.2, -3.2, 8.2], PIE, fl, 1.2, 0.08);
+    patch(k, [-13.2, 15.4, -11.4, 18.8, -8.0, 19.4, -6.0, 16.8, -6.8, 13.2, -9.4, 11.6, -12.2, 12.4], PIE, fl, 2.2, 0.08);
+    patch(k, [3.4, 13.8, 5.8, 15.2, 8.0, 13.0, 7.2, 10.2, 4.6, 10.4], PIE, fl, 2.2, 0.08);
+    patch(k, [-5.8, 9.6, -3.4, 10.4, -1.4, 9.2, -3.2, 8.2], PIE, fl, 2.2, 0.08);
     riderLegs(k, { thigh: c.main, boot: FELT_BOOT, upturned: true }, w);
     frameDrum(k, c, w);
   });

@@ -12,7 +12,7 @@
 //   and, once the cap is lost, a shaved crown with a forelock.
 import { Quaternion, TorusGeometry, Vector3 } from 'three';
 import { CylinderGeometry } from 'three';
-import { Kit, mix } from './kit';
+import { H, Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
 import { bareFace, GT, headFront } from './grittyToon';
 import type { FaceOpts } from './grittyToon';
@@ -29,7 +29,7 @@ export const RIDER = 'rider';
 export const WEAPON = 'weapon';
 export const ARROW = 'arrow';
 /** The rider's pivot: the Bright rider's seat, in the rider's turn. */
-export const SEAT: V3 = [0, 17.8, 0.6];
+export const SEAT: V3 = [0, H(-10), 0.6];
 /** The axis about which a positive turn tips the rider toward the horse's head (as figures.ts). */
 export const HUNCH: V3 = [-Math.sin(MOUNT_YAW - RIDER_YAW), 0, -Math.cos(MOUNT_YAW - RIDER_YAW)];
 /** About the vertical: a drawing hand comes back toward the shoulder. */

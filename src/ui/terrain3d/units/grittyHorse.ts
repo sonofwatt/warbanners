@@ -17,7 +17,7 @@
 //   the saddle cloth's hem torn, the breast collar snapped; broken, the near rein snapped and the cloth half torn
 //   away (gone for good: scarred keeps it gone); blood on the shoulder, flank and a foreleg (more at 2, and on the
 //   neck); scarred, pale healed scars where the hair grew back white.
-import { BufferGeometry, Float32BufferAttribute, TorusGeometry, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, ShapeUtils, TorusGeometry, Vector2, Vector3 } from 'three';
 import { Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
 import { BLOOD, dirt, drip, ell, heavy, helmBroken, LEGS, NECK, NECK_AT, smear, worn } from './parts';
@@ -483,6 +483,41 @@ function saddle(k: Kit, hc: Coat, tack: Tack, w: Wear): void {
   } else strap(k, chest, 0.42, leather, 0.4);
   if (!worn(w, 3) && !tack.noCloth) k.ball(bodyPoint(10.0, 1.2, 0.5), 0.75, metal, { detail: 0, hull: 0.4, gloss: 0.5 });
   if (hc.stripe) k.line([-13.4, 15.4 + 5.3, -9.6, 20.5, -6.0, 19.6, -4.4, 19.3], 0.7, hc.stripe, (x, y) => ({ p: bodyPoint(x, 0, 0.05), n: [0, 1, 0] }));
+}
+
+/**
+ * A large mark finely cut to follow a curved surface (a piebald's patch): the outline densified, triangulated, and
+ * split until no edge is longer than `step`, so its middle lies on the surface rather than cutting through it.
+ */
+export function patch(k: Kit, poly: readonly number[], colour: string, surf: Surface, step: number, lift = 0.08): void {
+  const contour: Vector2[] = [];
+  for (let i = 0; i + 1 < poly.length; i += 2) {
+    const a = new Vector2(poly[i]!, poly[i + 1]!), j = (i + 2) % poly.length, b = new Vector2(poly[j]!, poly[j + 1]!);
+    const n = Math.max(1, Math.ceil(a.distanceTo(b) / step));
+    for (let t = 0; t < n; t++) contour.push(a.clone().lerp(b, t / n));
+  }
+  if (ShapeUtils.isClockWise(contour)) contour.reverse();
+  const out: Vector2[][] = [];
+  const split = (t: Vector2[], depth: number): void => {
+    const [a, b, c] = t as [Vector2, Vector2, Vector2];
+    const ab = a.distanceTo(b), bc = b.distanceTo(c), ca = c.distanceTo(a), m = Math.max(ab, bc, ca);
+    if (m <= step || depth > 5) { out.push(t); return; }
+    if (m === ab) { const d = a.clone().lerp(b, 0.5); split([a, d, c], depth + 1); split([d, b, c], depth + 1); }
+    else if (m === bc) { const d = b.clone().lerp(c, 0.5); split([a, b, d], depth + 1); split([a, d, c], depth + 1); }
+    else { const d = c.clone().lerp(a, 0.5); split([a, b, d], depth + 1); split([d, b, c], depth + 1); }
+  };
+  for (const t of ShapeUtils.triangulateShape(contour, [])) split(t.map((i) => contour[i]!), 0);
+  const pos: number[] = [], nor: number[] = [];
+  for (const t of out) {
+    const vs = t.map((v) => { const s = surf(v.x, v.y); return { p: new Vector3(s.p[0] + s.n[0] * lift, s.p[1] + s.n[1] * lift, s.p[2] + s.n[2] * lift), n: s.n }; });
+    const face = vs[1]!.p.clone().sub(vs[0]!.p).cross(vs[2]!.p.clone().sub(vs[0]!.p));
+    if (face.dot(new Vector3(...vs[0]!.n)) < 0) vs.reverse();
+    for (const v of vs) { pos.push(v.p.x, v.p.y, v.p.z); nor.push(...v.n); }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new Float32BufferAttribute(nor, 3));
+  k.add(g, colour, { hull: 0 }, true);
 }
 
 /** The torn edge of cloth: a dark ragged line, cloth-coloured shadow beside it. */
