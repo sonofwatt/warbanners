@@ -54,7 +54,7 @@ export interface Tack {
   saddle?: string;
   /** Metal fittings: the bit rings, the breast collar's boss (default iron). */
   metal?: string;
-  /** No saddle cloth (a caparison covers the horse instead). */
+  /** No saddle cloth and no breast collar (a caparison or barding covers the horse instead). */
   noCloth?: boolean;
 }
 
@@ -289,7 +289,7 @@ function sagged(a: V3, b: V3, sag: number, n = 4): V3[] {
   return out;
 }
 
-function headAndNeck(k: Kit, hc: Coat, tack: Tack, w: Wear, extra?: () => void): void {
+function headAndNeck(k: Kit, hc: Coat, tack: Tack, w: Wear, o: HorseOpts): void {
   loft(k, NECK_RINGS, 9, hc.coat);
   loft(k, HEAD_RINGS, 8, hc.coat);
   // The ears, pricked forward a little.
@@ -311,7 +311,7 @@ function headAndNeck(k: Kit, hc: Coat, tack: Tack, w: Wear, extra?: () => void):
   k.rod(hp(0.8, 2.3, 0.05), hp(0.97, 2.0, 0.05), 0.16, '#2A1A12', { seg: 3, hull: 0 });
   if (hc.blaze) for (let i = 0; i < 3; i++) k.rod(hp(0.18 + i * 0.24, 0, 0.02), hp(0.38 + i * 0.24, 0, 0.02), 0.62 - i * 0.08, hc.blaze, { seg: 4, hull: 0, caps: false });
   // The mane: a combed crest of hair along the top of the neck, falling to the near side, and the forelock.
-  mane(k, hc, w);
+  if (!o.noMane) mane(k, hc, w);
   // The bridle: headstall, browband, noseband, throatlatch, bit rings; reins back to the saddle.
   const strapC = tack.saddle ?? LEATHER_DARK, metal = tack.metal ?? IRON;
   for (const s of [-1, 1]) strap(k, [hp(0.12, s * 0.2), hp(0.2, s * 1.4), hp(0.5, s * 1.55), hp(0.8, s * 1.75)], 0.3, strapC);
@@ -341,29 +341,36 @@ function headAndNeck(k: Kit, hc: Coat, tack: Tack, w: Wear, extra?: () => void):
   if (worn(w, 2)) for (const [x0, y0, x1, y1] of [[8.2, 25.0, 9.6, 23.4], [7.0, 21.8, 8.4, 20.4]] as const) k.line([x0, y0, x1, y1], 0.32, mix(hc.coat, '#FFFFFF', 0.45), neckS);
   if (w.scarred === true && w.blood === 0) k.line([8.0, 24.2, 8.8, 22.6, 9.0, 21.2], 0.45, mix(hc.coat, '#F2E8DA', 0.6), neckS);
   if (heavy(w)) smear(k, neckS, 8.4, 24.8, 0.2, -1, 4.0, 1.3);
-  extra?.();
+  o.neck?.();
 }
 
-function mane(k: Kit, hc: Coat, w: Wear): void {
-  const deep = mix(hc.mane, '#000000', 0.3), light = mix(hc.mane, '#FFFFFF', 0.14);
-  // The mane: combed locks laid over the top of the neck and falling down its near side, a saw-toothed edge of
-  // lock tips. Battered, a hank of it is hacked short.
-  const N = 8, t0 = 0.02, t1 = 0.97;
+export interface SheetOpts {
+  t0: number; t1: number;
+  /** The top edge's angle (far side, negative) and the bottom edge's per column boundary (near side). */
+  far: number;
+  near: (j: number) => number;
+  /** The lift off the loft at angle u. */
+  lift: (u: number) => number;
+  cols: number; rows: number;
+  /** The colour of column i. */
+  colour: (i: number) => string;
+  hull?: number; gloss?: number;
+}
+
+/** A sheet laid over a loft (a mane, a crinet, a chanfron): columns along it, rows round it, one sided, outward. */
+export function loftSheet(k: Kit, rings: readonly Ring[], o: SheetOpts): void {
   const centre = (t: number): Vector3 => {
-    const { i, f } = ringAt(NECK_RINGS, t);
-    return new Vector3(...NECK_RINGS[i]!.at).lerp(new Vector3(...NECK_RINGS[i + 1]!.at), f);
+    const { i, f } = ringAt(rings, t);
+    return new Vector3(...rings[i]!.at).lerp(new Vector3(...rings[i + 1]!.at), f);
   };
-  for (let i = 0; i < N; i++) {
-    const ta = t0 + ((t1 - t0) * i) / N, tb = t0 + ((t1 - t0) * (i + 1)) / N;
-    const hacked = worn(w, 3) && (i === 3 || i === 4);
-    const bottom = (j: number): number => (hacked ? 0.45 : j % 2 === 0 ? 1.0 : 1.5);
-    const rows = 3;
+  const pt = (t: number, u: number): Vector3 => new Vector3(...loftPoint(rings, t, u, o.lift(u)));
+  for (let i = 0; i < o.cols; i++) {
+    const ta = o.t0 + ((o.t1 - o.t0) * i) / o.cols, tb = o.t0 + ((o.t1 - o.t0) * (i + 1)) / o.cols;
+    const ba = o.near(i), bb = o.near(i + 1);
     const pos: number[] = [];
-    const pt = (t: number, u: number): Vector3 => new Vector3(...loftPoint(NECK_RINGS, t, u, 0.25 + 0.9 * Math.max(0, Math.cos(u * 1.2))));
-    for (let r = 0; r < rows; r++) {
-      const ua = (b: number): number => -0.55 + ((b + 0.55) * r) / rows, ub = (b: number): number => -0.55 + ((b + 0.55) * (r + 1)) / rows;
-      const ba = bottom(i), bb = bottom(i + 1);
-      const a = pt(ta, ua(ba)), b = pt(ta, ub(ba)), c = pt(tb, ua(bb)), d = pt(tb, ub(bb));
+    for (let r = 0; r < o.rows; r++) {
+      const u = (b: number, rr: number): number => o.far + ((b - o.far) * rr) / o.rows;
+      const a = pt(ta, u(ba, r)), b = pt(ta, u(ba, r + 1)), c = pt(tb, u(bb, r)), d = pt(tb, u(bb, r + 1));
       for (const tri of [[a, b, d], [a, d, c]] as const) {
         const m = tri[0].clone().add(tri[1]).add(tri[2]).multiplyScalar(1 / 3);
         const out = m.clone().sub(centre((ta + tb) / 2));
@@ -374,8 +381,21 @@ function mane(k: Kit, hc: Coat, w: Wear): void {
     }
     const g = new BufferGeometry();
     g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-    k.add(g, i % 3 === 1 ? deep : i % 3 === 2 ? light : hc.mane, { hull: 0.55 });
+    k.add(g, o.colour(i), { hull: o.hull ?? 0.55, gloss: o.gloss ?? 0.1 });
   }
+}
+
+function mane(k: Kit, hc: Coat, w: Wear): void {
+  const deep = mix(hc.mane, '#000000', 0.3), light = mix(hc.mane, '#FFFFFF', 0.14);
+  // The mane: combed locks laid over the top of the neck and falling down its near side, a saw-toothed edge of
+  // lock tips. Battered, a hank of it is hacked short.
+  const hacked = (j: number): boolean => worn(w, 3) && (j === 4);
+  loftSheet(k, NECK_RINGS, {
+    t0: 0.02, t1: 0.97, far: -0.55, cols: 8, rows: 3,
+    near: (j) => (hacked(j) ? 0.45 : j % 2 === 0 ? 1.0 : 1.5),
+    lift: (u) => 0.25 + 0.9 * Math.max(0, Math.cos(u * 1.2)),
+    colour: (i) => (i % 3 === 1 ? deep : i % 3 === 2 ? light : hc.mane),
+  });
   // The forelock over the brow.
   k.slab([-0.9, 0.6, 0.9, 0.6, 1.0, -1.6, 0.3, -3.0, -0.4, -2.0, -1.0, -2.6], 0.9, hc.mane, [12.6, 31.8, 0.3], [0.2, 0.15, -0.9], { hull: 0.5 });
 }
@@ -456,12 +476,12 @@ function saddle(k: Kit, hc: Coat, tack: Tack, w: Wear): void {
   // The breast collar: round the chest from the saddle, a boss in the middle. Battered, snapped and hanging.
   const metal = tack.metal ?? IRON;
   const chest = [bodyPoint(3.6, 1.25, 0.25), bodyPoint(6.8, 1.55, 0.3), bodyPoint(9.0, 1.4, 0.3), bodyPoint(10.6, 0.9, 0.3), [11.2, 13.4, 0] as V3];
-  if (worn(w, 3)) {
+  if (tack.noCloth) { /* under the barding */ } else if (worn(w, 3)) {
     strap(k, chest.slice(0, 2), 0.42, leather, 0.4);
     const end = chest[1]!;
     strap(k, [end, [end[0] + 0.4, end[1] - 2.6, end[2] + 0.3]], 0.42, leather, 0.4);
   } else strap(k, chest, 0.42, leather, 0.4);
-  if (!worn(w, 3)) k.ball(bodyPoint(10.0, 1.2, 0.5), 0.75, metal, { detail: 0, hull: 0.4, gloss: 0.5 });
+  if (!worn(w, 3) && !tack.noCloth) k.ball(bodyPoint(10.0, 1.2, 0.5), 0.75, metal, { detail: 0, hull: 0.4, gloss: 0.5 });
   if (hc.stripe) k.line([-13.4, 15.4 + 5.3, -9.6, 20.5, -6.0, 19.6, -4.4, 19.3], 0.7, hc.stripe, (x, y) => ({ p: bodyPoint(x, 0, 0.05), n: [0, 1, 0] }));
 }
 
@@ -475,6 +495,10 @@ export function tearLine(k: Kit, s: Surface, pts: readonly number[], cloth: stri
 export interface HorseOpts {
   /** Extra parts on the neck and head (the NECK piece): a crinet, a chanfron, a plume. */
   neck?: () => void;
+  /** Barding covers the flank: its marks (mud, scratches, cuts, blood, scars) go on the barding instead. */
+  covered?: boolean;
+  /** No mane (a crinet covers the neck). */
+  noMane?: boolean;
 }
 
 /**
@@ -503,9 +527,10 @@ export function grittyHorse(k: Kit, hc: Coat, tack: Tack, w: Wear, o: HorseOpts 
   const sh = mix(hc.coat, '#000000', 0.2);
   k.line([7.0, 17.6, 6.0, 13.8, 6.6, 10.6], 0.35, sh, flank(0.06));
   k.line([-8.0, 18.0, -10.4, 15.6], 0.3, sh, flank(0.06));
-  k.pivot(NECK, NECK_AT, () => headAndNeck(k, hc, tack, w, o.neck));
+  k.pivot(NECK, NECK_AT, () => headAndNeck(k, hc, tack, w, o));
   saddle(k, hc, tack, w);
   // Wear on the flank: mud low on the belly, scratches, a scabbed cut, blood; healed scars.
+  if (o.covered) return;
   const fl = flank(0.06);
   if (worn(w, 1)) { dirt(k, fl, -5.4, 9.8, 4.4, hc.coat); dirt(k, fl, 6.6, 9.6, 3.4, hc.coat); }
   const pale = mix(hc.coat, '#FFFFFF', 0.45);
