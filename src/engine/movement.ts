@@ -103,7 +103,9 @@ function explore(s: MatchState, u: Unit): Map<HexKey, { left: number; open: bool
       if (!firstStep && left < (CONFIG.terrain.forest.enterCost ?? 0)) return null;
       return { cost: left, forced: true };
     }
-    return { cost: CONFIG.terrain[terrain as keyof typeof CONFIG.terrain].enterCost ?? left, forced: false };
+    // rules 11: a forest costs a forest-striding faction's units a field's cost
+    const cover = terrain === 'forest' && faction.forestStride ? 'field' : terrain;
+    return { cost: CONFIG.terrain[cover as keyof typeof CONFIG.terrain].enterCost ?? left, forced: false };
   };
   for (;;) {
     let cur: { k: HexKey; open: boolean; left: number } | null = null;

@@ -557,6 +557,17 @@ Mongols
 - A veiled unit (`veilUntil`, set by Smoke Keeper rules in a later section) is hidden
   on any terrain through the stamp it names, and not after it.
 
+### 15.5 Forest stride
+
+- A forest costs a Woodland unit what a field costs (2 half-points, one tile of movement), not 4. This
+  holds for every unit a Woodland player owns, shared types such as the Horseman included, because the
+  faction has it, not the unit type. A Woodland Horseman (move 2, 4 half-points) crosses two forests in a
+  row; a Spartan one stops after the first.
+- Nothing else changes. Roads and cities cost what they always do, engagement still ends a move beside an
+  enemy, a mountain still needs `prospecting`, and fog still limits where a move may pass.
+- Spartans and Mongols keep the forest cost of section 9, and the Mongol rule that a mounted unit entering a
+  forest loses the rest of its move.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both
