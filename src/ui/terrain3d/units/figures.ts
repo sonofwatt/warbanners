@@ -661,17 +661,20 @@ function piper(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
 }
 
 /**
- * The rings the scout's cloak is laid on, top to hem (world units in his turn): the height, the centre (x, z), the
- * reach to each side (rx: toward -x, where it sweeps out behind him, then toward +x) and back (rz), and how far round
- * it goes each way from straight behind (radians: toward -x, his trailing side, and toward +x, his dagger side, where
- * it stops short of the arm and the front knee).
- * The hem's height is given per point instead (SCOUT_HEM).
+ * The rings the scout's hood and cloak are laid on, from the crown to the hem (world units in his turn): the height,
+ * the centre (x, z), the reach to each side (rx: toward -x, where the cloak sweeps out behind him, then toward +x) and
+ * back (rz), and how far round each ring goes from straight behind (radians: toward -x, his trailing side, and toward
+ * +x, his dagger side). The top two rings are the cowl, close round the head and open at the face; the next wraps his
+ * shoulders toward the chest, above the dagger arm; below it the cloak stops short of the arm and the front knee on
+ * the dagger side and wraps forward on the other. The hem's height is given per point instead (SCOUT_HEM).
  */
 const SCOUT_CLOAK: readonly { y: number; c: [number, number]; rx: [number, number]; rz: number; from: number; to: number }[] = [
-  { y: 21.6, c: [0.6, -0.6], rx: [6.0, 6.0], rz: 4.8, from: -1.75, to: 1.66 },
-  { y: 16.0, c: [0, -0.5], rx: [10.2, 7.0], rz: 5.4, from: -1.75, to: 1.57 },
-  { y: 10.0, c: [-2.0, -0.8], rx: [12.0, 8.8], rz: 6.0, from: -1.71, to: 1.40 },
-  { y: 0, c: [-4.0, -1.2], rx: [10.6, 9.4], rz: 6.6, from: -1.66, to: 1.13 },
+  { y: 29.0, c: [2.2, 0.8], rx: [4.6, 4.6], rz: 4.6, from: -2.25, to: 2.25 },
+  { y: 24.2, c: [2.0, 0.2], rx: [6.8, 6.6], rz: 6.4, from: -2.3, to: 2.15 },
+  { y: 19.6, c: [0.6, -0.4], rx: [8.0, 7.4], rz: 5.6, from: -2.35, to: 2.0 },
+  { y: 15.5, c: [-0.4, -0.6], rx: [10.4, 11.2], rz: 5.8, from: -2.3, to: 1.5 },
+  { y: 10.0, c: [-2.0, -0.8], rx: [12.0, 12.2], rz: 6.0, from: -2.2, to: 1.35 },
+  { y: 0, c: [-4.0, -1.2], rx: [10.6, 11.6], rz: 6.6, from: -2.0, to: 1.3 },
 ];
 /** The hem's height at each of the cloak's nine points round it (from -x round to +x): torn points between notches. */
 const SCOUT_HEM = [2.6, 6.4, 3.6, 7.2, 4.4, 6.8, 3.4, 7.6, 5.2];
@@ -686,6 +689,12 @@ function scoutCloak(k: Kit, colour: string, rags: boolean): void {
     return [ring.c[0] + ring.rx[a < 0 ? 0 : 1] * Math.sin(a), y, ring.c[1] - ring.rz * Math.cos(a)];
   }));
   k.shell(rows, 0.8, colour, [0, -0.5]);
+  // A rolled edge round the face, from one shoulder up over the brow and down to the other, so the cowl reads as a
+  // hood and not as hair.
+  const last = hem.length - 1;
+  const brow: V3 = [2.2, 28.4, 5.7];
+  const edge: V3[] = [rows[2]![0]!, rows[1]![0]!, rows[0]![0]!, brow, rows[0]![last]!, rows[1]![last]!, rows[2]![last]!];
+  for (let i = 0; i + 1 < edge.length; i++) k.rod(edge[i]!, edge[i + 1]!, 0.75, mix(colour, '#000000', 0.25), { seg: 5 });
 }
 
 function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
@@ -704,13 +713,12 @@ function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     const ts = (x: number, y: number) => tunicSurf(0.3)(x, y);
     if (worn(w, 1)) dirt(k, ts, 2.6, H(-3.4), 3.6, c.dark);
     if (worn(w, 3)) { const [lip, gap] = tearPolys(1.6, H(-9.4), 3.4, 3.0); k.decal(lip, mix(c.main, '#000000', 0.45), ts); k.decal(gap, SKIN, ts); }
-    // The hooded cloak in the owner's dark colour: from under the hood it wraps his shoulders and back and sweeps
-    // out behind him (toward -x) as it falls, its hem torn into points (in rags when broken).
+    // The hooded cloak in the owner's dark colour: a soft cowl round his head, open at the face, that falls onto his
+    // shoulders and back and sweeps out behind him (toward -x), its hem torn into points (in rags when broken).
     scoutCloak(k, c.dark, worn(w, 4));
     const hd = head(k, 2.2, -14.8, 5.4, 1.2, 0.6);
-    k.ball([hd.c[0] - 0.4, hd.c[1] + 0.3, hd.c[2] - 1.6], 6.4, c.dark, { detail: 1 });
+    // The crown of the cowl: a round cap over the head, inside the cloak's top ring.
     k.dome([hd.c[0], hd.c[1] + 0.6, hd.c[2] - 0.2], 5.95, c.dark, { to: 0.9, seg: 12 });
-    k.rod([hd.c[0] - 4, hd.c[1] + 2.6, hd.c[2] - 3], [hd.c[0] - 9.4, hd.c[1] + 6.8, hd.c[2] - 4.6], 2.6, c.dark, { r1: 0.2, seg: 6 });
     faceWear(k, hd, w, 1);
     // A short dagger held low and forward.
     arm(k, [4.2, H(-11), 1.4], [8.8, H(-8.2), 5.0], c.main);

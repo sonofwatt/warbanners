@@ -1,7 +1,7 @@
 // A 360 turntable of a 3D figure (contact sheet and GIF), stills at its side and back, its strike at four facings
 // and its walk (GIFs and a sheet of key frames), and a stretch of board at game zoom. Drawn by scripts/scout360/sheet.ts
 // through Vite's dev server in Chromium with software WebGL, the figure turned by the game's own facing.
-// Run: npx tsx scripts/scout360-shots.ts [out dir] [tag] [unit type]   (needs ffmpeg)
+// Run: [WEAR=4] npx tsx scripts/scout360-shots.ts [out dir] [tag] [unit type]   (needs ffmpeg)
 // The tag names the files (scout360-<tag>-sheet.png, scout360-<tag>.gif, <tag>-yaw090.png ...), so a run before a
 // change and one after can be set side by side.
 import { execFileSync } from 'node:child_process';
@@ -23,8 +23,8 @@ const BOX = { left: 27, right: 27, up: 38, down: 12 };
 /** The turntable's steps (degrees) for the GIF, and the views on the contact sheet (two rows of four). */
 const STEP = 15;
 const SHEET = [0, 45, 90, 135, 180, 225, 270, 315];
-/** The views kept as stills for a before and after: one side, the back, the other side. */
-const STILLS = [90, 180, 270];
+/** The views kept as stills for a before and after: the front, a three-quarter view, the side and the back. */
+const STILLS = [330, 30, 90, 180];
 /** The strike's key moments (ms) for its sheet: rest, drawn back, the stab, the hold, coming back. */
 const STRIKE_KEYS = [200, 340, 420, 500, 640];
 const STRIKE_BOX = { left: 30, right: 30, up: 40, down: 14 };
@@ -41,7 +41,22 @@ const ff = (args: string[]): void => { execFileSync('ffmpeg', ['-y', '-loglevel'
 const gif = (pattern: string, fps: number, to: string): void =>
   ff(['-framerate', String(fps), '-i', pattern, '-vf', 'split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-loop', '0', to]);
 
-const server = await createServer({ logLevel: 'silent', server: { host: '127.0.0.1', port: 0 } });
+/**
+ * WEAR=n draws every figure at wear stage n (4 = broken: Gritty's rags), which the game never does on main: the dev
+ * server swaps the figures' CLEAN wear for it as it serves parts.ts. Nothing in src changes.
+ */
+const wearStage = Number(process.env.WEAR ?? 0);
+const CLEAN_LINE = 'export const CLEAN: Wear = { stage: 0, blood: 0 };';
+const wearPlugin = {
+  name: 'figure-wear',
+  enforce: 'pre' as const,
+  transform(code: string, id: string): string | null {
+    if (wearStage === 0 || !id.endsWith('/units/parts.ts')) return null;
+    if (!code.includes(CLEAN_LINE)) throw new Error('parts.ts no longer declares CLEAN as expected');
+    return code.replace(CLEAN_LINE, `export const CLEAN: Wear = { stage: ${wearStage}, blood: 0 };`);
+  },
+};
+const server = await createServer({ logLevel: 'silent', plugins: [wearPlugin], server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const addr = server.httpServer?.address();
 const port = typeof addr === 'object' && addr !== null ? addr.port : 0;
@@ -50,6 +65,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'scout360-'));
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
   page.on('pageerror', (e) => console.error(e));
+  page.on('console', (m) => { if (m.type() === 'error') console.error(m.text()); });
   await page.goto(`http://127.0.0.1:${port}/scripts/scout360/sheet.html`);
   await page.waitForSelector('body[data-ready="1"]', { state: 'attached', timeout: 60_000 });
 
