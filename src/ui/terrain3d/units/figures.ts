@@ -19,6 +19,7 @@ import { realCatapult } from './catapult3d';
 import { grittyDefender, grittySellsword, grittySpearman, grittySwordsman, grittyWarrior } from './grittyFoot';
 import { grittyCamp } from './grittyCamp';
 import { grittyArcher, grittyKingsGuard, grittyPiper, grittyScout } from './grittySpecials';
+import { grittyHorseArcher, grittyHorseman, grittyKhansGuard, grittyKnight, grittySkyCaller } from './grittyRiders';
 
 export type UnitType =
   | 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult' | 'sellsword'
@@ -47,6 +48,11 @@ const GRITTY_TOON_BUILDERS: Partial<Record<UnitType, (k: Kit, o: FigureOpts) => 
   piper: grittyPiper,
   scout: grittyScout,
   camp: grittyCamp,
+  horseman: grittyHorseman,
+  knight: grittyKnight,
+  horseArcher: grittyHorseArcher,
+  khansGuard: grittyKhansGuard,
+  skyCaller: grittySkyCaller,
 };
 export const REAL_TYPES: ReadonlySet<UnitType> = new Set<UnitType>(Object.keys(REAL_BUILDERS) as UnitType[]);
 /** The unit types with a figure of their own in Gritty (realistic or toon). */
