@@ -294,6 +294,7 @@ const ui = {
   momentumBlurb: 'Spent on kills: a kill gives one more attack while there is momentum to pay for it. It comes back each turn.',
   rangeOnMountain: (n: number) => `${n} (mountain)`,
   rangeForestEye: (n: number) => `${n} (forest eye)`,   // rules 11
+  rangeWithArchery: (n: number) => `${n}, ${n + 1} with Archery`,   // rules 11: a rival's bow unit, its techs unknown
   climbMountains: 'Climbing mountains',
   harvestedTag: 'harvested',   // rules 8
   rowTop: 'Army', rowBottom: 'Land', branchLater: 'Boats and more come later.',

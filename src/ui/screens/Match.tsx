@@ -279,7 +279,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       const thresholds = u.owner === viewer
         ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
       panel = (
-        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} rangeCause={rangeCauseOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
+        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} rangeCause={rangeCauseOf(believed, u, viewer)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
           commands={commands} onCommand={onCommand} />
       );
     }

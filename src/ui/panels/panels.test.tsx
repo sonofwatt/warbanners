@@ -344,3 +344,15 @@ test('rules 11: an enemy Skirmisher card never shows the AI guess of Archery as 
   const html = renderToStaticMarkup(<UnitPanel {...panelOf(seen, shown, false)} commands={[]} onCommand={noop} />);
   expect(html).toMatch(/Range<\/[^>]+>\s*<[^>]+>1</);
 });
+test('rules 11: a rival bow unit gives both ranges, since its owner\'s Archery is not known; your own gives one', () => {
+  const s = blankMatch({ factions: ['woodland', 'mongols'] });
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const u = addUnit(s, 'skirmisher', 0, 0, -2);
+  const seen = shownState(s, 1);
+  const shown = seen.units.find((x) => x.id === u.id)!;
+  expect(rangeCauseOf(seen, shown, 1)).toBe('archery');
+  const html = renderToStaticMarkup(<UnitPanel {...panelOf(seen, shown, false)} rangeCause={rangeCauseOf(seen, shown, 1)} commands={[]} onCommand={noop} />);
+  expect(html).toContain('1, 2 with Archery');
+  expect(rangeCauseOf(s, u, 0)).toBeNull();
+  expect(rangeCauseOf(s, addUnit(s, 'horseman', 1, 1, -2), 0)).toBeNull();
+});

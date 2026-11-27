@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, forestEyeReach, isHero, momentumStart, mountainReach } from '../../engine';
-import type { DeedId, FactionId, MatchState, Unit, statsOf } from '../../engine';
+import type { DeedId, FactionId, MatchState, PlayerId, Unit, statsOf } from '../../engine';
 import { BootIcon, HeartIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
 import { CardHead, Stats } from './Card';
@@ -20,11 +20,16 @@ export interface UnitPanelProps {
 
 // What adds reach to a unit's attacks where it stands, so the card labels the range by its cause: a mountain (rules 8)
 // or the forest eye (rules 11). A blinded unit has neither (its reach is the blinded reach). A Skirmisher's bow with
-// Archery is its normal range, so it gets no label.
-export type RangeCause = 'mountain' | 'forest' | null;
-export function rangeCauseOf(s: MatchState, u: Unit): RangeCause {
+// Archery is its normal range, so it gets no label. A rival's bow unit is 'archery': the viewer cannot know whether
+// its owner has Archery, so its card gives both ranges.
+export type RangeCause = 'mountain' | 'forest' | 'archery' | null;
+export function rangeCauseOf(s: MatchState, u: Unit, viewer?: PlayerId): RangeCause {
   if (u.blinded) return null;
-  return mountainReach(s, u) > 0 ? 'mountain' : forestEyeReach(s, u) > 0 ? 'forest' : null;
+  if (mountainReach(s, u) > 0) return 'mountain';
+  if (forestEyeReach(s, u) > 0) return 'forest';
+  const unknownArchery = viewer !== undefined && u.owner !== viewer && UNITS[u.type].traits.includes('bow')
+    && s.players[u.owner]?.techs.includes('archery') !== true;
+  return unknownArchery ? 'archery' : null;
 }
 
 // An enemy unit gets the same card with an empty command list.
@@ -51,7 +56,8 @@ export function UnitPanel({ unit, faction, look, stats, rangeCause = null, myth,
         { icon: <ShieldIcon />, label: T.ui.defence, value: stats.def },
         { icon: <BootIcon />, label: T.ui.movement, value: stats.move },
         { icon: <RangeIcon />, label: T.ui.range, value: rangeCause === 'mountain' ? T.ui.rangeOnMountain(stats.range)
-          : rangeCause === 'forest' ? T.ui.rangeForestEye(stats.range) : stats.range },   // rules 8 and 11
+          : rangeCause === 'forest' ? T.ui.rangeForestEye(stats.range)
+          : rangeCause === 'archery' ? T.ui.rangeWithArchery(stats.range) : stats.range },   // rules 8 and 11
       ]} />
       </div>
       <div className="card-more">
