@@ -98,3 +98,7 @@ buildings give their full growth). Same method: 100 matches each, both seatings.
 - Combining levers overshoots the Mongols pair (69.5%).
 - Still no setting puts the Spartans pair in the band without the Mongols pair leaving it. Nothing is committed to the
   rules; the choice is David's.
+
+**Decision (David, 2026-11-27): full growth.** `buildingGrowthCut` is 0 for the Woodland Nations. Against the
+Spartans 33.0% at normal and 21.0% at hard; against the Mongols 55.5% and 53.0%. The Spartans pair stays short of
+the band, a known hard matchup for now.

@@ -55,7 +55,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
     cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartLevel: 1,
     forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true,
     blockadeStores: false, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: false, mythTouch: false,
-    forestStride: true, forestHidden: true, harvestGold: 3, buildingGrowthCut: 1, championFromLevel: 4,
+    // buildingGrowthCut 0 (was 1 in the spec): David's call of 2026-11-27, full building growth for the Spartans pair
+    forestStride: true, forestHidden: true, harvestGold: 3, buildingGrowthCut: 0, championFromLevel: 4,
     replaces: { warrior: 'skirmisher', archer: 'woodlandHunter' },
   },
 });

@@ -29,7 +29,7 @@ describe('Woodland Nations data (rules 11)', () => {
   it('the faction', () => {
     expect(FACTIONS.woodland).toMatchObject({ startUnit: 'skirmisher', extraStartUnit: 'trapper', champion: 'warChief',
       support: 'smokeKeeper', cityCover: 1.5, canBuildWalls: true, growthExtra: 0, capitalStartLevel: 1, canBuildRoads: true,
-      forestStride: true, forestHidden: true, harvestGold: 3, buildingGrowthCut: 1, championFromLevel: 4,
+      forestStride: true, forestHidden: true, harvestGold: 3, buildingGrowthCut: 0, championFromLevel: 4,
       replaces: { warrior: 'skirmisher', archer: 'woodlandHunter' } });
     expect(FACTIONS.spartans).toMatchObject({ forestStride: false, forestHidden: false, harvestGold: 0, buildingGrowthCut: 0,
       championFromLevel: 5, replaces: {}, extraStartUnit: null });

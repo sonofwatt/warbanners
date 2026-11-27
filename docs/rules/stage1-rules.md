@@ -533,9 +533,9 @@ Mongols
 - Every harvest pays 3 gold back to a Woodland player, after its cost is paid. A harvest
   of any kind (orchard, cropland, game, jewels, fish) costs 2 and gives 1 growth as for
   everyone, so it nets +1 gold.
-- A building gives a Woodland city 1 less growth than its listed number, and never
-  less than 1: Farm, Lumber camp, Mine and Orchard 1, Market, upgrades 2. Costs and the
-  Market's +2 income are unchanged.
+- Buildings give a Woodland city their full growth, as for everyone. (The first draft
+  of rules 11 cut it by 1; the balance sims of 2026-11-27 showed that cut was why
+  Woodland cities fell behind, so it was dropped.)
 - A treasure's "unit" outcome gives a Woodland player a Skirmisher, not a Warrior.
   The other outcomes are unchanged (section 12).
 
@@ -761,7 +761,7 @@ This list, the one above and the one below are the file's changelog.
 The Woodland Nations, a third faction (section 15). Spartans and Mongols play as before.
 
 - The start: a Skirmisher and a Trapper, Trapping known, a level 1 capital (section 15.1).
-- Economy: a harvest pays 3 gold back; a building gives 1 less growth, never below 1; a treasure's unit
+- Economy: a harvest pays 3 gold back; buildings give their full growth; a treasure's unit
   outcome is a Skirmisher (section 15.2).
 - Rewards: a champion (War Chief) or support (Smoke Keeper) from city level 4 on, with no income or
   growth reward, in place of level 5 (section 15.3).

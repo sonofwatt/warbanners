@@ -52,13 +52,13 @@ describe('Woodland building growth', () => {
     return { t, growth: cityById(t, 0)!.growth };
   };
 
-  test('a Woodland building gives 1 less growth, never below 1', () => {
+  test('a Woodland building gives its full growth, as everyone\'s does', () => {
     expect(CONFIG.buildings.farm.growth).toBe(2);
     expect(CONFIG.buildings.lumberCamp.growth).toBe(2);
     expect(CONFIG.buildings.market.growth).toBe(3);
-    expect(growthAfter(['woodland', 'mongols'], 'farm').growth).toBe(1);
-    expect(growthAfter(['woodland', 'mongols'], 'market').growth).toBe(2);
-    expect(growthAfter(['woodland', 'mongols'], 'lumberCamp').growth).toBe(1);
+    expect(growthAfter(['woodland', 'mongols'], 'farm').growth).toBe(2);
+    expect(growthAfter(['woodland', 'mongols'], 'market').growth).toBe(3);
+    expect(growthAfter(['woodland', 'mongols'], 'lumberCamp').growth).toBe(2);
     expect(growthAfter(['mongols', 'spartans'], 'farm').growth).toBe(2);
   });
 
