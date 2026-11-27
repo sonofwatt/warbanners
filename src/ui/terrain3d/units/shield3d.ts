@@ -33,7 +33,7 @@ export function vivid(hex: string): string {
  * so it follows the surface rather than cutting through it (a shield's dome, the helmet's opening).
  */
 let fineCount = 0;
-export function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, step: number, lift = 0.1): void {
+export function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, step: number, lift = 0.1, clip?: (x: number, y: number) => [number, number]): void {
   const contour: Vector2[] = [];
   // Densify the outline first.
   for (let i = 0; i + 1 < poly.length; i += 2) {
@@ -56,6 +56,9 @@ export function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, ste
     else { const d = c.clone().lerp(a, 0.5); split([a, b, d], depth + 1); split([d, b, c], depth + 1); }
   };
   for (const t of tris) split(t.map((i) => contour[i]!), 0);
+  // Clipped to what is there: every corner beyond the surface's edge is moved onto the edge, so the mark ends cleanly
+  // along it (a triangle wholly beyond it flattens to nothing on the edge).
+  if (clip) for (const t of flat) for (const v of t) { const [x, y] = clip(v.x, v.y); v.set(x, y); }
   const up = lift + Math.min(0.2, 0.006 * fineCount++);
   const pos: number[] = [], nor: number[] = [];
   for (const t of flat) {
@@ -203,6 +206,21 @@ function shield(k: Kit, c: Look, w: Wear, nu = SNU): void {
     const [px, py] = chipped(x, y, cuts, jag);
     return new Vector3(px, py, shieldZ(Math.hypot(px, py)) - (back ? 0.75 : 0));
   };
+  const NV = 12;
+  const yMax = SR * 0.97;
+  /** Broken: where the break runs at height y (the same jagged line the rows of what is left start from). */
+  const breakAt = (y: number): number => {
+    const f = Math.min(NV, Math.max(0, ((y + yMax) / (2 * yMax)) * NV)), j = Math.min(NV - 1, Math.floor(f)), u = f - j;
+    const xb = (jj: number): number => { const yy = -yMax + (2 * yMax * jj) / NV; return Math.min(Math.sqrt(Math.max(0, SR * SR - yy * yy)) - 0.6, -SR * 0.24 + JAG[jj % JAG.length]!); };
+    return xb(j) + (xb(j + 1) - xb(j)) * u;
+  };
+  /** A point of the face moved onto what is still there: in from the break, in from a chip out of the rim. */
+  const there = (x: number, y: number): [number, number] => {
+    let px = broken ? Math.max(x, breakAt(y) + 0.3) : x, py = y;
+    const r = Math.hypot(px, py), svg = ((-Math.atan2(py, px) * 180) / Math.PI + 360) % 360;
+    for (const ct of cuts) if (svg >= ct.from && svg <= ct.to && r > ct.inner - 0.4) { const f = (ct.inner - 0.4) / r; px *= f; py *= f; }
+    return [px, py];
+  };
   if (!broken) {
     // Whole (or chipped): a disc in rings, the outer ring at the rim's edge.
     const pt = (i: number, j: number, back: boolean): Vector3 => {
@@ -212,25 +230,25 @@ function shield(k: Kit, c: Look, w: Wear, nu = SNU): void {
     shell(k, { nu, nv: SRINGS.length - 1, wrapU: true, front: (i, j) => pt(i, j, false), back: (i, j) => pt(i, j, true), inside: new Vector3(0, 0, -6) },
       BRONZE, SHIELD_BACK, BRONZE_DARK, { gloss: 0.5 });
   } else {
-    // Broken: about half is gone. What is left runs from a jagged break near the middle to the right rim, in rows.
-    const NV = 16, ACROSS = [0, 0.18, 0.36, 0.52, 0.66, 0.78, 0.87, 0.93, 0.97, 1.0];
-    const yMax = SR * 0.97;
+    // Broken: nearly half is gone. What is left runs from a jagged break left of the middle to the right rim, in rows.
+    const ACROSS = [0, 0.22, 0.42, 0.6, 0.76, 0.88, 0.96, 1.0];
     const pt = (i: number, j: number, back: boolean): Vector3 => {
       const y = -yMax + (2 * yMax * j) / NV;
       const xr = Math.sqrt(Math.max(0, SR * SR - y * y));
-      const xb = Math.min(xr - 0.6, -SR * 0.1 + JAG[j % JAG.length]!);
+      const xb = Math.min(xr - 0.6, -SR * 0.24 + JAG[j % JAG.length]!);
       return at(xb + (xr - xb) * ACROSS[i]!, y, back, 0.25 * (j % 2 ? 1 : -1));
     };
     shell(k, { nu: ACROSS.length - 1, nv: NV, front: (i, j) => pt(i, j, false), back: (i, j) => pt(i, j, true), inside: new Vector3(0, 0, -6) },
       BRONZE, SHIELD_BACK, mix(BRONZE_DARK, BRONZE_LIT, 0.35), { gloss: 0.5 });
   }
-  // The rim's darker band and the owner's mark, a chevron; broken, only its right stroke is left.
+  // The rim's darker band and the owner's mark, a chevron, clipped to whatever of the face is left.
   const ring: number[] = [];
   for (let i = 0; i <= 28; i++) { const a = (i / 28) * Math.PI * 2; ring.push(Math.cos(a) * SR * 0.895, Math.sin(a) * SR * 0.895); }
   if (!worn(w, 3)) k.line(ring, 0.22, BRONZE_DARK, shieldSurf);
   const mark = vivid(c.main);
-  const lam = broken ? [0.6, 5.0, 4.8, -5.6, 2.6, -5.6, 0.6, -0.8] : [0, 6.6, 5.2, -5.6, 2.7, -5.6, 0, 0.9, -2.7, -5.6, -5.2, -5.6];
-  fineDecal(k, lam, mark, shieldSurf, 2.0, 0.08);
+  const lam = [0, 6.6, 5.2, -5.6, 2.7, -5.6, 0, 0.9, -2.7, -5.6, -5.2, -5.6];
+  const damaged = cuts.length > 0;
+  fineDecal(k, lam, mark, shieldSurf, damaged ? 1.4 : 2.0, 0.08, damaged ? there : undefined);
   shieldWear(k, w);
 }
 

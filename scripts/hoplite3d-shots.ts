@@ -33,15 +33,17 @@ try {
     console.log(join(out, name));
   };
   // Gritty's Hoplite (the detailed toon): large, broken, its stages, its head close up, beside the Bright one.
-  await run('m-plume-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('m2-broken-face.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
-  await run('m3-stages.png', [
+  await run('n-plume-large.png', [hop('', w(0))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('n2-broken-face.png', [hop('', w(4, 2))], 14, 1, { cellW: 46, rowH: 72 });
+  await run('n3-stages.png', [
     hop('clean', w(0)), hop('scuffed', w(1)), hop('dented', w(2)), hop('battered', w(3)), hop('battered + blood', w(3, 1)),
     hop('broken + blood', w(4, 1)), hop('broken + more blood', w(4, 2)), hop('healed, scarred', w(1, 0, true)), hop('scarred, wounded again', w(3, 1, true)),
   ], 4.2, 9, { cellW: 40, rowH: 76 });
-  await run('m5-helmet-close.png', [
+  await run('n5-helmet-close.png', [
     { ...hop('clean, front', w(0)), aim: [-4, 30] }, hop('clean', w(0)), hop('broken, bleeding', w(4, 2)), hop('healed, scarred', w(1, 0, true)),
   ], 22, 4, { cellW: 22, rowH: 26, dy: -21 });
+  // The broken shield, front on (turned to face the viewer), and the chipped one.
+  await run('n6-shield-broken.png', [{ ...hop('broken', w(4, 2)), aim: [-4, 30] }, { ...hop('battered', w(3)), aim: [-4, 30] }, { ...hop('broken, Mongols', w(4, 0), 'mongols'), aim: [-4, 30] }], 12, 3, { cellW: 32, rowH: 40, dy: -8 });
   await run('g-bright-vs-gritty-hoplite.png', [hop('Bright', w(0), 'spartans', false), hop('Gritty', w(0)), hop('Bright, broken', w(4, 2), 'spartans', false), hop('Gritty, broken', w(4, 2))], 7, 2, { cellW: 44, rowH: 74 });
   await run('e-sides-and-crouch.png', [
     hop('Spartans', w(0)), hop('Mongols', w(0), 'mongols'), hop('hunkered', w(0), 'spartans', true, true), hop('broken, hunkered', w(4, 2), 'mongols', true, true),
