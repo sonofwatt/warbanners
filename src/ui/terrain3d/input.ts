@@ -2,7 +2,7 @@
 // board imports this file whether the option is on or off, so it must stay small and free of side effects.
 import type { BuildingId, City, FactionId, HexKey, Resource, Terrain, Tile } from '../../engine';
 import type { SceneItem, SceneTile } from '../board/scene';
-import { playerColour } from '../art/palette';
+import { mirrorSeat, seatColour } from '../art/palette';
 import { borderLines } from '../art/tiles';
 import { bordersKey, THICK_3D, tileCode } from './codes';
 
@@ -26,6 +26,7 @@ export interface GlTile {
   // buildings3d: the faction owning the land, for a market's awnings (null for every other tile, so a border that
   // moves never rebuilds a tile whose look does not show it), and a treasure drawn beside a unit standing on it.
   owner?: FactionId | null;
+  ownerMirror?: true;          // the market's owner is the second seat of a mirror match (its own awning colour)
   beside?: boolean;
   // tracks3d: a busy road's wear, for the ground shader (left out on a light road and every other tile).
   roadWear?: GlRoadWear;
@@ -36,7 +37,7 @@ export interface GlTile {
  */
 export interface GlRoadWear { road: number; edges: number }
 /** What a city shows in 3D. A reward waiting to be chosen (the star) stays in the svg, over everything. */
-export interface GlTown { faction: FactionId; level: number; capital: boolean; walls: boolean }
+export interface GlTown { faction: FactionId; level: number; capital: boolean; walls: boolean; mirror?: true }  // mirror: the second seat of a mirror match
 export interface GlMap {
   radius: number;
   tiles: Record<HexKey, GlTile>;
@@ -121,6 +122,7 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
       city: it.city !== null,
       town: townOf(it.city, factions),
       owner: t.building === 'market' && it.owner !== null ? factions[it.owner] ?? null : null,
+      ...(t.building === 'market' && it.owner !== null && mirrorSeat(factions, it.owner) ? { ownerMirror: true as const } : {}),
       beside: t.treasure && it.occupied,
     };
     const wear = it.city === null ? glRoadWearOf(it) : null;
@@ -128,7 +130,7 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
     if (it.veiled) veiled.push(it.key);
     const ownerFaction = it.owner === null ? undefined : factions[it.owner];
     if (ownerFaction !== undefined && it.borderEdges.length > 0) borders.push({
-      key: it.key, edges: [...it.borderEdges], colour: playerColour(ownerFaction).main,
+      key: it.key, edges: [...it.borderEdges], colour: seatColour(factions, it.owner ?? 0).main,
       lines: borderLines(it.borderEdges).map(({ a, b }) => [a.x, a.y, b.x, b.y]),
     });
   }
@@ -157,7 +159,9 @@ export function glRoadWearOf(it: SceneTile): GlRoadWear | null {
 function townOf(city: City | null, factions: readonly FactionId[]): GlTown | null {
   if (city === null) return null;
   const faction = factions[city.owner];
-  return faction === undefined ? null : { faction, level: city.level, capital: city.capital, walls: city.walls };
+  if (faction === undefined) return null;
+  const town: GlTown = { faction, level: city.level, capital: city.capital, walls: city.walls };
+  return mirrorSeat(factions, city.owner) ? { ...town, mirror: true } : town;
 }
 
 

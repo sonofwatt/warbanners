@@ -1,7 +1,7 @@
 // Where the units' svg has each animating unit this frame, read from the svg itself, so the 3D figures (Board.tsx,
 // terrain3d/units) follow a slide, a lunge or a fall exactly. No three.js here; the DOM is touched only when called.
 import type { FactionId } from '../../engine';
-import { ACCENT, playerColour } from '../art/palette';
+import { seatAccent, seatColour } from '../art/palette';
 import type { UnitFall, UnitPose } from '../terrain3d/units/units3d';
 import { hexToBoard } from './layout';
 import { travelPhase } from './motion';
@@ -97,7 +97,8 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
     if (pose !== undefined) at.set(id, { ...pose, travel: p });
   }
   g.querySelectorAll('[data-fall]').forEach((el) => {
-    const faction = factions[Number(el.getAttribute('data-fall-owner'))];
+    const owner = Number(el.getAttribute('data-fall-owner'));
+    const faction = factions[owner];
     const k = el.getAttribute('data-fall-at');
     if (faction === undefined || k === null) return;
     let alpha = 0;
@@ -106,7 +107,7 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
     const p = hexToBoard(k);
     falls.push({
       key: `${el.getAttribute('data-fall-key') ?? ''}@${k}`, type: el.getAttribute('data-fall') as UnitFall['type'],
-      look: { ...playerColour(faction), accent: ACCENT[faction] },
+      look: { ...seatColour(factions, owner), accent: seatAccent(factions, owner) },
       x: p.x, y: p.y, angle: liveTransform(el)?.angle ?? 0, alpha: Math.min(1, alpha),
     });
   });

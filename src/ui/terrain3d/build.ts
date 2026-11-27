@@ -658,7 +658,7 @@ function propsFor(setup: Setup, c: { x: number; z: number }, height: (lx: number
   }
   if (setup.town !== null) out.push(...townParts(setup.town, c.x, c.z, height));
   if (setup.works !== null) out.push(...worksParts(setup.works, c.x, c.z, hash2(q * 1.7, r * 0.9)));
-  if (setup.building !== null) out.push(...buildingParts(setup.building, c.x, c.z, height, setup.t.owner ?? null));
+  if (setup.building !== null) out.push(...buildingParts(setup.building, c.x, c.z, height, setup.t.owner ?? null, setup.t.ownerMirror === true));
   if (setup.chest !== null) out.push(...chestPropParts(setup.chest, c.x, c.z, height(setup.chest.x, setup.chest.z)));
   for (const [x, z, size, sd] of setup.tufts) out.push(...res(tuft(c.x + x, height(x, z), c.z + z, size, sd)));
   for (const b of setup.bits) out.push(...bit(b, c.x + b.x, setup.t.terrain === 'water' ? 0 : height(b.x, b.z), c.z + b.z, bed(b.x, b.z)));

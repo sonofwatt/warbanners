@@ -9,7 +9,7 @@ import { HomeIcon } from '../icons';
 import { T, fill } from '../text';
 
 const KINDS: readonly (MatchKind | 'all')[] = ['all', 'computer', 'pass', 'online'];
-const FACTIONS: readonly (FactionId | 'all')[] = ['all', 'spartans', 'mongols'];
+const FACTIONS: readonly (FactionId | 'all')[] = ['all', 'spartans', 'mongols', 'woodland'];
 const LEVELS: readonly (AiLevel | 'any')[] = ['any', 'easy', 'normal', 'hard', 'adaptive'];
 const RECENT = 10;
 
@@ -101,7 +101,7 @@ export function Stats(): ReactElement {
       <Chips label={T.stats.player} id="stats-player" values={players} chosen={name} text={(v) => v} onPick={(v) => { setPicked(v); setAsking(false); }} />
       <Chips label={T.stats.kind} id="stats-kind" values={KINDS} chosen={filter.kind} text={(v) => T.stats.kinds[v]} onPick={(kind) => setFilter({ ...filter, kind, ai: kind === 'pass' ? 'any' : filter.ai })} />
       <Chips label={T.stats.faction} id="stats-faction" values={FACTIONS} chosen={filter.faction}
-        text={(v) => (v === 'all' ? T.stats.bothFactions : T.faction[v])} onPick={(faction) => setFilter({ ...filter, faction })} />
+        text={(v) => (v === 'all' ? T.stats.allFactions : T.faction[v])} onPick={(faction) => setFilter({ ...filter, faction })} />
       {filter.kind === 'pass' ? null : <Chips label={T.stats.ai} id="stats-ai" values={LEVELS} chosen={filter.ai}
         text={(v) => (v === 'any' ? T.stats.anyAi : T.ai.name[v])} onPick={(ai) => setFilter({ ...filter, ai })} />}
       {summary.played === 0 ? <p className="empty" data-testid="stats-none">{T.stats.noMatches}</p> : <Tiles s={summary} />}

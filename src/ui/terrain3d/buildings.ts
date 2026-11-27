@@ -17,7 +17,7 @@ import {
   OctahedronGeometry, Path, Shape, ShapeGeometry,
 } from 'three';
 import type { FactionId } from '../../engine';
-import { PLAYER_COLOURS } from '../art/palette';
+import { MIRROR_COLOUR, PLAYER_COLOURS } from '../art/palette';
 import { coloured } from './geom';
 import { SQUASH } from './layout';
 import { Kit, gable } from './town';
@@ -384,8 +384,8 @@ function sack(k: Kit): void {
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Every part of a tile building, standing on the ground. `owner`: the faction whose market it is, for its awnings. */
-export function buildingParts(plan: BuildingPlan, cx: number, cz: number, height: (lx: number, lz: number) => number, owner: FactionId | null): BufferGeometry[] {
-  const awning = owner === null ? B.market : PLAYER_COLOURS[owner].main;
+export function buildingParts(plan: BuildingPlan, cx: number, cz: number, height: (lx: number, lz: number) => number, owner: FactionId | null, mirror = false): BufferGeometry[] {
+  const awning = owner === null ? B.market : mirror ? MIRROR_COLOUR.main : PLAYER_COLOURS[owner].main;
   const out: BufferGeometry[] = [];
   for (const p of plan.pieces) out.push(...pieceOf(p, awning).done(cx + p.x, height(p.x, p.z), cz + p.z, p.rot, PIECE_SIZE[p.kind] ?? 1));
   return out;

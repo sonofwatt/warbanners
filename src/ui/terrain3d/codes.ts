@@ -14,8 +14,8 @@ export const THICK_3D = 45;
  * each tile's own), so a road's step rebuilds that tile and the roads it meets, whose edge wear changed with it.
  */
 export function tileCode(t: GlTile, wear = true): string {
-  const town = t.town === null ? '' : `[${t.town.faction[0]}${t.town.level}${t.town.capital ? 'C' : ''}${t.town.walls ? 'W' : ''}]`;
-  return `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}${t.beside === true ? 'b' : ''}${t.owner ? `(${t.owner[0]})` : ''}${town}${wear ? wearCode(t) : ''}`;
+  const town = t.town === null ? '' : `[${t.town.faction[0]}${t.town.level}${t.town.capital ? 'C' : ''}${t.town.walls ? 'W' : ''}${t.town.mirror ? 'M' : ''}]`;
+  return `${t.terrain[0]}${t.resource ?? '-'}${t.harvested ? 'h' : ''}${t.building ?? '-'}${t.village ? 'v' : ''}${t.treasure ? 't' : ''}${t.road ? 'r' : ''}${t.city ? 'c' : ''}${t.beside === true ? 'b' : ''}${t.owner ? `(${t.owner[0]}${t.ownerMirror ? 'M' : ''})` : ''}${town}${wear ? wearCode(t) : ''}`;
 }
 
 const wearCode = (t: GlTile): string => (t.roadWear === undefined ? '' : `~${t.roadWear.road}.${t.roadWear.edges}`);

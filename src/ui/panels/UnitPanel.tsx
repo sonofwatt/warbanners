@@ -7,16 +7,18 @@ import { CardHead, Stats } from './Card';
 import { CommandList } from './CommandList';
 import type { Command } from './commands';
 import { UnitPicture } from './Picture';
+import type { Look } from '../art/palette';
 
 export interface UnitPanelProps {
   unit: Unit; faction: FactionId; stats: ReturnType<typeof statsOf>; myth: boolean;
+  look?: Look;                                    // the owner's colours in this match (seatLook)
   braced?: boolean;                              // rules 7: a Hoplite with enough Hoplite mates beside it
   thresholds: Record<DeedId, number> | null;     // null for a unit the viewer does not own: its deeds stay hidden
   commands: Command[]; onCommand: (c: Command) => void;
 }
 
 // An enemy unit gets the same card with an empty command list.
-export function UnitPanel({ unit, faction, stats, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
+export function UnitPanel({ unit, faction, look, stats, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
   // rules 8: relay riding, a faction rule rather than a trait (mounted units only, where the faction says so)
@@ -29,7 +31,7 @@ export function UnitPanel({ unit, faction, stats, myth, braced = false, threshol
     <section className="panel unit-panel">
       <div className="card-peek">
       <CardHead
-        picture={<UnitPicture type={type} faction={faction} />} title={T.unit[type].name} faction={faction}
+        picture={<UnitPicture type={type} faction={faction} look={look} />} title={T.unit[type].name} faction={faction} tagColour={look?.colour.main}
         badge={isHero(unit) ? <span className="hero-badge">{T.ui.hero}</span> : null}
         actions={<CommandList commands={commands} onCommand={onCommand} />}
       />

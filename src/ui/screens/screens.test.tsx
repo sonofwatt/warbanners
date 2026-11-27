@@ -186,6 +186,17 @@ test('setup offers a person or the AI at four levels for the second seat', () =>
   // Choosing an AI hides the second name: src/browser/flow.test.ts taps it in a real browser.
 });
 
+test('setup gives each seat its own people, Spartans and Mongols at first, with the Woodland Nations to pick', () => {
+  const { store } = fakeStore();
+  const html = render(store, <Setup />);
+  const chosen = (seat: number): string[] => [...html.matchAll(new RegExp(`<button[^>]*aria-checked="true"[^>]*data-testid="faction-${seat}-(\\w+)"`, 'g'))].map((m) => m[1]!);
+  expect([chosen(0), chosen(1)]).toEqual([['spartans'], ['mongols']]);
+  for (const seat of [0, 1]) for (const f of ['spartans', 'mongols', 'woodland']) expect(html).toContain(`data-testid="faction-${seat}-${f}"`);
+  expect(html).toContain(`>${T.faction.woodland}<`);
+  expect(html).toContain(fill(T.ui.factionsLine, { a: T.ui.playerOne, fa: T.faction.spartans, b: T.ui.playerTwo, fb: T.faction.mongols }));
+  // Picking Woodland Nations for both seats and starting: src/browser/flow.test.ts taps it in a real browser.
+});
+
 test('setup has an Advanced section, closed at first, that opens in place', () => {
   const { store } = fakeStore();
   const html = render(store, <Setup />);

@@ -2,8 +2,8 @@ import type { ReactElement, ReactNode } from 'react';
 import type { BuildingId, FactionId, Resource, Terrain, Tile, UnitTypeId } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { CityMark } from '../art/features';
-import { ACCENT, playerColour } from '../art/palette';
-import type { Ground } from '../art/palette';
+import { factionLook } from '../art/palette';
+import type { Ground, Look } from '../art/palette';
 import { TileBase, groundFor } from '../art/tiles';
 import { TileArt } from '../board/Board';
 
@@ -19,14 +19,16 @@ function OnTile({ ground, children }: { ground: Ground; children?: ReactNode }):
   );
 }
 
-export function UnitPicture({ type, faction }: { type: UnitTypeId; faction: FactionId }): ReactElement {
-  return <OnTile ground="grass">{FIGURES[type]({ colour: playerColour(faction), accent: ACCENT[faction] })}</OnTile>;
+// `look`: the owner's colours in this match (the second seat of a mirror match has its own); the faction's if left out.
+export function UnitPicture({ type, faction, look }: { type: UnitTypeId; faction: FactionId; look?: Look }): ReactElement {
+  const l = look ?? factionLook(faction);
+  return <OnTile ground="grass">{FIGURES[type]({ colour: l.colour, accent: l.accent })}</OnTile>;
 }
 
-export function CityPicture({ faction, level, capital, walls }: { faction: FactionId; level: number; capital: boolean; walls: boolean }): ReactElement {
+export function CityPicture({ faction, level, capital, walls, look }: { faction: FactionId; level: number; capital: boolean; walls: boolean; look?: Look }): ReactElement {
   return (
     <OnTile ground="sand">
-      <CityMark faction={faction} colour={playerColour(faction)} level={level} capital={capital} walls={walls} pending={false} />
+      <CityMark faction={faction} colour={(look ?? factionLook(faction)).colour} accent={(look ?? factionLook(faction)).accent} level={level} capital={capital} walls={walls} pending={false} />
     </OnTile>
   );
 }

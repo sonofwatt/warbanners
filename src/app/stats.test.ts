@@ -163,6 +163,14 @@ describe('lines for a finished match', () => {
     expect(lines[0]).toMatchObject({ name: 'Ben', kind: 'online', ai: 'hard', won: false, opponent: { name: 'Hard AI' } });
     expect(linesFor(finished(newRecord('ROOM22', settings, ['Ann', 'Ben'], 0)), 'online', 0, 0)![0]).toMatchObject({ name: 'Ann', ai: null });
   });
+  test('a mirror match gives each seat its own line under the same people: one win and one loss', () => {
+    const mirror = { seed: 3, factions: ['woodland', 'woodland'] as ['woodland', 'woodland'] };
+    const lines = linesFor(finished(newRecord('m', mirror, ['Ann', 'Ben'], 0)), 'local', null, 0)!;
+    expect(lines.map(l => [l.name, l.faction, l.won])).toEqual([['Ann', 'woodland', true], ['Ben', 'woodland', false]]);
+    expect(lines.map(l => l.opponent?.faction)).toEqual(['woodland', 'woodland']);
+    const wood = { kind: 'all', faction: 'woodland', ai: 'any' } as const;
+    expect([summarize(lines, 'Ann', wood).wins, summarize(lines, 'Ben', wood).losses]).toEqual([1, 1]);
+  });
   test('an unfinished match gives no lines', () => {
     expect(linesFor(newRecord('m', settings, ['Ann', 'Ben'], 0), 'local', null, 0)).toBeNull();
   });

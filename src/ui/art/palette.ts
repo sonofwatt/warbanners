@@ -1,4 +1,4 @@
-import type { FactionId } from '../../engine';
+import type { FactionId, PlayerId } from '../../engine';
 
 export type Ground = 'grass' | 'water' | 'rock' | 'sand' | 'fog';
 
@@ -25,7 +25,34 @@ export const ACCENT: Record<FactionId, string> = {
   woodland: '#A4452C',
 };
 
-/** Stage 1: a player's colour is their faction's. */
+/** A faction's own colour: faction cards and pickers. A player on the board uses seatColour. */
 export function playerColour(faction: FactionId): { main: string; dark: string } {
   return PLAYER_COLOURS[faction];
 }
+
+/** The second player's colour in a mirror match, so the two sides never look alike. */
+export const MIRROR_COLOUR: { main: string; dark: string } = { main: '#6B3FA0', dark: '#4E2D77' };
+export const MIRROR_ACCENT = '#C9B6E4';
+
+/** Seat 1 in a match where both players lead the same faction. */
+export const mirrorSeat = (factions: readonly FactionId[], id: PlayerId): boolean =>
+  id === 1 && factions[0] !== undefined && factions[0] === factions[1];
+
+/** A player's colour: their faction's, except the second seat of a mirror match. */
+export function seatColour(factions: readonly FactionId[], id: PlayerId): { main: string; dark: string } {
+  const f = factions[id];
+  if (f === undefined) return PLAYER_COLOURS.spartans;
+  return mirrorSeat(factions, id) ? MIRROR_COLOUR : PLAYER_COLOURS[f];
+}
+
+/** A player's accent, paired with seatColour. */
+export function seatAccent(factions: readonly FactionId[], id: PlayerId): string {
+  const f = factions[id];
+  if (f === undefined) return ACCENT.spartans;
+  return mirrorSeat(factions, id) ? MIRROR_ACCENT : ACCENT[f];
+}
+
+/** How one player is drawn: their colour and accent (seatLook gives a match's player; lookOf a faction's own). */
+export interface Look { colour: { main: string; dark: string }; accent: string }
+export const seatLook = (factions: readonly FactionId[], id: PlayerId): Look => ({ colour: seatColour(factions, id), accent: seatAccent(factions, id) });
+export const factionLook = (f: FactionId): Look => ({ colour: PLAYER_COLOURS[f], accent: ACCENT[f] });

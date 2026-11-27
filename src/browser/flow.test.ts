@@ -357,6 +357,37 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
     }
   });
 
+  test('both seats pick the Woodland Nations: a mirror match, each curtain in its own colour', async () => {
+    const { page, close } = await openApp(SEED);
+    try {
+      await page.getByTestId('new-match').tap();
+      await page.getByTestId('faction-0-woodland').tap();
+      await page.getByTestId('faction-1-woodland').tap();
+      expect(await page.getByTestId('faction-0-woodland').getAttribute('aria-checked')).toBe('true');
+      expect(await page.getByTestId('faction-1-woodland').getAttribute('aria-checked')).toBe('true');
+      expect(await text(page, 'factions-line')).toBe('Player 1 leads the Woodland Nations. Player 2 leads the Woodland Nations.');
+      // The swap trades the two picks: Mongols and Woodland, then back.
+      await page.getByTestId('faction-1-mongols').tap();
+      await page.getByTestId('swap').tap();
+      expect(await page.getByTestId('faction-0-mongols').getAttribute('aria-checked')).toBe('true');
+      expect(await page.getByTestId('faction-1-woodland').getAttribute('aria-checked')).toBe('true');
+      await page.getByTestId('faction-0-woodland').tap();
+      await page.getByTestId('start').tap();
+      await page.getByTestId('pass').waitFor();
+      const curtain = (): Promise<string> => page.getByTestId('pass').evaluate((el) => getComputedStyle(el).backgroundColor);
+      const first = await curtain();
+      expect(await bodyText(page)).toContain('Woodland Nations');
+      await throughCurtain(page, 'Player 1');
+      await endTurnReady(page);
+      await page.getByTestId('end-turn').tap();
+      await page.getByTestId('pass').waitFor();
+      expect(await bodyText(page)).toContain('Woodland Nations');
+      expect(await curtain()).not.toBe(first);
+    } finally {
+      await close();
+    }
+  });
+
   test('choosing the AI hides the second name, and the match has no curtain', async () => {
     const { page, close } = await openApp(SEED);
     try {

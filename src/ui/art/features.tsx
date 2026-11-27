@@ -732,9 +732,10 @@ export function CityMark(p: {
   capital: boolean;
   walls: boolean;
   pending: boolean;
+  accent?: string; // the owner's accent in this match (seatAccent); the faction's if left out
 }): ReactElement {
   const ink = new Ink();
-  const accent = ACCENT[p.faction];
+  const accent = p.accent ?? ACCENT[p.faction];
   const count = Math.max(2, Math.min(MAX_BUILDINGS, Math.trunc(p.level) + 1));
   const order = SLOTS.slice(0, count)
     .map((s, slot) => ({ slot, x: s[0], y: s[1] }))

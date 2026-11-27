@@ -4,7 +4,7 @@ import { installAdvice } from '../../app/platform';
 import type { OnlineEntry } from '../../app/onlineList';
 import type { SaveSummary } from '../../app/saves';
 import { useApp } from '../../app/useApp';
-import { ACCENT, playerColour } from '../art/palette';
+import { ACCENT, playerColour, seatAccent, seatColour } from '../art/palette';
 import { BannerMark, BannerTile, InfoIcon } from '../icons';
 import { T, fill } from '../text';
 import { HomeScene } from './HomeScene';
@@ -25,8 +25,8 @@ function SaveRow({ save }: { save: SaveSummary }): ReactElement {
   return (
     <li className="save" data-testid="save">
       <div className="save-banners" aria-hidden="true">
-        <BannerMark colour={playerColour(fa)} accent={ACCENT[fa]} />
-        <BannerMark colour={playerColour(fb)} accent={ACCENT[fb]} />
+        <BannerMark colour={seatColour([fa, fb], 0)} accent={seatAccent([fa, fb], 0)} />
+        <BannerMark colour={seatColour([fa, fb], 1)} accent={seatAccent([fa, fb], 1)} />
       </div>
       <div className="save-text">
         <p className="save-names">{fill(T.ui.versusLine, { a, fa: T.faction[fa], b, fb: T.faction[fb] })}</p>
@@ -62,8 +62,8 @@ function OnlineRow({ entry }: { entry: OnlineEntry }): ReactElement {
   return (
     <li className="save online-row" data-testid="online-row">
       <div className="save-banners" aria-hidden="true">
-        <BannerMark colour={playerColour(fa)} accent={ACCENT[fa]} />
-        <BannerMark colour={playerColour(fb)} accent={ACCENT[fb]} />
+        <BannerMark colour={seatColour([fa, fb], 0)} accent={seatAccent([fa, fb], 0)} />
+        <BannerMark colour={seatColour([fa, fb], 1)} accent={seatAccent([fa, fb], 1)} />
       </div>
       <div className="save-text">
         <p className="save-names">{other === '' ? T.ui.onlineLobby : fill(T.ui.onlineWith, { name: other })}</p>

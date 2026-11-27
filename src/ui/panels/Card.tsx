@@ -10,10 +10,10 @@ import { T } from '../text';
 // description and anything else in `children` sits under that row, across the card's full width.
 // `corners`: small badges laid over the picture's bottom corners (a city's link to its capital, its level).
 export function CardHead(p: {
-  picture: ReactElement; title: string; faction?: FactionId; badge?: ReactNode; actions?: ReactNode; children?: ReactNode; corners?: ReactNode;
+  picture: ReactElement; title: string; faction?: FactionId; tagColour?: string; badge?: ReactNode; actions?: ReactNode; children?: ReactNode; corners?: ReactNode;
 }): ReactElement {
   const tag = p.faction === undefined ? null : (
-    <span className="tag" style={{ '--tag': playerColour(p.faction).main } as CSSProperties}>{T.faction[p.faction]}</span>
+    <span className="tag" style={{ '--tag': p.tagColour ?? playerColour(p.faction).main } as CSSProperties}>{T.faction[p.faction]}</span>
   );
   return (
     <header className="card-head">

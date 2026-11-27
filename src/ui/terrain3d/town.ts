@@ -7,7 +7,7 @@ import {
   OctahedronGeometry, Path, Shape,
 } from 'three';
 import type { FactionId } from '../../engine';
-import { ACCENT, PLAYER_COLOURS } from '../art/palette';
+import { ACCENT, MIRROR_ACCENT, MIRROR_COLOUR, PLAYER_COLOURS } from '../art/palette';
 import { coloured, repaint } from './geom';
 import { hash2 } from './layout';
 import { FURNACE, LANTERN, LANTERN_WALL, MINE } from './townLayout';
@@ -350,8 +350,8 @@ function woodpile(k: Kit): void {
 export function townParts(plan: TownPlan, cx: number, cz: number, height: (lx: number, lz: number) => number): BufferGeometry[] {
   const out: BufferGeometry[] = [];
   const faction: FactionId | null = plan.faction;
-  const colour = faction === null ? { main: TOWN.thatch, dark: TOWN.thatchDark } : PLAYER_COLOURS[faction];
-  const accent = faction === null ? TOWN.logEnd : ACCENT[faction];
+  const colour = faction === null ? { main: TOWN.thatch, dark: TOWN.thatchDark } : plan.mirror ? MIRROR_COLOUR : PLAYER_COLOURS[faction];
+  const accent = faction === null ? TOWN.logEnd : plan.mirror ? MIRROR_ACCENT : ACCENT[faction];
   const spartan = faction === 'spartans';
   for (const p of plan.pieces) out.push(...piece(p, colour, accent, spartan).done(cx + p.x, height(p.x, p.z), cz + p.z, p.rot));
   if (plan.banner !== null) out.push(...banner(colour, accent, plan.banner.h).done(cx + plan.banner.x, height(plan.banner.x, plan.banner.z), cz + plan.banner.z, 0));

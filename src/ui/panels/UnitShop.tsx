@@ -6,14 +6,15 @@ import { T } from '../text';
 import { Stats } from './Card';
 import type { Command } from './commands';
 import { UnitPicture } from './Picture';
+import type { Look } from '../art/palette';
 
 // A city's units to train: a row of pictures that scrolls sideways. Tapping one opens its card under the row (its
 // numbers, what it does and its traits) and puts its Train button in the city card's head (CityPanel); tapping it
 // again closes the card. A unit the city cannot train now stays in the row, faded, and its card says why.
 // `part`: the row alone (the top of the city card, shown collapsed) or the hint and picked unit's card alone (shown
 // when the city card is pulled up); both when left out.
-export function UnitShop({ commands, faction, picked, onPick, part }: {
-  commands: Command[]; faction: FactionId; picked: UnitTypeId | null; onPick: (t: UnitTypeId | null) => void;
+export function UnitShop({ commands, faction, look, picked, onPick, part }: {
+  commands: Command[]; faction: FactionId; look?: Look; picked: UnitTypeId | null; onPick: (t: UnitTypeId | null) => void;
   part?: 'strip' | 'details';
 }): ReactElement | null {
   if (commands.length === 0) return null;
@@ -31,7 +32,7 @@ export function UnitShop({ commands, faction, picked, onPick, part }: {
                 type="button" className={`shop-item${c.enabled ? '' : ' unready'}`} data-testid={`shop-${type}`}
                 aria-pressed={picked === type} onClick={() => onPick(picked === type ? null : type)}
               >
-                <span className="shop-picture"><UnitPicture type={type} faction={faction} />{c.enabled ? null : <LockIcon />}</span>
+                <span className="shop-picture"><UnitPicture type={type} faction={faction} look={look} />{c.enabled ? null : <LockIcon />}</span>
                 <span className="shop-name">{T.unit[type].name}</span>
                 <span className="cost"><CoinIcon />{c.cost}<span className="vh">{` ${T.ui.gold.toLowerCase()}`}</span></span>
               </button>

@@ -2,7 +2,7 @@
 // the option is on or off. The 3D chunk imports only its types, so the engine and the palette stay out of that chunk.
 import { isHero } from '../../engine';
 import type { FactionId, UnitTypeId } from '../../engine';
-import { ACCENT, playerColour } from '../art/palette';
+import { seatAccent, seatColour } from '../art/palette';
 import type { SceneItem } from '../board/scene';
 
 /** One unit figure as the 3D layer draws it: everything it shows, and where (the board point of its tile centre). */
@@ -41,7 +41,7 @@ export function glUnitsOf(items: readonly SceneItem[], factions: readonly Factio
     const faction = factions[u.owner];
     if (faction === undefined) continue; // the SVG draws nothing for it either
     units.push({
-      id: u.id, type: u.type, look: { ...playerColour(faction), accent: ACCENT[faction] }, hero: isHero(u),
+      id: u.id, type: u.type, look: { ...seatColour(factions, u.owner), accent: seatAccent(factions, u.owner) }, hero: isHero(u),
       x: it.at.x, y: it.at.y,
       spent: it.mine && it.spent,
       hunkered: u.hunkered,

@@ -6,7 +6,7 @@ import type { MatchRecord } from '../../app/record';
 import { cachedTallies } from '../../app/tally';
 import type { Tally } from '../../app/tally';
 import { useApp } from '../../app/useApp';
-import { ACCENT, playerColour } from '../art/palette';
+import { seatAccent, seatColour } from '../art/palette';
 import { BannerTile, HomeIcon } from '../icons';
 import { play } from '../sound';
 import type { SoundName } from '../sound';
@@ -64,7 +64,8 @@ export function Result(): ReactElement | null {
   const winner = record.players[state.winner]?.name ?? '';
   const faction = state.players[state.winner]!.faction;
   const adaptive = record.players.find((p) => p.kind === 'ai' && p.level === 'adaptive');
-  const colour = playerColour(faction);
+  const seats = state.players.map((x) => x.faction);
+  const colour = seatColour(seats, state.winner);
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
     <div className="screen result" style={style} data-testid="result">
@@ -74,7 +75,7 @@ export function Result(): ReactElement | null {
             <i key={i} className={`bit ${c}`} style={{ left: `${x}%`, top: `${y}%`, '--turn': `${turn}deg`, '--delay': `${i * 30}ms` } as CSSProperties} />
           ))}
         </div>
-        <BannerTile className="result-banner" colour={colour} accent={ACCENT[faction]} />
+        <BannerTile className="result-banner" colour={colour} accent={seatAccent(seats, state.winner)} />
         <h1 data-testid="winner">{fill(T.ui.wins, { name: winner })}</h1>
         <p className="result-faction">{T.faction[faction]}</p>
       </div>

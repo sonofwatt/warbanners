@@ -6,6 +6,8 @@ import { T, fill } from '../text';
 
 export interface HudProps {
   name: string; colour: string; faction: FactionId; gold: number; income: number; round: number;
+  /** The player's shade and accent when they are not the faction's own (the second seat of a mirror match). */
+  dark?: string; accent?: string;
   /** rules 8: the gold blockades will cut from the next income (0 or absent: none). */
   blockade?: number;
   thinking?: boolean;
@@ -18,8 +20,8 @@ export interface HudProps {
 }
 
 /** The player's colour and its shade, for the buttons drawn in it (End turn). */
-function playerStyle(colour: string, faction: FactionId): CSSProperties {
-  return { '--player': colour, '--player-dark': playerColour(faction).dark } as CSSProperties;
+function playerStyle(colour: string, faction: FactionId, dark?: string): CSSProperties {
+  return { '--player': colour, '--player-dark': dark ?? playerColour(faction).dark } as CSSProperties;
 }
 
 // The status with the player's name in a span of its own: one line, cut at its end when there is no room.
@@ -37,15 +39,15 @@ function statusParts(status: string, name: string | undefined): ReactElement | s
 // and the turn, and on the right the line about whose turn it is online or that the AI is thinking. The buttons
 // for playing the turn (Tech, Next unit, End turn) sit at the bottom of the screen (ActionBar).
 export function Hud(p: HudProps): ReactElement {
-  const colour = { main: p.colour, dark: playerColour(p.faction).dark };
+  const colour = { main: p.colour, dark: p.dark ?? playerColour(p.faction).dark };
   return (
-    <header className={p.clock !== undefined ? 'hud has-clock' : 'hud'} style={playerStyle(p.colour, p.faction)}>
+    <header className={p.clock !== undefined ? 'hud has-clock' : 'hud'} style={playerStyle(p.colour, p.faction, p.dark)}>
       <div className="hud-status">
         <div className="hud-who">
           <button type="button" className="tool menu-button" data-testid="open-menu" aria-label={T.ui.menu} onClick={p.onOpenMenu}>
             <MenuIcon />
           </button>
-          <BannerMark colour={colour} accent={ACCENT[p.faction]} />
+          <BannerMark colour={colour} accent={p.accent ?? ACCENT[p.faction]} />
           <span className="hud-name">
             <strong data-testid="who">{p.name}</strong>
             <small>{T.faction[p.faction]}</small>
@@ -101,7 +103,7 @@ export function Hud(p: HudProps): ReactElement {
 
 export interface ActionBarProps {
   barRef?: Ref<HTMLElement>;
-  colour: string; faction: FactionId;
+  colour: string; faction: FactionId; dark?: string;
   unitsToAct: number; techReady: boolean; endDisabled?: boolean; nextDisabled?: boolean;
   onOpenTech: () => void; onEndTurn: () => void; onNextUnit: () => void;
 }
@@ -112,7 +114,7 @@ export interface ActionBarProps {
 export function ActionBar(p: ActionBarProps): ReactElement {
   const act = p.unitsToAct === 0 ? T.ui.noUnitsCanAct : p.unitsToAct === 1 ? T.ui.oneUnitCanAct : fill(T.ui.unitsCanAct, { n: p.unitsToAct });
   return (
-    <nav ref={p.barRef} className="action-bar" data-testid="action-bar" aria-label={T.ui.turnActions} style={playerStyle(p.colour, p.faction)}>
+    <nav ref={p.barRef} className="action-bar" data-testid="action-bar" aria-label={T.ui.turnActions} style={playerStyle(p.colour, p.faction, p.dark)}>
       <button type="button" className="bar-button paper" data-testid="open-tech" onClick={p.onOpenTech}>
         <FlaskIcon />
         <span className="bar-label">{T.ui.techs}</span>

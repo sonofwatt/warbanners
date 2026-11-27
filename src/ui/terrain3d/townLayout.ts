@@ -39,6 +39,7 @@ export interface WallPlan {
 
 export interface TownPlan {
   faction: FactionId | null; // null: a neutral village
+  mirror?: true;             // the second seat of a mirror match: drawn in the mirror colours
   pieces: TownPiece[];
   /** The tall capital banner, standing beside the hall: foot x, z and the pole's height. */
   banner: { x: number; z: number; h: number } | null;
@@ -126,7 +127,7 @@ export function townPlan(town: GlTown, q: number, r: number): TownPlan {
   }
   const banner = town.capital ? { x: 9, z: -7, h: 40 } : null;
   const pennant = town.capital ? null : { x: HALL[0], y: hallH + 1, z: HALL[1] };
-  return { faction: town.faction, pieces, banner, pennant, walls: town.walls ? wallPlan() : null };
+  return { faction: town.faction, ...(town.mirror ? { mirror: true as const } : {}), pieces, banner, pennant, walls: town.walls ? wallPlan() : null };
 }
 
 /** A village: two humble huts and a woodpile, mirrored by the tile's turn. */

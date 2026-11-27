@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { AnimationEvent, ReactElement } from 'react';
 import type { FactionId, HexKey } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { ACCENT, playerColour } from '../art/palette';
+import { seatAccent, seatColour } from '../art/palette';
 import { EFFECT_MS, effectMs } from './effects';
 import type { Effect } from './effects';
 import { FIGURE_H, hexToBoard } from './layout';
@@ -98,7 +98,7 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
           if (faction === undefined) return null;
           body = (
             <g className="fx-fall" style={style} onAnimationEnd={end(i)} data-fall={f.unitType} data-fall-owner={f.owner} data-fall-at={f.at} data-fall-key={i}>
-              {FIGURES[f.unitType]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+              {FIGURES[f.unitType]({ colour: seatColour(p.factions, f.owner), accent: seatAccent(p.factions, f.owner) })}
             </g>
           );
         } else {

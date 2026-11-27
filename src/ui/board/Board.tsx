@@ -4,7 +4,7 @@ import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
-import { ACCENT, playerColour } from '../art/palette';
+import { seatAccent, seatColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { WarBanner } from '../art/banner';
@@ -212,7 +212,8 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
   return (
     <CityMark
       faction={faction}
-      colour={playerColour(faction)}
+      colour={seatColour(p.factions, p.city.owner)}
+      accent={seatAccent(p.factions, p.city.owner)}
       level={p.city.level}
       capital={p.city.capital}
       walls={p.city.walls}
@@ -292,10 +293,10 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
       {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
-        <Border edges={t.borderEdges} colour={playerColour(ownerFaction).main} />
+        <Border edges={t.borderEdges} colour={seatColour(p.factions, t.owner ?? 0).main} />
       ) : null}
       {ownerFaction !== undefined && t.cityEdges !== null ? (
-        <g data-city-land="true"><CityGlow id={`land-${t.key.replace(',', '_')}`} edges={t.cityEdges} colour={playerColour(ownerFaction).main} /></g>
+        <g data-city-land="true"><CityGlow id={`land-${t.key.replace(',', '_')}`} edges={t.cityEdges} colour={seatColour(p.factions, t.owner ?? 0).main} /></g>
       ) : null}
       {glow}
       {mark}
@@ -326,14 +327,14 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
           // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
           <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
             <g className={shown.shaded ? 'unit-shade spent' : 'unit-shade'}>
-              {isHero(unit) ? <HeroMark accent={ACCENT[faction]} /> : null}
-              {FIGURES[unit.type]({ colour: playerColour(faction), accent: ACCENT[faction] })}
+              {isHero(unit) ? <HeroMark accent={seatAccent(p.factions, unit.owner)} /> : null}
+              {FIGURES[unit.type]({ colour: seatColour(p.factions, unit.owner), accent: seatAccent(p.factions, unit.owner) })}
             </g>
           </g>
         )}
         <WarBanner
           type={unit.type}
-          colour={playerColour(faction)}
+          colour={seatColour(p.factions, unit.owner)}
           hp={unit.hp}
           maxHp={maxHp}
           spent={shown.shaded}

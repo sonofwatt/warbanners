@@ -36,7 +36,7 @@ import { Effects } from '../board/Effects';
 import { claimsOf, effectsFor, seenBy } from '../board/effects';
 import { useRoadWear } from '../board/useRoadWear';
 import { buildScene } from '../board/scene';
-import { FACTION_COLOUR } from './colour';
+import { seatAccent, seatColour, seatLook } from '../art/palette';
 import { failureText } from './Join';
 import { NoticeLine } from './NoticeLine';
 
@@ -278,7 +278,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       const thresholds = u.owner === viewer
         ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
       panel = (
-        <UnitPanel unit={u} faction={owner} stats={statsOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
+        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
           commands={commands} onCommand={onCommand} />
       );
     }
@@ -293,12 +293,12 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       const connected = seen !== undefined && isConnected(believed, seen);
       panel = mine ? (
         <CityPanel
-          key={city.id} faction={owner} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
+          key={city.id} faction={owner} look={seatLook(data.factions, city.owner)} level={city.level} capital={city.capital} growth={city.growth} growthNeeded={growthNeeded(state, city)}
           units={unitsOf(state, city.id)} capacity={unitCapacity(city)} income={cityIncome(state, city)} blockade={data.blockades.get(city.id)}
           walls={city.walls} connected={connected} commands={cityCommands(city.id, state, ix)} onCommand={onCommand}
         />
       ) : (
-        <CityPanel faction={owner} level={city.level} capital={city.capital} walls={city.walls} connected={connected} commands={[]} onCommand={onCommand} />
+        <CityPanel faction={owner} look={seatLook(data.factions, city.owner)} level={city.level} capital={city.capital} walls={city.walls} connected={connected} commands={[]} onCommand={onCommand} />
       );
     }
   } else if (selection.kind === 'tile') {
@@ -366,11 +366,12 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const showLine = (i: number): void => { setPeek(i); setCentred((n) => n + 1); };
   // The match's weather and time of day, a look only: Random was picked from the seed, the same on every phone.
   const look = lookOf(record.settings);
+  const seat = seatColour(data.factions, viewer);
 
   return (
     <div className={`screen match${side ? ' has-side' : ''}${peeked !== undefined ? ' peeking' : ''}`} data-testid="match">
       <Hud
-        name={record.players[viewer]?.name ?? ''} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
+        name={record.players[viewer]?.name ?? ''} colour={seat.main} dark={seat.dark} accent={seatAccent(data.factions, viewer)} faction={player.faction}
         gold={player.gold} income={playerIncome(state, viewer)} blockade={[...data.blockades.values()].reduce((a, n) => a + n, 0)} round={roundOf(state)}
         thinking={aiBusy && !isOnline}
         status={status} statusName={statusName} statusShort={statusShort} clock={clock} clockPaused={online?.clock.kind === 'paused'}
@@ -403,7 +404,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
         <SelectionSheet resetKey={selectionKey} apiRef={sheetApi} onCover={onCover}>{panel}</SelectionSheet>
       ) : (
           <ActionBar
-            barRef={barRef} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
+            barRef={barRef} colour={seat.main} dark={seat.dark} faction={player.faction}
             unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting}
             nextDisabled={nextDisabled} onNextUnit={onNextUnit}
             onOpenTech={() => { setTechFocus(null); setSheet('tech'); }} onEndTurn={() => run({ type: 'endTurn' })}

@@ -8,12 +8,14 @@ import type { Stat } from './Card';
 import { CommandList } from './CommandList';
 import type { Command } from './commands';
 import { CityPicture } from './Picture';
+import type { Look } from '../art/palette';
 import { UnitShop } from './UnitShop';
 
 export interface CityPanelProps {
   level: number; walls: boolean; capital?: boolean;
   /** The owner's people, for the picture; the card has no picture without it. */
   faction?: FactionId;
+  look?: Look;                 // the owner's colours in this match (seatLook)
   // Only for the viewer's own city: an enemy city shows just what the board shows (level, walls).
   growth?: number; growthNeeded?: number; units?: number; capacity?: number; income?: number;
   /** rules 8: blockaded, and the gold the blockade will cut from this city's next income. */
@@ -57,7 +59,7 @@ export function CityPanel(p: CityPanelProps): ReactElement {
   const others = p.commands.filter((c) => c.unit === undefined);
   const actions = chosen === undefined ? others : [{ ...chosen, label: T.ui.train }, ...others];
   const title = p.capital === true ? T.ui.capitalTitle : T.ui.cityTitle;
-  const picture = p.faction === undefined ? null : <CityPicture faction={p.faction} level={p.level} capital={p.capital === true} walls={p.walls} />;
+  const picture = p.faction === undefined ? null : <CityPicture faction={p.faction} look={p.look} level={p.level} capital={p.capital === true} walls={p.walls} />;
   // The top of the card (what a collapsed card shows): the name, the actions and the row of units to train. The
   // picked unit's card and the city's numbers show when the card is pulled up.
   return (
@@ -66,15 +68,15 @@ export function CityPanel(p: CityPanelProps): ReactElement {
         {picture !== null
           ? (
             <CardHead
-              picture={picture} title={title} faction={p.faction} corners={<CityCorners level={p.level} connected={p.connected === true && p.capital !== true} />}
+              picture={picture} title={title} faction={p.faction} tagColour={p.look?.colour.main} corners={<CityCorners level={p.level} connected={p.connected === true && p.capital !== true} />}
               actions={<CommandList commands={actions} primary={chosen?.id} onCommand={p.onCommand} />}
             />
           )
           : <><h2>{title}</h2><CommandList commands={others} onCommand={p.onCommand} /></>}
-        {p.faction !== undefined ? <UnitShop part="strip" commands={train} faction={p.faction} picked={picked} onPick={setPicked} /> : null}
+        {p.faction !== undefined ? <UnitShop part="strip" commands={train} faction={p.faction} look={p.look} picked={picked} onPick={setPicked} /> : null}
       </div>
       <div className="card-more">
-        {p.faction !== undefined ? <UnitShop part="details" commands={train} faction={p.faction} picked={picked} onPick={setPicked} /> : null}
+        {p.faction !== undefined ? <UnitShop part="details" commands={train} faction={p.faction} look={p.look} picked={picked} onPick={setPicked} /> : null}
         <Stats stats={stats} />
       </div>
     </section>
