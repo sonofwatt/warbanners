@@ -391,9 +391,114 @@ export function buildingParts(plan: BuildingPlan, cx: number, cz: number, height
   return out;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// rules 11: the Woodland Nations' buildings, in bark, hide and poles.
+
+const WB = { bark: '#8A6A4A', barkDark: '#6E5238', barkLight: '#A98A62', mat: '#C2A36F', hide: '#E6D6B4', pole: '#6B4A2B', berry: '#7A2E4A', berryLeaf: '#3F7A3A', strip: '#B5653A', pit: '#4A3A2C' } as const;
+
+function wigwamHut(k: Kit, awning: string): void {
+  const dome = new DodecahedronGeometry(4.4, 1);
+  dome.scale(1, 1.15, 1);
+  dome.translate(0, 1.4, 0);
+  k.add(dome, WB.bark, 0.6);
+  const mat = new CylinderGeometry(4.4, 4.7, 0.8, 10);
+  mat.translate(0, 2.8, 0);
+  k.add(mat, WB.mat, 0.12);
+  k.box(1.8, 3.2, 0.4, 0, -0.4, 4.4, awning, 0.2);
+}
+
+function storehouse(k: Kit, awning: string): void {
+  // A small bark longhouse raised on posts, a notched log ladder leaning up to it.
+  for (const [x, z] of [[-4, -2.4], [4, -2.4], [-4, 2.4], [4, 2.4]] as const) k.box(0.7, 4, 0.7, x, -0.4, z, WB.pole, 0.2);
+  k.box(10, 0.6, 6, 0, 3.4, 0, WB.barkDark, 0.2);
+  const body = new CylinderGeometry(3.4, 3.4, 9.6, 10);
+  body.rotateZ(Math.PI / 2);
+  body.scale(1, 1.3, 1);
+  body.translate(0, 4.2, 0);
+  k.add(body, WB.bark, 0.6);
+  k.box(9.8, 0.6, 0.3, 0, 7, 3.0, awning, 0.12);
+  const ladder = new CylinderGeometry(0.4, 0.4, 6.4, 5);
+  ladder.rotateX(-0.5);
+  ladder.translate(2, 2.6, 4.4);
+  k.add(ladder, WB.pole, 0.2);
+}
+
+function thicket(k: Kit, s: number, seed: number): void {
+  for (const [x, z, r] of [[-1.6, 0, 2.6], [1.6, 0.4, 2.4], [0, -1.4, 2.8], [0.2, 1.6, 2.2]] as const) {
+    const b = new DodecahedronGeometry(r * s * 0.8, 0);
+    b.translate(x * s, r * s * 0.7, z * s);
+    k.add(b, WB.berryLeaf, 0.5);
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = seed * 6 + i * 1.05;
+    const g = new DodecahedronGeometry(0.45 * s, 0);
+    g.translate(Math.cos(a) * 2.6 * s, (2.2 + (i % 3) * 0.8) * s, Math.sin(a) * 1.8 * s + 1.2 * s);
+    k.add(g, WB.berry, 0.1);
+  }
+}
+
+function rack(k: Kit): void {
+  for (const x of [-3, 3]) k.box(0.5, 6, 0.5, x, -0.4, 0, WB.pole, 0.2);
+  k.box(6.6, 0.4, 0.4, 0, 5.2, 0, WB.pole, 0.2);
+  k.box(6.6, 0.4, 0.4, 0, 3.4, 0, WB.pole, 0.2);
+  for (const x of [-2, -0.6, 0.8, 2.2]) k.box(0.7, 1.8, 0.2, x, 3.4, 0.25, WB.strip, 0.1);
+}
+
+function leanTo(k: Kit, big: boolean): void {
+  // A sloping roof of bark on poles, open at the front, a woodpile under it.
+  const w = big ? 11 : 8, d = big ? 7 : 5.6, h = big ? 8 : 6.6;
+  for (const x of [-w / 2 + 0.4, w / 2 - 0.4]) k.box(0.6, h, 0.6, x, -0.4, d / 2, WB.pole, 0.2);
+  // The roof slopes from the poles at the front down to the ground at the back.
+  const slope = Math.atan2(h, d);
+  const roof = new BoxGeometry(w + 0.8, 0.6, Math.hypot(h, d) + 0.8);
+  roof.rotateX(-slope);
+  roof.translate(0, h / 2 - 0.2, 0);
+  k.add(roof, WB.bark, 0.5);
+  k.box(w, h * 0.55, 0.5, 0, -0.4, -d / 2, WB.barkDark, 0.4);
+  for (const [x, y] of [[-1.4, 0.5], [0, 0.5], [1.4, 0.5], [-0.7, 1.6], [0.7, 1.6]] as const) {
+    const g = new CylinderGeometry(0.6, 0.6, 3.6, 6);
+    g.rotateZ(Math.PI / 2);
+    g.translate(x * 1.3 - 1, y, -0.6);
+    k.add(g, WB.barkLight, 0.2);
+  }
+}
+
+function sawPit(k: Kit): void {
+  k.box(7, 0.3, 4.4, 0, -0.6, 0, WB.pit, 0.1);
+  for (const x of [-3, 3]) k.box(0.6, 3.6, 0.6, x, -0.4, 0, WB.pole, 0.2);
+  const log = new CylinderGeometry(0.9, 0.9, 8, 7);
+  log.rotateZ(Math.PI / 2);
+  log.translate(0, 3.6, 0);
+  k.add(log, WB.barkLight, 0.25);
+}
+
+function tradeLodge(k: Kit, awning: string): void {
+  // A long bark lodge with an open front under an awning in the owner's colour, hides and baskets for trade.
+  const w = 14, d = 7;
+  k.box(w, 6.4, d, 0, -0.4, -1, WB.bark, 0.6);
+  const roof = gable(w + 1, d + 1, 5, 1);
+  roof.translate(0, 5.8, -1);
+  k.add(roof, WB.barkDark, 0.6);
+  const awn = new BoxGeometry(w, 0.4, 3.2);
+  awn.rotateX(0.35);
+  awn.translate(0, 5.2, d / 2 + 0.8);
+  k.add(awn, awning, 0.3);
+  for (const x of [-w / 2 + 0.4, w / 2 - 0.4]) k.box(0.5, 5.4, 0.5, x, -0.4, d / 2 + 2, WB.pole, 0.2);
+  k.box(2.2, 3, 0.2, -3, 0.6, d / 2 - 0.4, WB.hide, 0.15);
+  k.box(2.2, 3, 0.2, 3, 0.6, d / 2 - 0.4, WB.hide, 0.15);
+}
+
 function pieceOf(p: BuildingPiece, awning: string): Kit {
   const k = new Kit();
   switch (p.kind) {
+    case 'wigwamHut': wigwamHut(k, awning === B.market ? WB.barkDark : awning); break;
+    case 'storehouse': storehouse(k, awning === B.market ? WB.strip : awning); break;
+    case 'thicket': thicket(k, p.s, p.seed); break;
+    case 'rack': rack(k); break;
+    case 'leanTo': leanTo(k, false); break;
+    case 'bigLeanTo': leanTo(k, true); break;
+    case 'sawPit': sawPit(k); break;
+    case 'tradeLodge': tradeLodge(k, awning); break;
     case 'plot': plot(k, false, p.seed); break;
     case 'wheatPlot': plot(k, true, p.seed); break;
     case 'barn': barn(k); break;

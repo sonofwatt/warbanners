@@ -18,7 +18,10 @@ export type PieceKind =
   | 'plot' | 'wheatPlot' | 'barn' | 'granary' | 'sheaf' | 'bale' // farm and granary
   | 'tree' | 'fullTree' | 'ladder' | 'basket' | 'crates' | 'fence' | 'rows' // orchard and plantation
   | 'cabin' | 'logPile' | 'bigLogPile' | 'sawhorse' | 'stump' | 'mill' | 'race' | 'planks' // lumber camp and mill
-  | 'stall' | 'barrel' | 'sack'; // market
+  | 'stall' | 'barrel' | 'sack' // market
+  // rules 11, on Woodland land: a wigwam by the farm, a raised storage longhouse, berry thickets and drying racks,
+  // a lean-to and a larger one with a saw-pit, a trading lodge
+  | 'wigwamHut' | 'storehouse' | 'thicket' | 'rack' | 'leanTo' | 'bigLeanTo' | 'sawPit' | 'tradeLodge';
 
 export interface BuildingPiece {
   kind: PieceKind;
@@ -48,6 +51,7 @@ export const WHEEL = { x: 12, y: 7.8, z: 2, r: 7.5 } as const;
 export const PIECE_SIZE: Partial<Record<PieceKind, number>> = {
   plot: 1.25, wheatPlot: 1.25, barn: 1.45, bale: 1.45, granary: 1.3, sheaf: 1.4, ladder: 1.35, basket: 1.45, crates: 1.4,
   cabin: 1.45, stump: 1.45, logPile: 1.4, bigLogPile: 1.35, sawhorse: 1.4, mill: 1.3, planks: 1.35, stall: 1.35, barrel: 1.5, sack: 1.5,
+  wigwamHut: 1.6, storehouse: 1.55, rack: 1.45, leanTo: 1.7, bigLeanTo: 1.6, sawPit: 1.4, tradeLodge: 1.3,
 };
 
 /** How far from the middle a tall piece must keep, so a unit standing there never stands inside it. */
@@ -59,7 +63,8 @@ const piece = (kind: PieceKind, x: number, z: number, foot: number, h: number, s
  * The pieces of a building on its tile. `m` mirrors the layout left to right (by the tile's turn), so neighbouring
  * farms or camps differ; the market and the mill are not mirrored (the mill's race runs out to the right).
  */
-export function buildingPlan(b: FieldBuilding, turn: number, q: number, r: number): BuildingPlan {
+export function buildingPlan(b: FieldBuilding, turn: number, q: number, r: number, woodland = false): BuildingPlan {
+  if (woodland) return woodlandPlan(b, turn, q, r);
   const m = turn % 2 === 0 ? 1 : -1;
   const sd = (i: number): number => hash2(q * 1.9 + i, r * 3.3 - i);
   const P = (kind: PieceKind, x: number, z: number, foot: number, h: number, i: number, rot = 0, s = 1): BuildingPiece => piece(kind, x * m, z, foot, h, sd(i), rot * m, s);
@@ -113,6 +118,48 @@ export function buildingPlan(b: FieldBuilding, turn: number, q: number, r: numbe
       break;
   }
   return { building: b, pieces, wheel };
+}
+
+/**
+ * rules 11: the same buildings on Woodland Nations land, in their own look (spec section 6): the farm's rows beside a
+ * wigwam, a raised storage longhouse for the granary, berry thickets with drying racks, a lean-to with a woodpile and a
+ * larger one over a saw-pit, and a trading lodge. Laid out as the others: the middle kept low, tall pieces back.
+ */
+function woodlandPlan(b: FieldBuilding, turn: number, q: number, r: number): BuildingPlan {
+  const m = turn % 2 === 0 ? 1 : -1;
+  const sd = (i: number): number => hash2(q * 1.9 + i, r * 3.3 - i);
+  const P = (kind: PieceKind, x: number, z: number, foot: number, h: number, i: number, rot = 0, s = 1): BuildingPiece => piece(kind, x * m, z, foot, h, sd(i), rot * m, s);
+  const pieces: BuildingPiece[] = [];
+  switch (b) {
+    case 'farm':
+      pieces.push(P('plot', -8, 7, 11, 2.5, 0), P('wigwamHut', 12, -8, 7, 10, 1), P('basket', 17, 5, 2.6, 3.6, 2));
+      break;
+    case 'granary':
+      pieces.push(P('wheatPlot', -6, 8, 11, 4, 0), P('wigwamHut', 13, -6, 7, 10, 1), P('storehouse', -11, -10, 8, 16, 2), P('basket', 16, 8, 2.6, 3.6, 3));
+      break;
+    case 'orchard':
+      for (const [x, z, i] of [[-13, -12, 0], [0, -15, 1], [13, -12, 2], [-17, 4, 3], [17, 4, 4]] as const) pieces.push(P('thicket', x, z, 6, 7, i, 0, 1.2));
+      pieces.push(P('rack', 9, 14, 4, 8, 5, -0.2), P('basket', -5, 15, 2.6, 3.6, 6));
+      break;
+    case 'plantation':
+      pieces.push(P('rows', 0, -1, 0, 0.2, 9));
+      for (const [x, z, i] of [[-12, -14, 0], [0, -16, 1], [12, -14, 2], [-18, 0, 3], [18, 0, 4]] as const) pieces.push(P('thicket', x, z, 6, 8, i, 0, 1.35));
+      pieces.push(P('rack', -9, 14, 4, 8, 5, 0.2), P('rack', 9, 14, 4, 8, 6, -0.2), P('basket', 0, 20, 2.4, 3.4, 7));
+      break;
+    case 'lumberCamp':
+      pieces.push(P('leanTo', -14, 2, 7, 10, 0), P('stump', 15, 2, 3.2, 8, 1), P('logPile', 6, 13, 6, 6, 2), P('sawhorse', -5, 15, 4.5, 4, 3, 0.2));
+      break;
+    case 'lumberMill':
+      pieces.push(P('bigLeanTo', -13, 3, 9, 13, 0), P('sawPit', 13, 4, 6, 5, 1), P('bigLogPile', -4, 16, 6, 8, 2), P('planks', 14, 15, 5, 4, 3, -0.2));
+      break;
+    case 'market':
+      pieces.push(
+        piece('tradeLodge', 0, -14, 9, 13, sd(0), 0),
+        piece('barrel', -10, 14, 2.2, 4.8, sd(3)), piece('sack', 8, 14, 2.2, 3.6, sd(4)), piece('basket', 12, 16, 2.4, 3.4, sd(5)),
+      );
+      break;
+  }
+  return { building: b, pieces, wheel: null };
 }
 
 /** Whether a piece stands on the tile and, if tall, clear of the middle; for tests. */
@@ -229,7 +276,7 @@ export function wheelSpots(map: GlMap): WheelSpotOnMap[] {
   const out: WheelSpotOnMap[] = [];
   for (const k of Object.keys(map.tiles).sort()) {
     const t = map.tiles[k]!;
-    if (t.city || t.building !== 'lumberMill') continue;
+    if (t.city || t.building !== 'lumberMill' || t.owner === 'woodland') continue;   // rules 11: their mill is a saw-pit
     const { q, r } = parse(k);
     const c = centre(q, r);
     const x = c.x + WHEEL.x, z = c.z + WHEEL.z;

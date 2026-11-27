@@ -322,7 +322,7 @@ export function tileSetup(map: GlMap, k: HexKey): Setup {
     for (const p of out.town.pieces) out.blobs.push([p.x, p.z, p.foot * 1.1, 0.22]);
   }
   if (t.building !== null && (FIELD_BUILDINGS as readonly string[]).includes(t.building)) {
-    out.building = buildingPlan(t.building as FieldBuilding, turn, q, r);
+    out.building = buildingPlan(t.building as FieldBuilding, turn, q, r, t.owner === 'woodland');
     for (const p of out.building.pieces) if (p.h > 3) out.blobs.push([p.x, p.z, p.foot * 1.05, p.kind === 'tree' || p.kind === 'fullTree' ? 0.3 : 0.22]);
   }
   if (out.chest !== null) out.blobs.push([out.chest.x, out.chest.z + 1, 5.5 * out.chest.s, 0.26]);

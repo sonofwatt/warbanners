@@ -23,7 +23,8 @@ export interface GlTile {
   // The city standing here, as the 3D look draws it: its owner's faction (roof colour and style), level, capital and
   // walls. Null on a tile with no city (and on a city whose owner has no faction, which the svg leaves blank too).
   town: GlTown | null;
-  // buildings3d: the faction owning the land, for a market's awnings (null for every other tile, so a border that
+  // buildings3d: the faction owning the land, for a market's awnings and for any building on Woodland land (rules 11:
+  // their own look); null for every other tile, so a border that
   // moves never rebuilds a tile whose look does not show it), and a treasure drawn beside a unit standing on it.
   owner?: FactionId | null;
   ownerMirror?: true;          // the market's owner is the second seat of a mirror match (its own awning colour)
@@ -121,8 +122,9 @@ export function glMapOf(items: readonly SceneItem[], radius: number, factions: r
       road: t.road,
       city: it.city !== null,
       town: townOf(it.city, factions),
-      owner: t.building === 'market' && it.owner !== null ? factions[it.owner] ?? null : null,
-      ...(t.building === 'market' && it.owner !== null && mirrorSeat(factions, it.owner) ? { ownerMirror: true as const } : {}),
+      // The owner's faction where its look shows: a market's awnings, and (rules 11) any building on Woodland land.
+      owner: t.building !== null && it.owner !== null && (t.building === 'market' || factions[it.owner] === 'woodland') ? factions[it.owner] ?? null : null,
+      ...(t.building !== null && it.owner !== null && (t.building === 'market' || factions[it.owner] === 'woodland') && mirrorSeat(factions, it.owner) ? { ownerMirror: true as const } : {}),
       beside: t.treasure && it.occupied,
     };
     const wear = it.city === null ? glRoadWearOf(it) : null;

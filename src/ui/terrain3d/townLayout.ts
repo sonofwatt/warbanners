@@ -14,7 +14,8 @@ export type TownKind =
   | 'house' | 'tall' // a house, or a two storey one
   | 'yurt' | 'tallYurt'
   | 'tower' // a stone tower (Spartans) or a timber watchtower (Mongols)
-  | 'hut' | 'woodpile'; // a village
+  | 'hut' | 'woodpile' // a village
+  | 'tipi' | 'longhouse' | 'wigwam' | 'lodge'; // rules 11, the Woodland Nations: the council lodge is their hall
 
 export interface TownPiece {
   kind: TownKind;
@@ -103,8 +104,46 @@ const hash = (a: number, b: number): number => {
   return s - Math.floor(s);
 };
 
+/**
+ * rules 11: a Woodland city by level (David): two tipis at level 1; a tipi and a longhouse at 2; a wigwam cluster
+ * from 3; the council lodge, a large wooden hall, from 4 (the longhouse moves aside for it); a log palisade ring from
+ * 5, or with walls at any level; and more tipis and wigwams as it grows. A tipi stands at every level.
+ */
+export function woodlandPieces(level: number, seed: (i: number) => number): TownPiece[] {
+  const L = Math.max(1, Math.trunc(level));
+  const at = (kind: TownKind, [x, z, rot]: readonly [number, number, number], foot: number, h: number, i: number): TownPiece =>
+    ({ kind, x, z, rot: rot + (seed(i) - 0.5) * 0.2, foot, h, seed: seed(i) });
+  const S = HOUSE_SLOTS;
+  const tipi = (i: number): TownPiece => at('tipi', S[i]!, 6.2, 20, i + 1);
+  const wigwam = (i: number): TownPiece => at('wigwam', S[i]!, 5.2, 9, i + 1);
+  if (L === 1) return [tipi(0), tipi(1)];
+  const pieces: TownPiece[] = [tipi(0)];
+  if (L >= 4) {
+    pieces.push(at('lodge', [HALL[0], HALL[1], 0], 9, 17, 0), at('longhouse', [-16, -9, 0.55], 7.5, 10, 8));
+  } else {
+    pieces.push(at('longhouse', [HALL[0], HALL[1], 0], 8, 10, 0));
+  }
+  if (L >= 3) pieces.push(wigwam(1), wigwam(3));
+  if (L >= 5) pieces.push(tipi(2));
+  if (L >= 6) pieces.push(tipi(5));
+  if (L >= 7) pieces.push(wigwam(6));
+  return pieces;
+}
+
 /** A city's buildings, banner and walls. */
 export function townPlan(town: GlTown, q: number, r: number): TownPlan {
+  if (town.faction === 'woodland') {
+    const seed = (i: number): number => hash(q * 3.1 + i, r * 1.7 - i);
+    const pieces = woodlandPieces(town.level, seed);
+    // The pennant flies over the biggest building: the lodge, else the longhouse, else the first tipi.
+    const top = pieces.find((p) => p.kind === 'lodge') ?? pieces.find((p) => p.kind === 'longhouse') ?? pieces[0]!;
+    return {
+      faction: town.faction, ...(town.mirror ? { mirror: true as const } : {}), pieces,
+      banner: town.capital ? { x: 9, z: -7, h: 40 } : null,
+      pennant: town.capital ? null : { x: top.x, y: top.h + 1, z: top.z },
+      walls: town.walls || town.level >= 5 ? wallPlan() : null,
+    };
+  }
   const spartan = town.faction === 'spartans';
   const L = Math.max(1, Math.trunc(town.level));
   const pieces: TownPiece[] = [];

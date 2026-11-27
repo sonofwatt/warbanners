@@ -360,9 +360,87 @@ export function townParts(plan: TownPlan, cx: number, cz: number, height: (lx: n
   return out;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// rules 11, the Woodland Nations: hide tipis, bark longhouses and wigwams, and a council lodge of timber and bark.
+
+const WOOD_TOWN = { hide: '#E6D6B4', hideShade: '#CDB98F', bark: '#8A6A4A', barkDark: '#6E5238', barkLight: '#A98A62', mat: '#C2A36F', ochre: '#A4452C' } as const;
+
+function tipi(k: Kit, colour: Colour, seed: number): number {
+  const h = 17 + seed * 2.5, r = 6 + seed * 0.5;
+  const cover = new ConeGeometry(r, h, 9);
+  cover.translate(0, h / 2 - 0.4, 0);
+  k.add(cover, seed > 0.5 ? WOOD_TOWN.hide : WOOD_TOWN.hideShade, 0.7);
+  // A painted band in the owner's colour and an ochre one above it.
+  const band = new CylinderGeometry(r * 0.62, r * 0.7, 1.2, 9);
+  band.translate(0, h * 0.32, 0);
+  k.add(band, colour.main, 0.15);
+  const band2 = new CylinderGeometry(r * 0.42, r * 0.46, 0.7, 9);
+  band2.translate(0, h * 0.55, 0);
+  k.add(band2, WOOD_TOWN.ochre, 0.12);
+  // The poles crossing above the smoke hole.
+  for (const a of [0.4, 2.2, 4.1]) {
+    const pole = new CylinderGeometry(0.22, 0.22, 4.4, 4);
+    pole.translate(0, 2.2, 0);
+    pole.rotateZ(0.22);
+    pole.rotateY(a);
+    pole.translate(0, h - 1.6, 0);
+    k.add(pole, WOOD_TOWN.barkDark, 0.2);
+  }
+  k.box(1.8, 3.4, 0.4, 0, -0.4, r * 0.78, WOOD_TOWN.barkDark, 0.2);
+  return h + 2;
+}
+
+function longhouse(k: Kit, colour: Colour, len: number): void {
+  // A barrel-roofed hall of bark over bent poles, sunk to its middle so the roof rises from the ground.
+  const body = new CylinderGeometry(4.8, 4.8, len, 12);
+  body.rotateZ(Math.PI / 2);
+  body.scale(1, 1.25, 1);
+  body.translate(0, 0, 0);
+  k.add(body, WOOD_TOWN.bark, 0.7);
+  for (const x of [-len * 0.3, 0, len * 0.3]) {
+    const rib = new CylinderGeometry(4.95, 4.95, 0.6, 12);
+    rib.rotateZ(Math.PI / 2);
+    rib.scale(1, 1.25, 1);
+    rib.translate(x, 0, 0);
+    k.add(rib, WOOD_TOWN.barkDark, 0.15);
+  }
+  // A door at the front end in the owner's colour, framed in ochre.
+  k.box(2.4, 4.0, 0.5, len / 2 - 3, -0.4, 4.6, WOOD_TOWN.ochre, 0.2);
+  k.box(1.6, 3.4, 0.6, len / 2 - 3, -0.4, 4.65, colour.main, 0.2);
+}
+
+function wigwam(k: Kit, seed: number): void {
+  const dome = new DodecahedronGeometry(4.8 + seed * 0.5, 1);
+  dome.scale(1, 1.2, 1);
+  dome.translate(0, 1.6, 0);
+  k.add(dome, seed > 0.5 ? WOOD_TOWN.bark : WOOD_TOWN.barkLight, 0.6);
+  const mat = new CylinderGeometry(4.7, 5.0, 0.8, 10);
+  mat.translate(0, 3.2, 0);
+  k.add(mat, WOOD_TOWN.mat, 0.12);
+  k.box(2, 3.4, 0.4, 0, -0.4, 4.6, WOOD_TOWN.barkDark, 0.2);
+}
+
+function lodge(k: Kit, colour: Colour, accent: string): void {
+  // The council lodge: a long timber hall with bark walls, a gabled bark roof, a smoke hole and a painted lintel.
+  const w = 15, d = 9.6;
+  k.box(w, 7, d, 0, -0.4, 0, WOOD_TOWN.barkLight, 0.7);
+  for (const x of [-w / 2 + 0.4, -w / 6, w / 6, w / 2 - 0.4]) k.box(0.9, 7.4, 0.9, x, -0.4, d / 2, WOOD_TOWN.barkDark, 0.2);
+  const roof = gable(w + 1.2, d + 1.2, 7.4, 1.2);
+  roof.translate(0, 6.6, 0);
+  k.add(roof, WOOD_TOWN.bark, 0.7);
+  k.box(3.2, 0.9, 2.2, 0, 13.4, 0, WOOD_TOWN.barkDark, 0.2);
+  k.box(w, 1.0, 0.5, 0, 5.4, d / 2 + 0.1, colour.main, 0.15);
+  k.box(3.2, 4.8, 0.5, 0, -0.4, d / 2 + 0.1, WOOD_TOWN.ochre, 0.2);
+  k.box(2.2, 4.2, 0.6, 0, -0.4, d / 2 + 0.15, accent, 0.2);
+}
+
 function piece(p: TownPiece, colour: Colour, accent: string, spartan: boolean): Kit {
   const k = new Kit();
   switch (p.kind) {
+    case 'tipi': tipi(k, colour, p.seed); break;
+    case 'longhouse': longhouse(k, colour, p.foot > 7.8 ? 15 : 13); break;
+    case 'wigwam': wigwam(k, p.seed); break;
+    case 'lodge': lodge(k, colour, accent); break;
     case 'house': spartanHouse(k, colour, false, p.seed); break;
     case 'tall': spartanHouse(k, colour, true, p.seed); break;
     case 'hall': spartanHall(k, colour, accent, false); break;
