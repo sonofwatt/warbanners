@@ -86,7 +86,9 @@ test('with a unit selected, a highlighted tile moves it', () => {
   expect(tap(unitSel(0), { unit: null, hex: '-1,4' }, V, IX).action).toEqual({ type: 'move', unit: 0, to: '-1,4' });
 });
 test('other taps change the selection and never act', () => {
-  expect(tap(unitSel(0), { unit: null, hex: '-2,3' }, V, IX)).toEqual({ selection: { kind: 'tile', at: '-2,3' }, action: null });
+  // Bare ground with a unit selected only deselects; the next tap on it selects the tile.
+  expect(tap(unitSel(0), { unit: null, hex: '-2,3' }, V, IX)).toEqual({ selection: NONE, action: null });
+  expect(tap(NONE, { unit: null, hex: '-2,3' }, V, IX)).toEqual({ selection: { kind: 'tile', at: '-2,3' }, action: null });
   expect(tap(unitSel(0), { unit: null, hex: '0,0' }, V, IX)).toEqual({ selection: NONE, action: null });   // fog
   expect(tap(unitSel(0), { unit: null, hex: null }, V, IX)).toEqual({ selection: NONE, action: null });
 });

@@ -184,6 +184,9 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
   if (city !== undefined) {
     return { selection: sel.kind === 'city' && sel.id === city.id ? NONE : { kind: 'city', id: city.id }, action: null };
   }
+  // With a unit selected, a tap on bare ground (no unit, no city, nothing it can act on) only clears the selection;
+  // the tile card opens on the next tap. Both looks reach this through the store's tap.
+  if (sel.kind === 'unit') return { selection: NONE, action: null };
   if (view.tiles[hex] !== undefined) {
     return { selection: sel.kind === 'tile' && sel.at === hex ? NONE : { kind: 'tile', at: hex }, action: null };
   }
