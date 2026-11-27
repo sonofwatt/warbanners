@@ -5,8 +5,8 @@ import { UNITS } from './data/units';
 import { DIRS, add, distance, key, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { addDeed } from './heroes';
-import { cityAt, cityById, hasOwn, hasTrait, isEnterable, tileAt, unitAt, unitById } from './state';
-import { snareAt, springSnare } from './woodland';
+import { cityAt, cityById, hasOwn, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
+import { snareAt } from './woodland';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 13: half-points of movement a unit starts its turn with
@@ -208,6 +208,25 @@ export function canClimb(s: Pick<MatchState, 'players'>, player: number): boolea
 export function mountainStep(s: Pick<MatchState, 'tiles'>, from: HexKey, to: HexKey): boolean {
   const isPeak = (k: HexKey): boolean => hasOwn(s.tiles, k) && s.tiles[k]!.terrain === 'mountain';
   return CONFIG.mountain.endsTurn && (isPeak(from) || isPeak(to));
+}
+
+// rules 11, snare (here rather than in woodland.ts, which must not import state.ts): `u` has entered its tile by its own move, a lure or a kill advance. If an enemy snare is there it is
+// used up and `u` takes snareDamage and has no movement left this turn; a unit it kills earns nobody a deed. True when
+// it sprang (the unit may then be dead). The last snare used up takes the key with it, so the state hashes tidy.
+export function springSnare(s: MatchState, u: Unit, ev: GameEvent[]): boolean {
+  const i = s.snares?.findIndex((n) => n.at === u.pos && n.owner !== u.owner) ?? -1;
+  if (i < 0) return false;
+  s.snares!.splice(i, 1);
+  if (s.snares!.length === 0) delete s.snares;
+  const damage = CONFIG.woodland.snareDamage;
+  u.hp -= damage;
+  ev.push({ type: 'snared', unit: u.id, at: u.pos, damage });
+  u.mp = 0; u.bonusMp = 0;
+  if (u.hp <= 0) {
+    removeUnit(s, u.id);
+    ev.push({ type: 'died', unit: u.id });
+  }
+  return true;
 }
 
 // rules 13: the lured unit follows the rider by one tile if a tile is free

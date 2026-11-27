@@ -8,9 +8,9 @@ import { applyCredits, credit, maxHpOf, mythTouched } from './heroes';
 import type { Credits } from './heroes';
 import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
-import { canClimb, maxMp, mountainStep } from './movement';
+import { canClimb, maxMp, mountainStep, springSnare } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
-import { bowShot, chargeTile, forestEyeReach, isHidden, normalRange, springSnare } from './woodland';
+import { bowShot, chargeTile, forestEyeReach, isHidden, normalRange } from './woodland';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
@@ -366,11 +366,12 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   }
 
   // rules 11: a kill advance onto an enemy snare springs it, after the attack's credits, so the kill and its momentum
-  // count. A chain unit's chain ends there, as on a mountain advance (a snare is never on a mountain).
+  // count. A chain unit's chain ends there, as on a mountain advance (a snare is never on a mountain, but the advance
+  // may come off one; then the mountain block above has already ended the chain).
   if (advanced && springSnare(s, attacker, ev)) {
     if (attacker.hp <= 0) return null;
     if (hasTrait(attacker, 'chain')) {
-      if (chainGranted > 0 && !chainTakenBack) ev.push({ type: 'chainEnded', unit: attacker.id });
+      if (chainGranted > 0 && !chainTakenBack && !climbed) ev.push({ type: 'chainEnded', unit: attacker.id });
       attacker.attacks = 0;
     }
   }

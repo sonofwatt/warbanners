@@ -8,6 +8,7 @@ import { addCity, addUnit, blankMatch, randomPlayout, setTile } from './testkit'
 import { unitById } from './state';
 import { playerView } from './vision';
 import { snareAt } from './woodland';
+import { springSnare } from './movement';
 import { assertNoWoodlandKeys } from './woodland.testkit';
 import type { Action, FactionId, GameEvent, MatchState } from './types';
 
@@ -144,6 +145,27 @@ describe('rules 11: springing a snare', () => {
     expect(after).toMatchObject({ pos: '1,0', hp: 12, attacks: 0, mp: 0, momentum: 6 });
     expect(after.deeds.fight).toBe(CONFIG.heroes.fightPerAttack + CONFIG.heroes.fightPerKill);
     expect('snares' in state).toBe(false);
+  });
+
+  test('a Knight\'s kill advance off a mountain onto one: one chainEnded, attacks 0, the snare sprung', () => {
+    const s = match(['spartans', 'woodland']); setTile(s, 0, 0, { terrain: 'mountain' });
+    const k = addUnit(s, 'knight', 0, 0, 0);
+    const w = addUnit(s, 'warrior', 1, 1, 0, { hp: 1 }); addUnit(s, 'warrior', 1, 2, 0);
+    s.snares = [snareOf(1, '1,0')];
+    const { state, events } = run(s, { type: 'attack', unit: k.id, target: '1,0' });
+    expect(events.filter((e) => e.type === 'chainEnded')).toEqual([{ type: 'chainEnded', unit: k.id }]);
+    expect(events).toContainEqual({ type: 'died', unit: w.id });
+    expect(events).toContainEqual({ type: 'snared', unit: k.id, at: '1,0', damage: 3 });
+    expect(unitById(state, k.id)).toMatchObject({ pos: '1,0', hp: 12, attacks: 0, mp: 0, turnEnded: true });
+    expect('snares' in state).toBe(false);
+  });
+
+  test('springSnare on a tile with no enemy snare does nothing', () => {
+    const s = match(['woodland', 'mongols']); const t = addUnit(s, 'trapper', 0, 1, 0);
+    s.snares = [snareOf(0, '1,0')];
+    const ev: GameEvent[] = [];
+    expect(springSnare(s, t, ev)).toBe(false);
+    expect(ev).toEqual([]); expect(s.snares).toEqual([snareOf(0, '1,0')]); expect(t.hp).toBe(10);
   });
 
   test('a unit lured onto one springs it', () => {

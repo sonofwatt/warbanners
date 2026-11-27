@@ -1,12 +1,10 @@
-// Woodland Nations helpers (rules 11). Imports data, hex and types, and state.ts only for removeUnit, which runs inside
-// a function call, so vision.ts (which state.ts imports) can import this file without a load-order problem.
+// Woodland Nations helpers (rules 11). Imports data, hex and types only, so vision.ts can import this file without a cycle.
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
 import { DIRS, add, distance, key, parseKey } from './hex';
 import type { HexKey } from './hex';
-import { removeUnit } from './state';
-import type { GameEvent, MatchState, PlayerId, Unit } from './types';
+import type { MatchState, PlayerId, Unit } from './types';
 
 // A unit veiled by a Smoke Keeper stays hidden through the stamp in `veilUntil`, whatever it stands on.
 export function isVeiled(s: Pick<MatchState, 'stamp'>, u: Unit): boolean {
@@ -64,25 +62,6 @@ export function chargeTile(s: Pick<MatchState, 'tiles' | 'units' | 'players'>, a
 // rules 11, snare: is there a snare on `at` that a unit of `notOwner` would spring (one of another player's)?
 export function snareAt(s: Pick<MatchState, 'snares'>, at: HexKey, notOwner: PlayerId): boolean {
   return s.snares?.some((n) => n.at === at && n.owner !== notOwner) === true;
-}
-
-// rules 11, snare: `u` has entered its tile by its own move, a lure or a kill advance. If an enemy snare is there it is
-// used up and `u` takes snareDamage and has no movement left this turn; a unit it kills earns nobody a deed. True when
-// it sprang (the unit may then be dead). The last snare used up takes the key with it, so the state hashes tidy.
-export function springSnare(s: MatchState, u: Unit, ev: GameEvent[]): boolean {
-  const i = s.snares?.findIndex((n) => n.at === u.pos && n.owner !== u.owner) ?? -1;
-  if (i < 0) return false;
-  s.snares!.splice(i, 1);
-  if (s.snares!.length === 0) delete s.snares;
-  const damage = CONFIG.woodland.snareDamage;
-  u.hp -= damage;
-  ev.push({ type: 'snared', unit: u.id, at: u.pos, damage });
-  u.mp = 0; u.bonusMp = 0;
-  if (u.hp <= 0) {
-    removeUnit(s, u.id);
-    ev.push({ type: 'died', unit: u.id });
-  }
-  return true;
 }
 
 // rules 11, snare: add a snare of `owner` on `at`; past snareMax the owner's oldest simply disappears.
