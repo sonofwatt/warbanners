@@ -55,7 +55,7 @@ const signed = (n: number): string => (n > 0 ? `+${n}` : String(n));
 function countOf(l: ScoreLine): string {
   const S = T.stats.score;
   switch (l.key) {
-    case 'victory': return l.count > 0 ? fill(S.wonOn, { n: l.count }) : S.notWon;
+    case 'victory': return l.count === 0 ? S.notWon : fill(l.resigned === true ? S.byResign : S.wonOn, { n: l.count });
     case 'explored': return fill(S.tiles, { n: l.count, of: l.of ?? 0 });
     case 'cities': return S.cities(l.count, l.best ?? 0);
     case 'roads': return l.of === 0 ? S.noOthers : fill(S.joined, { n: l.count, of: l.of ?? 0 });

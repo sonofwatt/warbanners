@@ -44,7 +44,7 @@ taken enemy capital sits far away), one faction wiped out.
 
 | Line | Points | Typical normal win |
 |---|---|---|
-| Victory on turn N | 20 per turn under 60 (0 at 60 or later, 0 for a loss) | 380 |
+| Victory on turn N | 20 per turn under 60, for a win by taking the last city only (0 at 60 or later, 0 for a loss, 0 when the other side resigned) | 380 |
 | Units defeated | +10 each | 320 |
 | Units lost | -5 each | -80 |
 | Land explored | +1 per tile | 125 |
@@ -60,6 +60,11 @@ taken enemy capital sits far away), one faction wiped out.
 - The difficulty factor is `1 + (dial - 0.2) / 0.65`, rounded to one decimal: easy 1.0, normal 1.5, hard 2.0, and
   an adaptive AI that finished at dial 0.1 gives 0.8. It shows as a line of its own with the points it adds, so
   every line still sums to the total. In a match between two people there is no difficulty line.
+- A win by resignation scores no speed (review finding: in pass-the-phone an opponent resigning on turn 2 would
+  hand out 1160 points). The line reads "they resigned on turn N".
+- Online, the record's seats are refreshed from the room on every update (review finding: an adaptive AI seat's
+  dial was frozen at its starting value in the record, so the result could differ from a phone that rebuilt the
+  record later). `src/app/onlineStore.ts`, tested in `src/app/store.online.test.ts`.
 - A subtotal below zero is not multiplied: the difficulty line shows 0 and the total 0.
 - The roads line is left out for a faction that cannot build roads (`FACTIONS[f].canBuildRoads`), so the Mongols
   are not marked down for their rules. A Spartan with no city but the capital sees the line with 0.
@@ -115,6 +120,7 @@ in large bold type in the winner's colour. Sketch:
 ## Open decisions (for David, at the end)
 
 - The weights and the difficulty factors above.
+- Whether a win by resignation should score some speed after all.
 - One sheet per human seat, or only the solo player's sheet.
 - Whether the Mongols should get something in place of the roads line.
 - Whether scores should later go into the player stats (a best score per name).

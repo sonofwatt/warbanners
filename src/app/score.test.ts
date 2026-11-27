@@ -81,10 +81,25 @@ test('a win at turn 60 or later scores no speed, and a loss shows no victory', (
   expect(line(scoreSheet(record(), lost, tallies(), 0), 'victory')).toEqual({ key: 'victory', count: 0, points: 0 });
 });
 
-test('a win by resignation wipes out nobody', () => {
+test('a win by resignation wipes out nobody and scores no speed', () => {
   const sheet = scoreSheet(record(), finished(), tallies({ conquest: [{ villages: 3, wiped: 0 }, { villages: 0, wiped: 0 }] }), 0);
   expect(line(sheet, 'wiped')).toEqual({ key: 'wiped', count: 0, points: 0 });
-  expect(line(sheet, 'victory')!.points).toBe(380);
+  expect(line(sheet, 'victory')).toEqual({ key: 'victory', count: 41, resigned: true, points: 0 });
+});
+
+test('a person in seat 1 against the AI in seat 0 is scored as seat 1, with the difficulty', () => {
+  const rec = newRecord('m', { seed: 1, factions: ['mongols', 'spartans'] }, [ai('hard'), 'Ann'], 0);
+  const s = finished(['mongols', 'spartans']);
+  for (const c of s.cities) c.owner = 1;
+  s.winner = 1;
+  const t = tallies({ tallies: [emptyTally(), { ...emptyTally(), kills: 5 }], conquest: [{ villages: 0, wiped: 0 }, { villages: 2, wiped: 1 }], winner: 1 });
+  const [sheet, ...rest] = scoreSheets(rec, s, t);
+  expect(rest).toHaveLength(0);
+  expect(sheet!.seat).toBe(1);
+  expect(line(sheet!, 'kills')!.count).toBe(5);
+  expect(line(sheet!, 'villages')!.count).toBe(2);
+  expect(line(sheet!, 'roads')).toBeDefined();                 // seat 1 plays the Spartans here
+  expect(sheet!.difficulty).toMatchObject({ level: 'hard', factor: 2 });
 });
 
 describe('difficulty', () => {

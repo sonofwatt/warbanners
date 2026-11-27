@@ -121,7 +121,10 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
     const prior = built !== null && built.actions.length <= f.actions.length && built.actions.every((a, i) => a === f.actions[i]) ? built : null;
     const fresh = f.actions.slice(prior?.actions.length ?? 0).map(decodeAction);
     if (fresh.some(a => a === null)) return null;
-    const base = prior?.record ?? newRecord(v.code, f.settings, [seatOf(room, 0), seatOf(room, 1)], room.meta.createdAt);
+    // The seats are read from the room every time: an adaptive AI seat writes its dial there as it plays, and the
+    // result's difficulty line and score must match what a phone rebuilding the record from the room would show.
+    const seats = [seatOf(room, 0), seatOf(room, 1)];
+    const base = { ...(prior?.record ?? newRecord(v.code, f.settings, [seats[0]!, seats[1]!], room.meta.createdAt)), players: seats };
     const actions = [...(prior?.record.actions ?? []), ...(fresh as Action[])];
     const record: MatchRecord = {
       ...base, actions, snapshot: { count: actions.length, hash: hashState(f.state), state: f.state }, updatedAt: deps.now(),

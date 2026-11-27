@@ -322,7 +322,7 @@ const stats = {
       villages: 'Villages captured', treasures: 'Treasures claimed', cities: 'Cities developed',
       roads: 'Roads to the capital', wiped: 'Factions wiped out',
     } as Record<ScoreKey, string>,
-    wonOn: 'on turn {n}', notWon: 'not this time',
+    wonOn: 'on turn {n}', byResign: 'they resigned on turn {n}', notWon: 'not this time',
     tiles: '{n} of {of} tiles',
     cities: (n: number, best: number): string => (n === 0 ? 'none held' : `${n === 1 ? '1 city' : `${n} cities`}, best level ${best}`),
     joined: '{n} of {of} joined', noOthers: 'no other cities',

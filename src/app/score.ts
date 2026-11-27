@@ -9,7 +9,7 @@ import type { MatchTallies } from './tally';
 // The score sheet on the result screen: one player's match as points. Our own numbers, set in
 // docs/superpowers/specs/2026-11-27-score-sheet-design.md; nothing here is a rule, and the engine never reads it.
 export const SCORE = {
-  turnLimit: 60,      // a win scores perTurn for every turn before this one
+  turnLimit: 60,      // a win by taking the last city scores perTurn for every turn before this one
   perTurn: 20,
   kill: 10, loss: -5, tile: 1, village: 40, treasure: 30,
   level: 10,          // per level above 1, for every city held at the end
@@ -19,8 +19,9 @@ export const SCORE = {
 } as const;
 
 export type ScoreKey = 'victory' | 'kills' | 'losses' | 'explored' | 'villages' | 'treasures' | 'cities' | 'roads' | 'wiped';
-// count: what was counted (the winning turn, units, tiles, cities); of: out of how many; best: the highest city level.
-export interface ScoreLine { key: ScoreKey; count: number; of?: number; best?: number; points: number }
+// count: what was counted (the winning turn, units, tiles, cities); of: out of how many; best: the highest city level;
+// resigned: the victory came from the other side resigning, which scores no speed.
+export interface ScoreLine { key: ScoreKey; count: number; of?: number; best?: number; resigned?: boolean; points: number }
 export interface ScoreSheet {
   seat: PlayerId;
   lines: ScoreLine[];
@@ -39,12 +40,14 @@ export function scoreSheet(record: MatchRecord, state: MatchState, t: MatchTalli
   const conquest = t.conquest[seat === 0 ? 0 : 1];
   const won = state.winner === seat;
   const round = won ? roundOf(state) : 0;
+  // Speed counts only for a win by taking the last city: an opponent who resigns early must not hand out points.
+  const conquered = won && conquest.wiped > 0;
   const cities = state.cities.filter((c) => c.owner === seat);
   const others = cities.filter((c) => !c.capital);
   const joined = others.filter((c) => isConnected(state, c)).length;
 
   const lines: ScoreLine[] = [
-    { key: 'victory', count: round, points: won ? SCORE.perTurn * Math.max(0, SCORE.turnLimit - round) : 0 },
+    { key: 'victory', count: round, ...(won && !conquered ? { resigned: true } : {}), points: conquered ? SCORE.perTurn * Math.max(0, SCORE.turnLimit - round) : 0 },
     { key: 'kills', count: tally.kills, points: SCORE.kill * tally.kills },
     { key: 'losses', count: tally.deaths, points: SCORE.loss * tally.deaths },
   ];

@@ -198,6 +198,20 @@ test('online play never starts the solo AI loop, and solo play never opens the n
   expect(onlineThink).toHaveBeenCalled();                     // the AI seat was played
   expect(busy.includes(true)).toBe(false);                    // and not by playAi, which is the only code that sets aiBusy
 });
+test('the record follows an adaptive AI seat\'s dial as the room moves it, so the score matches a fresh phone', async () => {
+  const { host, server } = await startedPair({ second: 'adaptive', ai: { think: thinker().think, dispose: () => {} } });
+  const code = host.get().online!.code;
+  for (let i = 0; i < 3; i++) {
+    host.get().run({ type: 'endTurn' });
+    await until(() => host.get().state!.current === 0);
+    await settle(server);
+  }
+  const room = (server.tree() as { rooms: Record<string, { seats: Record<string, { adapt?: { dial: number; trend: number } }> }> }).rooms[code]!;
+  const seat = host.get().record!.players[1]!;
+  expect(seat.kind).toBe('ai');
+  expect(seat.kind === 'ai' && seat.adapt).toEqual(room.seats['1']!.adapt);
+  expect(room.seats['1']!.adapt).not.toEqual({ dial: 0.5, trend: 0 });   // the dial did move, so the test can fail
+});
 test('rooms on stale rules say so', async () => {
   const s = online({ uid: 'u0' }); s.server.failCreatesWith('schema');
   await s.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
