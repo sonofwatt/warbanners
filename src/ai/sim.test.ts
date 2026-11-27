@@ -19,6 +19,17 @@ test('the summary counts an adjudged stall as half a win', () => {
   expect(sum.stalledShare).toBe(1);
   expect(sum.winRate.spartans + sum.winRate.mongols).toBeCloseTo(r.adjudged === null ? 0 : 0.5, 9);
   expect(sum.rounds).toEqual({ p10: 2, median: 2, p90: 2 });
+  expect(sum.mirror).toBeNull();
+});
+test('rules 11: a mirror run is flagged, so its win share is told by seat', () => {
+  const r = runMatch({ seed: 3, factions: ['spartans', 'mongols'], seats: [{ level: 'easy' }, { level: 'easy' }], maxRounds: 2 });
+  const won = (p: 0 | 1) => ({ ...r, factions: ['woodland', 'woodland'] as ['woodland', 'woodland'], winner: p, adjudged: null, stalled: false });
+  const sum = summarize([won(0), won(0), won(1)]);
+  expect(sum.mirror).toBe('woodland');
+  expect(sum.winRate.woodland).toBeCloseTo(0.5, 9);
+  expect(sum.seatWinRate[0]).toBeCloseTo(2 / 3, 9);
+  expect(sum.seatWinRate[1]).toBeCloseTo(1 / 3, 9);
+  expect(summarize([won(0), { ...r, factions: ['woodland', 'mongols'] }]).mirror).toBeNull();
 });
 test('an adaptive seat records its dial every turn', () => {
   const r = runMatch({ seed: 3, factions: ['spartans', 'mongols'], seats: [{ adaptive: 0.5 }, { level: 'easy' }], maxRounds: 3 });

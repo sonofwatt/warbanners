@@ -176,7 +176,9 @@ const classic = played.includes('spartans') && played.includes('mongols');
 const travelLine = `travel: tiles moved per mounted unit per turn  ${(classic ? ['mongols', 'spartans'] as FactionId[] : played).map((f) => `${f} ${travel(f)}`).join('  ')}`;
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
-  `win share: ${played.map((f) => `${f} ${pct(s.winRate[f])}`).join('  ')}  (adjudged stalls count half)`,
+  s.mirror !== null
+    ? `win share by seat (${s.mirror} v ${s.mirror}): first ${pct(s.seatWinRate[0])}  second ${pct(s.seatWinRate[1])}  (adjudged stalls count half)`
+    : `win share: ${played.map((f) => `${f} ${pct(s.winRate[f])}`).join('  ')}  (adjudged stalls count half)`,
   `seat win share: first ${pct(s.seatWinRate[0])}  second ${pct(s.seatWinRate[1])}`,
   `stalled ${pct(s.stalledShare)}  rounds p10 ${s.rounds.p10}  median ${s.rounds.median}  p90 ${s.rounds.p90}`,
   `refusals ${refusals} (not moves ${nonMove})  replans ${replans}`,

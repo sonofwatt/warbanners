@@ -14,7 +14,6 @@ import { writeSave } from '../src/app/saves';
 import { createMatch, hashState } from '../src/engine';
 import type { City, HexKey, MatchState, Tile } from '../src/engine';
 import { frames, openApp } from '../src/browser/harness';
-import { advance } from '../src/ui/board/BoardDemo';
 
 const what = process.argv[2] ?? 'sheet';
 const out = process.argv[3] ?? 'docs/superpowers/plans/shots/woodland-towns';
@@ -121,22 +120,6 @@ async function on3d(page: Page): Promise<void> {
 async function centreOf(page: Page, k: HexKey): Promise<{ x: number; y: number } | null> {
   const b = await page.locator(`[data-centre="${k}"]`).boundingBox();
   return b === null ? null : { x: b.x + b.width / 2, y: b.y + b.height / 2 };
-}
-/** Drag the board so tile k sits at (x, y) on screen. */
-async function bring(page: Page, k: HexKey, x: number, y: number): Promise<void> {
-  for (let i = 0; i < 4; i++) {
-    const c = await centreOf(page, k);
-    if (c === null) return;
-    if (Math.hypot(c.x - x, c.y - y) < 3) return;
-    const sx = Math.min(Math.max(c.x, 40), x * 2 - 40), sy = Math.min(Math.max(c.y, 140), y * 2 - 40);
-    await page.mouse.move(sx, sy);
-    await page.mouse.down();
-    await page.mouse.move(sx + (x - c.x) / 2, sy + (y - c.y) / 2, { steps: 4 });
-    await page.mouse.move(sx + (x - c.x), sy + (y - c.y), { steps: 4 });
-    await page.mouse.up();
-    await page.waitForTimeout(250);
-    await frames(page);
-  }
 }
 async function zoom(page: Page, steps: number): Promise<void> {
   const box = await page.getByTestId('board-slot').boundingBox();

@@ -269,6 +269,9 @@ export function runMatch(o: SimOpts): SimResult {
 
 export interface Summary {
   matches: number; winRate: Record<FactionId, number>; seatWinRate: [number, number]; stalledShare: number;
+  // rules 11: the faction when every match was a mirror (both seats the same people): its win share by faction is then
+  // always a half, so the win share is reported by seat (seatWinRate). Null otherwise.
+  mirror: FactionId | null;
   rounds: { p10: number; median: number; p90: number }; perFaction: Record<FactionId, Record<keyof SideMetrics, number>>;
 }
 
@@ -325,6 +328,7 @@ export function summarize(results: readonly SimResult[]): Summary {
     matches: n, winRate,
     seatWinRate: [n === 0 ? 0 : seatWinRate[0] / n, n === 0 ? 0 : seatWinRate[1] / n],
     stalledShare: n === 0 ? 0 : results.filter((r) => r.stalled).length / n,
+    mirror: n > 0 && results.every((r) => r.factions[0] === r.factions[1] && r.factions[0] === results[0]!.factions[0]) ? results[0]!.factions[0] : null,
     rounds: { p10: percentile(rounds, 0.1), median: percentile(rounds, 0.5), p90: percentile(rounds, 0.9) },
     perFaction,
   };
