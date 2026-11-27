@@ -2,7 +2,7 @@
 // village close up with its bonfire by day, at dawn round 15, at dusk round 20 and at night, and the SVG village by
 // day and at night. Run after `vite build`:
 //   npx tsx scripts/village-shots.ts [what] [out dir]
-// what: all (default), card, 3d, svg
+// what: all (default), card, 3d, night (the 3D night shot alone), svg
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { newRecord } from '../src/app/record';
@@ -30,9 +30,11 @@ const DIORAMA: Record<string, Partial<Tile>> = {
   '-1,2': { ...plain, terrain: 'forest' },
   '-2,2': { ...plain, terrain: 'field' },
 };
-// Two figures beside the village, to show the fire's light on their sides.
+// Two figures beside the village, to show the fire's light on their sides, and a rider on the village itself, to show
+// the fire still in sight with a unit standing there.
 const FIGURES: { type: UnitTypeId; owner: 0 | 1; pos: string }[] = [
   { type: 'warrior', owner: 0, pos: '-2,4' },
+  { type: 'horseman', owner: 0, pos: VILLAGE },
   { type: 'archer', owner: 1, pos: '-1,3' },
 ];
 
@@ -144,6 +146,7 @@ if (what === 'all' || what === 'card') {
   await shot(SETTINGS({}), 1, 'card-village', { zoomSteps: 2, select: VILLAGE });
   await shot(SETTINGS({}), 1, 'card-chest', { zoomSteps: 2, select: CHEST });
 }
+if (what === 'night') await shot(SETTINGS({ time: 'night' }), 1, '3d-night', { zoomSteps: 8 });
 if (what === 'all' || what === '3d') {
   await shot(SETTINGS({}), 1, '3d-day', { zoomSteps: 8 });
   await shot(SETTINGS({ time: 'dawn' }), 15, '3d-dawn-round15', { zoomSteps: 8 });

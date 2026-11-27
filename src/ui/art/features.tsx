@@ -592,9 +592,12 @@ function pool(ink: Ink, x: number, y: number, rx: number, ry: number, k = 1): vo
 
 const HUT: HouseColours = { front: '#E6D5B0', side: '#C9B68E', roof: '#9A8878', roofSide: '#7E6E60' };
 
-/** The village art's scale, and where its bonfire burns (board units, the stones' centre): between the two huts. */
+/**
+ * The village art's scale, and where its bonfire burns (board units, the stones' centre): at the front left, where a
+ * unit standing in the middle of the tile does not hide it.
+ */
 const VILLAGE_SCALE = 1.15;
-const FIRE_AT = { x: 2.6, y: 3 } as const;
+const FIRE_AT = { x: -7.5, y: 12 } as const;
 export const VILLAGE_FIRE = { x: FIRE_AT.x * VILLAGE_SCALE, y: FIRE_AT.y * VILLAGE_SCALE } as const;
 
 /** The bonfire's flames: an orange tongue with a yellow heart, at (x, y), the foot of the flames. */
@@ -628,21 +631,23 @@ function bonfire(x: number, y: number): ReactElement {
 }
 
 export function Village(): ReactElement {
-  // The huts stand apart, the bonfire burning in the open ground between them; the woodpile at the front left.
+  // The huts stand apart, the woodpile in the open ground between them; the bonfire at the front left.
   const back = new Ink(VILLAGE_SCALE), front = new Ink(VILLAGE_SCALE);
   house(back, -11, -2, 11, 7, HUT, 10);
   back.rect(-12.5, -6, 3, 4, '#6B5A48');
   house(front, 12, 7, 10, 6, HUT, 9);
   front.rect(10.6, 3.4, 2.8, 3.6, '#6B5A48');
-  // A woodpile of three short logs.
-  front.circle(-5, 8.5, 1.6, '#C49A5E');
-  front.circle(-8, 8.5, 1.6, '#C49A5E');
-  front.circle(-6.5, 6.1, 1.6, '#C49A5E');
+  // A woodpile of three short logs, between the huts.
+  const pile = new Ink(VILLAGE_SCALE);
+  pile.circle(1.1, 3.4, 1.6, '#C49A5E');
+  pile.circle(4.1, 3.4, 1.6, '#C49A5E');
+  pile.circle(2.6, 1.0, 1.6, '#C49A5E');
   return (
     <g>
       {back.done()}
-      {bonfire(FIRE_AT.x, FIRE_AT.y)}
+      {pile.done()}
       {front.done()}
+      {bonfire(FIRE_AT.x, FIRE_AT.y)}
     </g>
   );
 }

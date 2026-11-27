@@ -134,10 +134,15 @@ export function townPlan(town: GlTown, q: number, r: number): TownPlan {
 /** The bonfire's ring of stones (its outer radius, world units), and the most a hut's eaves reach from its middle. */
 export const FIRE_RING = 2.6;
 export const HUT_REACH = 7.9;
+/** Where a village's bonfire burns (world units from the tile's middle, x mirrored by the turn): near the front edge, left of middle, low enough on screen that a unit standing in the middle (drawn over the terrain) does not cover it. */
+export const VILLAGE_FIRE_AT = { x: -6, z: 19.5 } as const;
+/** How far behind the middle a village's woodpile lies (world units, z): just clear of the middle square. */
+export const VILLAGE_PILE_Z = -10;
 
 /**
- * A village: two humble huts and a woodpile, mirrored by the tile's turn, and a bonfire burning in the open ground
- * halfway between the huts. The huts stand far enough apart that the fire's stones clear both huts' eaves.
+ * A village: two humble huts, mirrored by the tile's turn, a woodpile in the open ground between them, and a
+ * bonfire at the front of the tile, where a unit standing in the middle does not hide it. Its stones clear both
+ * huts' eaves.
  */
 export function villagePlan(v: number, turn: number, q: number, r: number): TownPlan {
   const m = turn % 2 === 0 ? 1 : -1;
@@ -149,9 +154,10 @@ export function villagePlan(v: number, turn: number, q: number, r: number): Town
     [[-9, -10, 0.4, 0.95], [13, 3, -0.3, 0.9]],
   ];
   const pieces: TownPiece[] = A[v % 4]!.map(([x, z, rot, k], i) => ({ kind: 'hut', x: x * m, z, rot: rot * m, foot: 6.5 * k, h: 15 * k, seed: s(i) }));
-  pieces.push({ kind: 'woodpile', x: 2 * m, z: 13, rot: 0.2 * m, foot: 3, h: 3, seed: s(9) });
   const [a, b] = [pieces[0]!, pieces[1]!];
-  return { faction: null, pieces, banner: null, pennant: null, walls: null, fire: { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 } };
+  // The woodpile lies between the huts, just behind the middle (the middle itself is kept clear for a unit's feet).
+  pieces.push({ kind: 'woodpile', x: (a.x + b.x) / 2, z: VILLAGE_PILE_Z, rot: 0.2 * m, foot: 3, h: 3, seed: s(9) });
+  return { faction: null, pieces, banner: null, pennant: null, walls: null, fire: { x: VILLAGE_FIRE_AT.x * m, z: VILLAGE_FIRE_AT.z } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

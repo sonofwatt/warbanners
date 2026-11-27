@@ -22,6 +22,7 @@ const { fireSpots, smokeSpots, FLAME_TOP, SMOKE_ALPHA, SMOKE_SIZE } = await impo
 const { FIRE_RING, HUT_REACH, pieceFits, villagePlan } = await import('./townLayout');
 const { skyLight } = await import('./sky');
 const { DAYLIGHT_ROUNDS } = await import('./daylight');
+const { edgeDist } = await import('./layout');
 const { lanternFlicker } = await import('./townLayout');
 
 const bare: GlTile = { terrain: 'field', resource: null, harvested: false, building: null, village: false, treasure: false, road: false, city: false, town: null };
@@ -30,21 +31,25 @@ const mapOf = (tiles: Record<string, Partial<GlTile>>): GlMap => ({
 });
 const make = () => createTerrain3d({} as HTMLCanvasElement, { units: {} as HTMLCanvasElement })!;
 
-test('a village\'s bonfire burns halfway between its huts, its stones clear of both huts\' eaves, and the huts still fit', () => {
+test('a village\'s bonfire burns at the front of the tile, clear of the middle where a unit stands and of both huts\' eaves; the woodpile sits between the huts behind the middle', () => {
   for (let v = 0; v < 4; v++) {
     for (const turn of [0, 1]) {
       const plan = villagePlan(v, turn, v, turn);
       const huts = plan.pieces.filter((p) => p.kind === 'hut');
       expect(plan.fire).not.toBeNull();
       const f = plan.fire!;
-      expect(f.x).toBeCloseTo((huts[0]!.x + huts[1]!.x) / 2);
-      expect(f.z).toBeCloseTo((huts[0]!.z + huts[1]!.z) / 2);
+      // In front of the middle (toward the viewer), far enough out that a unit in the middle does not cover it.
+      expect(f.z).toBeGreaterThan(10);
+      expect(Math.hypot(f.x, f.z)).toBeGreaterThan(10);
       for (const h of huts) expect(Math.hypot(h.x - f.x, h.z - f.z) - HUT_REACH - FIRE_RING, `variant ${v} turn ${turn}`).toBeGreaterThan(1.5);
-      // The woodpile keeps clear of the fire too.
+      // The woodpile lies between the huts, just behind the middle, clear of both huts and of the fire.
       const pile = plan.pieces.find((p) => p.kind === 'woodpile')!;
+      expect(pile.x).toBeCloseTo((huts[0]!.x + huts[1]!.x) / 2);
+      expect(pile.z).toBeLessThan(0);
+      for (const h of huts) expect(Math.hypot(h.x - pile.x, h.z - pile.z)).toBeGreaterThan(h.foot + pile.foot);
       expect(Math.hypot(pile.x - f.x, pile.z - f.z)).toBeGreaterThan(FIRE_RING + pile.foot + 2);
-      // Near the middle of the tile.
-      expect(Math.hypot(f.x, f.z)).toBeLessThan(5);
+      // Still well inside the tile.
+      expect(edgeDist(f.x, f.z)).toBeGreaterThan(FIRE_RING + 2);
       for (const p of plan.pieces) expect(pieceFits(p)).toBe(true);
     }
   }

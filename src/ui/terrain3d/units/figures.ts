@@ -676,6 +676,8 @@ const SCOUT_CLOAK: readonly { y: number; c: [number, number]; rx: [number, numbe
   { y: 10.0, c: [-2.0, -0.8], rx: [12.0, 12.2], rz: 6.0, from: -2.2, to: 1.35 },
   { y: 0, c: [-4.0, -1.2], rx: [10.6, 11.6], rz: 6.6, from: -2.0, to: 1.3 },
 ];
+/** The cowl's rings at the top of SCOUT_CLOAK, left off now that the hood is down (folded on the shoulders). */
+const SCOUT_COWL = 2;
 /** The hem's height at each of the cloak's nine points round it (from -x round to +x): torn points between notches. */
 const SCOUT_HEM = [2.6, 6.4, 3.6, 7.2, 4.4, 6.8, 3.4, 7.6, 5.2];
 /** In rags: the notches torn deeper and two points torn shorter. */
@@ -688,13 +690,25 @@ function scoutCloak(k: Kit, colour: string, rags: boolean): void {
     const y = r === SCOUT_CLOAK.length - 1 ? h : ring.y;
     return [ring.c[0] + ring.rx[a < 0 ? 0 : 1] * Math.sin(a), y, ring.c[1] - ring.rz * Math.cos(a)];
   }));
-  k.shell(rows, 0.8, colour, [0, -0.5]);
-  // A rolled edge round the face, from one shoulder up over the brow and down to the other, so the cowl reads as a
-  // hood and not as hair.
-  const last = hem.length - 1;
-  const brow: V3 = [2.2, 28.4, 5.7];
-  const edge: V3[] = [rows[2]![0]!, rows[1]![0]!, rows[0]![0]!, brow, rows[0]![last]!, rows[1]![last]!, rows[2]![last]!];
-  for (let i = 0; i + 1 < edge.length; i++) k.rod(edge[i]!, edge[i + 1]!, 0.75, mix(colour, '#000000', 0.25), { seg: 5 });
+  // The hood is down: the cloak starts at the shoulders (the cowl's two rings are left off) and the hood lies folded
+  // on them behind his neck.
+  const cloak = rows.slice(SCOUT_COWL);
+  k.shell(cloak, 0.8, colour, [0, -0.5]);
+  const shade = mix(colour, '#000000', 0.25);
+  // A rolled collar along the cloak's top edge, from one shoulder round the back to the other.
+  const collar = cloak[0]!;
+  for (let i = 0; i + 1 < collar.length; i++) {
+    const lift = (p: V3): V3 => [p[0], p[1] + 0.5, p[2]];
+    k.rod(lift(collar[i]!), lift(collar[i + 1]!), 0.9, shade, { seg: 5 });
+  }
+  // The hood itself, pushed back and bunched in soft folds over the shoulders and the top of the back: a broad
+  // flattened mound behind the neck with a smaller fold on each shoulder, and the hood's rim lying open on top.
+  const top = SCOUT_CLOAK[SCOUT_COWL]!.y;
+  k.ball([0.4, top + 1.2, -4.6], 4.4, colour, { s: [1.45, 0.62, 0.85], detail: 1 });
+  k.ball([-3.6, top + 0.6, -3.2], 3.0, colour, { s: [1.0, 0.6, 0.9], detail: 1 });
+  k.ball([4.4, top + 0.6, -3.0], 3.0, colour, { s: [1.0, 0.6, 0.9], detail: 1 });
+  const rim: V3[] = [[-3.8, top + 2.4, -2.8], [-1.6, top + 3.2, -3.6], [1.0, top + 3.4, -3.8], [3.6, top + 3.0, -3.6], [5.0, top + 2.2, -2.6]];
+  for (let i = 0; i + 1 < rim.length; i++) k.rod(rim[i]!, rim[i + 1]!, 0.75, shade, { seg: 5 });
 }
 
 function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
@@ -713,12 +727,13 @@ function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     const ts = (x: number, y: number) => tunicSurf(0.3)(x, y);
     if (worn(w, 1)) dirt(k, ts, 2.6, H(-3.4), 3.6, c.dark);
     if (worn(w, 3)) { const [lip, gap] = tearPolys(1.6, H(-9.4), 3.4, 3.0); k.decal(lip, mix(c.main, '#000000', 0.45), ts); k.decal(gap, SKIN, ts); }
-    // The hooded cloak in the owner's dark colour: a soft cowl round his head, open at the face, that falls onto his
-    // shoulders and back and sweeps out behind him (toward -x), its hem torn into points (in rags when broken).
+    // The cloak in the owner's dark colour, its hood down and folded on his shoulders; it falls over his back and
+    // sweeps out behind him (toward -x), its hem torn into points (in rags when broken).
     scoutCloak(k, c.dark, worn(w, 4));
     const hd = head(k, 2.2, -14.8, 5.4, 1.2, 0.6);
-    // The crown of the cowl: a round cap over the head, inside the cloak's top ring.
-    k.dome([hd.c[0], hd.c[1] + 0.6, hd.c[2] - 0.2], 5.95, c.dark, { to: 0.9, seg: 12 });
+    // Bare-headed: short hair over the crown and the back of the head.
+    k.dome([hd.c[0], hd.c[1] + 0.5, hd.c[2] - 0.4], hd.r + 0.3, HAIR, { to: 0.95, seg: 10 });
+    k.ball([hd.c[0], hd.c[1] + 0.4, hd.c[2] - 2.2], hd.r * 0.9, HAIR, { detail: 1 });
     faceWear(k, hd, w, 1);
     // A short dagger held low and forward.
     arm(k, [4.2, H(-11), 1.4], [8.8, H(-8.2), 5.0], c.main);
