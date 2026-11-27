@@ -71,7 +71,7 @@ if (type === 'all') {
   console.log('spots', near.length);
   const sides: Record<string, UnitTypeId[]> = {
     spartans: ['hoplite', 'kingsGuard', 'piper', 'scout', 'knight', 'catapult', 'defender', 'swordsman', 'hoplite', 'archer'],
-    mongols: ['horseman', 'horseArcher', 'khansGuard', 'skyCaller', 'camp', 'archer', 'spearman', 'warrior', 'sellsword', 'horseman'],
+    mongols: ['horseman', 'horseArcher', 'khansGuard', 'skyCaller', 'camp', 'sellsword', 'spearman', 'warrior', 'archer', 'horseman'],
   };
   const WEARS: [number, Unit['wear']][] = [
     [1, { battles: 0, scar: 0, bleeding: false }], [0.6, { battles: 2, scar: 0, bleeding: false }], [0.2, { battles: 6, scar: 0, bleeding: true }],
