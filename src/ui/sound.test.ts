@@ -317,3 +317,34 @@ describe('the sound tells only what the board would show', () => {
     expect(Object.keys(HEARD_RULES)).toContain('matchOver');
   });
 });
+
+describe('rules 11: the Woodland Nations sounds', () => {
+  const hit = { type: 'attacked', unit: 1, target: 2, damage: 3, counter: 0 } as const;
+  const woodland = (s: 'bow' | 'club' | null): Hearing => ({ ...hear([1, 2]), strike: () => s });
+
+  test('a seen Woodland attacker sounds as its bow or its club', () => {
+    expect(soundFor([hit], woodland('bow'))).toBe('bowShot');
+    expect(soundFor([hit], woodland('club'))).toBe('woodHit');
+    expect(soundFor([hit], woodland(null))).toBe('hit');
+  });
+
+  test('a hidden attacker stays a plain hit, so the sound tells no more than the board', () => {
+    expect(soundFor([hit], { ...hear([2]), strike: () => 'bow' })).toBe('hit');
+  });
+
+  test('a Dash-strike sounds as its run, a snare as its snap, each only when its unit is seen', () => {
+    const dash: GameEvent[] = [{ type: 'dashStrike', unit: 1, target: 2, via: '1,0' }, hit, { ...hit }];
+    expect(soundFor(dash, woodland('club'))).toBe('dash');
+    expect(soundFor(dash, { ...hear([2]), strike: () => 'club' })).toBe('hit');
+    const snared: GameEvent[] = [{ type: 'snared', unit: 2, at: '1,0', damage: 3 }, { type: 'died', unit: 2 }];
+    expect(soundFor(snared, ALL)).toBe('snare');
+    expect(soundFor(snared, hear([1]))).toBeNull();
+  });
+
+  test('each has its own file', () => {
+    expect(SAMPLE_FILES.woodHit?.file).toBe('wood-knock');
+    expect(SAMPLE_FILES.bowShot?.file).toBe('bowstring-snap');
+    expect(SAMPLE_FILES.dash?.file).toBe('dash-footfalls');
+    expect(SAMPLE_FILES.snare?.file).toBe('snare-snap');
+  });
+});

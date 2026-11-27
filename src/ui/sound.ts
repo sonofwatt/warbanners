@@ -1,9 +1,11 @@
 import { cityTile, seenBy } from './board/effects';
+import { UNITS, distance, parseKey } from '../engine';
 import type { GameEvent, HexKey, MatchState, PlayerId } from '../engine';
 
 export type SoundName =
   | 'tap' | 'move' | 'hit' | 'fall' | 'build' | 'capture' | 'turn' | 'win'
-  | 'train' | 'research' | 'treasure' | 'levelUp' | 'chainCost';
+  | 'train' | 'research' | 'treasure' | 'levelUp' | 'chainCost'
+  | 'woodHit' | 'bowShot' | 'dash' | 'snare';   // rules 11: the Woodland Nations
 
 export const SOUNDS: Record<
   SoundName,
@@ -22,14 +24,20 @@ export const SOUNDS: Record<
   treasure: { wave: 'sine', notes: [659, 784, 988], ms: 300, gain: 0.12 },
   levelUp: { wave: 'triangle', notes: [440, 554, 659, 880], ms: 360, gain: 0.14 },
   chainCost: { wave: 'square', notes: [200, 150], ms: 160, gain: 0.08 },
+  woodHit: { wave: 'triangle', notes: [180, 120], ms: 120, gain: 0.12 },
+  bowShot: { wave: 'triangle', notes: [520, 260], ms: 120, gain: 0.1 },
+  dash: { wave: 'triangle', notes: [200, 240, 200, 240], ms: 260, gain: 0.1 },
+  snare: { wave: 'square', notes: [700, 160], ms: 140, gain: 0.1 },
 };
 
 export const ORDER: { name: SoundName; types: readonly GameEvent['type'][] }[] = [
   { name: 'win', types: ['matchOver'] },
   { name: 'capture', types: ['captured'] },
   { name: 'levelUp', types: ['heroTrait'] },
+  { name: 'snare', types: ['snared'] },      // rules 11: a snare's snap over the fall it may cause
   { name: 'fall', types: ['died'] },
   { name: 'chainCost', types: ['momentum'] },   // rules 7: momentum plays the old chain cost cue
+  { name: 'dash', types: ['dashStrike'] },   // rules 11: the run, over its two blows
   { name: 'hit', types: ['attacked', 'splashed'] },
   { name: 'train', types: ['trained'] },
   { name: 'treasure', types: ['treasure'] },
@@ -46,11 +54,18 @@ export interface Hearing {
   visible: ReadonlySet<HexKey>;
   seenUnits: ReadonlySet<number>;
   cityAt: (city: number) => HexKey | undefined;
+  /** rules 11: a Woodland attacker's own hit sound, a bow from range or a club beside its target; null otherwise. */
+  strike?: (unit: number, target: number) => 'bow' | 'club' | null;
 }
 
 export function hearingFor(before: MatchState, after: MatchState, viewer: PlayerId): Hearing {
   const { visible, seenUnits } = seenBy(before, after, viewer);
-  return { viewer, actor: before.current, visible, seenUnits, cityAt: (id) => cityTile(before, after, id) };
+  const strike = (unit: number, target: number): 'bow' | 'club' | null => {
+    const a = before.units.find((u) => u.id === unit), t = before.units.find((u) => u.id === target);
+    if (a === undefined || t === undefined || UNITS[a.type].faction !== 'woodland') return null;
+    return distance(parseKey(a.pos), parseKey(t.pos)) > 1 ? 'bow' : 'club';
+  };
+  return { viewer, actor: before.current, visible, seenUnits, cityAt: (id) => cityTile(before, after, id), strike };
 }
 
 // Whether the viewer may hear of an event: a sound tells nothing the board would not show. A unit event needs the
@@ -69,6 +84,8 @@ export const HEARD_RULES: { [T in GameEvent['type']]?: Rule<T> } = {
   lured: rule<'lured'>(unitSeen),
   advanced: rule<'advanced'>(unitSeen),
   died: rule<'died'>(unitSeen),
+  snared: rule<'snared'>(unitSeen),
+  dashStrike: rule<'dashStrike'>((e, h) => h.seenUnits.has(e.unit) && h.seenUnits.has(e.target)),
   heroTrait: rule<'heroTrait'>(unitSeen),
   momentum: rule<'momentum'>(unitSeen),
   ability: rule<'ability'>(unitSeen),
@@ -90,11 +107,20 @@ function heard(e: GameEvent, h: Hearing): boolean {
   return r === undefined ? false : r(e as never, h);
 }
 
+// rules 11: a hit by a Woodland unit the viewer can see sounds as its bow or its club. A hidden attacker stays a plain
+// hit, so the sound tells no more than the board, which draws only the hit on the target.
+function woodlandHit(known: readonly GameEvent[], h: Hearing): SoundName {
+  const e = known.find((x): x is Extract<GameEvent, { type: 'attacked' }> => x.type === 'attacked');
+  if (e === undefined || !h.seenUnits.has(e.unit) || h.strike === undefined) return 'hit';
+  const s = h.strike(e.unit, e.target);
+  return s === 'bow' ? 'bowShot' : s === 'club' ? 'woodHit' : 'hit';
+}
+
 // One sound per action: the most important event the viewer may know of wins.
 export function soundFor(events: readonly GameEvent[], h: Hearing): SoundName | null {
   const known = events.filter((e) => heard(e, h));
   for (const { name, types } of ORDER) {
-    if (known.some((e) => types.includes(e.type))) return name;
+    if (known.some((e) => types.includes(e.type))) return name === 'hit' ? woodlandHit(known, h) : name;
   }
   return null;
 }
@@ -154,6 +180,11 @@ export const SAMPLE_FILES: Record<SoundName, { file: string; takes: number } | n
   treasure: { file: 'treasure', takes: 3 },
   levelUp: { file: 'level-up', takes: 3 },
   chainCost: { file: 'chain-cost', takes: 3 },
+  // rules 11: synthesised for Warbanners (no recordings or samples), one take each.
+  woodHit: { file: 'wood-knock', takes: 1 },
+  bowShot: { file: 'bowstring-snap', takes: 1 },
+  dash: { file: 'dash-footfalls', takes: 1 },
+  snare: { file: 'snare-snap', takes: 1 },
 };
 
 // Which take to play: a random one, never the one just played when there is another. `rand` is in [0, 1).
