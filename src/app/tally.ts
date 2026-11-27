@@ -5,15 +5,24 @@ import type { MatchRecord } from './record';
 
 // One side's numbers for one match. `taken` is the other side's `dealt`.
 export interface Tally { dealt: number; taken: number; kills: number; deaths: number; cities: number; heroes: number; treasures: number }
-export interface MatchTallies { tallies: [Tally, Tally]; rounds: number; winner: PlayerId | null }
+// Kept apart from Tally, which the stats store saves and checks key by key. villages: villages taken (a capture of a
+// city that did not exist before); wiped: factions whose last city this seat took (a resign wipes out nobody).
+export interface Conquest { villages: number; wiped: number }
+export interface MatchTallies { tallies: [Tally, Tally]; conquest: [Conquest, Conquest]; rounds: number; winner: PlayerId | null }
 
 export const emptyTally = (): Tally => ({ dealt: 0, taken: 0, kills: 0, deaths: 0, cities: 0, heroes: 0, treasures: 0 });
 
 // Replays a match from its settings and counts the engine's own events for each seat. Owners are read from the state
 // before each action, since a unit that dies is gone after it. A refused action ends the count: the match stopped there.
 export function matchTallies(settings: MatchSettings, actions: readonly Action[]): MatchTallies {
+  return talliesFrom(createMatch(settings), actions);
+}
+
+// The same count from any starting state, for tests that build an endgame by hand.
+export function talliesFrom(start: MatchState, actions: readonly Action[]): MatchTallies {
   const t: [Tally, Tally] = [emptyTally(), emptyTally()];
-  let s: MatchState = createMatch(settings);
+  const c: [Conquest, Conquest] = [{ villages: 0, wiped: 0 }, { villages: 0, wiped: 0 }];
+  let s: MatchState = start;
   const other = (p: PlayerId): 0 | 1 => (p === 0 ? 1 : 0);
   const side = (p: PlayerId): Tally => t[p === 0 ? 0 : 1];
   for (const a of actions) {
@@ -37,7 +46,11 @@ export function matchTallies(settings: MatchSettings, actions: readonly Action[]
           side(other(owner)).kills += 1;
           break;
         }
-        case 'captured': side(e.by).cities += 1; break;
+        case 'captured':
+          side(e.by).cities += 1;
+          if (!before.cities.some(x => x.id === e.city)) c[e.by === 0 ? 0 : 1].villages += 1;
+          break;
+        case 'eliminated': if (a.type === 'capture') c[before.current === 0 ? 0 : 1].wiped += 1; break;
         case 'heroTrait': if (e.hero) side(ownerOf(e.unit)).heroes += 1; break;
         case 'treasure': side(before.current).treasures += 1; break;
         default: break;
@@ -47,7 +60,7 @@ export function matchTallies(settings: MatchSettings, actions: readonly Action[]
   }
   t[0].taken = t[1].dealt;
   t[1].taken = t[0].dealt;
-  return { tallies: t, rounds: roundOf(s), winner: s.winner };
+  return { tallies: t, conquest: c, rounds: roundOf(s), winner: s.winner };
 }
 
 // The last few counts, by match and length, so the end of a match is replayed once for both the stats and the result
