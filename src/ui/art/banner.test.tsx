@@ -14,8 +14,6 @@ const banner = (p: Partial<WarBannerProps> = {}) => html(
   <WarBanner type="warrior" colour={RED} hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} {...p} />,
 );
 const TYPES = Object.keys(UNITS) as UnitTypeId[];
-// Stand-ins until Tasks 15 and 16 draw the Woodland glyphs: they reuse an existing glyph.
-const WOODLAND_STAND_INS = ['skirmisher', 'woodlandHunter', 'warChief', 'smokeKeeper', 'trapper'];
 
 /** The balanced `<g ...>...</g>` element that starts at `from`. */
 function groupAt(s: string, from: number): string {
@@ -52,7 +50,7 @@ function points(s: string): { x: number; y: number }[] {
 
 test('every unit type has its own glyph on its banner, drawn light on the owner colour', () => {
   expect(new Set(Object.keys(GLYPHS))).toEqual(new Set(TYPES));
-  const glyphs = TYPES.filter((t) => !WOODLAND_STAND_INS.includes(t)).map((t) => {
+  const glyphs = TYPES.map((t) => {
     const b = banner({ type: t });
     expect(b, t).toContain(`data-banner="${t}"`);
     const g = part(b, `data-glyph="${t}"`);

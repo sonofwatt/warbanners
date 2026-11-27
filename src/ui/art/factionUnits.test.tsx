@@ -3,15 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
 import { UNITS } from '../../engine';
 import type { UnitTypeId } from '../../engine';
+import { WOODLAND_FIGURES } from './woodlandUnits';
 import { FACTION_FIGURES, FIGURES } from './factionUnits';
 import { ACCENT, playerColour } from './palette';
 import type { FigureProps } from './units';
 
 const P: FigureProps = { colour: playerColour('spartans'), accent: ACCENT.spartans };
 const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
-// Stand-ins until Tasks 15 and 16 draw the Woodland figures and glyphs: they reuse an existing one.
-const WOODLAND_STAND_INS = ['skirmisher', 'woodlandHunter', 'warChief', 'smokeKeeper', 'trapper'];
-const CHAMPIONS = new Set(['kingsGuard', 'khansGuard']);
+const CHAMPIONS = new Set(['kingsGuard', 'khansGuard', 'warChief']);
 
 /** Every point a shape reaches, read from its attributes. Paths may use only absolute M, L, Q, C and Z. */
 function extents(markup: string): { x: number; y: number; where: string }[] {
@@ -44,17 +43,16 @@ function extents(markup: string): { x: number; y: number; where: string }[] {
 test('all seventeen unit types have a figure, each different', () => {
   const ids = Object.keys(UNITS);
   expect(Object.keys(FIGURES).sort()).toEqual([...ids].sort());
-  const own = ids.filter((id) => !WOODLAND_STAND_INS.includes(id));
-  expect(new Set(own.map((id) => html(FIGURES[id as UnitTypeId](P)))).size).toBe(17);
+  expect(new Set(ids.map((id) => html(FIGURES[id as UnitTypeId](P)))).size).toBe(ids.length);
 });
 
-test('the eight faction figures are the faction units of the engine', () => {
-  const faction = Object.entries(UNITS).filter(([id, u]) => u.faction !== null && !WOODLAND_STAND_INS.includes(id)).map(([id]) => id);
-  expect(Object.keys(FACTION_FIGURES).sort()).toEqual(faction.sort());
+test('the thirteen faction figures are the faction units of the engine', () => {
+  const faction = Object.entries(UNITS).filter(([, u]) => u.faction !== null).map(([id]) => id);
+  expect([...Object.keys(FACTION_FIGURES), ...Object.keys(WOODLAND_FIGURES)].sort()).toEqual(faction.sort());
 });
 
 test('each faction figure wears the colour it is given and no other player colour', () => {
-  for (const [id, f] of Object.entries(FACTION_FIGURES)) {
+  for (const [id, f] of Object.entries({ ...FACTION_FIGURES, ...WOODLAND_FIGURES })) {
     const red = html(f(P));
     const blue = html(f({ colour: playerColour('mongols'), accent: ACCENT.mongols }));
     expect(red, id).toContain('#B3261E');
@@ -65,7 +63,7 @@ test('each faction figure wears the colour it is given and no other player colou
 });
 
 test('each faction figure has a shadow, no gradient, and stays in its box', () => {
-  for (const [id, f] of Object.entries(FACTION_FIGURES)) {
+  for (const [id, f] of Object.entries({ ...FACTION_FIGURES, ...WOODLAND_FIGURES })) {
     const h = html(f(P));
     const top = CHAMPIONS.has(id) ? -40 : -36;
     expect(h, id).toContain('fill-opacity="0.18"');

@@ -210,11 +210,46 @@ const BASE_GLYPHS: Record<Exclude<UnitTypeId, WoodlandId>, Glyph> = {
   },
 };
 
+// rules 11: the Woodland Nations' five, each by what it carries.
+const WOODLAND_GLYPHS: Record<WoodlandId, Glyph> = {
+  // A ball-headed club, the ball up and to the right.
+  skirmisher: (g, fg) => {
+    g.line(-3, 4, 1.4, -1.6, fg, 1.2);
+    g.circle(2.4, -2.8, 2, fg);
+  },
+  // A long bow standing upright, an arrow across it, fletched at the tail.
+  woodlandHunter: (g, fg) => {
+    g.stroke('M 0.6 -4.4 Q -3.4 0 0.6 4.4', fg, 1);
+    g.line(0.6, -4.4, 0.6, 4.4, fg, 0.45);
+    g.line(-3.4, 0, 3, 0, fg, 0.7);
+    g.poly([4.4, 0, 2.8, -1.1, 2.8, 1.1], fg);
+    g.poly([-3.4, 0, -4.4, -1.1, -2.6, -0.2], fg);
+  },
+  // A gunstock war club, its spike blade showing at the elbow.
+  warChief: (g, fg) => {
+    g.poly([-3.4, 4.2, -2, 4.2, 1.2, -1.4, 2.8, -4.4, 0.8, -4, -0.6, -1.2], fg);
+    g.poly([0.2, -0.6, 4.2, 0.6, 0.6, 0.6], fg);
+  },
+  // A clay bowl with smoke rising.
+  smokeKeeper: (g, fg, bg) => {
+    g.shape('M -3.6 1 L 3.6 1 Q 3.4 4.2 0 4.2 Q -3.4 4.2 -3.6 1 Z', fg);
+    g.rect(-3.6, 0.4, 7.2, 1, fg, 0.4);
+    g.rect(-2.4, 1.4, 4.8, 0.6, bg, 0.3);
+    g.stroke('M -1 -0.4 Q -2.6 -1.8 -1 -3 Q 0.4 -4 -0.6 -4.8', fg, 0.8);
+    g.stroke('M 1.4 -0.4 Q 0.2 -1.6 1.6 -2.6', fg, 0.7);
+  },
+  // An iron trap: two toothed jaws open on a round spring.
+  trapper: (g, fg, bg) => {
+    g.circle(0, 1.6, 2.6, fg);
+    g.circle(0, 1.6, 1.4, bg);
+    g.poly([-4, -0.6, -4.2, -3.8, -3, -2.4, -2.4, -3.8, -1.6, -2.4, -1.4, -0.4], fg);
+    g.poly([4, -0.6, 4.2, -3.8, 3, -2.4, 2.4, -3.8, 1.6, -2.4, 1.4, -0.4], fg);
+  },
+};
+
 export const GLYPHS: Record<UnitTypeId, Glyph> = {
   ...BASE_GLYPHS,
-  // stand-in until Tasks 15 and 16: the Woodland glyphs reuse existing ones
-  skirmisher: BASE_GLYPHS.warrior, trapper: BASE_GLYPHS.warrior, woodlandHunter: BASE_GLYPHS.archer,
-  warChief: BASE_GLYPHS.swordsman, smokeKeeper: BASE_GLYPHS.piper,
+  ...WOODLAND_GLYPHS,
 };
 
 /** The slashed eye on an own hidden unit's banner: its enemies see it only from next to it. */

@@ -4,9 +4,11 @@ import type { FactionId, HexKey, Terrain, Tile, UnitTypeId } from '../../engine'
 import { TileArt } from '../board/Board';
 import { hexToBoard } from '../board/layout';
 import { FACTION_FIGURES, FIGURES } from './factionUnits';
+import { WOODLAND_FIGURES } from './woodlandUnits';
+import { WoodlandEmblem } from '../icons';
 import type { FactionFigure } from './factionUnits';
 import { BuildingMark, CityMark, ResourceMark, Road, TerrainFeature, Treasure, Village } from './features';
-import { playerColour } from './palette';
+import { MIRROR_ACCENT, MIRROR_COLOUR, playerColour } from './palette';
 import type { Ground } from './palette';
 import { Border, Highlight, ReadyGlow, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
@@ -121,11 +123,13 @@ function Diorama(): ReactElement {
 
 const SHARED_IDS = Object.keys(SHARED_FIGURES) as SharedFigure[];
 const FACTION_IDS = Object.keys(FACTION_FIGURES) as FactionFigure[];
-const ALL_IDS: readonly UnitTypeId[] = [...SHARED_IDS, ...FACTION_IDS];
+const WOODLAND_IDS = Object.keys(WOODLAND_FIGURES) as UnitTypeId[];
+const ALL_IDS: readonly UnitTypeId[] = [...SHARED_IDS, ...FACTION_IDS, ...WOODLAND_IDS];
 
 /** A row of tiles, each with a figure, drawn as one board so they can be compared at a glance. */
-function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId[] }): ReactElement {
-  const colour = playerColour(p.faction);
+function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId[]; mirror?: boolean }): ReactElement {
+  const colour = p.mirror === true ? MIRROR_COLOUR : playerColour(p.faction);
+  const accent = p.mirror === true ? MIRROR_ACCENT : ACCENT[p.faction];
   const step = 56;
   const w = p.ids.length * step;
   return (
@@ -133,7 +137,7 @@ function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId
       {p.ids.map((id, i) => (
         <g key={id} transform={`translate(${i * step} 0)`}>
           <TileBase ground="grass" />
-          {FIGURES[id]({ colour, accent: ACCENT[p.faction] })}
+          {FIGURES[id]({ colour, accent })}
         </g>
       ))}
     </svg>
@@ -141,7 +145,7 @@ function Lineup(p: { faction: FactionId; scale: number; ids: readonly UnitTypeId
 }
 
 const MARKS: readonly Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
-const FACTIONS: readonly FactionId[] = ['spartans', 'mongols'];
+const FACTIONS: readonly FactionId[] = ['spartans', 'mongols', 'woodland'];
 const VARIANTS = [0, 1, 2] as const;
 
 export function ArtSheet(): ReactElement {
@@ -153,6 +157,19 @@ export function ArtSheet(): ReactElement {
         <Lineup faction="mongols" scale={PX} ids={SHARED_IDS} />
         <Lineup faction="spartans" scale={PX} ids={FACTION_IDS} />
         <Lineup faction="mongols" scale={PX} ids={FACTION_IDS} />
+      </Section>
+      <Section title="The Woodland Nations: their own colour, a Spartan player's, the mirror seat's, and the emblem">
+        <Lineup faction="woodland" scale={PX} ids={WOODLAND_IDS} />
+        <Lineup faction="spartans" scale={PX} ids={WOODLAND_IDS} />
+        <Lineup faction="woodland" scale={PX} ids={WOODLAND_IDS} mirror />
+        <div style={{ width: 64 }}><WoodlandEmblem /></div>
+        <svg width={5 * 56 * PX} height={30 * PX} viewBox="-28 -52 280 30" style={{ display: 'block', maxWidth: '100%', height: 'auto' }}>
+          {WOODLAND_IDS.map((id, i) => (
+            <g key={id} transform={`translate(${i * 56} 0)`}>
+              <WarBanner type={id} colour={playerColour('woodland')} hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} />
+            </g>
+          ))}
+        </svg>
       </Section>
       <Section title="Figures at phone size (a tile about 45 pixels wide)">
         <Lineup faction="spartans" scale={0.87} ids={ALL_IDS} />

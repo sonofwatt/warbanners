@@ -368,3 +368,17 @@ export function BannerTile({ colour, accent, className }: { colour: { main: stri
     </svg>
   );
 }
+
+/**
+ * rules 11: the Woodland Nations' emblem, a pine on a forest-green disc with a red ochre ring. In a 24 by 24 box.
+ */
+export function WoodlandEmblem(): ReactElement {
+  return (
+    <svg className="faction-emblem" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="11" fill="#A4452C" />
+      <circle cx="12" cy="12" r="9" fill="#2F5D3A" />
+      <rect x="11.1" y="15.6" width="1.8" height="3.6" rx="0.4" fill="#E9E1CF" />
+      <path d="M12 4.2 L15.4 9.4 H13.8 L16.8 13.4 H14.8 L17.8 17 H6.2 L9.2 13.4 H7.2 L10.2 9.4 H8.6 Z" fill="#E9E1CF" />
+    </svg>
+  );
+}
