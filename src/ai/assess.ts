@@ -146,16 +146,23 @@ function coverHidden(b: MatchState, u: Unit): boolean {
 
 // rules 11: the danger on a hidden own unit's tile `at`: as dangerMap, but only from seen enemies that can come within
 // the reveal range next turn (full movement, ignoring terrain), since an enemy cannot attack what it cannot see.
-function hiddenDanger(b: MatchState, me: PlayerId, at: HexKey): number {
+export function hiddenDanger(b: MatchState, me: PlayerId, at: HexKey): number {
   const there = parseKey(at);
   let out = 0;
   for (const e of b.units) {
     if (e.owner === me || UNITS[e.type].atk === 0 || UNITS[e.type].range === 0) continue;
+    // a deliberate rough reach, as threatReach: full movement ignoring terrain, then a strike from no farther than it sees
     const reach = Math.floor(maxMp(b, e) / 2) + Math.min(UNITS[e.type].range, CONFIG.hiddenRevealRange);
     if (distance(parseKey(e.pos), there) > reach) continue;
     out += damageFor(attackOf(b, e), WARRIOR_DEF, coverAt(b, { ...e, owner: me, pos: at }));
   }
   return out;
+}
+
+// The danger valueOf weighs for the own unit u: the danger map on its tile, or, rules 11, for a unit hidden by Woodland
+// cover or a smoke's veil, no more than hiddenDanger there (an enemy must come close to see it before it can strike).
+export function threatOn(b: MatchState, me: PlayerId, danger: DangerMap, u: Unit): number {
+  return coverHidden(b, u) ? Math.min(danger[u.pos] ?? 0, hiddenDanger(b, me, u.pos)) : danger[u.pos] ?? 0;
 }
 
 export interface Objective {
@@ -323,8 +330,7 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
 
   // A badly wounded unit keeps out of reach even at the skill levels that weigh danger little: it falls back to heal.
   // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in.
-  // rules 11: a unit hidden by Woodland cover or a smoke's veil is in danger only from enemies that can come close
-  const threat = coverHidden(b, u) ? Math.min(danger[u.pos] ?? 0, hiddenDanger(b, me, u.pos)) : danger[u.pos] ?? 0;
+  const threat = threatOn(b, me, danger, u);
   const care = hpShare <= BADLY_WOUNDED ? Math.max(skill.danger, WOUNDED_CARE * skill.focus) : skill.danger;
   const met = u.hunkered && CONFIG.hunker.healAtTurnEnd ? Math.min(maxHp, u.hp + restHealAt(b, u, visible())) : u.hp;
   v -= care * worth * Math.min(1, threat / met);

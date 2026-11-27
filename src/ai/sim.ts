@@ -63,7 +63,7 @@ const isMounted = (t: UnitTypeId): boolean => (UNITS[t].traits as readonly strin
 const isChain = (t: UnitTypeId): boolean => (UNITS[t].traits as readonly string[]).includes('chain');
 const citiesOf = (s: MatchState, p: PlayerId): number => s.cities.filter((c) => c.owner === p).length;
 // rules 11: what a forest costs the faction's units to enter (a field's cost for a forest-striding faction)
-const forestCost = (f: FactionId): number =>
+export const forestCost = (f: FactionId): number =>
   (FACTIONS[f].forestStride ? CONFIG.terrain.field.enterCost : CONFIG.terrain.forest.enterCost);
 const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
 // A record with one entry per faction, each made fresh by `make`.

@@ -41,6 +41,7 @@ const KILL_SHARE = 0.25;
 const LURE_EDGE = 0.001;             // a safe lure scores this much above its plain twin, so a hard AI takes it
 const SNARE_SCORE = 0.3;             // rules 11: a snare on a way into the own land, from a seen enemy this near or nearer
 const SNARE_REACH = 4;
+const SNARE_SLACK = 1;               // a way may be this many tiles longer than the straight one and still count
 
 type Applied = { state: MatchState; events: GameEvent[] };
 interface Cand {
@@ -92,7 +93,7 @@ function canKillThisTurn(b: MatchState, u: Unit): boolean {
 // counter (bowShare of the formula at the bow's attack) for a bow unit with Archery 2 or more tiles away, else the
 // melee one, less the agile cut for an agile u. As the engine works it, without the counter's reach or a steadfast
 // factor (the estimate before rules 11 had neither, and a Spartan or Mongol estimate must not move).
-function counterEstimate(b: MatchState, e: Unit, u: Unit, from: Hex): number {
+export function counterEstimate(b: MatchState, e: Unit, u: Unit, from: Hex): number {
   const bow = has(e, 'bow') && normalRange(b, e) >= 2 && distance(from, parseKey(e.pos)) >= 2;
   let counter = bow
     ? Math.max(1, Math.round(CONFIG.woodland.bowShare * damageFor(
@@ -103,7 +104,7 @@ function counterEstimate(b: MatchState, e: Unit, u: Unit, from: Hex): number {
 }
 
 // rules 11: a snare's score: SNARE_SCORE on a tile in or next to the own territory that lies on a way from a seen enemy
-// unit at most SNARE_REACH tiles off toward an own city (no more than a tile longer than the straight way), 0 otherwise.
+// unit at most SNARE_REACH tiles off toward an own city (at most SNARE_SLACK longer than the straight way), 0 otherwise.
 export function snareScore(b: MatchState, me: PlayerId, at: HexKey): number {
   const own = new Set(b.cities.filter((c) => c.owner === me).map((c) => c.id));
   const inLand = (k: HexKey): boolean => { const id = b.tiles[k]?.cityId; return id !== null && id !== undefined && own.has(id); };
@@ -114,7 +115,7 @@ export function snareScore(b: MatchState, me: PlayerId, at: HexKey): number {
     if (e.owner === me) return false;
     const from = parseKey(e.pos);
     const d = distance(from, t);
-    return d <= SNARE_REACH && cities.some((c) => d + distance(t, c) <= distance(from, c) + 1);
+    return d <= SNARE_REACH && cities.some((c) => d + distance(t, c) <= distance(from, c) + SNARE_SLACK);
   });
   return onWay ? SNARE_SCORE : 0;
 }

@@ -40,6 +40,9 @@ describe('the AI plays the Woodland Nations', () => {
   };
 
   test('a seeded match against the Mongols at normal finishes within 60 rounds with no refused action', () => {
+    // Seed 2 is the one of the four with no refusal at all, so it carries the strict check. On the others a Mongol
+    // move onto a tile where a hidden Woodland unit stands (one it cannot see) is refused, and the app answers that
+    // as it answers any unseen blocker, by replanning the turn, so there only moves may be refused.
     const r = result(2);
     expect(r.winner).not.toBeNull();
     expect(r.rounds).toBeLessThanOrEqual(MAX_ROUNDS);
