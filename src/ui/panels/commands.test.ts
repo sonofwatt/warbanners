@@ -162,3 +162,12 @@ test('rules 9: a hunkered unit shows Unhunker, pressed, where Hunker would be; a
   const off = must(applyAction(s, { type: 'endTurn' }));          // player 1's turn: nothing on player 0's unit
   expect(unitCommands(unitSel(dug.id), off, ixOf(off)).some(c => c.id === 'unhunker')).toBe(false);
 });
+test('rules 11: a Woodland capital offers only what the Woodland Nations train, and its walls need the Palisade', () => {
+  const w = createMatch({ seed: 7, factions: ['woodland', 'mongols'] });
+  const c = byId(cityCommands(0, w, ixOf(w)));
+  expect(c['train-warrior']).toBeUndefined();
+  expect(c['train-archer']).toBeUndefined();
+  expect(c['train-skirmisher']).toBeDefined();
+  expect(c['train-woodlandHunter']).toBeDefined();
+  expect(c['walls']).toMatchObject({ enabled: false, why: 'Needs Palisade', tech: 'walls' });
+});

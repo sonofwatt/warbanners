@@ -1,11 +1,11 @@
 // What a player can do with a selected unit, city or tile. Everything offered comes from the engine's legal
 // actions; a refusal from the engine becomes a disabled command with its reason, or is hidden when it would be noise.
 import {
-  CONFIG, TECHS, UNITS, buildRefusal, buildingTech, harvestRefusal, harvestTech, rewardOptions, roadRefusal, roadTech, techPrice, trainRefusal,
+  CONFIG, TECHS, UNITS, buildRefusal, factionUnits, buildingTech, harvestRefusal, harvestTech, rewardOptions, roadRefusal, roadTech, techPrice, trainRefusal,
   unitCost, unitTech, wallsRefusal, wallsTech,
 } from '../../engine';
 import type {
-  AbilityId, Action, BranchId, BuildingId, HexKey, MatchState, TechId, UnitTypeId,
+  AbilityId, Action, BranchId, BuildingId, FactionId, HexKey, MatchState, TechId, UnitTypeId,
 } from '../../engine';
 import type { ActionIndex, Armed, Selection } from '../interaction';
 import { T, reasonText, techName, unlocks } from '../text';
@@ -23,7 +23,8 @@ export interface Command {
   pressed?: boolean;
 }
 
-const needs = (t: TechId): string => `${T.ui.needs} ${T.tech[t]}`;
+// The tech as the faction names it, where one is given (rules 11: the Woodland Nations' walls are a Palisade).
+const needs = (t: TechId, faction?: FactionId): string => `${T.ui.needs} ${techName(t, faction)}`;
 const unitTypes = Object.keys(UNITS) as UnitTypeId[];
 const abilityIds = Object.keys(T.ability) as AbilityId[];
 
@@ -85,9 +86,8 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
   if (city === undefined || city.owner !== state.current) return [];
   const player = state.players[city.owner]!;
   const out: Command[] = [];
-  for (const type of unitTypes) {
-    const def = UNITS[type];
-    if (def.cost === null || (def.faction !== null && def.faction !== player.faction)) continue;
+  // rules 11: only what this faction can ever train (the Woodland Nations replace the Warrior and the Archer)
+  for (const type of factionUnits(player.faction)) {
     const cost = unitCost(state, city.owner, type);
     const label = `${T.ui.train} ${T.unit[type].name}`;
     const action: Action = { type: 'train', city: cityId, unitType: type };
@@ -108,7 +108,7 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     out.push({ ...walls, enabled: true, why: null, action: { type: 'buildWalls', city: cityId } });
   } else {
     const refusal = wallsRefusal(state, cityId);
-    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(wallsTech()), action: null, tech: wallsTech() });
+    if (refusal === 'missing tech') out.push({ ...walls, enabled: false, why: needs(wallsTech(), player.faction), action: null, tech: wallsTech() });
     else if (refusal === 'not enough gold') out.push({ ...walls, enabled: false, why: reasonText(refusal), action: null });
   }
   if (ix.rewards.includes(cityId) && city.pendingRewards[0] !== undefined) {

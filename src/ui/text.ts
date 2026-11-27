@@ -85,7 +85,7 @@ const ability: Record<AbilityId, Entry> = {
   hasten: { name: 'Hasten', blurb: 'Gives a friendly rider beside it one extra tile of movement this turn.' },
   dustStorm: { name: 'Dust storm', blurb: 'Blinds the enemies on and around a tile within 2, so they give no vision and attack only from next door, until their owner next turn ends.' },
   guide: { name: 'Guide', blurb: 'A friendly unit beside it ignores enemy engagement for the rest of this turn.' },
-  smoke: { name: 'Smoke', blurb: 'Veils the friends on and around a tile within 2 until their owner next turn ends.' },
+  smoke: { name: 'Smoke', blurb: 'Veils the friends on and around a tile within 2 until the end of their owner\'s next turn.' },
   snare: { name: 'Snare', blurb: 'Hides a snare on a free tile beside it. An enemy that steps on it takes damage and stops.' },
 };
 
