@@ -6,7 +6,7 @@
 //   cells   default: every unit type with a Gritty figure, clean, each in its own side's colour (the shared ones in
 //           the Spartans', the horseman in the Mongols', whose start unit he is). Or a comma-separated list of
 //           type[:faction[:stage[:blood[:scarred]]]], e.g. archer:mongols:4:2,scout::1:0:s
-//   scale   pixels per board unit (default 3.2); perRow (default all in one row); dy: how far up it looks (default 0)
+//   scale   pixels per board unit (default 4.5); perRow (default all in one row); dy: how far up it looks (default 0)
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
@@ -29,7 +29,7 @@ const ALL: readonly [string, Faction, string][] = [
 const out = process.argv[2] ?? 'docs/superpowers/plans/shots/gritty3d';
 const name = process.argv[3] ?? 'all-units-row.png';
 const spec = process.argv[4] ?? '';
-const scale = Number(process.argv[5] ?? 3.2);
+const scale = Number(process.argv[5] ?? 4.5);
 const dy = Number(process.argv[7] ?? 0);
 const cells: Cell[] = spec === ''
   ? ALL.map(([type, faction, label]) => ({ type, faction, gritty: true, wear: { stage: 0, blood: 0, scarred: false }, name: label }))

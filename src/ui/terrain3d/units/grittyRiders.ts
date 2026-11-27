@@ -76,7 +76,7 @@ function riderCap(k: Kit, c: Look, w: Wear): void {
   // Ear flaps of fur-lined felt hanging over the ears (the near one, his left, torn off once battered).
   for (const sd of [-1, 1]) {
     if (sd < 0 && worn(w, 3)) continue;
-    k.slab([-1.3, 0, 1.3, 0, 1.0, -3.4, 0, -4.2, -1.0, -3.4], 0.55, FUR_H, [h[0] + sd * HEAD_R * 1.16, h[1] + 2.0, h[2] - 0.9], [0, sd * Math.PI / 2, sd * 0.12], { hull: 0.5 });
+    k.slab([-1.3, 0, 1.3, 0, 1.0, -3.4, 0, -4.2, -1.0, -3.4], 0.55, FUR_H, [h[0] + sd * HEAD_R * 1.1, h[1] + 2.0, h[2] - 1.5], [0, sd * Math.PI / 2, sd * 0.12], { hull: 0.5 });
   }
   if (worn(w, 2)) dirt(k, s, h[0] - 1.6, h[1] + 4.2, 2.2, felt);
 }
@@ -531,9 +531,8 @@ function guardHorseNeck(k: Kit, c: Look, w: Wear): void {
     const p = loftPoint(HEAD_RINGS, 0.16, 0, 0.3);
     k.ball(p, 0.7, GT.GOLD_EDGE, { detail: 0, hull: 0.4, gloss: 0.6 });
     const top: V3 = [p[0] - 0.6, p[1] + 2.6, p[2]];
-    k.rod(p, top, 0.5, GUARD_PLUME, { r1: 1.15, seg: 6, hull: 0.6 });
-    k.rod(top, [p[0] - 4.6, p[1] + 1.2, p[2] + 0.2], 1.25, GUARD_PLUME, { r1: 0.3, seg: 6, hull: 0.6 });
-    k.rod([top[0] - 0.4, top[1] - 0.3, top[2]], [p[0] - 3.6, p[1] - 0.4, p[2] + 0.6], 0.8, mix(GUARD_PLUME, '#000000', 0.18), { r1: 0.2, seg: 5, hull: 0.4 });
+    k.rod(p, top, 0.5, GUARD_PLUME, { r1: 1.15, seg: 5, hull: 0.6, caps: false });
+    k.rod(top, [p[0] - 4.6, p[1] + 1.2, p[2] + 0.2], 1.25, GUARD_PLUME, { r1: 0.3, seg: 5, hull: 0.6 });
   }
   const j = loftPoint(HEAD_RINGS, 0.5, Math.PI, 0.1);
   k.rod(j, [j[0] - 0.4, j[1] - 3.0, j[2]], 0.25, plates, { r1: 0.9, seg: 6, hull: 0.5 });
@@ -561,7 +560,11 @@ function guardHelm(k: Kit, c: Look, w: Wear): void {
     // The plume: dyed horsehair falling from a ring on the spike, back and to his right.
     k.frustum([h[0], 0, h[2] - 0.4], h[1] + 9.4, h[1] + 10.0, 0.75, 0.6, GT.GOLD_EDGE, { seg: 6, hull: 0.4 });
     const tuft = worn(w, 3) ? 0.55 : 1;
-    k.rod([h[0], h[1] + 9.6, h[2] - 0.6], [h[0] + 4.2 * tuft, h[1] + 9.6 - 6.4 * tuft, h[2] - 2.6 * tuft], 0.9, GUARD_PLUME, { r1: 2.1, seg: 6 });
+    // It swells out from the ring and falls away to his right in a tapering tail.
+    const ring: V3 = [h[0], h[1] + 9.6, h[2] - 0.6], swell: V3 = [h[0] + 3.2 * tuft, h[1] + 9.4, h[2] - 0.4 * tuft];
+    const tail: V3 = [h[0] + 7.0 * tuft, h[1] + 9.6 - 6.6 * tuft, h[2] - 0.6 * tuft];
+    k.rod(ring, swell, 0.8, GUARD_PLUME, { r1: 1.7, seg: 6, caps: false });
+    k.rod(swell, tail, 1.7, GUARD_PLUME, { r1: worn(w, 3) ? 1.1 : 0.35, seg: 6 });
   }
   const sv = (x: number, y: number): { p: V3; n: V3 } => {
     const r = HEAD_R * 1.18 + 0.06, dx = x - h[0], dy = (y - h[1] - 1.2 - L) / 1.35;
