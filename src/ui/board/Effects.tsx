@@ -3,7 +3,7 @@ import type { AnimationEvent, ReactElement } from 'react';
 import type { FactionId, HexKey } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
 import { seatAccent, seatColour } from '../art/palette';
-import { EFFECT_MS, effectMs } from './effects';
+import { DASH_MS, EFFECT_MS, effectMs } from './effects';
 import type { Effect } from './effects';
 import { FIGURE_H, hexToBoard } from './layout';
 
@@ -57,6 +57,28 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
       if (len === 0) continue;
       const dx = r2(((b.x - a.x) / len) * LUNGE);
       const dy = r2(((b.y - a.y) / len) * LUNGE);
+      if (f.via !== undefined) {
+        // rules 11, a Dash-strike's charge: run to the charge tile, strike toward the target, run home. The board
+        // always ends on the engine's positions: the figure only ever leaves its tile inside this animation.
+        const v = hexToBoard(f.via);
+        const vx = r2(v.x - a.x), vy = r2(v.y - a.y);
+        const hit = hexToBoard(f.toward);
+        const hl = Math.hypot(hit.x - v.x, hit.y - v.y) || 1;
+        const hx = r2(vx + ((hit.x - v.x) / hl) * LUNGE), hy = r2(vy + ((hit.y - v.y) / hl) * LUNGE);
+        running.push(
+          body.animate(
+            [
+              { transform: 'translate(0px, 0px)' },
+              { transform: `translate(${vx}px, ${vy}px)`, offset: 0.35 },
+              { transform: `translate(${hx}px, ${hy}px)`, offset: 0.5 },
+              { transform: `translate(${vx}px, ${vy}px)`, offset: 0.62 },
+              { transform: 'translate(0px, 0px)' },
+            ],
+            { duration: DASH_MS, delay: f.delay, easing: 'ease-in-out' },
+          ),
+        );
+        continue;
+      }
       running.push(
         body.animate(
           [

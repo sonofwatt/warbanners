@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
+import { isHero, maxHpOf, parseKey } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, SnareMark, TerrainFeature, Treasure, Village } from '../art/features';
 import { seatAccent, seatColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
@@ -292,6 +292,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       <Graded look={p.look}>{body}</Graded>
       {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
+      {t.snare === true ? <SnareMark /> : null}
       {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
         <Border edges={t.borderEdges} colour={seatColour(p.factions, t.owner ?? 0).main} />
       ) : null}
@@ -313,7 +314,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
   if (faction === undefined) return null;
   const maxHp = maxHpOf(unit);
   // Spent: darker, never see-through (theme.css .unit-shade); hidden: the eye on the banner (unitsInput.ts).
-  const shown = unitShown({ mine: p.u.mine, spent: p.u.spent, hidden: UNITS[unit.type].traits.includes('hidden') });
+  const shown = unitShown({ mine: p.u.mine, spent: p.u.spent, hidden: p.u.hidden });
   return (
     <g
       data-unit={unit.id}

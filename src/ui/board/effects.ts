@@ -7,7 +7,8 @@ export type Effect =
   | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number; ms?: number }
   // A melee or ranged attack: the attacker leans from its tile toward the target's. `target` is the unit attacked,
   // `counter` whether it struck back (the 3D look plays the exchange; the svg shows the lunge and the numbers).
-  | { kind: 'lunge'; unit: number; from: HexKey; toward: HexKey; delay: number; target: number; counter: boolean }
+  // `via` (rules 11, a Dash-strike's charge): the attacker runs to that tile, strikes and runs back (DASH_MS).
+  | { kind: 'lunge'; unit: number; from: HexKey; toward: HexKey; delay: number; target: number; counter: boolean; via?: HexKey }
   // A unit seen to change tile (a move, a lure, an advance after a kill): drawn by the board's slide, not here. The
   // delay lets an advance wait for the blow that cleared the tile; it takes no slot, so it moves no other effect.
   | { kind: 'move'; unit: number; unitType: UnitTypeId; from: HexKey; to: HexKey; delay: number }
@@ -16,10 +17,12 @@ export type Effect =
 
 export const EFFECT_MS = 450;
 export const MAX_TOTAL_MS = 1200;
+/** A Dash-strike's run out to the charge tile, the blow and the run home. */
+export const DASH_MS = 600;
 /** What a claimed treasure gave stays up three times as long as other effects, so it can be read. */
 export const TREASURE_TEXT_MS = EFFECT_MS * 3;
 /** How long one effect plays: its own time, or EFFECT_MS. */
-export const effectMs = (f: Effect): number => (f.kind === 'number' ? f.ms ?? EFFECT_MS : EFFECT_MS);
+export const effectMs = (f: Effect): number => (f.kind === 'number' ? f.ms ?? EFFECT_MS : f.kind === 'lunge' && f.via !== undefined ? DASH_MS : EFFECT_MS);
 const STEP_MS = 120;
 const COUNTER_MS = 150;
 
@@ -110,6 +113,8 @@ export function effectsFor(
   const watched = (at: HexKey | undefined): at is HexKey => seen(at) || (at !== undefined && visibleBefore?.has(at) === true);
   const known = (id: number): boolean => seenUnits.has(id);
   let slot = 0;
+  // rules 11: a Dash-strike's arrow, then its charge (the second blow), which runs out to `via`.
+  let dash: { unit: number; via: HexKey; blows: number } | null = null;
   for (const e of events) {
     const delay = slot * STEP_MS;
     const mine: Effect[] = [];
@@ -126,12 +131,15 @@ export function effectsFor(
         }
         break;
       }
+      case 'dashStrike': dash = { unit: e.unit, via: e.via, blows: 0 }; break;
       case 'attacked': {
         const from = unitPos(e.unit);
         const to = unitPos(e.target);
-        // A lunge shows both tiles, so it needs both to be visible.
+        const charge = dash !== null && dash.unit === e.unit && ++dash.blows === 2;
+        // A lunge shows both tiles, so it needs both to be visible. An attacker the viewer cannot see (hidden in a
+        // forest or a veil) draws nothing: only the hit on its target is shown, never where the shot came from.
         if (watched(from) && watched(to) && known(e.unit) && known(e.target)) {
-          mine.push({ kind: 'lunge', unit: e.unit, from, toward: to, delay, target: e.target, counter: e.counter > 0 });
+          mine.push({ kind: 'lunge', unit: e.unit, from, toward: to, delay, target: e.target, counter: e.counter > 0, ...(charge ? { via: dash!.via } : {}) });
         }
         if (watched(to) && known(e.target)) mine.push({ kind: 'number', at: to, text: `-${e.damage}`, tone: 'hurt', delay });
         if (e.counter > 0 && watched(from) && known(e.unit)) {
@@ -142,6 +150,10 @@ export function effectsFor(
       case 'momentum': {
         const at = unitPos(e.unit);
         if (at && known(e.unit)) mine.push({ kind: 'number', at, text: T.ui.momentumSpent(e.spent), tone: 'hero', delay });
+        break;
+      }
+      case 'snared': {                     // rules 11: the snare's hurt on the tile the move stopped on
+        if (seen(e.at) && known(e.unit)) mine.push({ kind: 'number', at: e.at, text: `-${e.damage}`, tone: 'hurt', delay });
         break;
       }
       case 'splashed': {

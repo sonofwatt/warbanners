@@ -767,3 +767,16 @@ export function PendingStar(): ReactElement {
   pendingStar(ink);
   return ink.done();
 }
+
+// rules 11: one of the viewer's own snares, a loop of cord pegged to the ground, small and low beside the tile's
+// centre so a unit standing on it still reads. Only ever drawn for the snare's owner.
+export function SnareMark(): ReactElement {
+  return (
+    <g className="snare-mark" data-snare="true" aria-hidden="true">
+      <ellipse cx={7} cy={4} rx={6.5} ry={3} fill="none" stroke="#5A3B1E" strokeWidth={1.6} />
+      <ellipse cx={7} cy={4} rx={6.5} ry={3} fill="none" stroke="#C9A46A" strokeWidth={0.6} strokeDasharray="1.4 1.2" />
+      <path d="M13.2 3.2 L16 -1.6" stroke="#5A3B1E" strokeWidth={1.6} strokeLinecap="round" />
+      <path d="M15 -2.6 L17.4 -0.8" stroke="#3E2914" strokeWidth={1.8} strokeLinecap="round" />
+    </g>
+  );
+}

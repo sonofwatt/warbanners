@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import {
-  DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, rewardOptions, statsOf, thresholdOf, unitCapacity, unitsOf,
+  isHidden, DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, rewardOptions, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
@@ -47,6 +47,7 @@ export const TIME_UP_MS = 4000;
 // factions and focus; the panels take the rest. This is the only place the app calls playerView.
 export interface MatchData {
   view: PlayerView; ix: ActionIndex; marks: ReturnType<typeof marksFor>; ready: Set<HexKey>; spent: Set<number>;
+  hidden: Set<number>;   // the viewer's own units the other side cannot see from afar (a trait, rules 11 cover or a veil)
   focus: HexKey | null; radius: number; factions: [FactionId, FactionId];
   // rules 8: the gold each of the viewer's blockaded cities would lose as its next turn starts, judged on what the
   // viewer sees (an unseen enemy is not counted here, so the forecast never gives one away)
@@ -63,6 +64,7 @@ export function matchData(state: MatchState, viewer: PlayerId, selection: Select
   return {
     // Off the viewer's turn (the AI is playing) nothing is offered, and no unit is drawn as spent.
     view, ix, marks: marksFor(selection, view, ix), ready: new Set(readyTiles(view, ix)), spent: acts && state.current === viewer ? spentUnits(view, ix) : new Set(),
+    hidden: new Set(view.units.filter((u) => u.owner === viewer && isHidden(state, u)).map((u) => u.id)),
     focus: capital?.pos ?? first?.pos ?? null, radius: state.radius,
     factions: [state.players[0]!.faction, state.players[1]!.faction],
     blockades: blockadesSeen(state, viewer),
@@ -250,7 +252,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const items = useMemo(() => {
     if (data === null) return null;
     const marks = peekAt === undefined ? data.marks : { ...data.marks, [peekAt]: 'selected' as const };
-    return buildScene({ view: data.view, radius: data.radius, marks, ready: data.ready, selectedUnit, spentUnits: data.spent, cityLand, roadWear });
+    return buildScene({ view: data.view, radius: data.radius, marks, ready: data.ready, selectedUnit, spentUnits: data.spent, hiddenUnits: data.hidden, cityLand, roadWear });
   }, [data, selectedUnit, peekAt, cityLand, roadWear]);
   if (state === null || record === null || viewer === null || data === null || items === null) return null;
 

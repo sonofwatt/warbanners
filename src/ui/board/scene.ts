@@ -1,4 +1,4 @@
-import { key, neighbors, parseKey } from '../../engine';
+import { UNITS, key, neighbors, parseKey } from '../../engine';
 import type { City, HexKey, PlayerId, PlayerView, Tile, Unit } from '../../engine';
 import { FIGURE_H, boardKeys, boardToHex, hexToBoard } from './layout';
 import type { Pt } from './layout';
@@ -11,6 +11,7 @@ export interface SceneTile {
   fog: boolean; // never explored: nothing else about the tile is set
   tile: Tile | null;
   veiled: boolean;
+  snare?: true;      // rules 11: one of the viewer's own snares lies here (the view holds only the viewer's)
   city: City | null; // a city standing on this tile
   owner: PlayerId | null; // owner of the city whose territory this tile is in
   borderEdges: number[]; // directions (engine DIRS order) where the neighbour has a different owner
@@ -33,6 +34,7 @@ export interface SceneUnit {
   mine: boolean;
   spent: boolean;
   selected: boolean;
+  hidden: boolean;   // an own unit hidden from afar (the slashed eye); always false for an enemy's
 }
 export type SceneItem = SceneTile | SceneUnit;
 export interface SceneInput {
@@ -42,6 +44,7 @@ export interface SceneInput {
   ready?: ReadonlySet<HexKey>; // tiles that glow gold (none when left out)
   selectedUnit: number | null;
   spentUnits: ReadonlySet<number>; // own units with nothing left to do this turn
+  hiddenUnits?: ReadonlySet<number>; // own units hidden from afar (trait, rules 11 cover or veil); by the trait alone when left out
   // The city whose land is outlined (the selected city, either player's), drawn on the explored tiles the viewer
   // knows to be its territory, the same knowledge the faction borders show.
   cityLand?: number | null;
@@ -56,6 +59,7 @@ const FOOT = 6; // how far a figure's hit box reaches below its tile centre
 export function buildScene(input: SceneInput): SceneItem[] {
   const { view, radius, marks, selectedUnit, spentUnits } = input;
   const land = input.cityLand ?? null;
+  const snared = new Set((view.snares ?? []).map((n) => n.at));
   const ready = input.ready ?? new Set<HexKey>();
   const board = boardKeys(radius);
   const onBoard = new Set<HexKey>(board);
@@ -105,7 +109,7 @@ export function buildScene(input: SceneInput): SceneItem[] {
         }
       });
       out.push({
-        kind: 'tile', key: k, at, fog: false, tile, veiled: !visible.has(k),
+        kind: 'tile', key: k, at, fog: false, tile, veiled: !visible.has(k), ...(snared.has(k) ? { snare: true as const } : {}),
         city, owner, borderEdges, cityEdges, roadLinks, mark: marks[k] ?? null, ready: ready.has(k), occupied: unitsAt.has(k),
         ...(level > 0 || roadWear.some((w) => w > 0) ? { roadLevel: level, roadWear } : {}),
       });
@@ -114,6 +118,7 @@ export function buildScene(input: SceneInput): SceneItem[] {
       out.push({
         kind: 'unit', unit, at, mine: unit.owner === view.player,
         spent: spentUnits.has(unit.id), selected: unit.id === selectedUnit,
+        hidden: unit.owner === view.player && (input.hiddenUnits?.has(unit.id) ?? UNITS[unit.type].traits.includes('hidden')),
       });
     }
   }
