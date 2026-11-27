@@ -127,6 +127,9 @@ describe.runIf(process.env.BROWSER === '1')('the selected city\'s land', () => {
         },
       });
       try {
+        // Held still: the glow is read off two screenshots, so a flickering bonfire or a swaying lantern between them
+        // would read as glow.
+        await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.getByTestId('continue').tap();
         await page.getByTestId('ready').tap();
         await page.getByTestId('match').waitFor();
