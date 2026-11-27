@@ -3,6 +3,7 @@
 // Every builder takes the owner's look and a Wear and returns one model. The game passes CLEAN: wear is for Gritty
 // mode, which is not on main, so on main the wear branches are never taken (they stay so Gritty can switch them on).
 import { Vector3 } from 'three';
+import { GUNSTOCK, GUNSTOCK_SPIKE, GUNSTOCK_TACKS, SPIKE_IRON } from '../../art/gunstock';
 import { flat, H, Kit, mix } from './kit';
 import type { BuiltFigure, Surface, V3 } from './kit';
 import {
@@ -1007,16 +1008,13 @@ function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     k.rod([hd.c[0] + 2, hd.c[1] + 10.6, hd.c[2] - 3.4], [hd.c[0] + 5.6, hd.c[1] + 1, hd.c[2] - 6.8], 1.2, BLACK_HAIR, { r1: 0.5, seg: 6 });
     k.ball(onView(hd.c, hd.r, -hd.r * 0.96, -hd.r * 0.25, 0.4), 0.8, STEEL, { detail: 0, gloss: 0.5, hull: 0 });
     faceWear(k, hd, w);
-    // The gunstock club held low in the right hand: a flat board of dark wood whose shaft bends at an elbow into a head
-    // that flares toward its end, the inner edge scalloped up to a hooked tip, a spike out of the outer edge just past
-    // the bend, and brass tacks down its face. Our own drawing of the old form (the same outline as the 2D figure).
+    // The gunstock club held low in the right hand (its outline in art/gunstock.ts, shared with the 2D figure): a board
+    // of the lighter wood, so it reads brown in the light, an iron spike at the bend and brass tacks down its face.
     arm(k, [5.8, H(-16.4), 0], [9.8, H(-7.6), 3.8], c.dark);
     k.pivot(WEAPON, [9.8, H(-7.6), 3.8], () => {
-      const stock = [[8.3, -7.18], [9.11, -6.36], [13.89, -10.5], [14.47, -11.45], [18.41, -10.95], [14.99, -12.36], [15.99, -14.69], [17.84, -17.34], [19.88, -19.54], [17.7, -19.43], [15.71, -19.68], [13.71, -21.27], [14.45, -19.36], [14.68, -17.66], [14.42, -15.87], [13.72, -14.19], [12.97, -12.93], [12.26, -11.86], [11.76, -11.21], [8.94, -7.81]] as const;
-      k.slab(stock.flatMap(([x, y]) => [x, H(y)]), 1.6, WOOD, [0, 0, 3.8]);   // the lighter wood, so the flat board reads brown in the light
-      for (const [x, y] of [[10.46, -8.56], [12.01, -10.11], [14.51, -13.60], [15.49, -15.63], [16.47, -17.66]] as const) {
-        k.ball([x, H(y), 4.75], 0.5, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
-      }
+      k.slab(GUNSTOCK.flatMap(([x, y]) => [x, H(y)]), 1.6, WOOD, [0, 0, 3.8]);
+      k.slab(GUNSTOCK_SPIKE.flatMap(([x, y]) => [x, H(y)]), 1.0, SPIKE_IRON, [0, 0, 3.8], [0, 0, 0], { gloss: 0.3 });
+      for (const [x, y, r] of GUNSTOCK_TACKS) k.ball([x, H(y), 4.6 + r * 0.3], r * 0.85, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
     }, { axis: TIP_FORWARD });
     arm(k, [-5.8, H(-16.4), 0], [-8.2, H(-7.8), 2.4], c.main);
     feetBlood(k, w);
