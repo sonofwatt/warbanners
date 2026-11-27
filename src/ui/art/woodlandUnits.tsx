@@ -138,12 +138,11 @@ function warChief(p: FigureProps): ReactElement {
   ink.shape('M -1.6 -33.6 C -1.2 -38.6 2.2 -39.6 3 -36 C 4.6 -32 7 -28 9.4 -24.4 C 6.2 -26.6 3.6 -30 1.6 -33 Z', BLACK_HAIR);
   ink.circle(0.6, -34, 1.6, OCHRE);
   ink.circle(-6.4, -25, 1, STEEL);
-  // The gunstock club held low in the right hand, blade forward: dark wood, brass tacks, a steel spike at the elbow.
-  // A flat board, narrow at the grip and broad at the head, the spike in the front edge at the bend.
-  ink.poly([8.6, -6.2, 10.8, -6.8, 15.2, -15.4, 19.8, -22.6, 17.8, -26.4, 13.8, -24.8, 12.2, -17.4, 8.2, -7.6], WOOD_DARK);
-  for (const [x, y] of [[10.4, -8.6], [12.2, -12], [13.8, -15.6], [15.4, -19.2], [17, -22.6]] as const) ink.circle(x, y, 0.6, BRASS);
-  ink.poly([15, -15.6, 19.8, -14, 15.8, -14.2], STEEL_DARK);
-  ink.poly([15, -15.6, 19.8, -14, 15.4, -15], STEEL);
+  // The gunstock club held low in the right hand: dark wood with brass tacks.
+  // A flat board: the shaft bends at an elbow into a head that flares toward its end, the inner edge scalloped up to a
+  // hooked tip, a spike out of the outer edge just past the bend (the same outline as the 3D figure).
+  ink.poly([8.3, -7.18, 9.11, -6.36, 13.89, -10.5, 14.47, -11.45, 18.41, -10.95, 14.99, -12.36, 15.99, -14.69, 17.84, -17.34, 19.88, -19.54, 17.7, -19.43, 15.71, -19.68, 13.71, -21.27, 14.45, -19.36, 14.68, -17.66, 14.42, -15.87, 13.72, -14.19, 12.97, -12.93, 12.26, -11.86, 11.76, -11.21, 8.94, -7.81], WOOD_DARK);
+  for (const [x, y] of [[10.46, -8.56], [12.01, -10.11], [14.51, -13.60], [15.49, -15.63], [16.47, -17.66]] as const) ink.circle(x, y, 0.6, BRASS);
   ink.line(9.4, -6.6, 8.6, -4.6, BUCK_DARK, 0.8);
   ink.line(5.6, -16, 9.4, -8.6, p.colour.dark, 3.4);
   hand(ink, 9.8, -7.6);
