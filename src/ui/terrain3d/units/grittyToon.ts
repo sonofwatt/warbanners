@@ -27,8 +27,10 @@
 // - Blood 1 and 2 (battered or worse and still bleeding): blood on the bare face and the body, drops on the ground;
 //   at 2 more of it and a pool at the feet. Never on a figure with nothing bare to bleed (machines burn instead).
 // - Scarred (once broken, now healed): the missing piece stays missing; the face is clean, with a healed scar
-//   (faceScar) where the blood ran, and no blood unless the unit is bleeding again.
+//   (faceScar) down the cheek, clear of the eye and every other feature, and no blood unless the unit is bleeding
+//   again.
 import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
+import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
 import { BLOOD, ell, SKIN, smear } from './parts';
@@ -43,7 +45,7 @@ export const GT = {
   TORN: '#2E2112', TORN_LIT: '#7A6236',
   LEATHER: '#7A5232', LEATHER_DARK: '#4E331F', CUIRASS_LEATHER: '#7B4428', SANDAL: '#5E3E24',
   SKIN, SKIN_SHADE: '#C99B72', BROW_HAIR: '#2E1C12', BEARD: '#4A2E1C',
-  SCAR: '#F0C2AE', SCAR_EDGE: '#93422F', MILKY: '#C9C6C0',
+  SCAR: '#F0C2AE', SCAR_EDGE: '#93422F',
 } as const;
 
 // ---- plates and edges ----
@@ -114,72 +116,109 @@ export interface FaceOpts {
 }
 
 /**
+ * The jaw, as points around a head of radius 3.9 centred on the origin (x across, y up, z the figure's front): wide and
+ * hidden inside the head at the cheekbones, chamfered at the jaw's angle and the chin's sides, and tapering to a
+ * pointed chin, so it grows out of the round face instead of sitting on it as a block.
+ */
+const JAW: readonly V3[] = [
+  [-3.2, -0.8, 0.2], [3.2, -0.8, 0.2], [-2.4, -0.9, 2.7], [2.4, -0.9, 2.7], [0, -1.45, 3.55],
+  [-2.8, -2.7, 0.5], [2.8, -2.7, 0.5], [-2.15, -2.75, 2.75], [2.15, -2.75, 2.75],
+  [-0.95, -3.65, 3.4], [0.95, -3.65, 3.4], [0, -2.55, 3.72], [0, -4.6, 3.0], [0, -3.9, 0.9],
+];
+
+/**
+ * A faceted convex solid through `pts` (no outline: it grows out of another part), and the surface over its front:
+ * z at (x, y) is the nearest front face's, or null where (x, y) is off the solid.
+ */
+function hullPart(k: Kit, pts: readonly V3[], colour: string): (x: number, y: number) => { z: number; n: V3 } | null {
+  const hull = new ConvexHull().setFromPoints(pts.map((p) => new Vector3(...p)));
+  const pos: number[] = [];
+  const planes: { n: Vector3; d: number }[] = [];
+  for (const face of hull.faces) {
+    planes.push({ n: face.normal.clone(), d: face.constant });
+    let e = face.edge;
+    const ring: Vector3[] = [];
+    do { ring.push(e.head().point); e = e.next; } while (e !== face.edge);
+    for (let i = 1; i + 1 < ring.length; i++) for (const v of [ring[0]!, ring[i]!, ring[i + 1]!]) pos.push(v.x, v.y, v.z);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  k.add(g, colour, { hull: 0 });
+  return (x, y) => {
+    let hi = Infinity, lo = -Infinity, n: Vector3 | null = null;
+    for (const p of planes) {
+      const rest = p.d - p.n.x * x - p.n.y * y;
+      if (Math.abs(p.n.z) < 1e-4) { if (rest < 0) return null; continue; }
+      const z = rest / p.n.z;
+      if (p.n.z > 0) { if (z < hi) { hi = z; n = p.n; } } else if (z > lo) lo = z;
+    }
+    return n !== null && lo <= hi ? { z: hi, n: [n.x, n.y, n.z] } : null;
+  };
+}
+
+/**
  * A grim, battle-worn toon face centred on c and facing the figure's front: a heavy brow drawn low, narrowed eyes,
- * sunken shade under the eyes and cheekbones, a set square jaw (with a short beard unless `beard` is null) and a tight
- * closed mouth. Its wear: blood (faceBlood) while bleeding, the healed scar (faceScar) once scarred and not bleeding.
- * The near side is the figure's left (x negative), the side the three-quarter camera sees most.
+ * sunken shade under the eyes and cheekbones, a strong chamfered jaw tapering to a pointed chin (bearded unless
+ * `beard` is null) and a tight closed mouth. Its wear: blood (faceBlood) while bleeding, the healed scar (faceScar)
+ * once scarred and not bleeding. The near side is the figure's left (x negative), the side the three-quarter camera
+ * sees most.
  */
 export function bareFace(k: Kit, c: V3, w: Wear, o: FaceOpts = {}): void {
   const skin = o.skin ?? GT.SKIN, r = o.r ?? 3.9, f = r / 3.9;
   const R: V3 = [r * 1.12, r * 1.18, r];
   k.ball(c, r, skin, { detail: 1, hull: 0, s: [1.12, 1.18, 1.0] });
   if (o.hair) k.dome([c[0], c[1] + 0.6 * f, c[2] - 0.2 * f], r * 1.12, o.hair, { to: 1.2, seg: 10 });
-  const s = headFront(c, R);
-  const on = (x: number, y: number, lift = 0): V3 => { const p = s(x * f, y * f); return [p.p[0] + p.n[0] * lift, p.p[1] + p.n[1] * lift, p.p[2] + p.n[2] * lift]; };
+  const head = headFront(c, R);
+  // The jaw, the beard's colour or the skin's, and the face's surface: the head's, or the jaw's where it stands proud.
+  const jawColour = o.beard === null ? mix(skin, '#000000', 0.06) : (o.beard ?? GT.BEARD);
+  const jaw = hullPart(k, JAW.map((p) => [c[0] + p[0] * f, c[1] + p[1] * f, c[2] + p[2] * f] as V3), jawColour);
+  const s: Surface = (x, y) => {
+    const h = head(x, y), j = jaw(c[0] + x, c[1] + y);
+    return j !== null && j.z > h.p[2] ? { p: [c[0] + x, c[1] + y, j.z], n: j.n } : h;
+  };
+  const on = (x: number, y: number, lift = 0): V3 => { const p = head(x * f, y * f); return [p.p[0] + p.n[0] * lift, p.p[1] + p.n[1] * lift, p.p[2] + p.n[2] * lift]; };
   const at = (pts: readonly number[]): number[] => pts.map((v) => v * f);
   const scarred = w.scarred === true && w.blood === 0;
   const hollow = mix(skin, '#2A1408', 0.42);
-  // The square jaw: a boxy block over the lower face, the beard's colour or the skin's.
-  const jaw = o.beard === null ? mix(skin, '#000000', 0.06) : (o.beard ?? GT.BEARD);
-  k.box([c[0], c[1] - 2.3 * f, c[2] + 1.9 * f], [5.4 * f, 2.6 * f, 3.2 * f], jaw, { hull: 0 });
   // Sunken shade under the brow, under the eyes and under the cheekbones.
   for (const sd of [-1, 1]) {
-    k.decal(ell(sd * 1.5 * f, 0.55 * f, 1.25 * f, 0.75 * f, 8), hollow, s);
-    k.decal(ell(sd * 2.2 * f, -1.0 * f, 0.9 * f, 0.45 * f, 7, sd * -0.4), hollow, s);
+    k.decal(ell(sd * 1.5 * f, 0.55 * f, 1.25 * f, 0.75 * f, 8), hollow, head);
+    k.decal(ell(sd * 2.2 * f, -1.0 * f, 0.9 * f, 0.45 * f, 7, sd * -0.4), hollow, head);
   }
-  // Narrowed eyes: a slit of white, a dark iris (milky on a scarred eye), the lid heavy over it.
+  // The healed scar goes on before the features, so the eye, brow, nose and mouth sit over it, never under it.
+  if (scarred) faceScar(k, s, f);
+  // Narrowed eyes: a slit of white, a dark iris, the lid heavy over it.
   for (const sd of [-1, 1]) {
-    const blind = scarred && sd < 0;
-    k.decal(at(blind ? [sd * 0.9, 0.38, sd * 2.1, 0.52, sd * 2.0, 0.32, sd * 0.95, 0.26] : [sd * 0.85, 0.42, sd * 2.15, 0.62, sd * 2.05, 0.3, sd * 0.9, 0.2]), '#E6DDCF', s);
-    k.decal(ell(sd * 1.45 * f, 0.4 * f, 0.2 * f, (blind ? 0.1 : 0.17) * f, 6), blind ? GT.MILKY : '#120A06', s);
+    k.decal(at([sd * 0.85, 0.42, sd * 2.15, 0.62, sd * 2.05, 0.3, sd * 0.9, 0.2]), '#E6DDCF', head);
+    k.decal(ell(sd * 1.45 * f, 0.4 * f, 0.2 * f, 0.17 * f, 6), '#120A06', head);
   }
-  // The brow: one heavy dark ridge drawn low and down toward the nose. A scar breaks it.
+  // The brow: one heavy dark ridge drawn low and down toward the nose.
   const brow = o.brow ?? GT.BROW_HAIR;
-  for (const sd of [-1, 1]) {
-    if (scarred && sd < 0) {
-      k.rod(on(-0.3, 0.85, 0.25), on(-1.85, 1.2, 0.22), 0.55 * f, brow, { seg: 4, hull: 0 });
-      k.rod(on(-2.45, 1.33, 0.2), on(-2.6, 1.37, 0.2), 0.55 * f, brow, { seg: 4, hull: 0 });
-    } else k.rod(on(sd * 0.3, 0.85, 0.25), on(sd * 2.5, 1.35, 0.2), 0.55 * f, brow, { seg: 4, hull: 0 });
-  }
+  for (const sd of [-1, 1]) k.rod(on(sd * 0.3, 0.85, 0.25), on(sd * 2.5, 1.35, 0.2), 0.55 * f, brow, { seg: 4, hull: 0 });
   // The nose, on the centre line, and the mouth: a tight closed line, turned down a little at the ends.
   k.ball(on(0, -0.5, 0.1), 1, mix(skin, '#000000', 0.12), { detail: 0, hull: 0, s: [0.55 * f, 0.95 * f, 0.75 * f] });
   k.line(at([-1.0, -1.85, -0.4, -1.72, 0.4, -1.72, 1.0, -1.85]), 0.28 * f, '#24100A', s);
-  if (scarred) faceScar(k, s, f, [c[0], c[1] - 2.3 * f, c[2] + 3.52 * f]);
   faceBlood(k, s, w, f);
 }
 
-/** The jagged line of the healed scar on the face (x, y offsets): from the brow across the near eye, into the beard. */
-const SCAR_LINE = [-2.55, 1.75, -2.15, 1.05, -1.75, 0.5, -1.55, -0.15, -1.2, -0.85, -1.05, -1.55] as const;
+/**
+ * The jagged line of the healed scar on the face (x, y offsets): down the near side's temple outside the eye and the
+ * brow's end, over the cheekbone and on down the cheek into the jaw, clear of every feature.
+ */
+const SCAR_LINE = [-3.1, 1.95, -2.9, 1.15, -2.95, 0.45, -2.7, -0.3, -2.5, -1.05, -2.15, -1.85, -1.85, -2.6, -1.5, -3.25] as const;
 
 /**
  * A healed scar: a thin, slightly jagged line a little paler and pinker than the skin, its edges a darker red, with
- * tight stitch ticks across it; from the brow across the near eye down the cheek, running on into the jaw or beard
- * (`jawFront`: the front of the jaw block, where it breaks the beard line), so it reads even when small.
+ * tight stitch ticks across it, on the face's surface (head, then jaw: where it crosses a beard, the beard does not
+ * grow, so it reads as a bare line through it).
  */
-export function faceScar(k: Kit, s: Surface, f = 1, jawFront?: V3): void {
+export function faceScar(k: Kit, s: Surface, f = 1): void {
   const pts = SCAR_LINE.map((v) => v * f);
   k.line(pts, 0.42 * f, GT.SCAR_EDGE, s);
   k.line(pts, 0.2 * f, GT.SCAR, s);
-  for (let i = 0; i + 3 < pts.length; i += 2) {
+  for (let i = 2; i + 3 < pts.length; i += 4) {
     const x = (pts[i]! + pts[i + 2]!) / 2, y = (pts[i + 1]! + pts[i + 3]!) / 2;
     k.line([x - 0.32 * f, y - 0.08 * f, x + 0.32 * f, y + 0.08 * f], 0.1 * f, GT.SCAR_EDGE, s);
-  }
-  if (jawFront) {
-    // Where it crosses the jaw, the beard does not grow: a bare line through it.
-    const jaw: Surface = (x, y) => ({ p: [x, y, jawFront[2]], n: [0, 0, 1] });
-    const x0 = jawFront[0] - 1.05 * f, y0 = jawFront[1] + 1.25 * f;
-    k.line([x0, y0, x0 + 0.2 * f, y0 - 1.3 * f, x0 + 0.35 * f, y0 - 2.4 * f], 0.5 * f, GT.SCAR_EDGE, jaw);
-    k.line([x0, y0, x0 + 0.2 * f, y0 - 1.3 * f, x0 + 0.35 * f, y0 - 2.4 * f], 0.26 * f, GT.SCAR, jaw);
   }
 }
 
