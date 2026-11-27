@@ -10,8 +10,7 @@
 // - The face: bareFace, centred on the head and facing the rider's own front, so blood and the healed scar come from
 //   the shared code. Steppe faces (steppeFace) get a drooping moustache, a chin tuft, braided loops behind the ears
 //   and, once the cap is lost, a shaved crown with a forelock.
-import { Quaternion, TorusGeometry, Vector3 } from 'three';
-import { CylinderGeometry } from 'three';
+import { CylinderGeometry, Quaternion, TorusGeometry, Vector3 } from 'three';
 import { H, Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
 import { bareFace, GT, headFront } from './grittyToon';
@@ -107,8 +106,6 @@ export interface LegOpts {
   boot: string;
   /** A turned-up toe (steppe boots). */
   upturned?: boolean;
-  /** A panel of the coat (or mail) hanging over the near thigh. */
-  skirt?: string;
   /** Armour on the shin (greaves): its colour. */
   greave?: string;
   /** The stirrup's leather and iron. */
@@ -140,10 +137,6 @@ export function riderLegs(k: Kit, o: LegOpts, w: Wear): void {
     k.box([ankle[0] + 0.8, ankle[1] - 1.05, ankle[2]], [4.0, 1.9, 2.3], o.boot, { rot: [0, 0, 0.06] });
     if (o.upturned) k.rod([ankle[0] + 2.5, ankle[1] - 1.4, ankle[2]], [ankle[0] + 3.7, ankle[1] - 0.2, ankle[2]], 0.75, o.boot, { r1: 0.25, seg: 4 });
     k.box([ankle[0] + 0.6, ankle[1] - 2.05, ankle[2]], [4.2, 0.45, 2.4], mix(o.boot, '#000000', 0.35), { hull: 0 });
-    if (o.skirt) {
-      const sk: V3[] = [[-1.2, 22.0, 3.6], [2.6, 20.6, 6.3], [4.2, 16.4, 7.0], [2.2, 14.6, 6.8], [-1.4, 15.4, 5.8], [-2.2, 18.6, 5.0]];
-      k.slab(sk.flatMap((p) => [p[0], p[1]]), 0.6, o.skirt, [0, 0, 6.2], [0, 0.0, 0], { hull: 0.6 });
-    }
     if (w.stage >= 1) k.decal([0.4, 10.6, 3.6, 10.6, 3.4, 12.0, 0.8, 12.6], mix(o.boot, '#3D3A34', 0.55), (x, y) => ({ p: [x, y, ankle[2] + 1.3], n: [0, 0, 1] }));
   }
 }
@@ -263,4 +256,3 @@ export function steppeFace(k: Kit, w: Wear, o: SteppeFaceOpts = {}, c: V3 = HEAD
   }
 }
 
-export const FACE_DEFAULTS = { skin: GT.SKIN, beard: GT.BEARD, brow: GT.BROW_HAIR };

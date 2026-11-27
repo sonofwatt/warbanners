@@ -456,7 +456,7 @@ function guardHorseNeck(k: Kit, c: Look, w: Wear): void {
 
 /** The guard's helm: a steel bowl with a gold brim, a brow plate, a tall spike with a horsehair plume, a lamellar aventail. */
 function guardHelm(k: Kit, c: Look, w: Wear): void {
-  const h = HEAD_C, plates = vivid(c.main), lace = mix(c.dark, '#000000', 0.35);
+  const h = HEAD_C, plates = vivid(c.main);
   const broken = helmBroken(w);
   const bowl = '#8C9299', L = 0.9;
   k.dome([h[0], h[1] + 1.2 + L, h[2] - 0.4], HEAD_R * 1.18, bowl, { to: 1.2, seg: 11, gloss: 0.45, s: [1, 1.35, 1] });
@@ -466,7 +466,6 @@ function guardHelm(k: Kit, c: Look, w: Wear): void {
   // The aventail: lamellae hanging round the sides and the back from the brim. Broken, the near side is torn away.
   const arc: [number, number] = broken ? [Math.PI * 0.75, Math.PI * 0.9] : [Math.PI * 0.42, Math.PI * 1.16];
   k.frustum([h[0], 0, h[2] - 0.6], h[1] - 4.4, h[1] + 2.2 + L, HEAD_R * 1.48, HEAD_R * 1.22, plates, { seg: 12, arc, gloss: 0.35, hull: 0.6 });
-  void lace;
   if (broken) {
     // The spike and plume torn off: a jagged stub; the bowl torn above the near temple.
     k.rod([h[0], h[1] + 7.0, h[2] - 0.4], [h[0] + 0.3, h[1] + 8.0, h[2] - 0.4], 0.7, bowl, { r1: 0.35, seg: 5 });
