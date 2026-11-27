@@ -258,8 +258,8 @@ export function steppeFace(k: Kit, w: Wear, o: SteppeFaceOpts = {}, c: V3 = HEAD
     k.slab([-3.6, 0, 3.6, 0, 4.0, -6.6, 2.0, -5.6, 0.4, -7.4, -1.6, -5.8, -3.8, -6.8], 1.0, o.long, [c[0], c[1] + 1.0 * f, c[2] - 3.0 * f], [0.15, 0, 0], { hull: 0.6 });
   } else if (o.bare) {
     // The shaved crown, dark with stubble, and the forelock left long over the brow.
-    k.dome([c[0], c[1] + 0.5 * f, c[2] - 0.3 * f], r * 1.14, mix(skin, hair, 0.42), { to: 1.05, seg: 10, hull: 0.8 });
-    k.slab([-0.7, 0.3, 0.7, 0.3, 0.5, -1.3, 0, -1.8, -0.5, -1.2], 0.55, hair, [c[0] + 0.2, c[1] + 4.3 * f, c[2] + 2.0 * f], [-0.35, 0, 0.1], { hull: 0.5 });
+    k.dome([c[0], c[1] + 0.5 * f, c[2] - 0.3 * f], r * 1.14, mix(skin, hair, 0.55), { to: 1.05, seg: 10, hull: 0.8 });
+    k.slab([-0.8, 0.4, 0.8, 0.4, 0.6, -1.6, 0.1, -2.5, -0.5, -1.7], 0.55, hair, [c[0] + 0.2, c[1] + 3.7 * f, c[2] + 2.9 * f], [-0.5, 0, 0.12], { hull: 0.5 });
   }
 }
 
