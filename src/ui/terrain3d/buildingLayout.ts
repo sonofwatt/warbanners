@@ -8,7 +8,7 @@
 import type { BuildingId, HexKey } from '../../engine';
 import type { GlMap, GlTile } from './input';
 import { centre, COS_E, edgeDist, hash2, heightFn, parse, SQUASH, tileSetup } from './layout';
-import { FURNACE } from './townLayout';
+import { FURNACE, townSpills } from './townLayout';
 
 /** The buildings this file lays out; the mine and the foundry are built into the mountain (townLayout.ts). */
 export type FieldBuilding = Exclude<BuildingId, 'mine' | 'foundry'>;
@@ -354,4 +354,24 @@ export function smokePuff(t: number, i: number, n: number, w: number): { life: n
     size: 0.45 + 1.05 * Math.sqrt(life),
     alpha: Math.min(1, life / 0.12) * (1 - life) * (1 - life) * 1.15,
   };
+}
+
+/** The light a tile's lit windows throw on its ground (townLayout.ts townSpills), in world space. */
+export interface WindowSpill { key: HexKey; lights: { x: number; z: number; dx: number; dz: number; weight: number }[] }
+
+/** Every city's and village's lit windows' light on the ground, by tile, in a stable order. */
+export function windowSpills(map: GlMap): WindowSpill[] {
+  const out: WindowSpill[] = [];
+  for (const k of Object.keys(map.tiles).sort()) {
+    const t = map.tiles[k]!;
+    if (!t.city && !(t.village && t.building === null)) continue;
+    const plan = tileSetup(map, k).town;
+    if (plan === null) continue;
+    const lights = townSpills(plan);
+    if (lights.length === 0) continue;
+    const { q, r } = parse(k);
+    const c = centre(q, r);
+    out.push({ key: k, lights: lights.map((l) => ({ ...l, x: c.x + l.x, z: c.z + l.z })) });
+  }
+  return out;
 }

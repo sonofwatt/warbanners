@@ -14,7 +14,7 @@ export interface SkyLight {
   tint: Rgb; // a grade multiplied in last, over the terrain and the props
   unitTint: Rgb; // the same grade for the unit figures, lighter so they stay readable
   glow: number; // lanterns, furnaces and city windows: 1 by day, brighter in the dark
-  windows: number; // how much the city windows light up (0 by day)
+  windows: number; // how much the windows light up and light the ground (0 by day): the bonfires' night factor, fire
   fire: number; // how much light the village bonfires cast round them (0 by day, 1 at night)
   sea: string; // the sea beyond the board's edge (the slot's background)
   cast: number; // how dark the figures' cast shadows are (units3d.ts): clear by day 0.42, faint at night
@@ -31,12 +31,12 @@ const TIMES: Record<TimeOfDay, TimeLight> = {
   // The warm middle of a dawn (daylight.ts WARM): low warm light from the left (the east), pink in the shade.
   dawn: {
     dir: [-0.9, 0.36, 0.42], light: [1.14, 0.92, 0.78], shadow: [0.60, 0.56, 0.72], tint: [1.0, 0.94, 0.93], unitTint: [1.0, 0.97, 0.96],
-    glow: 1.15, windows: 0.25, fire: 0.5, sea: '#4D7AA6', cast: 0.42,
+    glow: 1.15, windows: 0.5, fire: 0.5, sea: '#4D7AA6', cast: 0.42,
   },
   // The warm middle of a dusk: low orange light from the right (the west), violet shade.
   dusk: {
     dir: [0.88, 0.34, 0.36], light: [1.16, 0.82, 0.58], shadow: [0.52, 0.46, 0.64], tint: [0.96, 0.87, 0.86], unitTint: [1.0, 0.94, 0.92],
-    glow: 1.35, windows: 0.6, fire: 0.62, sea: '#3D5F8E', cast: 0.4,
+    glow: 1.35, windows: 0.62, fire: 0.62, sea: '#3D5F8E', cast: 0.4,
   },
   // A cool moon high on the left; the lit windows, lanterns and furnaces carry the warmth.
   night: {

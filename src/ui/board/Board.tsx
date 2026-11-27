@@ -3,7 +3,7 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, ChestTwinkle, FireGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, ChestTwinkle, CityLights, CityMark, FireGlow, LanternGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { twinkleSeed } from '../art/twinkle';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
@@ -21,7 +21,7 @@ import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
-import { glUnitsOf, unitShown } from '../terrain3d/unitsInput';
+import { carriesLantern, glUnitsOf, unitShown } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
 import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
 import type { AmbientLoop } from '../terrain3d/ambient';
@@ -237,8 +237,9 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
 // grade's colour at a low opacity, as the veil is, so only the ground and what stands on it darken; marks, rings, the
 // ready glow and the units drawn after the tile keep their full contrast. `wx` lays a faint static rain or snow
 // texture over the tile's top face (the SVG look only: the 3D board has falling rain and snow).
-// `fire` is how much light the village bonfires cast now (sky.ts fire): 0 by day.
-interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null; fire: number }
+// `fire` is how much light the village bonfires cast now (sky.ts fire), `windows` how much the windows light up (sky.ts
+// windows): both 0 by day.
+interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null; fire: number; windows: number }
 function Graded(p: { look: TileLook | undefined; children: ReactNode }): ReactElement | null {
   if (p.look === undefined || p.look.opacity === 0) return null;
   return <g className="grade" opacity={p.look.opacity} pointerEvents="none" style={{ '--grade': p.look.grade } as CSSProperties}>{p.children}</g>;
@@ -307,6 +308,10 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       {t.city === null && t.tile.village && t.tile.building === null && layers.village && (p.look?.fire ?? 0) > 0 ? <FireGlow strength={p.look!.fire} /> : null}
       {/* The chest's twinkle, over the grade too, so a glint stays bright at night; under the veil, which dims it. */}
       {chest !== null ? <g transform={chest || undefined}><ChestTwinkle seed={twinkleSeed(t.key)} /></g> : null}
+      {/* And a city's windows light up and spill light on the ground in front of its houses. */}
+      {t.city !== null && layers.town && (p.look?.windows ?? 0) > 0 && p.factions[t.city.owner] !== undefined ? (
+        <CityLights faction={p.factions[t.city.owner]!} level={t.city.level} strength={p.look!.windows} />
+      ) : null}
       {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
       {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
@@ -324,7 +329,9 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
 
 // `figure` false: the 3D figures draw the unit (and a hero's pennant) on their canvas, and this draws only what
 // stands around it: the war banner, its marks and the item badge, in the same places.
-function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean }): ReactElement | null {
+// `lamp`: how bright the units' lanterns burn (sky.ts windows, 0 by day); a unit that carries one (unitsInput.ts
+// carriesLantern) has its glow on the ground drawn under its svg figure (the 3D figures light their own).
+function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean; lamp?: number }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
@@ -341,6 +348,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
     >
       {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and darkens with it. */}
       <g className="unit-body">
+        {p.figure !== false && (p.lamp ?? 0) > 0 && carriesLantern(unit.type) ? <LanternGlow strength={p.lamp!} /> : null}
         {p.figure === false ? null : (
           // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
           <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
@@ -381,7 +389,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
 /** One tile as the board draws it, for tests. */
 export const BoardTile = TileViewOf;
 const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && a.look === b.look && sameData(a.factions, b.factions) && sameData(a.t, b.t));
-const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
+const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && a.lamp === b.lamp && sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
  * After the slot has changed size (a rotation, a window or browser bar resize) with something selected: the view
@@ -446,9 +454,9 @@ export function Board(p: BoardProps): ReactElement {
   const tileLook = useMemo<TileLook | undefined>(() => {
     const g = svgGrade(look, lightRound);
     const wx = !gl && (look.weather === 'rain' || look.weather === 'snow') ? look.weather : null;
-    const fire = skyLight(look, lightRound).fire;
-    if (g === null && wx === null && fire <= 0) return undefined;
-    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx, fire };
+    const { fire, windows } = skyLight(look, lightRound);
+    if (g === null && wx === null && fire <= 0 && windows <= 0) return undefined;
+    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx, fire, windows };
   }, [look, lightRound, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
@@ -975,7 +983,7 @@ export function Board(p: BoardProps): ReactElement {
       it.kind === 'tile' ? (
         <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} look={tileLook} />
       ) : (
-        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} />
+        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} lamp={tileLook?.windows ?? 0} />
       );
     const sliding = (it: SceneItem): boolean => {
       if (it.kind !== 'unit') return false;

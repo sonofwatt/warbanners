@@ -1,6 +1,6 @@
 // What the 3D unit figures draw, taken from the board's scene. No three.js here: the board imports this file whether
 // the option is on or off. The 3D chunk imports only its types, so the engine and the palette stay out of that chunk.
-import { isHero } from '../../engine';
+import { isHero, UNITS } from '../../engine';
 import type { FactionId, UnitTypeId } from '../../engine';
 import { ACCENT, playerColour } from '../art/palette';
 import type { SceneItem } from '../board/scene';
@@ -17,6 +17,18 @@ export interface GlUnit {
   spent: boolean;
   /** Dug in (rules 7): a unit that hunkers turns back to its rest facing (units/facing.ts). */
   hunkered: boolean;
+  /** It carries a lantern, lit after dark (carriesLantern); none when left out. */
+  lantern?: boolean;
+}
+
+/**
+ * Whether a unit of this type carries a lantern after dark: every unit but a stealthy one. Stealth is the engine's
+ * hidden trait (vision.ts: a hidden unit is seen only by a unit or city next to it), which only the Scout has; a
+ * lantern would give it away. Heroes, riders, the trebuchet and the camp all carry one (a hero is its type's unit with
+ * deeds, and no hero trait hides it). A look only: the rules never read it.
+ */
+export function carriesLantern(type: UnitTypeId): boolean {
+  return !UNITS[type].traits.includes('hidden');
 }
 
 /**
@@ -45,6 +57,7 @@ export function glUnitsOf(items: readonly SceneItem[], factions: readonly Factio
       x: it.at.x, y: it.at.y,
       spent: it.mine && it.spent,
       hunkered: u.hunkered,
+      lantern: carriesLantern(u.type),
     });
   }
   const key = units.map((u) => `${u.id}:${u.type}:${u.look.main}${u.look.dark}${u.look.accent}:${u.hero ? 'h' : ''}:${u.x},${u.y}:${u.spent ? 's' : ''}:${u.hunkered ? 'k' : ''}`).join(' ');

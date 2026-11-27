@@ -4,8 +4,8 @@
 // the board's rim and the figures' idle life are drawn on the units canvas, which alone redraws in the board's
 // ambient loop (ambient.ts), so the terrain itself is never redrawn for them.
 import {
-  BackSide, BufferGeometry, Color, ColorManagement, Float32BufferAttribute, LinearSRGBColorSpace, Mesh,
-  OrthographicCamera, Scene, ShaderMaterial, Vector3, Vector4, WebGLRenderer,
+  BackSide, BufferGeometry, Color, ColorManagement, DataTexture, Float32BufferAttribute, FloatType, LinearSRGBColorSpace, Mesh,
+  NearestFilter, OrthographicCamera, RGBAFormat, Scene, ShaderMaterial, Vector3, Vector4, WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
@@ -26,7 +26,8 @@ import { createChests } from './chests';
 import { createChestShine } from './chestShine';
 import { createSmoke } from './smoke';
 import { createFish, createSurface, frontOf } from './water';
-import { chestPlays, chestSpots, fireSpots } from './buildingLayout';
+import { chestPlays, chestSpots, fireSpots, windowSpills } from './buildingLayout';
+import { MAX_SPILLS } from './townLayout';
 import type { Units3d } from './units/units3d';
 import { createWeather } from './weather';
 import { skyLight } from './sky';
@@ -94,6 +95,16 @@ export interface Terrain3d {
 /** How much of a bonfire's light a figure beside it catches, against a hut's: a little, so it stays readable. */
 export const FIGURE_FIRE = 0.45;
 
+/** The lit windows' texture: MAX_SPILLS texels a row (x, z, and the front's facing times its light), read exactly. */
+function winTexture(data: Float32Array<ArrayBuffer>, rows: number): DataTexture {
+  const t = new DataTexture(data, MAX_SPILLS, rows, RGBAFormat, FloatType);
+  t.minFilter = NearestFilter;
+  t.magFilter = NearestFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** The highest device pixel ratio the terrain renders at: sharp on phones, without paying for 3x. */
 export const MAX_DPR = 2;
 
@@ -133,12 +144,16 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uAir: { value: new Color(1, 1, 1) }, uCast: { value: 0.42 },
     // The village bonfires (shaders.ts FIRE_GLSL): where each burns (w 1 when lit), and how much light they cast now.
     uFires: { value: Array.from({ length: MAX_FIRES }, () => new Vector4(0, 0, 0, 0)) }, uFireLight: { value: 0 },
+    // The lit windows' light on the ground (shaders.ts WINDOW_GLSL): a row per tile, a texel per building front.
+    uWinTex: { value: winTexture(new Float32Array(4 * MAX_SPILLS), 1) },
+    // How bright the units' lanterns burn (sky.ts windows: 0 by day); only the figures' canvas lights them.
+    uLantern: { value: 0 },
   };
   // The unit figures draw on a second canvas, above the tile svg (cities, villages and marks) and below the svg
   // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders,
   // but their own lighter grade and no snow or wet, so the figures stay readable at night and in any weather.
   // A figure near a bonfire catches a little of its light on the side toward it (FIGURE_FIRE of the huts' share).
-  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uFireLight: { value: 0 } };
+  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uFireLight: { value: 0 }, uLantern: { value: 0 } };
   const units = opts.units ? createUnits3d(opts.units, unitShared) : null;
   // The waterfalls go with the figures, whose canvas redraws on its own; without it they stand still on the terrain.
   const falls = createFalls(shared);
@@ -239,6 +254,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     }
     bonfires.setMap(map, villages);
     weather.setMap(map);
+    setWindows(map);
     paintVeil();
     noteChests(map);
   }
@@ -267,6 +283,29 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     const spots = new Map([...chestsGone, ...chestsNow]);
     chestsFx.play(chestPlays(claims, spots, nowMs, reduced));
     for (const c of claims) chestsGone.delete(c.at);
+  }
+
+  // The lit windows: one texture row per city or village, and aWin on the ground's vertices (that row plus 1, 0 on
+  // every other tile), written as the veil is. Only remade when the map is.
+  let winSig = '';
+  let winRow = new Map<number, number>();
+  function setWindows(map: GlMap): void {
+    const spills = windowSpills(map);
+    const sig = spills.map((s) => `${s.key}:${s.lights.map((l) => `${l.x.toFixed(2)},${l.z.toFixed(2)},${l.weight}`).join(';')}`).join(' ');
+    if (sig !== winSig) {
+      winSig = sig;
+      const data = new Float32Array(4 * MAX_SPILLS * Math.max(1, spills.length));
+      spills.forEach((s, row) => s.lights.forEach((l, i) => data.set([l.x, l.z, l.dx * l.weight, l.dz * l.weight], 4 * (row * MAX_SPILLS + i))));
+      (shared.uWinTex.value as DataTexture).dispose();
+      shared.uWinTex.value = winTexture(data, Math.max(1, spills.length));
+      winRow = new Map(spills.map((s, row) => { const { q, r } = parse(s.key); return [hexId(q, r), row + 1]; }));
+    }
+    const geo = ground.geometry;
+    const hex = geo.attributes.aHex;
+    if (hex === undefined) return;
+    const arr = new Float32Array(hex.count);
+    if (winRow.size > 0) for (let i = 0; i < hex.count; i++) arr[i] = winRow.get(hexId(hex.getX(i), hex.getY(i))) ?? 0;
+    geo.setAttribute('aWin', new Float32BufferAttribute(arr, 1));
   }
 
   // The veil: aVeil on every vertex, 1 where its tile (aHex) is veiled. Rewritten in place, so no rebuild.
@@ -369,6 +408,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     shared.uWindows.value = sky.windows;
     shared.uFireLight.value = sky.fire;
     unitShared.uFireLight.value = sky.fire * FIGURE_FIRE;
+    unitShared.uLantern.value = sky.windows;
     bonfires.setLight(sky.fire);
     setRgb(shared.uAir, sky.air);
     shared.uCast.value = sky.cast;
@@ -395,6 +435,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     ground.geometry.dispose();
     props.geometry.dispose();
     groundMat.dispose(); propMat.dispose(); outlineMat.dispose();
+    (shared.uWinTex.value as DataTexture).dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }
