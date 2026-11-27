@@ -10,7 +10,7 @@ import type { Surface, V3 } from './kit';
 import { BLOOD, crack, dent, dirt, discPoly, ell, groundDrops, scratches, smear, spear, tearPolys, worn } from './parts';
 import type { Cut } from './parts';
 import type { Look, Wear } from './parts';
-import { bareFace, crestBrush, GT, helmBroken, metalEdge, plate, tornEdge, vivid } from './grittyToon';
+import { bareFace, crestArch, crestBrush, GT, helmBroken, metalEdge, plate, tornEdge, vivid } from './grittyToon';
 import { drape, drapeSurf, flank, grittyHorse, HEAD_RINGS, loftPoint, loftSheet, NECK_RINGS, patch, section, tearLine } from './grittyHorse';
 import type { Coat } from './grittyHorse';
 import {
@@ -288,7 +288,8 @@ function knightNeck(k: Kit, c: Look, w: Wear): void {
 /** How far the knight's crest is turned across the helm (about the vertical). */
 const CREST_TURN = 0.6;
 
-/** The great helm: a flat-topped steel pot, eye slits, a cross of reinforcing bands, breaths, a combed crest. */
+/** The great helm: a flat-topped steel pot, eye slits, a cross of reinforcing bands, breaths, an arched crest
+ * (battered, its front is hacked away). */
 function greatHelm(k: Kit, c: Look, w: Wear): void {
   const h = HEAD_C, R = 4.55;
   const open = helmBroken(w);
@@ -325,7 +326,7 @@ function greatHelm(k: Kit, c: Look, w: Wear): void {
   k.frustum([h[0], 0, h[2] - 0.2], y1 - 0.25, y1 + 0.25, R + 0.05, R + 0.05, GT.GOLD_EDGE, { seg: 10, hull: 0, gloss: 0.6 });
   // The crest, turned a little across the helm so the game's camera sees its face and not only its edge, and thick.
   k.frame([h[0], 0, h[2] - 0.6], [0, CREST_TURN, 0], () => {
-    crestBrush(k, { root: [0, y1 + 0.9, 0], colour: vivid(c.main), shorn: worn(w, 3), length: 5.6, height: 5.2, thick: 1.7 });
+    crestArch(k, { centre: [0, y1 - 1.5, 0.4], rz: 4.3, ry: 2.5, colour: vivid(c.main), shorn: worn(w, 3), lose: 'front', band: 3.8, thick: 1.6 });
   });
 }
 

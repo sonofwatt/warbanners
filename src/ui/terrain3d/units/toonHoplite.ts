@@ -15,7 +15,7 @@ import {
   spear, tearPolys, worn,
 } from './parts';
 import type { Look, Wear } from './parts';
-import { bareFace, bronzeShield, crestBrush, GT, metalEdge, onPlane, plate, tornEdge, vivid } from './grittyToon';
+import { bareFace, bronzeShield, crestArch, GT, metalEdge, onPlane, plate, tornEdge, vivid } from './grittyToon';
 
 const WEAPON = 'weapon';
 const SHIELD = 'shield';
@@ -30,7 +30,8 @@ const GREAVE = '#B48236';
 // A ridge down the middle of the brow runs into a long pointed nose guard; two wedge eye openings angle out and up;
 // the cheek plates are flat blades sweeping down to points at the chin with a narrow gap between them, so the eyes,
 // the channels beside the nose guard and that gap make one dark Y. Behind the plates a smooth dome, a flared neck
-// guard, a tall square post with a full, soft plume, rivets at the temples; aged bronze, its edges and ridge in gold.
+// guard, an arched horsehair crest from brow to nape with big swept locks, rivets at the temples; aged bronze, its
+// edges and ridge in gold.
 
 /** The helm's centre (its local origin); points below are local, x to the figure's left on screen being negative. */
 const HELM: V3 = [0, 35.2, 0.4];
@@ -95,11 +96,8 @@ function helm(k: Kit, c: Look, w: Wear): void {
     if (worn(w, 2)) { dent(k, brow, HELM[0] + 3.0, HELM[1] + 3.3, 0.6, AGED); dent(k, blade, HELM[0] + 2.6, HELM[1] - 1.2, 0.55, AGED); }
     if (worn(w, 3)) crack(k, blade, [HELM[0] + 3.6, HELM[1] - 0.4, HELM[0] + 3.0, HELM[1] - 1.8, HELM[0] + 3.4, HELM[1] - 3.0], 0.3);
   }
-  // The crest on its post.
-  const top = HELM[1] + 5.6;
-  k.box([HELM[0], top + 1.6, HELM[2] - 0.8], [1.4, 3.6, 1.4], AGED, { gloss: 0.45 });
-  k.box([HELM[0], top + 3.5, HELM[2] - 0.8], [1.7, 0.4, 1.7], GOLD_EDGE, { hull: 0, gloss: 0.6 });
-  crestBrush(k, { root: [HELM[0], top + 3.6, HELM[2] - 0.8], colour: vivid(c.main), shorn: worn(w, 3) });
+  // The crest: an arch of horsehair sitting on the bowl from the brow over the crown to the nape.
+  crestArch(k, { centre: [HELM[0], HELM[1] + 0.4, HELM[2] - 0.9], rz: 5.2, colour: vivid(c.main), shorn: worn(w, 3), band: 5.4, thick: 1.3 });
 }
 
 // ---- the body ----

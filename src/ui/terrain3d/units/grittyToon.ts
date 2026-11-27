@@ -20,7 +20,8 @@
 //
 // - Scuffed (1): pale scratches on metal, dirt low on cloth and legs.
 // - Dented (2): dents on the helm and the shield, a nick in a blade.
-// - Battered (3): a crack, a chip out of the shield's rim, a torn hem, the crest shorn short at the back.
+// - Battered (3): a crack, a chip out of the shield's rim, a torn hem, the crest shorn short (the back of
+//   an arched crest, the Hoplite's; the front of the Knight's).
 // - Broken (4): a piece of the headgear is gone for good (for a closed helm, the whole face plate), its edge a dark
 //   torn line (tornEdge, never a bright zigzag); the bare face shows under it (bareFace). About half the shield is
 //   gone, its mark clipped at the break (bronzeShield). The weapon is snapped.
@@ -289,5 +290,100 @@ export function crestBrush(k: Kit, o: CrestOpts): void {
     const [tz, ty] = arc(1);
     k.slab([tz + 1.4, ty + 2.2, tz - 0.4, ty + 1.6, tz - 0.9, ty - 1.0, tz - 0.4, ty - 3.2, tz + 0.2, ty - 2.4, tz + 0.6, ty - 3.6, tz + 1.2, ty - 2.2, tz + 1.8, ty - 2.9, tz + 2.2, ty - 0.6],
       THICK * 0.8, deep, [x0, 0, 0], [0, -Math.PI / 2, 0], { hull: 0.45 });
+  }
+}
+
+export interface ArchOpts {
+  /** The point the arch curves round, in the crest's plane: x across the helm, y and z the crown's middle. */
+  centre: V3;
+  /** The arch's inner edge, front to back (rz) and up (ry, default rz): equal for a round dome, ry smaller for a flat top. */
+  rz: number;
+  ry?: number;
+  /** Its colour (vivid of the owner's main colour, usually). */
+  colour: string;
+  /** Battered or worse: part of it shorn away, ragged, the back (default) or the front. */
+  shorn: boolean;
+  lose?: 'back' | 'front';
+  /** How far the hair stands off the helm over the crown (default 3.4), how thick side to side (default 1.3). */
+  band?: number;
+  thick?: number;
+  /** Where it starts at the brow and ends down the back: angles about the centre, 0 straight ahead, pi/2 straight up. */
+  from?: number;
+  to?: number;
+}
+
+/**
+ * The arched horsehair crest: a thick band of hair sitting on the helm from the brow, over the crown and down the
+ * back to the nape, its outer edge a row of big combed locks swept back to hooked points like flames, deep dark
+ * notches between them, combed
+ * strands down its faces. Shorn (battered or worse), a part of it is hacked away to a ragged end.
+ */
+export function crestArch(k: Kit, o: ArchOpts): void {
+  const red = o.colour, deep = mix(red, '#000000', 0.38), light = mix(red, '#FFFFFF', 0.22);
+  const [x0, cy, cz] = o.centre;
+  const rz = o.rz, ry = o.ry ?? o.rz, B = o.band ?? 3.4, THICK = o.thick ?? 1.3;
+  const a0 = o.from ?? 0.42, a1 = o.to ?? Math.PI * 1.2;
+  const LOCKS = 6;
+  // Points in the crest's plane as (z, y): at t (0 at the brow, 1 at the nape), d out from the inner edge.
+  const ang = (t: number): number => a0 + (a1 - a0) * t;
+  // Deepest over the crown, a little less at the brow, thinning toward the nape.
+  const depth = (t: number): number => {
+    const u = Math.min(1, Math.max(0, t));
+    return B * (u < 0.38 ? 0.62 + 0.38 * Math.sin((u / 0.38) * Math.PI / 2) : 1 - 0.55 * ((u - 0.38) / 0.62) ** 1.4);
+  };
+  const pt = (t: number, d: number): [number, number] => {
+    const a = ang(t), c = Math.cos(a), s = Math.sin(a);
+    // Out along the ellipse's normal, so the band keeps its depth over a flat top.
+    const nz = c / rz, ny = s / ry, nl = Math.hypot(nz, ny);
+    return [cz + c * rz + (nz / nl) * d, cy + s * ry + (ny / nl) * d];
+  };
+  // The outer edge: each lock rises from a deep notch, swells, and sweeps back to a point that hooks over the next
+  // lock's notch, like a flame; the last one runs on past the nape.
+  const outer: { t: number; z: number; y: number }[] = [];
+  const push = (t: number, d: number): void => { const [z, y] = pt(t, d); outer.push({ t, z, y }); };
+  push(0, depth(0) * 0.6);
+  for (let i = 0; i < LOCKS; i++) {
+    const tn = (i + 0.1) / LOCKS, tm = (i + 0.55) / LOCKS, tp = (i + 1.3) / LOCKS;
+    push(tn, depth(tn) * 0.58);
+    push(tm, depth(tm) * 1.0);
+    push(Math.min(tp, 1.12), depth(Math.min(tp, 1)) * 1.22 + 0.3);
+  }
+  push(1.04, depth(1) * 0.3);
+  // Shorn: keep the brow end (losing the back) or the nape end (losing the front), cut off ragged.
+  const [ta, tb] = !o.shorn ? [0, 1.12] : o.lose === 'front' ? [0.5, 1.12] : [0, 0.48];
+  const kept = outer.filter((p) => p.t >= ta - 1e-6 && p.t <= tb + 1e-6);
+  const poly: number[] = [];
+  const cut = (t: number, rev: boolean): void => {
+    // A ragged hacked end across the band, from the outer edge in to the helm.
+    const fr = rev ? [0.15, 0.45, 0.75] : [0.75, 0.45, 0.15];
+    fr.forEach((f, i) => { const [z, y] = pt(t + (i % 2 === 0 ? 0.025 : -0.02) * (o.lose === 'front' ? -1 : 1), depth(t) * f); poly.push(z, y); });
+  };
+  if (o.shorn && o.lose === 'front') cut(ta, true);
+  for (const p of kept) poly.push(p.z, p.y);
+  if (o.shorn && o.lose !== 'front') cut(tb, false);
+  // The inner edge, back along the helm, a little inside it so no gap shows.
+  for (let n = 10; n >= 0; n--) {
+    const t = ta + ((Math.min(1, tb) - ta) * n) / 10;
+    const [z, y] = pt(t, -0.35);
+    poly.push(z, y);
+  }
+  k.slab(poly, THICK, red, [x0, 0, 0], [0, -Math.PI / 2, 0], { hull: 0.55 });
+  const inKept = (t: number): boolean => t >= ta && t <= Math.min(1, tb);
+  for (const sd of [-1, 1]) {
+    const faceS: Surface = (x, y) => ({ p: [x0 + sd * (THICK / 2), y, x], n: [sd, 0, 0] });
+    // Combed strands along the arch at three depths, broken into lengths like hair.
+    for (const [f, s0, s1, tone] of [[0.82, 0.04, 0.5, 1], [0.82, 0.55, 0.97, 1], [0.56, 0.1, 0.62, 0], [0.56, 0.68, 0.98, 0], [0.32, 0.02, 0.86, 1]] as const) {
+      const r0 = Math.max(s0, ta + 0.02), r1 = Math.min(s1, Math.min(1, tb) - 0.02);
+      if (r1 - r0 < 0.08) continue;
+      const pts: number[] = [];
+      for (let n = 0; n <= 4; n++) { const t = r0 + ((r1 - r0) * n) / 4; pts.push(...pt(t, depth(t) * f)); }
+      k.line(pts, 0.2, tone ? light : deep, faceS);
+    }
+    // Dark partings running in from each notch, swept back like the locks.
+    for (let i = 0; i < LOCKS; i++) {
+      const tn = (i + 0.1) / LOCKS;
+      if (!inKept(tn)) continue;
+      k.line([...pt(tn, depth(tn) * 0.58), ...pt(tn - 0.03, depth(tn) * 0.3)], 0.26, deep, faceS);
+    }
   }
 }
