@@ -15,7 +15,7 @@ export { restHealAt } from './turn';
 export { freshDeeds, thresholdOf, canEarnTraits, isHero, addDeed, grantTrait, maxHpOf, mythTouched } from './heroes';
 export { trainable, unitCost, factionUnits } from './training';
 export { techPrice, canResearch, unitTech, harvestTech, buildingTech, startTech, wallsTech, roadTech } from './tech';
-export { blockadeOf, blockadeLoss, cityIncome, playerIncome, growthNeeded, addGrowth, unitCapacity } from './economy';
+export { blockadeOf, blockadeLoss, cityIncome, playerIncome, growthNeeded, addGrowth, unitCapacity, rewardOptions, buildingGrowth, treasureUnitFor } from './economy';
 export type { Blockade } from './economy';
 export { isConnected } from './connect';
 export { UNITS } from './data/units';

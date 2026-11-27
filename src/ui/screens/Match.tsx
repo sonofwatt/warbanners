@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import {
-  DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, statsOf, thresholdOf, unitCapacity, unitsOf,
+  DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, rewardOptions, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
@@ -440,7 +440,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       {rewardCity !== undefined ? (
         <div className="overlay">
           <RewardSheet
-            level={rewardCity.pendingRewards[0]!}
+            pair={rewardOptions(state, rewardCity, rewardCity.pendingRewards[0]!)}
             onPick={(choice) => run({ type: 'chooseReward', city: rewardCity.id, choice })}
             onLater={() => setLater([...later, rewardCity.id])}
           />

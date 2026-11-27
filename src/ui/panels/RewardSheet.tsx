@@ -1,11 +1,10 @@
 import type { ReactElement } from 'react';
+import type { RewardId } from '../../engine';
 import { StarIcon } from '../icons';
 import { T } from '../text';
-import { rewardPair } from './commands';
 
 // Two big choices, each a button with its name and what it does, and a quiet Later.
-export function RewardSheet({ level, onPick, onLater }: { level: number; onPick: (choice: 0 | 1) => void; onLater: () => void }): ReactElement {
-  const pair = rewardPair(level);
+export function RewardSheet({ pair, onPick, onLater }: { pair: readonly [RewardId, RewardId]; onPick: (choice: 0 | 1) => void; onLater: () => void }): ReactElement {
   return (
     <section className="sheet reward-sheet" aria-label={T.ui.chooseReward}>
       <div className="sheet-head"><h2><StarIcon />{T.ui.chooseReward}</h2></div>

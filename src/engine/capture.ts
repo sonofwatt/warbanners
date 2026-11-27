@@ -5,10 +5,11 @@ import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { canEarnTraits, grantTrait } from './heroes';
 import { rngInt } from './rng';
+import { treasureUnitFor } from './economy';
 import { cityAt, firstFreeNeighbor, foundCity, removeUnit, spawnUnit, tileAt, unitById } from './state';
 import { passTurn } from './turn';
 import { HERO_TRAITS } from './types';
-import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit, UnitTypeId } from './types';
+import type { Action, GameEvent, Handler, MatchState, PlayerId, Unit } from './types';
 
 // rules 12: a unit that entered its tile on an earlier turn and has not moved or acted this turn
 function settled(s: MatchState, unitId: number): Unit | undefined {
@@ -116,7 +117,7 @@ export const claimTreasureHandler: Handler<Extract<Action, { type: 'claimTreasur
   } else if (drawn === 'unit' || drawn === 'mercenary') {
     const spot = firstFreeNeighbor(s, u.pos);
     if (spot === null) gold();
-    else if (drawn === 'unit') event.unit = spawnUnit(s, CONFIG.treasure.unit as UnitTypeId, u.owner, spot, null).id;
+    else if (drawn === 'unit') event.unit = spawnUnit(s, treasureUnitFor(s.players[u.owner]!.faction), u.owner, spot, null).id;
     else {
       const sellsword = spawnUnit(s, CONFIG.treasure.mercenary, u.owner, spot, null);
       event.unit = sellsword.id;

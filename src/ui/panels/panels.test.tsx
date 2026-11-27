@@ -161,7 +161,7 @@ test('the tech sheet rings the tech it was opened for', () => {
   expect(html.match(/ focus"/g)).toHaveLength(1);
 });
 test('the reward sheet shows both rewards and Later', () => {
-  const html = renderToStaticMarkup(<RewardSheet level={2} onPick={noop} onLater={noop} />);
+  const html = renderToStaticMarkup(<RewardSheet pair={['gold', 'scout']} onPick={noop} onLater={noop} />);
   expect(html).toContain(T.reward.gold.name); expect(html).toContain(T.reward.scout.name); expect(html).toContain('Later');
 });
 test('the menu offers sound, resign and home', () => {

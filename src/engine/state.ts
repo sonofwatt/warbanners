@@ -137,6 +137,15 @@ export function createMatch(settings: MatchSettings): MatchState {
     u.mp = maxMp(s, u); u.bonusMp = ridingBonus(s, u);
     u.attacks = freshAttacks(type);
     u.fresh = false;
+    // rules 11: a second start unit next to the capital, set up the same way; none when there is no room
+    const extra = FACTIONS[p.faction].extraStartUnit;
+    const spot = extra === null ? null : firstFreeNeighbor(s, city.pos);
+    if (extra !== null && spot !== null) {
+      const x = spawnUnit(s, extra, p.id, spot, city.id);
+      x.mp = maxMp(s, x); x.bonusMp = ridingBonus(s, x);
+      x.attacks = freshAttacks(extra);
+      x.fresh = false;
+    }
   }
   for (const p of s.players) refreshExplored(s, p.id);
   return s;

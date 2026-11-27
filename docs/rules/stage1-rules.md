@@ -518,6 +518,35 @@ Mongols
 - You can only attack or target a unit you currently see. A unit whose range is
   longer than its sight (the Catapult) needs another unit to spot for it.
 
+## 15. Woodland Nations (rules 11)
+
+### 15.1 The start
+
+- A Woodland player starts with the Trapping tech, 10 or 12 gold as any seat, and a level 1 capital.
+- Two units, both with full movement, not fresh and homed to the capital: a Skirmisher
+  on the capital and a Trapper on the first free enterable tile next to it. If no
+  neighbour is free, the Trapper is skipped.
+- A Spartan or Mongol start is unchanged: one unit.
+
+### 15.2 Economy
+
+- Every harvest pays 3 gold back to a Woodland player, after its cost is paid. A harvest
+  of any kind (orchard, cropland, game, jewels, fish) costs 2 and gives 1 growth as for
+  everyone, so it nets +1 gold.
+- A building gives a Woodland city 1 less growth than its listed number, and never
+  less than 1: Farm, Lumber camp, Mine and Orchard 1, Market, upgrades 2. Costs and the
+  Market's +2 income are unchanged.
+- A treasure's "unit" outcome gives a Woodland player a Skirmisher, not a Warrior.
+  The other outcomes are unchanged (section 12).
+
+### 15.3 Rewards
+
+- A Woodland city's level 2 and 3 rewards are the table's (gold or scout, borders or
+  barracks). From level 4 on, every level offers a champion (War Chief) or a support
+  (Smoke Keeper); there is no income or growth reward.
+- Spartans and Mongols keep the table: champion or support from level 5 on.
+- A champion or support reward with no free tile pays +5 gold, as in section 6.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both

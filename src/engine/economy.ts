@@ -7,7 +7,7 @@ import {
   cityAt, cityById, claimTerritory, firstFreeNeighbor, hasOwn, spawnUnit, tileAt, unitAt,
 } from './state';
 import type {
-  Action, BuildingId, City, GameEvent, Handler, MatchState, PlayerId, RewardId, Tile,
+  Action, BuildingId, City, FactionId, GameEvent, Handler, MatchState, PlayerId, RewardId, Tile, UnitTypeId,
 } from './types';
 
 // rules 6
@@ -70,15 +70,27 @@ export function unitCapacity(c: City): number {
   return c.level + CONFIG.capacityBase + c.capacityBonus;
 }
 
-// Levels above the last row of the table use the last row.
-function rewardRow(level: number): readonly [RewardId, RewardId] {
+// rules 11: the two rewards on offer for a level. From the faction's championFromLevel on it is champion or support;
+// before that the table row, and levels above the last row of the table use the last row.
+export function rewardOptions(s: MatchState, c: City, level: number): readonly [RewardId, RewardId] {
+  if (level >= FACTIONS[s.players[c.owner]!.faction].championFromLevel) return ['champion', 'support'];
   const top = Math.max(...Object.keys(CONFIG.rewards).map(Number));
   return CONFIG.rewards[Math.min(level, top) as keyof typeof CONFIG.rewards];
 }
 
+// rules 11: the growth a building gives its city, less the faction's cut and never under 1.
+export function buildingGrowth(s: MatchState, p: PlayerId, b: BuildingId): number {
+  return Math.max(1, CONFIG.buildings[b].growth - FACTIONS[s.players[p]!.faction].buildingGrowthCut);
+}
+
+// rules 11: the unit a treasure's "unit" outcome gives the faction.
+export function treasureUnitFor(f: FactionId): UnitTypeId {
+  return FACTIONS[f].replaces[CONFIG.treasure.unit as UnitTypeId] ?? (CONFIG.treasure.unit as UnitTypeId);
+}
+
 export function applyReward(s: MatchState, c: City, choice: 0 | 1, ev: GameEvent[]): void {
   const level = c.pendingRewards.shift()!;
-  const reward = rewardRow(level)[choice];
+  const reward = rewardOptions(s, c, level)[choice];
   const player = s.players[c.owner]!;
   switch (reward) {
     case 'gold':
@@ -146,7 +158,8 @@ export const harvestHandler: Handler<Extract<Action, { type: 'harvest' }>> = (s,
   if (refusal !== null) return refusal;
   const { tile, city } = ownTile(s, a.at)!;
   const rule = CONFIG.harvest[tile.resource as keyof typeof CONFIG.harvest];
-  s.players[s.current]!.gold -= rule.cost;
+  const player = s.players[s.current]!;
+  player.gold += FACTIONS[player.faction].harvestGold - rule.cost;   // rules 11: Woodland gets gold back
   if (TECH_TREE.harvestKeepsTile) tile.harvested = true;   // rules 8: the resource stays, for building on
   else tile.resource = null;
   addGrowth(s, city, rule.growth, ev);
@@ -187,7 +200,7 @@ export const buildHandler: Handler<Extract<Action, { type: 'build' }>> = (s, a, 
   s.players[s.current]!.gold -= rule.cost;
   tile.building = a.building;
   if (a.building === 'market') city.market = true;
-  addGrowth(s, city, rule.growth, ev);
+  addGrowth(s, city, buildingGrowth(s, s.current, a.building), ev);
   ev.push({ type: 'built', at: a.at, what: a.building });
   return null;
 };

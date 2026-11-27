@@ -1,11 +1,11 @@
 // What a player can do with a selected unit, city or tile. Everything offered comes from the engine's legal
 // actions; a refusal from the engine becomes a disabled command with its reason, or is hidden when it would be noise.
 import {
-  CONFIG, TECHS, UNITS, buildRefusal, buildingTech, harvestRefusal, harvestTech, roadRefusal, roadTech, techPrice, trainRefusal,
+  CONFIG, TECHS, UNITS, buildRefusal, buildingTech, harvestRefusal, harvestTech, rewardOptions, roadRefusal, roadTech, techPrice, trainRefusal,
   unitCost, unitTech, wallsRefusal, wallsTech,
 } from '../../engine';
 import type {
-  AbilityId, Action, BranchId, BuildingId, HexKey, MatchState, RewardId, TechId, UnitTypeId,
+  AbilityId, Action, BranchId, BuildingId, HexKey, MatchState, TechId, UnitTypeId,
 } from '../../engine';
 import type { ActionIndex, Armed, Selection } from '../interaction';
 import { T, reasonText, techName, unlocks } from '../text';
@@ -78,12 +78,6 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
   return out;
 }
 
-// The two rewards on offer for a city level; levels past the table use its last row.
-export function rewardPair(level: number): readonly [RewardId, RewardId] {
-  const top = Math.max(...Object.keys(CONFIG.rewards).map(Number));
-  return CONFIG.rewards[Math.min(level, top) as keyof typeof CONFIG.rewards];
-}
-
 export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex): Command[] {
   const city = state.cities.find((c) => c.id === cityId);
   if (city === undefined || city.owner !== state.current) return [];
@@ -116,7 +110,7 @@ export function cityCommands(cityId: number, state: MatchState, ix: ActionIndex)
     else if (refusal === 'not enough gold') out.push({ ...walls, enabled: false, why: reasonText(refusal), action: null });
   }
   if (ix.rewards.includes(cityId) && city.pendingRewards[0] !== undefined) {
-    const pair = rewardPair(city.pendingRewards[0]);
+    const pair = rewardOptions(state, city, city.pendingRewards[0]);
     for (const choice of [0, 1] as const) {
       out.push({ id: `reward-${choice}`, label: T.reward[pair[choice]].name, cost: null, enabled: true, why: null, action: { type: 'chooseReward', city: cityId, choice }, arm: null });
     }
