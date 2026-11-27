@@ -60,6 +60,7 @@ test('what a tech unlocks comes from the data', () => {
 });
 test('digest lines read as sentences', () => {
   expect(digestText({ at: '0,0', kind: 'unitLost', unitType: 'warrior', by: 'horseman' })).toBe('Your Warrior was lost to a Horseman.');
+  expect(digestText({ at: '0,0', kind: 'unitLost', unitType: 'warrior', by: 'archer' })).toBe('Your Warrior was lost to an Archer.');
   expect(digestText({ at: '0,0', kind: 'unitHurt', unitType: 'warrior', damage: 4, by: null })).toBe('Your Warrior took 4 damage.');
   expect(digestText({ at: '0,0', kind: 'cityLost' })).toBe('You lost a city.');
   expect(digestText({ at: '0,0', kind: 'tileTaken', by: 'knight' })).toBe('The Knight moved into its place.');

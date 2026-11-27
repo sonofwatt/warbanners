@@ -168,8 +168,8 @@ const ui = {
   research: 'Research', unlocks: 'Opens', close: 'Close', later: 'Later', chooseReward: 'Choose a reward',
   soundOn: 'Sound on', soundOff: 'Sound off', terrain3dOn: '3D terrain on', terrain3dOff: '3D terrain off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
   home: 'Back to home', andMore: 'and {n} more',
-  digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
-  digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',
+  digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to {by}.',
+  digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from {by}.',
   digestCity: 'You lost a city.',
   digestTileTaken: 'The {by} moved into its place.', digestTreasure: 'The enemy claimed a treasure.',
   offlineReady: 'Ready to play offline.',
@@ -355,6 +355,9 @@ export function unlocks(id: TechId, faction?: FactionId): string[] {
   return out;
 }
 
+/** A unit name with its indefinite article: "an Archer", "a Horseman". */
+export const withArticle = (name: string): string => `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`;
+
 export function digestText(line: DigestLine): string {
   if (line.kind === 'cityLost') return T.ui.digestCity;
   if (line.kind === 'treasureTaken') return T.ui.digestTreasure;
@@ -362,7 +365,7 @@ export function digestText(line: DigestLine): string {
   if (line.kind === 'heroMade') return fill(T.ui.digestHero, { unit: T.unit[line.unitType].name });
   if (line.kind === 'tileTaken') return fill(T.ui.digestTileTaken, { by: T.unit[line.by].name });
   const name = T.unit[line.unitType].name;
-  const by = line.by === null ? null : T.unit[line.by].name;
+  const by = line.by === null ? null : withArticle(T.unit[line.by].name);
   if (line.kind === 'unitLost') return by === null ? fill(T.ui.digestLost, { unit: name }) : fill(T.ui.digestLostBy, { unit: name, by });
   return by === null ? fill(T.ui.digestHurt, { unit: name, n: line.damage }) : fill(T.ui.digestHurtBy, { unit: name, n: line.damage, by });
 }
