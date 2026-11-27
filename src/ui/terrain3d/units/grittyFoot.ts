@@ -644,10 +644,10 @@ function swordHelm(k: Kit, c: Look, w: Wear): void {
     metalEdge(k, [pts[0]!, pts[4]!, pts[3]!, pts[2]!], 0.15, GF.IRON_LIT);
     k.ball(q(5.0, 35.5, 1.7), 0.26, GF.IRON_LIT, { detail: 0, hull: 0 });
   }
-  // The plume on a short post, front to back, in dyed horsehair the colour of the owner's metal.
+  // The plume on a short post, front to back, in horsehair dyed the owner's colour, like the Hoplite's crest.
   const top = base[1] + 5.3;
   k.box([base[0], top + 0.6, base[2] - 0.4], [1.0, 1.6, 1.0], GF.IRON_DARK);
-  crestBrush(k, { root: [base[0], top + 1.4, base[2] - 0.6], colour: mix(c.accent, '#8A4A12', 0.25), shorn: worn(w, 3), length: 7.4, height: 6.4, thick: 1.15 });
+  crestBrush(k, { root: [base[0], top + 1.4, base[2] - 0.6], colour: vivid(c.main), shorn: worn(w, 3), length: 7.4, height: 6.4, thick: 1.15 });
   const front = h.facet(0, 0), near = h.facet(7, 1);
   if (worn(w, 1)) { scratches(k, front, [[-0.9, 37.2, 0.5, 36.5]], SCRATCH, 0.22); scratches(k, near, [[-3.2, 38.6, -2.2, 38.0]], SCRATCH, 0.22); }
   if (worn(w, 2)) dent(k, front, 0.5, 37.0, 0.6, GF.IRON);

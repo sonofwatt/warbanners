@@ -3,7 +3,7 @@
 // (grittyHorse.ts) as the shared Gritty rider (grittyRider.ts), dressed and armed as its unit, with the same moving
 // pieces as its Bright figure in figures.ts (the horse's LEGS and NECK, the RIDER, and the WEAPON and ARROW where the
 // Bright one has them), so the gait, idle, strike and crouch code drives it unchanged.
-import { Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
 import { hairCap } from './grittyBody';
 import { flat, H, Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
@@ -184,8 +184,7 @@ function caparison(k: Kit, c: Look, w: Wear): void {
     return j % 2 === 0 ? 2.85 : 2.6;
   };
   drape(k, c.main, { x0: X0, x1: X1, far: -2.0, near, nx: NX, nu: 6, off: OFF, hull: 0.7 });
-  // The peytral: the cloth hanging across the front of the chest, scalloped like the rest.
-  k.slab([-3.7, 16.6, 3.7, 16.6, 3.8, 7.0, 2.5, 7.8, 1.2, 6.6, 0, 7.8, -1.2, 6.6, -2.5, 7.8, -3.8, 7.0], 0.5, c.main, [10.9, 0, 0], [0, Math.PI / 2, 0], { hull: 0.7 });
+  peytral(k, c.main, w);
   const ds = drapeSurf(OFF + 0.02);
   const colX = (i: number): number => X0 + ((X1 - X0) * i) / NX;
   // The band above the hem, broken where the cloth is torn away.
@@ -206,13 +205,69 @@ function caparison(k: Kit, c: Look, w: Wear): void {
   if (w.scarred === true && w.blood === 0) k.line([-10.4, 16.2, -8.6, 14.2], 0.45, mix(GREY.coat, '#F2E8DA', 0.55), flank(0.06));
 }
 
-/** The crinet (cloth over the neck) and the chanfron (a steel plate down the face). */
+/**
+ * The peytral: the cloth round the front of the chest, curved over it from flank to flank (outside the caparison's
+ * front edge and the chest, so no coat shows between them), hanging to a scalloped hem; battered, a scallop rips.
+ */
+function peytral(k: Kit, colour: string, w: Wear): void {
+  const N = 8, CX = 8.4, RX = 3.6, RZ = 5.05, TOP = 18.6;
+  const hem = (i: number): number => (worn(w, 3) && i === 3 ? 9.6 : i % 2 === 0 ? 6.8 : 7.8);
+  const at = (i: number, y: number): Vector3 => {
+    const a = -Math.PI / 2 + (Math.PI * i) / N;
+    return new Vector3(CX + Math.cos(a) * RX, y, Math.sin(a) * RZ);
+  };
+  const pos: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const mid = (hem(i) + hem(i + 1)) / 2 + 3.4;
+    const quads = [[at(i, TOP), at(i + 1, TOP), at(i, mid), at(i + 1, mid)], [at(i, mid), at(i + 1, mid), at(i, hem(i)), at(i + 1, hem(i + 1))]];
+    for (const [a, b, cc, d] of quads) {
+      for (const tri of [[a!, cc!, d!], [a!, d!, b!]] as const) {
+        const n = tri[1].clone().sub(tri[0]).cross(tri[2].clone().sub(tri[0]));
+        const m = tri[0].clone().add(tri[1]).add(tri[2]).multiplyScalar(1 / 3);
+        const vs = n.dot(new Vector3(m.x - CX, 0, m.z)) >= 0 ? tri : [tri[0], tri[2], tri[1]];
+        for (const v of vs) pos.push(v.x, v.y, v.z);
+      }
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  k.add(g, colour, { gloss: 0.1, hull: 0.7 });
+}
+
+/**
+ * The knight's heater shield on his left forearm: the owner's colour with the owner's mark (the caparison's ring and
+ * bar) in the trim, a dark steel rim. Scuffed, scratched; dented, dented; battered, a chip out of its edge; broken
+ * (and since), its point split away along a dark torn edge.
+ */
+function heater(k: Kit, c: Look, w: Wear, at: V3, rot: V3): void {
+  k.frame(at, rot, () => {
+    const split = helmBroken(w), chip = worn(w, 3);
+    const outline = split
+      ? [-3.0, 3.6, 3.0, 3.6, 3.0, 0.6, 2.4, -0.9, 1.2, -0.3, 0.3, -1.4, -0.8, -0.6, -1.9, -1.6, -2.8, -0.2]
+      : [-3.0, 3.6, chip ? 1.9 : 3.0, 3.6, ...(chip ? [2.3, 2.7, 3.0, 2.5] : []), 3.0, 0.6, 2.5, -1.7, 1.4, -3.3, 0, -4.4, -1.4, -3.3, -2.5, -1.7, -3.0, 0.6];
+    const steel = '#4A4F57';
+    k.slab(outline, 0.7, steel, [0, 0, 0], [0, 0, 0], { gloss: 0.45 });
+    const inset = outline.map((v, i) => (i % 2 === 0 ? v * 0.84 : v * 0.86 + 0.06));
+    const face: Surface = (x, y) => ({ p: [x, y, 0.36], n: [0, 0, 1] });
+    k.decal(inset, c.main, face);
+    const mark = mix(c.accent, '#8A4A12', 0.15);
+    k.decal(ell(0, 0.8, 1.5, 1.5, 10), mark, face);
+    k.decal(ell(0, 0.8, 0.95, 0.95, 10), mix(c.main, '#000000', 0.25), face);
+    k.line([0, -0.5, 0, 2.1], 0.45, mark, face);
+    if (split) tornEdge(k, [[2.4, -0.9, 0.4], [1.2, -0.3, 0.4], [0.3, -1.4, 0.4], [-0.8, -0.6, 0.4], [-1.9, -1.6, 0.4], [-2.8, -0.2, 0.4]], 0.22);
+    if (worn(w, 1)) scratches(k, face, [[-2.0, 2.6, -0.6, 1.4], [1.2, -0.4, 2.2, -1.2]], mix(c.main, '#FFFFFF', 0.35), 0.2);
+    if (worn(w, 2)) k.decal(ell(-1.6, 1.4, 0.5, 0.4, 6), mix(c.main, '#000000', 0.45), face);
+    if (w.blood >= 1) smear(k, face, 1.4, 2.8, 0.1, -1, 2.6, 0.9);
+  });
+}
+
+/** The crinet (cloth wrapped right round the neck, so no coat shows between it and the peytral) and the chanfron (a steel plate down the face). */
 function knightNeck(k: Kit, c: Look, w: Wear): void {
   const torn = worn(w, 3);
   loftSheet(k, NECK_RINGS, {
-    t0: 0.0, t1: 0.9, far: -2.3, cols: 4, rows: 5,
-    near: (j) => (torn && j === 2 ? 1.5 : 2.5),
-    lift: () => 0.35, colour: () => c.main,
+    t0: 0.0, t1: 0.9, far: -3.1, cols: 4, rows: 8,
+    near: (j) => (torn && j === 2 ? 1.5 : 3.1),
+    lift: () => 0.8, colour: () => c.main,
   });
   if (!helmBroken(w)) {
     // Blackened steel, so it stands off the grey coat, wrapped well down the near cheek, gold along its edges and
@@ -300,6 +355,7 @@ export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
       }
       // The left hand on the reins, the right arm couching the lance under it.
       riderArm(k, [-4.4, 30.2, 0.1], [-5.8, 26.2, 1.8], [-2.8, 23.8, 4.4], { sleeve: MAIL, cuff: STEEL_G });
+      heater(k, c, w, [-6.3, 25.0, 3.0], [0.12, -0.8, 0.05]);
       fist(k, [-1.9, 23.6, 4.9], [1, 0, 0], [-0.2, 0.3, 1], 0.95, STEEL_G, STEEL_G_DARK);
       k.rod([-1.3, 23.4, 4.9], [1.7, 21.4, 2.8], 0.26, GT.LEATHER_DARK, { seg: 4, hull: 0 });
       riderArm(k, [4.4, 30.2, 0.1], [5.6, 26.4, 3.0], [0.8, 27.0, 5.4], { sleeve: MAIL, cuff: STEEL_G });

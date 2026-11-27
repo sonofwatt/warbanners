@@ -68,6 +68,9 @@ never deploy a RULES_VERSION bump during a live online match).
 - Heal: David saw it refuse a target that had already acted; not reproduced (a spent Hoplite heals 5 to 9 in the
   built app, covered by `src/browser/abilities.test.ts`). Waiting for what he saw.
 - Sounds: the v2 drafts (`scratch/audio` in the workspace repo) wait for David's listen; nothing ships until he has.
+- **Gritty, later (David, 2026-11-27):** shared units (Warrior, Spearman and the like) built by the Mongols should
+  get Mongol faces and hair (a steppe moustache, braids). Figures know only the owner's colours today, so this needs
+  the faction passed to the figure builders. Not now; on the to-do list.
 - Ideas David is mulling (not approved): WebGL for a version 2 with weather and time of day (sample renders in the
   workspace repo; toon shading preferred), fantasy factions, Exalted Heroes.
 
