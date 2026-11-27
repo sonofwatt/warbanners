@@ -70,6 +70,10 @@ help a faction that is already short against the Spartans. They were not run.
     other.
   - (c) Ship the Woodland Nations as a hard counter to the Mongols and a hard matchup against the Spartans, on
     purpose, with the cheaper Skirmisher only.
+- **A trial of option (a)** (not a lever in the plan, and not kept): bow shots ignore the phalanx bonus and the brace.
+  Against the Spartans: 17.5% at normal (Spartans 79.0%) and 16.0% at hard (80.5%), no gain. The shield wall is not what beats them. Production
+  is: the Spartans train 49 units a match to the Woodland Nations' 28, and their cities grow (the Woodland building
+  growth cut and the AI's build order are where to look next).
 - **Not done:** the hard level for the levers, the mirror at hard, and the biomes (biomes are not merged).
 - **The mirror:** at normal the first seat wins 55.0% to the second's 37.0%, with 16% stalls. The second seat's
   extra 2 gold does not make up for moving second in a mirror of the hidden faction.
