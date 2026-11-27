@@ -2,6 +2,7 @@
 // Veiled tiles are dimmed toward the board's veil colour by the same 0.3 the SVG veil uses.
 import { INR, RES_HARVESTED, ROAD_GROW, ROAD_HALF, WALL, WATER_Y } from './layout';
 import { BED_DEPTH } from './waterLayout';
+import { MAX_SPILLS } from './townLayout';
 
 export const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -48,6 +49,35 @@ const vec3 FIRE_COLOUR = vec3(1.0, 0.52, 0.18);
 vec3 fireLit(vec3 c, float warm) { return c + warm * (c * FIRE_COLOUR * 0.95 + FIRE_COLOUR * 0.4); }
 `;
 
+// The lit windows' light on the ground of the cities and villages (townLayout.ts townSpills): a texture with a row per
+// tile that has lit windows, each texel one building's front (x, z where its windows meet the ground, and the way it
+// faces scaled by how much light), read only on that tile's ground (aWin: its row plus 1, 0 elsewhere). Scaled by
+// uWindows (sky.ts: 0 by day), so by day nothing is read. Steady: no flicker, so the terrain is never redrawn for it.
+/** How far a window's light reaches out over the ground from its building's front (world units). */
+export const WINDOW_REACH = 11;
+export const WINDOW_GLSL = /* glsl */ `
+uniform sampler2D uWinTex;
+// A soft fan of light out from a building's front: widening as it goes, brightest by the wall, fading out by its reach.
+float windowPool(vec2 p, vec4 l) {
+  float w = length(l.zw);
+  if (w < 0.001) return 0.0;
+  vec2 d = l.zw / w;
+  vec2 rel = p - l.xy;
+  float along = dot(rel, d), across = abs(dot(rel, vec2(-d.y, d.x)));
+  float half_ = 2.2 + 0.55 * max(along, 0.0);
+  float out_ = smoothstep(-0.4, 0.5, along) * (1.0 - smoothstep(0.0, ${WINDOW_REACH.toFixed(1)}, along));
+  return w * out_ * out_ * (1.0 - smoothstep(half_ * 0.45, half_, across));
+}
+float windowsOn(vec2 p, float row) {
+  float s = 0.0;
+  for (int i = 0; i < ${MAX_SPILLS}; i++) s += windowPool(p, texelFetch(uWinTex, ivec2(i, int(row)), 0));
+  return s;
+}
+// Lamplight from the windows: a little yellower than the fire.
+const vec3 WINDOW_COLOUR = vec3(1.0, 0.68, 0.30);
+vec3 windowLit(vec3 c, float warm) { return c + warm * (c * WINDOW_COLOUR * 0.9 + WINDOW_COLOUR * 0.32); }
+`;
+
 // After NOISE and LIGHT, in the ground and prop shaders only.
 export const WEATHER_GLSL = /* glsl */ `
 // Weather on the ground's top faces: a light white dusting of snow in soft patches, thicker where the ground faces up,
@@ -76,10 +106,11 @@ export const groundVert = /* glsl */ `
 ${FIRE_GLSL}
 varying vec4 vFire;
 attribute vec4 aInfo; attribute vec4 aTile; attribute float aAO; attribute vec2 aLocal; attribute float aRoad; attribute float aVeil;
-attribute vec2 aRoadWear;
+attribute vec2 aRoadWear; attribute float aWin;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
-varying vec2 vRoadWear;
+varying vec2 vRoadWear; varying float vWin;
 void main() {
+  vWin = aWin;
   vInfo = aInfo; vTile = aTile; vAO = aAO; vLocal = aLocal; vNormal = normal; vRoad = aRoad; vRoadWear = aRoadWear;
   vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position, 1.0);
@@ -102,9 +133,10 @@ ${NOISE}
 ${LIGHT}
 ${WEATHER_GLSL}
 ${FIRE_GLSL}
+${WINDOW_GLSL}
 varying vec4 vFire;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
-varying vec2 vRoadWear;
+varying vec2 vRoadWear; varying float vWin;
 const float INR = ${INR.toFixed(4)};
 const float WALL = ${WALL.toFixed(4)};
 
@@ -300,6 +332,11 @@ void main() {
     // A bright heart by the stones and a wide soft pool out to the huts, in two smooth steps.
     float pool = 0.55 * near * near * (3.0 - 2.0 * near) + 0.45 * pow(near, 4.0);
     done = fireLit(done, uFireLight * pool * (1.0 - 2.0 * vVeil));
+  }
+  if (vWin > 0.5 && uWindows > 0.0 && !wall) {
+    // The lit windows' warm pools on the ground in front of the houses, weaker under the veil.
+    float warm = windowsOn(vWorld.xz, floor(vWin - 0.5));
+    done = windowLit(done, uWindows * min(0.9 * warm, 1.1) * (1.0 - 2.0 * vVeil));
   }
   gl_FragColor = vec4(done, 1.0);
 }`;

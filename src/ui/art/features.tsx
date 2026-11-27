@@ -578,6 +578,17 @@ export function Road(p: { links: readonly number[]; wear?: number; edgeWear?: re
   );
 }
 
+/** The village huts' windows (their top left corners, before VILLAGE_SCALE), lit after dark by FireGlow. */
+const HUT_WINDOWS: readonly (readonly [number, number])[] = [[-8.4, -6], [14.4, 1.6]];
+/** Lamplight in a window after dark, and its pool on the ground (CityLights, FireGlow; the 3D look's windows' colours). */
+const LAMP_WINDOW = '#FFD27A', LAMP_POOL = '#FF9F3A';
+/** A soft warm pool of light on the ground: three nested ellipses, faint at the rim and warmer toward the middle. */
+function pool(ink: Ink, x: number, y: number, rx: number, ry: number, k = 1): void {
+  ink.ellipse(x, y, rx, ry, LAMP_POOL, 0.12 * k);
+  ink.ellipse(x, y, rx * 0.68, ry * 0.68, LAMP_POOL, 0.14 * k);
+  ink.ellipse(x, y, rx * 0.36, ry * 0.36, '#FFC266', 0.18 * k);
+}
+
 const HUT: HouseColours = { front: '#E6D5B0', side: '#C9B68E', roof: '#9A8878', roofSide: '#7E6E60' };
 
 /** The village art's scale, and where its bonfire burns (board units, the stones' centre): between the two huts. */
@@ -645,8 +656,15 @@ export function FireGlow({ strength }: { strength: number }): ReactElement | nul
   const { x, y } = VILLAGE_FIRE;
   const fl = new Ink(VILLAGE_SCALE);
   flames(fl, FIRE_AT.x, FIRE_AT.y);
+  // The huts' small windows, lit as the city's are (CityLights), with a little light under each.
+  const win = new Ink(VILLAGE_SCALE);
+  for (const [wx, wy] of HUT_WINDOWS) {
+    pool(win, wx + 0.9, wy + 5.5, 3.6, 1.5);
+    win.rect(wx, wy, 1.8, 1.7, LAMP_WINDOW);
+  }
   return (
     <g data-fire-glow={s.toFixed(2)} pointerEvents="none">
+      <g opacity={s}>{win.done()}</g>
       <ellipse cx={x} cy={y} rx={17} ry={8.5} fill="#FF8A2E" fillOpacity={0.16 * s} />
       <ellipse cx={x} cy={y} rx={10.5} ry={5.2} fill="#FF9838" fillOpacity={0.2 * s} />
       <ellipse cx={x} cy={y - 0.5} rx={5} ry={2.8} fill="#FFC060" fillOpacity={0.3 * s} />
@@ -815,6 +833,43 @@ export function CityMark(p: {
   if (p.walls) palisade(ink);
   if (p.pending) pendingStar(ink);
   return ink.done();
+}
+
+/**
+ * A city's lit windows after dark (`strength` 0 to 1, sky.ts windows), drawn over the time of day's grade as the
+ * village's FireGlow is: each house's two windows either side of its door, the gaps between the hall's columns, a
+ * tent's door standing ajar, and a soft warm pool on the ground in front of each.
+ */
+export function CityLights(p: { faction: FactionId; level: number; strength: number }): ReactElement | null {
+  if (p.strength <= 0) return null;
+  const s = Math.min(1, p.strength);
+  const pools = new Ink(), lit = new Ink();
+  const count = Math.max(2, Math.min(MAX_BUILDINGS, Math.trunc(p.level) + 1));
+  SLOTS.slice(0, count).forEach(([x, y], slot) => {
+    if (p.faction === 'spartans') {
+      if (slot === 0) {
+        // The hall (spartanHall): lamplight between its four columns.
+        pool(pools, x, y + 2.4, 11, 3);
+        for (let i = 0; i < 3; i++) lit.rect(x - 8.5 + 3.4 + i * 4.3, y - 10, 1.9, 6.5, LAMP_WINDOW);
+        return;
+      }
+      const h = slot === 5 ? 9 : 9 + (slot % 3);
+      pool(pools, x, y + 2.6, 8.5, 2.8);
+      lit.rect(x - 4.3, y - h + 2.6, 1.9, 1.9, LAMP_WINDOW);
+      lit.rect(x + 2.4, y - h + 2.6, 1.9, 1.9, LAMP_WINDOW);
+      return;
+    }
+    // A tent (tent): its door ajar, a lit strip down its right side.
+    const doorH = (slot === 0 ? 8 : 7) * 0.65;
+    pool(pools, x + 0.6, y + 2.4, slot === 0 ? 8 : 6, 2.4);
+    lit.rect(x + 0.3, y - doorH + 0.4, 1.3, doorH - 0.4, LAMP_WINDOW);
+  });
+  return (
+    <g data-city-lights={s.toFixed(2)} pointerEvents="none" opacity={s}>
+      {pools.done()}
+      {lit.done()}
+    </g>
+  );
 }
 
 function pendingStar(ink: Ink): void {

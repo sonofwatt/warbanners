@@ -3,7 +3,7 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, FireGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityLights, CityMark, FireGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
@@ -225,8 +225,9 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
 // grade's colour at a low opacity, as the veil is, so only the ground and what stands on it darken; marks, rings, the
 // ready glow and the units drawn after the tile keep their full contrast. `wx` lays a faint static rain or snow
 // texture over the tile's top face (the SVG look only: the 3D board has falling rain and snow).
-// `fire` is how much light the village bonfires cast now (sky.ts fire): 0 by day.
-interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null; fire: number }
+// `fire` is how much light the village bonfires cast now (sky.ts fire), `windows` how much the windows light up (sky.ts
+// windows): both 0 by day.
+interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null; fire: number; windows: number }
 function Graded(p: { look: TileLook | undefined; children: ReactNode }): ReactElement | null {
   if (p.look === undefined || p.look.opacity === 0) return null;
   return <g className="grade" opacity={p.look.opacity} pointerEvents="none" style={{ '--grade': p.look.grade } as CSSProperties}>{p.children}</g>;
@@ -292,6 +293,10 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       <Graded look={p.look}>{body}</Graded>
       {/* After dark a village's bonfire lights the ground round it, over the grade (the 3D look lights its own). */}
       {t.city === null && t.tile.village && t.tile.building === null && layers.village && (p.look?.fire ?? 0) > 0 ? <FireGlow strength={p.look!.fire} /> : null}
+      {/* And a city's windows light up and spill light on the ground in front of its houses. */}
+      {t.city !== null && layers.town && (p.look?.windows ?? 0) > 0 && p.factions[t.city.owner] !== undefined ? (
+        <CityLights faction={p.factions[t.city.owner]!} level={t.city.level} strength={p.look!.windows} />
+      ) : null}
       {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
       {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
@@ -431,9 +436,9 @@ export function Board(p: BoardProps): ReactElement {
   const tileLook = useMemo<TileLook | undefined>(() => {
     const g = svgGrade(look, lightRound);
     const wx = !gl && (look.weather === 'rain' || look.weather === 'snow') ? look.weather : null;
-    const fire = skyLight(look, lightRound).fire;
-    if (g === null && wx === null && fire <= 0) return undefined;
-    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx, fire };
+    const { fire, windows } = skyLight(look, lightRound);
+    if (g === null && wx === null && fire <= 0 && windows <= 0) return undefined;
+    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx, fire, windows };
   }, [look, lightRound, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
