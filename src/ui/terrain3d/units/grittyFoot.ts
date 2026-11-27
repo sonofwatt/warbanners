@@ -88,7 +88,7 @@ function shellBody(k: Kit, p: Profile, colour: string, o: { seg?: number; arc?: 
   // The top closed round the neck, so no dark hollow shows from above.
   if (o.cap !== false && o.arc === undefined) {
     const [r, y] = p[p.length - 1]!;
-    k.frustum([0, 0, -0.1], y - 0.05, y + 0.55, r + 0.05, 2.4, mix(colour, '#000000', 0.18), { sz: SZ + 0.04, seg, gloss: o.gloss ?? 0.2 });
+    k.frustum([0, 0, -0.1], y - 0.05, y + 0.55, r + 0.05, 2.4, mix(colour, '#000000', 0.12), { sz: SZ + 0.04, seg, gloss: o.gloss ?? 0.2, hull: 0 });
   }
 }
 
@@ -496,7 +496,7 @@ export function grittyWarrior(k: Kit, { look: c, wear: w }: FootOpts): Shadow {
       k.slab([0, 0, 1.0, 0, 1.3, -4.4, 0.4, -4.9], 0.5, hb, [-5.0, 36.7, -0.4], [0, -1.45, 0.12]);
     } else {
       k.frustum(bc, 36.3, 37.5, 4.95, 4.8, hb, { seg: 14, sz: 1, open: true });
-      k.box([4.7, 36.9, -1.8], [1.2, 1.4, 1.4], hb, { rot: [0, 0.6, 0] });
+      k.box([4.6, 36.8, -2.0], [0.9, 1.1, 1.0], hb, { rot: [0, 0.6, 0] });
       k.slab([0, 0, 0.9, 0, 1.2, -3.6, 0.2, -3.8], 0.5, hb, [4.9, 36.4, -2.4], [0, 1.2, -0.1]);
     }
     // The shield arm and the small plank shield, the hand on its grip behind it.
@@ -662,7 +662,8 @@ export function grittySwordsman(k: Kit, { look: c, wear: w }: FootOpts): Shadow 
     // The mail shirt to the hips, a sash in the owner's colour, a leather baldric, leather shoulder guards.
     shellBody(k, MAILSHIRT, GF.MAIL, { gloss: 0.4 });
     const s = bodyFront(MAILSHIRT, 0.12);
-    mailRows(k, s, -5.4, 5.0, 11.6, 24.8);
+    mailRows(k, s, -5.4, 5.0, 15.0, 24.8);
+    mailRows(k, s, -5.4, 5.0, 11.4, 11.4);
     k.frustum([0, 0, 0], 10.6, 11.4, 7.15, 7.0, GF.MAIL_DARK, { sz: SZ + 0.03, seg: 12, open: true });
     band(k, MAILSHIRT, 13.4, 2.0, c.main, 0.3);
     k.box([4.6, 13.2, 3.4], [1.6, 1.8, 1.2], c.dark, { rot: [0, 0.7, 0] });
