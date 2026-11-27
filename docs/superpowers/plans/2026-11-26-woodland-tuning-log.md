@@ -77,3 +77,24 @@ help a faction that is already short against the Spartans. They were not run.
 - **Not done:** the hard level for the levers, the mirror at hard, and the biomes (biomes are not merged).
 - **The mirror:** at normal the first seat wins 55.0% to the second's 37.0%, with 16% stalls. The second seat's
   extra 2 gold does not make up for moving second in a mirror of the hidden faction.
+
+## Second round (2026-11-27, after David's notes)
+
+David leaned to a cheaper Skirmisher or two start Skirmishers. The baseline showed Spartan cities taking about five
+times the city rewards of Woodland cities, so a production lever was run too: `buildingGrowthCut` 1 to 0 (Woodland
+buildings give their full growth). Same method: 100 matches each, both seatings.
+
+| Change | Spartans normal | Spartans hard | Mongols normal | Mongols hard |
+|---|---|---|---|---|
+| none (baseline) | 18.5% | 15.5% | 43.0% | 45.5% |
+| Skirmisher cost 3 to 2 | 25.5% | 26.5% | 62.0% | 60.5% |
+| two start Skirmishers (the extra Trapper swapped for a Skirmisher) | 27.0% | 27.5% | 57.0% | 61.5% |
+| `buildingGrowthCut` 1 to 0 | 33.0% | 21.0% | 55.5% | 53.0% |
+| growth cut 0 and two start Skirmishers | 35.5% | not run | 69.5% | not run |
+
+- Full building growth gives the best trade at normal: the most against the Spartans for the least against the Mongols.
+  It does little at hard (21.0%).
+- Each of David's two levers adds about 8 to 9 points against the Spartans, and takes the Mongols pair to about 60%.
+- Combining levers overshoots the Mongols pair (69.5%).
+- Still no setting puts the Spartans pair in the band without the Mongols pair leaving it. Nothing is committed to the
+  rules; the choice is David's.
