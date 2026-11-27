@@ -547,6 +547,16 @@ Mongols
 - Spartans and Mongols keep the table: champion or support from level 5 on.
 - A champion or support reward with no free tile pays +5 gold, as in section 6.
 
+### 15.4 Woodland cover
+
+- A Woodland unit standing on a forest tile is hidden, exactly as a `hidden` unit is
+  (section 14): an enemy sees it only from a unit or city on its tile or next to it
+  (1 tile), and cannot attack or target it from further away.
+- On any other terrain a Woodland unit is seen as usual. Spartan and Mongol units
+  never hide in a forest.
+- A veiled unit (`veilUntil`, set by Smoke Keeper rules in a later section) is hidden
+  on any terrain through the stamp it names, and not after it.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both

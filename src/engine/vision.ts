@@ -3,7 +3,8 @@ import { UNITS } from './data/units';
 import { distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { freshDeeds } from './heroes';
-import { hasTrait, tileAt } from './state';
+import { tileAt } from './state';
+import { isHidden } from './woodland';
 import type { City, MatchState, PlayerId, Tile, Unit } from './types';
 
 function addAround(s: MatchState, out: Set<HexKey>, center: HexKey, radius: number): void {
@@ -56,7 +57,7 @@ export function canSeeUnit(
 ): boolean {
   if (u.owner === player) return true;
   if (!visible.has(u.pos)) return false;
-  if (hasTrait(u, 'hidden')) return hasSpotterNextTo(s, player, u.pos);
+  if (isHidden(s, u)) return hasSpotterNextTo(s, player, u.pos);
   return true;
 }
 

@@ -17,6 +17,7 @@ export { trainable, unitCost, factionUnits } from './training';
 export { techPrice, canResearch, unitTech, harvestTech, buildingTech, startTech, wallsTech, roadTech } from './tech';
 export { blockadeOf, blockadeLoss, cityIncome, playerIncome, growthNeeded, addGrowth, unitCapacity, rewardOptions, buildingGrowth, treasureUnitFor } from './economy';
 export type { Blockade } from './economy';
+export { isHidden, isVeiled } from './woodland';
 export { isConnected } from './connect';
 export { UNITS } from './data/units';
 export { TECHS, TECH_TREE, BRANCHES } from './data/techs';
