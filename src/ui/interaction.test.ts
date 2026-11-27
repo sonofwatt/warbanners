@@ -86,7 +86,9 @@ test('with a unit selected, a highlighted tile moves it', () => {
   expect(tap(unitSel(0), { unit: null, hex: '-1,4' }, V, IX).action).toEqual({ type: 'move', unit: 0, to: '-1,4' });
 });
 test('other taps change the selection and never act', () => {
-  expect(tap(unitSel(0), { unit: null, hex: '-2,3' }, V, IX)).toEqual({ selection: { kind: 'tile', at: '-2,3' }, action: null });
+  // Bare ground with a unit selected only deselects; the next tap on it selects the tile.
+  expect(tap(unitSel(0), { unit: null, hex: '-2,3' }, V, IX)).toEqual({ selection: NONE, action: null });
+  expect(tap(NONE, { unit: null, hex: '-2,3' }, V, IX)).toEqual({ selection: { kind: 'tile', at: '-2,3' }, action: null });
   expect(tap(unitSel(0), { unit: null, hex: '0,0' }, V, IX)).toEqual({ selection: NONE, action: null });   // fog
   expect(tap(unitSel(0), { unit: null, hex: null }, V, IX)).toEqual({ selection: NONE, action: null });
 });
@@ -200,4 +202,21 @@ test("a pathfinder's step into the fog is marked as a move that ends the turn", 
   const m = marksFor(unitSel(scout.id), playerView(s, 0), ix);
   expect(m['2,0']).toBe('moveEnds');
   expect(m['1,0']).toBe('move');
+});
+
+test('Next unit skips a hunkered unit below full health, and nothing is left when all are resting', () => {
+  const s = seeAll(blankMatch()); addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  const a = addUnit(s, 'warrior', 0, -2, 0), b = addUnit(s, 'warrior', 0, 0, 0), c = addUnit(s, 'warrior', 0, 2, 0);
+  const ix = indexActions(legalActions(s));
+  const v = () => playerView(s, 0);
+  b.hunkered = true; b.hp -= 1;                                                 // resting: skipped
+  expect(nextUnit(unitSel(a.id), ix, v())).toEqual(unitSel(c.id));
+  expect(nextUnit(unitSel(b.id), ix, v())).toEqual(unitSel(c.id));              // a skipped selected unit still moves on
+  b.hp += 1;                                                                    // hunkered at full health: still offered
+  expect(nextUnit(unitSel(a.id), ix, v())).toEqual(unitSel(b.id));
+  b.hunkered = false; b.hp -= 1;                                                // wounded but not hunkered: still offered
+  expect(nextUnit(unitSel(a.id), ix, v())).toEqual(unitSel(b.id));
+  for (const u of [a, b, c]) { u.hunkered = true; u.hp -= 1; }                  // all resting: as when none can act
+  expect(nextUnit(NONE, ix, v())).toBeNull();
+  expect(nextUnit(unitSel(a.id), ix, v())).toBeNull();
 });

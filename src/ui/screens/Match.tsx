@@ -324,7 +324,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const toggleTerrain3d = (): void => { setTerrain3d(!terrain3d); setTerrain3dState(!terrain3d); };
   const waiting = isOnline && !myTurn;
   const nextDisabled = waiting || nextUnitDisabled({
-    canAct: ix.activeUnits.length, aiBusy, locked, covered: sheet !== 'none' || digest.length > 0 || rewardCity !== undefined,
+    canAct: ix.activeUnits.length, aiBusy, locked, covered: (sheet !== 'none' && sheet !== 'tech') || digest.length > 0 || rewardCity !== undefined,
   });
   const nameOf = (p: PlayerId): string => record.players[p]?.name ?? '';
 
@@ -360,7 +360,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const desync = isOnline && (online?.phase === 'desync' || online?.blocked === true);
   const resignDisabled = aiBusy || (online === null && !myTurn)
     || (online !== null && (!online.connected || online.returning || online.verifying || online.blocked || online.phase !== 'playing'));
-  const onNextUnit = (): void => { nextUnit(); setRevealed((n) => n + 1); };
+  const onNextUnit = (): void => { if (sheet === 'tech') setSheet('none'); nextUnit(); setRevealed((n) => n + 1); };
   const shownUnit = selection.kind === 'unit' ? view.units.find((u) => u.id === selection.id) : undefined;
   const peeked = peek !== null ? digest[peek] : undefined;
   const showLine = (i: number): void => { setPeek(i); setCentred((n) => n + 1); };
@@ -406,7 +406,8 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
             barRef={barRef} colour={FACTION_COLOUR[player.faction].main} faction={player.faction}
             unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting}
             nextDisabled={nextDisabled} onNextUnit={onNextUnit}
-            onOpenTech={() => { setTechFocus(null); setSheet('tech'); }} onEndTurn={() => run({ type: 'endTurn' })}
+            onOpenTech={() => { setTechFocus(null); setSheet(sheet === 'tech' ? 'none' : 'tech'); }}
+            onEndTurn={() => { if (sheet === 'tech') setSheet('none'); run({ type: 'endTurn' }); }}
           />
       )}
       {sheet === 'tech' ? (

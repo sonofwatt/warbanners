@@ -143,4 +143,33 @@ describe.runIf(process.env.BROWSER === '1')('Next unit and the tile under a unit
       await close();
     }
   });
+  test('with the tech menu open, Tech closes it, and Next unit and End turn close it and then act', async () => {
+    const { page, close } = await intoMatch();
+    try {
+      const sheet = page.locator('.tech-sheet');
+      await expect.poll(() => nextEnabled(page)).toBe(true);        // the turn's short lock has passed
+      await page.getByTestId('open-tech').tap();
+      await sheet.waitFor();
+      await page.getByTestId('open-tech').tap();                    // toggles it shut
+      await sheet.waitFor({ state: 'detached' });
+
+      await page.getByTestId('open-tech').tap();
+      await sheet.waitFor();
+      expect(await nextEnabled(page)).toBe(true);                   // still pressable under the open menu
+      await page.getByTestId('next-unit').tap();
+      await sheet.waitFor({ state: 'detached' });
+      await page.locator('.selection .unit-panel').waitFor();       // and it did its job
+
+      await tapTile(page, '-2,5'); await tapTile(page, '-2,5');     // back to no selection, bar returns
+      await page.getByTestId('open-tech').waitFor();
+      await page.getByTestId('open-tech').tap();
+      await sheet.waitFor();
+      await expect.poll(() => page.getByTestId('end-turn').isEnabled()).toBe(true);
+      await page.getByTestId('end-turn').tap();
+      await sheet.waitFor({ state: 'detached' });
+      await page.getByTestId('ready').waitFor();                    // the turn ended: the next player's curtain
+    } finally {
+      await close();
+    }
+  });
 }, 120_000);
