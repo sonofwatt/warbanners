@@ -17,7 +17,8 @@ import type { Advanced } from '../../app/advanced';
 const COPIED_MS = 2500;
 
 function Seat({ room, seat, mine }: { room: Room; seat: PlayerId; mine: boolean }): ReactElement {
-  const faction = factionsFor(room.meta.hostFaction)[seat] ?? room.meta.hostFaction;
+  const factions = factionsFor(room.meta.hostFaction, room.meta.guestFaction);
+  const faction = factions[seat] ?? room.meta.hostFaction;
   const colour = playerColour(faction);
   const who = room.seats[seat] ?? null;
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
@@ -96,7 +97,11 @@ export function Lobby(): ReactElement | null {
         <>
           <div className="setup-seat">
             <span>{T.ui.yourFaction}</span>
-            <SideChips chosen={room.meta.hostFaction} onPick={(f) => setLobby({ hostFaction: f })} label={T.ui.yourFaction} />
+            <SideChips chosen={room.meta.hostFaction} onPick={(f) => setLobby({ hostFaction: f, guestFaction: factionsFor(room.meta.hostFaction, room.meta.guestFaction)[1] })} label={T.ui.yourFaction} />
+          </div>
+          <div className="setup-seat">
+            <span>{T.ui.guestFaction}</span>
+            <SideChips chosen={factionsFor(room.meta.hostFaction, room.meta.guestFaction)[1]} onPick={(f) => setLobby({ hostFaction: room.meta.hostFaction, guestFaction: f })} label={T.ui.guestFaction} seat={1} />
           </div>
           <div className="setup-seat">
             <span>{T.ui.clockLabel}</span>

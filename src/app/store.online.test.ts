@@ -76,7 +76,7 @@ async function lobbyOnServer(code: string, opts: { rulesVersion?: number } = {})
 async function startedPair(opts: { second?: 'human' | AiLevel; ai?: AiClient } = {}): Promise<{ host: Phone; guest: Phone; server: FakeServer }> {
   const { second = 'human' } = opts;
   const { host, guest, server } = twoStores(opts.ai ? { ai: opts.ai } : {});
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   await settle(server);
   const code = host.get().online!.code;
   if (second === 'human') {
@@ -100,12 +100,12 @@ test('a link with a room code opens that room, once: the address keeps it until 
 });
 test('a room made here goes in the address too, so a reload comes back to the lobby', async () => {
   const { host } = twoStores();
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   expect(host.get().screen).toBe('lobby'); expect(host.inUrl).toEqual([host.get().online!.code]);
 });
 test('host: create, wait, start, and play with no curtain', async () => {
   const { host, guest, server } = twoStores();
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   expect(host.get().screen).toBe('lobby'); expect(host.get().inviteLink).toMatch(/\/warbanners\/\?room=[A-HJ-NP-Z2-9]{6}$/);
   guest.get().openRoom(host.get().online!.code); await settle(server); await guest.get().joinAs('Ben');
   host.get().startOnline(); await settle(server);
@@ -116,7 +116,7 @@ test('host: create, wait, start, and play with no curtain', async () => {
 });
 test('the host\'s advanced choices reach both phones: the same chests, weather and time, the same map', async () => {
   const { host, guest, server } = twoStores();
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   guest.get().openRoom(host.get().online!.code); await settle(server); await guest.get().joinAs('Ben');
   host.get().startOnline({ chests: 'many', weather: 'random', time: 'night' }); await settle(server);
   expect(host.get().screen).toBe('match'); expect(guest.get().screen).toBe('match');
@@ -200,16 +200,16 @@ test('online play never starts the solo AI loop, and solo play never opens the n
 });
 test('rooms on stale rules say so', async () => {
   const s = online({ uid: 'u0' }); s.server.failCreatesWith('schema');
-  await s.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  await s.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   expect(s.get().notice).toBe('serverOutOfDate'); expect(s.get().screen).toBe('onlineSetup');
 });
 test('no connection, or no config, says so before loading the network', async () => {
   const opened = vi.fn();
   const off = online({ uid: 'u0', online: () => false, openNet: async () => { opened(); return null as never; } });
-  off.get().openOnline(); await off.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  off.get().openOnline(); await off.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   expect(off.get().notice).toBe('needsConnection');
   const bare = online({ uid: 'u0', netReady: () => false, openNet: async () => { opened(); return null as never; } });
-  await bare.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 });
+  await bare.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 });
   expect(bare.get().notice).toBe('notSetUp'); expect(opened).not.toHaveBeenCalled();
 });
 test('an update asks first while an online match is unfinished, and only from Home', async () => {
@@ -300,7 +300,7 @@ test('an unfinished online match dropped from the list for room is reported', as
   const server = fakeServer(1_000_000);
   const host = online({ uid: 'u0', server, kv });
   const guest = online({ uid: 'u1', server });
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 }); await settle(server);
   guest.get().openRoom(host.code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
   expect(host.get().notice).toBe('onlineListDropped');
   expect(listOnline(kv).map(e => e.code)).toContain(host.code);
@@ -310,7 +310,7 @@ test('a failed write of the online list is reported', async () => {
   const kv = memoryKv();
   const broken: KeyValue = { ...kv, setItem: (k, v) => { if (k === 'warbanners.online.v1') throw new Error('quota'); kv.setItem(k, v); } };
   const host = online({ uid: 'u0', server, kv: broken });
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 }); await settle(server);
   expect(host.get().notice).toBe('onlineListFailed');
 });
 test('a room that is gone says so and goes Home', async () => {
@@ -348,7 +348,7 @@ test('a resign whose write has not landed is not marked over on Home, and neithe
     return { ...n, append: (code, a) => (stall ? new Promise(() => {}) : n.append(code, a)) };   // the socket died unnoticed
   } });
   const guest = online({ uid: 'u1', server });
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 }); await settle(server);
   const code = host.code;
   guest.get().openRoom(code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
   host.get().startOnline(); await settle(server);
@@ -382,7 +382,7 @@ test('a failed write of the online list is told once a session, and never over a
   };
   const host = online({ uid: 'u0', server, kv: brokenKv() });
   const guest = online({ uid: 'u1', server, kv: brokenKv() });
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 }); await settle(server);
   expect(host.get().notice).toBe('onlineListFailed');
   host.get().dismissNotice();
   guest.get().openRoom(host.code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
@@ -445,7 +445,7 @@ test('a visibilitychange to visible calls the open session wake once', async () 
   const host = online({ uid: 'u0', server, onVisible });
   const guest = online({ uid: 'u1', server });
   expect(listeners.size).toBe(0);                        // nothing listens before a session is open
-  await host.get().createRoom({ name: 'Ann', faction: 'spartans', clock: 120 }); await settle(server);
+  await host.get().createRoom({ name: 'Ann', factions: ['spartans', 'mongols'], clock: 120 }); await settle(server);
   guest.get().openRoom(host.code); await settle(server); await guest.get().joinAs('Ben'); await settle(server);
   host.get().startOnline(); await settle(server);
   expect(listeners.size).toBe(1);

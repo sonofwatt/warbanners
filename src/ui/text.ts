@@ -224,7 +224,7 @@ const ui = {
   onlineListFailed: 'This phone could not keep a note of this online match. The match itself is safe on the server.',
   resignLost: 'Your resignation did not reach the other phone in time, so the match goes on.',
   playOnline: 'Play online', joinWithCode: 'Join with a code', onlineMatches: 'Online matches',
-  onlineTitle: 'Play online', yourName: 'Your name', yourFaction: 'Your side',
+  onlineTitle: 'Play online', yourName: 'Your name', yourFaction: 'Your side', guestFaction: 'Their side',
   clockLabel: 'Turn clock', clockOff: 'Off', clockMinutes: '{n} min',
   createRoom: 'Open a lobby', roomCode: 'Room code', shareInvite: 'Send the invite', inviteText: 'Join my Warbanners match',
   copied: 'Link copied', waitingForGuest: 'Waiting for the second player to join', waitingForHost: 'Waiting for {name} to start',

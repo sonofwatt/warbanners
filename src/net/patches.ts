@@ -14,7 +14,7 @@ type AiSeat = Extract<RoomSeat, { kind: 'ai' }>;
 type AdaptState = AiSeat['adapt'];
 
 export function createPatch(
-  uid: string, input: { name: string; hostFaction: FactionId; clock: ClockSec; rulesVersion: number; build: string },
+  uid: string, input: { name: string; hostFaction: FactionId; guestFaction?: FactionId; clock: ClockSec; rulesVersion: number; build: string },
 ): Patch {
   return {
     'meta/createdAt': serverTimestamp(),
@@ -25,6 +25,7 @@ export function createPatch(
     'meta/build': input.build,
     'meta/clock': input.clock,
     'meta/hostFaction': input.hostFaction,
+    ...(input.guestFaction !== undefined ? { 'meta/guestFaction': input.guestFaction } : {}),
     'meta/phase': 'lobby',
     ...humanSeat(0, uid, input.name, input.rulesVersion),
     [`members/${uid}`]: 0,
@@ -57,11 +58,12 @@ export function aiSeatPatch(seat: PlayerId, s: AiSeat): Patch {
 }
 
 // `mine` is the writer's own seat, needed only to rename it.
-export function lobbyPatch(p: { clock?: ClockSec; hostFaction?: FactionId; name?: string }, mine?: PlayerId): Patch {
+export function lobbyPatch(p: { clock?: ClockSec; hostFaction?: FactionId; guestFaction?: FactionId; name?: string }, mine?: PlayerId): Patch {
   const out: Patch = {};
   if (p.name !== undefined && mine !== undefined) out[`seats/${mine}/name`] = p.name;
   if (p.clock !== undefined) out['meta/clock'] = p.clock;
   if (p.hostFaction !== undefined) out['meta/hostFaction'] = p.hostFaction;
+  if (p.guestFaction !== undefined) out['meta/guestFaction'] = p.guestFaction;
   return out;
 }
 

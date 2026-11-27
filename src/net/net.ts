@@ -17,7 +17,7 @@ export interface Append {
 
 export interface Watcher { room(r: Room | null): void; actions(list: string[] | null): void; connected(ok: boolean): void }
 
-export interface CreateInput { code: string; name: string; hostFaction: FactionId; clock: ClockSec; rulesVersion: number; build: string }
+export interface CreateInput { code: string; name: string; hostFaction: FactionId; guestFaction?: FactionId; clock: ClockSec; rulesVersion: number; build: string }
 
 export interface Live { head: Head | null; presence: Presence | null }   // read fresh from the server, not from the cache
 
@@ -29,7 +29,7 @@ export interface Net {
   create(input: CreateInput): Promise<true | Refusal>;
   join(code: string, name: string, rules: number): Promise<{ seat: PlayerId } | Refusal>;   // a member gets their seat back
   takeOver(code: string, seat: PlayerId, rules: number): Promise<true | Refusal>;
-  setLobby(code: string, patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): Promise<true | Refusal>;
+  setLobby(code: string, patch: { clock?: ClockSec; hostFaction?: FactionId; guestFaction?: FactionId; name?: string }): Promise<true | Refusal>;
   setAiSeat(code: string, seat: PlayerId, s: AiSeat): Promise<true | Refusal>;              // host, lobby only
   start(code: string, settings: MatchSettings, openingHash: string): Promise<true | Refusal>;
   append(code: string, a: Append): Promise<true | 'refused' | 'notSetUp'>;                  // pending while offline; never 'offline'

@@ -19,6 +19,8 @@ test('invite links', () => {
 test('factions follow the host', () => {
   expect(factionsFor('mongols')).toEqual(['mongols', 'spartans']);
   expect(factionsFor('spartans')).toEqual(['spartans', 'mongols']);
+  expect(factionsFor('woodland', 'woodland')).toEqual(['woodland', 'woodland']);   // rules 11: the host picks both
+  expect(factionsFor('spartans', 'woodland')).toEqual(['spartans', 'woodland']);
 });
 test('rules 9: an unhunker action round-trips', () => {
   const a: Action = { type: 'unhunker', unit: 4 };
@@ -77,6 +79,11 @@ test('a room is read defensively', () => {
     expect(normalizeRoom('ABC234', { meta: { ...meta, ...bad } })).toBeNull();
   }
   for (const v of [null, 7, 'x', [], {}]) expect(normalizeRoom('ABC234', v)).toBeNull();
+});
+test('rules 11: a room reads its guest faction; an unknown one, or none (a room made before), is left out', () => {
+  expect(normalizeRoom('ABC234', { meta: { ...meta, hostFaction: 'woodland', guestFaction: 'woodland' } })!.meta).toMatchObject({ hostFaction: 'woodland', guestFaction: 'woodland' });
+  expect('guestFaction' in normalizeRoom('ABC234', { meta: { ...meta, guestFaction: 'elves' } })!.meta).toBe(false);
+  expect('guestFaction' in normalizeRoom('ABC234', { meta })!.meta).toBe(false);
 });
 test('a room from a newer wire schema keeps its schema, so the session can refuse it', () => {
   expect(normalizeRoom('ABC234', { meta: { ...meta, schema: 2 } })!.meta.schema).toBe(2);
@@ -149,10 +156,11 @@ test('a non-canonical action string is refused, as the rules would refuse it', (
   const a = { to: '1,0', type: 'move', unit: 3 } as Action;
   expect(decodeAction(encodeAction(a))).toEqual(a);
 });
-test('settings refuse equal factions and seeds that are not safe non-negative integers', () => {
+test('settings accept a mirror match and the Woodland Nations, and refuse unknown peoples and bad seeds', () => {
   for (const seed of [-1, 2 ** 53, 1e300]) expect(decodeSettings(`{"factions":["spartans","mongols"],"seed":${seed}}`)).toBeNull();
-  expect(decodeSettings('{"factions":["spartans","spartans"],"seed":1}')).toBeNull();
-  expect(decodeSettings('{"factions":["mongols","mongols"],"seed":1}')).toBeNull();
+  expect(decodeSettings('{"factions":["woodland","woodland"],"seed":1}')).toEqual({ seed: 1, factions: ['woodland', 'woodland'] });
+  expect(decodeSettings('{"factions":["spartans","spartans"],"seed":1}')).toEqual({ seed: 1, factions: ['spartans', 'spartans'] });
+  expect(decodeSettings('{"factions":["woodland","elves"],"seed":1}')).toBeNull();
   expect(decodeSettings('{"factions":["mongols","spartans"],"seed":0}')).toEqual({ seed: 0, factions: ['mongols', 'spartans'] });
 });
 test('the action list is capped', () => {

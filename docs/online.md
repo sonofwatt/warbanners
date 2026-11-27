@@ -18,8 +18,10 @@ Everything lives under `rooms/<code>`. Times are server milliseconds.
 
 ```
 meta     { createdAt (written once, = now), creatorId, hostId, schema: 1, rulesVersion, build,
-           clock: 0 | 60 | 120 | 180 | 300 (seconds, 0 is off), hostFaction: 'spartans' | 'mongols',
+           clock: 0 | 60 | 120 | 180 | 300 (seconds, 0 is off), hostFaction: Faction,
+           guestFaction?: Faction (rules 11; a room without it plays the host's faction against the first other one),
            phase: 'lobby' | 'playing' | 'over' }
+           Faction = 'spartans' | 'mongols' | 'woodland'; both sides may be the same (a mirror match)
 seats    { "0": Seat, "1": Seat }
            human: { uid, name, kind: 'human', rules }     rules = the phone's RULES_VERSION when it took the seat
            ai:    { uid: 'ai_<s>', name, kind: 'ai', level, salt, adapt: { dial, trend } }
@@ -40,7 +42,7 @@ desync   { <uid>: { n, hash, build } }
 The rules never trust a client. Every leaf that may be written has its own `.write`; no grant sits at `rooms/$code`, `head` or `seats/$s` except the delete-only grant on the room, so nothing cascades to a child it did not mean to open. Reads need a signed-in user. Everything else is closed.
 
 - **Create.** One update writes `meta`, `seats/0` and `members/<creator>` together. `meta.createdAt` must equal `now`, `schema` must be 1 (see the tripwire below), the creator is also host and seat 0, and `phase` is `lobby`.
-- **Lobby.** Only the host changes `clock` and `hostFaction`, and only in the lobby. Any member may write `meta/hostId` to a human seat's uid, its own included, so a guest can make itself host (this is how the stand-in host works; see "AI seats online"). A guest takes seat 1 only when it is empty and writes its own `members` entry in the same update, with a `rules` equal to `meta.rulesVersion`. The host may fill a seat with an AI (`uid` is `ai_<s>`, with `name`, `level`, `salt`, `adapt` all present and no `rules`). Names are 1 to 16 characters.
+- **Lobby.** Only the host changes `clock`, `hostFaction` and `guestFaction`, and only in the lobby: the host picks both sides. Any member may write `meta/hostId` to a human seat's uid, its own included, so a guest can make itself host (this is how the stand-in host works; see "AI seats online"). A guest takes seat 1 only when it is empty and writes its own `members` entry in the same update, with a `rules` equal to `meta.rulesVersion`. The host may fill a seat with an AI (`uid` is `ai_<s>`, with `name`, `level`, `salt`, `adapt` all present and no `rules`). Names are 1 to 16 characters.
 - **Start.** Only the host, only from `lobby`, only once both seats exist. One update writes `match`, the opening `head` (`n` 0, `seat` 0, `at` and `turnAt` equal to `now`, `paused` 0) and `meta/phase` as `playing`.
 - **Actions.** `actions/<n>` is written once, as a string up to 512 characters, only while `phase` is `playing`, only at index `head.n`, and only together with `head.n` moving to `n + 1`. The writer must be the current seat's human, or the host when the current seat is an AI, or any member for a timeout `endTurn` (see below). Two phones writing the same index: the second is refused.
 - **What an action may contain.** Anything that holds `player` or a backslash is refused unless it is exactly the writer's own resign, `{"player":<seat>,"type":"resign"}`. This closes forging a resign for the opponent (task 4 added this rule beyond the plan). A waiting member may resign for their own seat at any time.

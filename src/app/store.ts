@@ -95,11 +95,11 @@ export interface AppState {
   inviteLink: string | null;        // for the lobby's share button
   openOnline(): void;               // the online setup screen
   openJoin(): void;                 // the join screen, with a code field
-  createRoom(input: { name: string; faction: FactionId; clock: ClockSec }): Promise<void>;
+  createRoom(input: { name: string; factions: [FactionId, FactionId]; clock: ClockSec }): Promise<void>;   // the host's side, then the guest's
   openRoom(code: string): void;     // from a link, a typed code, or Continue on Home
   joinAs(name: string): Promise<void>;
   takeSeat(seat: PlayerId): Promise<void>;
-  setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): void;
+  setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; guestFaction?: FactionId; name?: string }): void;
   startOnline(advanced?: Partial<Advanced>): void;   // host only; advanced: the match options, the defaults if left out
   resignOnline(): void;             // on either player's turn: the Menu's Resign in online mode
   onlineBlocked(): 'notSetUp' | 'needsConnection' | null;   // why Home cannot offer online play now; never loads src/net

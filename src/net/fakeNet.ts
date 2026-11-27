@@ -94,7 +94,7 @@ const has = (v: unknown, keys: string[]): boolean => isObj(v) && keys.every((k) 
 
 // The SHA-256 of the database.rules.json that `allowed` was checked against, clause by clause. fakeNet.test.ts fails
 // when the file changes: re-check `allowed` against every changed clause, then update this hash.
-export const RULES_SHA256 = 'a7b61d476a0b8c7620fff1df365577d7f2fd4327626733b8cd921d51f3eabed8';
+export const RULES_SHA256 = '46868fd1287d774c5273bdea843e3c5d953757b9e3b34de878ea837c4eb1d997';
 
 /**
  * database.rules.json, ported for one update of rooms/<code>. R is the room before, N after (null when absent),
@@ -140,7 +140,7 @@ export function allowed(uid: string, R: unknown, N: unknown, paths: string[], no
         case 'creatorId': case 'schema': case 'rulesVersion': case 'build': return creating;
         case 'hostId':
           return creating || (member && ((r('seats/0/kind') === 'human' && r('seats/0/uid') === nv) || (r('seats/1/kind') === 'human' && r('seats/1/uid') === nv)));
-        case 'clock': case 'hostFaction': return creating || (lobby && r('meta/hostId') === uid);
+        case 'clock': case 'hostFaction': case 'guestFaction': return creating || (lobby && r('meta/hostId') === uid);
         case 'phase':
           return creating || (lobby && nv === 'playing' && !rx('match') && nx('match')) || (playing && member && nv === 'over');
         default: return false;
@@ -249,7 +249,7 @@ export function allowed(uid: string, R: unknown, N: unknown, paths: string[], no
           case 'creatorId': case 'hostId': return typeof v === 'string';
           case 'build': return typeof v === 'string' && v.length <= 64;
           case 'clock': return v === 0 || v === 60 || v === 120 || v === 180 || v === 300;
-          case 'hostFaction': return v === 'spartans' || v === 'mongols';
+          case 'hostFaction': case 'guestFaction': return v === 'spartans' || v === 'mongols' || v === 'woodland';
           case 'phase': return v === 'lobby' || v === 'playing' || v === 'over';
           default: return false;
         }

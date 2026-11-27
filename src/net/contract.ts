@@ -84,6 +84,27 @@ export function contract(name: string, make: () => Promise<ContractKit>): void {
       expect(await c.join('ZZZZZZ', 'Cy', RULES_VERSION)).toBe('notFound');
       expect(await ann(code)).toBe('refused');
     });
+    test('rules 11: a Woodland room against Spartans, chosen by the host, plays a move; a mirror is allowed', async () => {
+      const wood = { seed: 5, factions: ['woodland', 'spartans'] } as const;
+      expect(await a.create({ code, name: 'Ann', hostFaction: 'woodland', guestFaction: 'spartans', clock: 120, rulesVersion: RULES_VERSION, build: 't' })).toBe(true);
+      expect(await b.join(code, 'Ben', RULES_VERSION)).toEqual({ seat: 1 });
+      expect(await b.setLobby(code, { guestFaction: 'woodland' })).toBe('refused');          // only the host picks the sides
+      expect(await a.setLobby(code, { guestFaction: 'woodland' })).toBe(true);
+      expect(await a.setLobby(code, { guestFaction: 'spartans' })).toBe(true);
+      const { room } = await latest(b, code, r => r?.meta.guestFaction === 'spartans' && r.seats[1] !== null);
+      expect([room!.meta.hostFaction, room!.meta.guestFaction]).toEqual(['woodland', 'spartans']);
+      const s0 = createMatch({ ...wood, factions: [...wood.factions] });
+      expect(await a.start(code, { ...wood, factions: [...wood.factions] }, hashState(s0))).toBe(true);
+      const m = legalActions(s0).find(x => x.type === 'move')!; const s1 = must(applyAction(s0, m));
+      expect(await a.append(code, { n: 0, action: encodeAction(m), seatAfter: s1.current, hash: hashState(s1), turnPassed: false, over: false, snap: null, adapt: null })).toBe(true);
+      const { actions } = await latest(b, code, (_r, l) => l?.length === 1);
+      expect(actions).toEqual([encodeAction(m)]);
+    });
+    test('a side that is not one of the three peoples is refused', async () => {
+      expect(await ann(code)).toBe(true);
+      expect(await a.setLobby(code, { guestFaction: 'elves' as never })).toBe('refused');
+      expect(await a.setLobby(code, { hostFaction: 'elves' as never })).toBe('refused');
+    });
     test('a phone on other rules cannot join', async () => {
       await ann(code);
       expect(await b.join(code, 'Ben', RULES_VERSION + 1)).toBe('version');

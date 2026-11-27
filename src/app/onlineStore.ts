@@ -138,7 +138,7 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
     if (room === null || seat === null) return null;
     const state = v.followed?.state ?? null;
     const names: [string, string] = [room.seats[0]?.name ?? '', room.seats[1]?.name ?? ''];
-    const factions = v.followed?.settings.factions ?? factionsFor(room.meta.hostFaction);
+    const factions = v.followed?.settings.factions ?? factionsFor(room.meta.hostFaction, room.meta.guestFaction);
     const round = state !== null ? roundOf(state) : 1;
     const current = state?.current ?? 0;
     // Over only once the server holds it: a winning move or a resign still on its way may never land, and an entry
@@ -264,7 +264,7 @@ export function createOnlineSide(ctx: OnlineCtx): OnlineSide {
       let failed: Notice = 'serverOutOfDate';
       for (let i = 0; i < ROOM_TRIES; i++) {
         const code = makeRoomCode();
-        const r = await n.create({ code, name: input.name, hostFaction: input.faction, clock: input.clock, rulesVersion: RULES_VERSION, build: deps.build ?? BUILD });
+        const r = await n.create({ code, name: input.name, hostFaction: input.factions[0], guestFaction: input.factions[1], clock: input.clock, rulesVersion: RULES_VERSION, build: deps.build ?? BUILD });
         if (gen !== sessionGen) return;
         if (r === true) {
           createdHere.add(code);

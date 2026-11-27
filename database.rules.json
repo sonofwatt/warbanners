@@ -37,7 +37,11 @@
           },
           "hostFaction": {
             ".write": "newData.exists() && (!root.child('rooms').child($code).child('meta').exists() && newData.parent().parent().child('meta/createdAt').exists() || auth != null && root.child('rooms').child($code).child('meta/phase').val() === 'lobby' && root.child('rooms').child($code).child('meta/hostId').val() === auth.uid)",
-            ".validate": "newData.val() === 'spartans' || newData.val() === 'mongols'"
+            ".validate": "newData.val() === 'spartans' || newData.val() === 'mongols' || newData.val() === 'woodland'"
+          },
+          "guestFaction": {
+            ".write": "newData.exists() && (!root.child('rooms').child($code).child('meta').exists() && newData.parent().parent().child('meta/createdAt').exists() || auth != null && root.child('rooms').child($code).child('meta/phase').val() === 'lobby' && root.child('rooms').child($code).child('meta/hostId').val() === auth.uid)",
+            ".validate": "newData.val() === 'spartans' || newData.val() === 'mongols' || newData.val() === 'woodland'"
           },
           "phase": {
             ".write": "newData.exists() && (!root.child('rooms').child($code).child('meta').exists() && newData.parent().parent().child('meta/createdAt').exists() || root.child('rooms').child($code).child('meta/phase').val() === 'lobby' && newData.val() === 'playing' && !root.child('rooms').child($code).child('match').exists() && newData.parent().parent().child('match').exists() || auth != null && root.child('rooms').child($code).child('meta/phase').val() === 'playing' && root.child('rooms').child($code).child('members').child(auth.uid).exists() && newData.val() === 'over')",

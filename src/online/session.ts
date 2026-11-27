@@ -50,7 +50,7 @@ export interface Session {
   resign(): boolean;                      // { type: 'resign', player: mySeat }, on either player's turn; false when not possible now
   join(name: string): Promise<true | Refusal>;
   takeOver(seat: PlayerId): Promise<true | Refusal>;
-  setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; name?: string }): Promise<true | Refusal>;
+  setLobby(patch: { clock?: ClockSec; hostFaction?: FactionId; guestFaction?: FactionId; name?: string }): Promise<true | Refusal>;
   start(seed: number, advanced?: Partial<Advanced>): Promise<true | Refusal>;   // host only, both seats filled
   wake(): void;                           // the page is visible again: the return runs, as after a long tick gap
   close(): void;
@@ -660,7 +660,7 @@ export function openSession(code: string, deps: SessionDeps, onChange: (v: Sessi
     setLobby: (patch) => net.setLobby(code, patch),
     async start(seed, advanced) {
       if (!room || room.meta.hostId !== me || !room.seats[0] || !room.seats[1]) return 'refused';
-      const settings = { seed, factions: factionsFor(room.meta.hostFaction), ...advancedPart(advanced) };
+      const settings = { seed, factions: factionsFor(room.meta.hostFaction, room.meta.guestFaction), ...advancedPart(advanced) };
       const r = await net.start(code, settings, hashState(createMatch(settings)));
       if (r !== true) { failure = r; emit(); }
       return r;

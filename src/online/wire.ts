@@ -35,6 +35,7 @@ export type RoomSeat =
 export interface RoomMeta {
   createdAt: number; creatorId: string; hostId: string; schema: number; rulesVersion: number;
   build: string; clock: ClockSec; hostFaction: FactionId; phase: Phase;
+  guestFaction?: FactionId;   // rules 11: the host picks both sides; a room made before then leaves it out
 }
 export interface Head { n: number; seat: PlayerId; hash: string; at: number; turnAt: number; paused: number }
 export interface Presence { on: boolean; at: number }
@@ -83,7 +84,10 @@ export function codeFromSearch(search: string): string | null {
   return isRoomCode(code) ? code : null;
 }
 
-export function factionsFor(hostFaction: FactionId): [FactionId, FactionId] {
+// The two sides of a room: the host's and the guest's. A room with no guest faction (made before rules 11) plays
+// the host's faction against the first other one, as it always did.
+export function factionsFor(hostFaction: FactionId, guestFaction?: FactionId): [FactionId, FactionId] {
+  if (guestFaction !== undefined) return [hostFaction, guestFaction];
   const other = (Object.keys(FACTIONS) as FactionId[]).find((f) => f !== hostFaction) as FactionId;
   return [hostFaction, other];
 }
@@ -113,7 +117,7 @@ export function decodeSettings(v: unknown): MatchSettings | null {
     const o: unknown = JSON.parse(v);
     if (!isObject(o) || !Number.isSafeInteger(o.seed) || (o.seed as number) < 0) return null;
     const f = o.factions;
-    if (!Array.isArray(f) || f.length !== 2 || !isFaction(f[0]) || !isFaction(f[1]) || f[0] === f[1]) return null;
+    if (!Array.isArray(f) || f.length !== 2 || !isFaction(f[0]) || !isFaction(f[1])) return null;   // equal factions: a mirror match
     // The advanced options (chests, weather, time of day) are optional; an unknown value refuses the settings.
     const adv = readAdvanced(o);
     if (adv === null) return null;
@@ -183,6 +187,7 @@ function readMeta(v: unknown): RoomMeta | null {
     createdAt: num(createdAt), creatorId, hostId: isUid(v.hostId) ? v.hostId : creatorId, schema,
     rulesVersion: num(v.rulesVersion), build: typeof v.build === 'string' ? cut(v.build, MAX_BUILD) : '',
     clock: clock as ClockSec, hostFaction, phase: phase as Phase,
+    ...(isFaction(v.guestFaction) ? { guestFaction: v.guestFaction } : {}),
   };
 }
 
