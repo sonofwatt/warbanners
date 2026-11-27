@@ -6,7 +6,6 @@ import { newRecord } from '../src/app/record';
 import type { MatchRecord } from '../src/app/record';
 import { writeSave } from '../src/app/saves';
 import { createMatch, hashState } from '../src/engine';
-import { addCity, setTile } from '../src/engine/testkit';
 import { cameraStill, deselect, frames, openApp, tapTile } from '../src/browser/harness';
 
 const outDir = process.argv[2];
@@ -16,8 +15,6 @@ mkdirSync(out, { recursive: true });
 
 function save(): [string, string][] {
   const state = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
-  addCity(state, 0, 1, 4, { level: 2 });
-  for (const [q, r] of [[-1, 4], [0, 3], [1, 3]] as const) setTile(state, q, r, { road: true });
   const p = state.players[0]!;
   p.explored = [...new Set([...p.explored, ...Object.keys(state.tiles).filter((k) => state.tiles[k]!.cityId !== null)])].sort();
   const base = newRecord('land', { seed: 7, factions: ['spartans', 'mongols'] }, ['Ann', 'Ben'], 1_000_000);
@@ -47,15 +44,15 @@ for (const look of ['svg', '3d'] as const) {
     await frames(page); await cameraStill(page);
     await deselect(page);
     for (let i = 0; i < 3 && (await page.locator('.selection .city-panel').count()) === 0; i += 1) {
-      await tapTile(page, '1,4'); await page.waitForTimeout(300); await cameraStill(page);
+      await tapTile(page, '-2,5'); await page.waitForTimeout(300); await cameraStill(page);
     }
     await page.locator('.selection .city-panel').waitFor();
     await page.waitForTimeout(800); await frames(page);
-    await page.screenshot({ path: `${out}/${name}-${look}.png` });
-    const b = await page.locator('[data-centre="1,4"]').boundingBox();
+    await page.screenshot({ path: `${out}/${name}${look === "svg" ? "" : "-3d"}.png` });
+    const b = await page.locator('[data-centre="-2,5"]').boundingBox();
     if (b !== null) {
       const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-      await page.screenshot({ path: `${out}/${name}-${look}-zoom.png`, clip: { x: Math.max(0, cx - 110), y: Math.max(0, cy - 110), width: 220, height: 220 } });
+      await page.screenshot({ path: `${out}/${name}${look === "svg" ? "" : "-3d"}-zoom.png`, clip: { x: Math.max(0, cx - 110), y: Math.max(0, cy - 110), width: 220, height: 220 } });
     }
   } finally { await close(); }
 }
