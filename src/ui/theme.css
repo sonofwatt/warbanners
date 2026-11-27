@@ -675,9 +675,18 @@ input:focus { border-color: var(--blue); }
 /* The gold glow on a tile where a unit can capture or claim a treasure: a soft, slow pulse. */
 .ready-glow { animation: ready-pulse 2.6s ease-in-out infinite; }
 @keyframes ready-pulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+/* A treasure chest's twinkle (art/twinkle.ts): each glint dark most of its cycle, then lit and gone in about two thirds
+   of a second, swelling as it brightens. Each glint's duration and delay are set inline (twinkleCss). */
+.chest-twinkle { opacity: 0; transform-box: fill-box; transform-origin: center; animation: chest-twinkle 4s linear infinite; }
+@keyframes chest-twinkle {
+  0%, 84% { opacity: 0; transform: scale(0.45); animation-timing-function: ease-in-out; }
+  89.6% { opacity: 1; transform: scale(1); animation-timing-function: ease-in-out; }
+  100% { opacity: 0; transform: scale(0.45); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ready-glow { animation: none; }
+  .chest-twinkle { animation: none; opacity: 0; }
   .selection, .sheet, .overlay, .overlay > .digest, .medallion, .result-banner, .bit, .dot { animation: none; }
   .selection.pull[data-ready] { transition: none; }
   button { transition: none; }

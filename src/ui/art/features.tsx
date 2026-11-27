@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import type { BuildingId, FactionId, Resource, Terrain } from '../../engine';
 import { ACCENT } from './palette';
 import { edgeCorners, r1 } from './tiles';
+import { twinkleCss } from './twinkle';
 
 // Every piece here draws around the tile centre in board units. The light comes
 // from the left: left faces are lighter, right faces darker, as on the tile walls.
@@ -672,6 +673,28 @@ export function Treasure(): ReactElement {
   ink.glint(8, -16, 4, '#FFF4B8');
   ink.glint(-9, -12, 2.2, '#FFF4B8');
   return ink.done();
+}
+
+// Where the chest's twinkling glints sit (art/twinkle.ts), in Treasure's own units, in the order of TWINKLES: the
+// lock, the right band's top where it meets the lid's front, and the left band's foot.
+const CHEST_GLINTS: readonly [number, number, number][] = [[-1, -5.5, 3.1], [2.6, -9.3, 2.8], [-4, 3.6, 2.4]];
+
+/**
+ * The chest's twinkle: small glints on its gold that light up for a moment and fade, each at its own pace, offset by
+ * the chest's `seed` (twinkle.ts twinkleSeed). Drawn over the time of day's grade, so a glint stays bright at night.
+ * Played by CSS (theme.css .chest-twinkle); with reduced motion none shows, and the chest keeps its static sparkle.
+ */
+export function ChestTwinkle({ seed }: { seed: number }): ReactElement {
+  return (
+    <g data-twinkle="true" pointerEvents="none">
+      {CHEST_GLINTS.map(([x, y, s], i) => {
+        const ink = new Ink(1.2);
+        ink.glint(x, y, s, '#FFFBE8');
+        ink.circle(x, y, s * 0.3, '#FFFFFF');
+        return <g key={i} className="chest-twinkle" style={twinkleCss(i, seed)}>{ink.done()}</g>;
+      })}
+    </g>
+  );
 }
 
 // ---- cities ----

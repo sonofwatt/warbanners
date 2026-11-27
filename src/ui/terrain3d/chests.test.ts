@@ -141,3 +141,31 @@ test('the lantern lights its tunnel\'s inside on the figures\' canvas, behind a 
     expect(b.max.y).toBeLessThanOrEqual(MINE.openH + 0.5);
   }
 });
+
+test('a shut chest twinkles on the ambient clock; a claimed chest does not, and the twinkle rests with the motion', async () => {
+  const { twinkle, TWINKLES, twinkleSeed } = await import('../art/twinkle');
+  const t = make();
+  t.setMap(mapOf({ '1,0': { treasure: true }, '0,0': {}, '0,1': { treasure: true, village: true } }));
+  expect(t.shine().chests).toEqual(['1,0']); // a village hides its chest, so only one twinkles
+  // The motion clock runs at the level; at level 1 it follows the wall clock.
+  const seen: number[][] = [];
+  for (let ms = 0; ms <= 8000; ms += 50) {
+    t.tick(ms, 1);
+    seen.push(t.shine().shine);
+  }
+  const flow = 8; // seconds of motion at level 1 (tick's first call starts the clock)
+  TWINKLES.forEach((_, i) => expect(seen.at(-1)![i]).toBeCloseTo(twinkle(flow, i, twinkleSeed('1,0')), 5));
+  // Every glint lit at some moment, and most of the time all dark.
+  TWINKLES.forEach((_, i) => expect(Math.max(...seen.map((s) => s[i]!))).toBeGreaterThan(0.5));
+  expect(seen.filter((s) => s.every((b) => b === 0)).length / seen.length).toBeGreaterThan(0.4);
+  // At rest (level 0, also what reduced motion draws) no glint shows.
+  t.tick(8050, 0);
+  expect(t.shine().shine.every((b) => b === 0)).toBe(true);
+  // Claimed: the chest leaves the map and opens, and twinkles no more.
+  t.setMap(mapOf({ '1,0': {}, '0,0': {}, '0,1': { treasure: true, village: true } }));
+  t.chests([{ at: '1,0', delay: 0 }], 9000, false);
+  t.tick(9100, 1);
+  expect(t.opening().map((o) => o.key)).toEqual(['1,0']);
+  expect(t.shine()).toEqual({ chests: [], shine: [] });
+  t.dispose();
+});

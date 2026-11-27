@@ -207,6 +207,23 @@ test('a treasure under a unit is drawn beside the figure, so the unit never hide
   expect(under).not.toContain('data-treasure="centre"');
 });
 
+test('a shut chest twinkles where it is drawn, over the grade; a claimed chest is gone and twinkles no more', () => {
+  const view = structuredClone(playerView(s, 0));
+  const k = '-1,4';                                         // explored, not a city, field
+  view.tiles[k]!.treasure = true;
+  const alone = tileMarkup(draw({ view }), k);
+  expect((alone.match(/class="chest-twinkle"/g) ?? []).length).toBe(3);
+  // Beside a unit the glints go with the chest.
+  view.units[0]!.pos = k;
+  const under = tileMarkup(draw({ view }), k);
+  expect(under).toContain('<g transform="translate(17 1) scale(0.75)"><g data-twinkle="true"');
+  // Each glint at its own pace.
+  const delays = [...alone.matchAll(/animation-delay:(-?[\d.]+)s/g)].map((m) => m[1]);
+  expect(new Set(delays).size).toBe(3);
+  view.tiles[k]!.treasure = false;
+  expect(tileMarkup(draw({ view }), k)).not.toContain('data-twinkle');
+});
+
 /** The markup of one unit's group. */
 function unitMarkup(html: string, id: number): string {
   return groupAt(html, html.lastIndexOf('<g', html.indexOf(`data-unit="${id}"`)));

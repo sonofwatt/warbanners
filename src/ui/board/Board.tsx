@@ -3,8 +3,9 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, FireGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityMark, ChestTwinkle, FireGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
+import { twinkleSeed } from '../art/twinkle';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
 import { BannerPlace, WarBanner } from '../art/banner';
@@ -128,6 +129,17 @@ const BACK = 'translate(1 -5) scale(0.8)';
 const FRONT = 'translate(2 6) scale(0.72)';
 const BESIDE = 'translate(17 1) scale(0.75)';    // a treasure under a unit: off to the side, clear of the figure
 const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in front of the trees along the back
+
+/**
+ * Where TileArt draws a tile's treasure chest (the transform round it, '' for none), or null when no chest shows: a
+ * city, a village or a building hides it, as does the 3D look, which draws its own.
+ */
+export function chestPlace(tile: Tile, occupied: boolean | undefined, layers?: SvgLayers): string | null {
+  if (!tile.treasure || tile.building !== null || tile.village || !(layers?.treasure ?? true)) return null;
+  if (occupied === true) return BESIDE;
+  if (tile.terrain === 'forest') return BEFORE_GROVE;
+  return tile.terrain !== 'water' && tile.terrain !== 'field' ? FRONT : '';
+}
 
 /**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
@@ -279,6 +291,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
     );
   }
   const ownerFaction = t.owner === null ? undefined : p.factions[t.owner];
+  const chest = t.city === null ? chestPlace(t.tile, t.occupied, layers) : null;
   const body = (
     <>
       {layers.base ? <TileBase ground={groundFor(t.tile, t.city !== null)} /> : null}
@@ -292,6 +305,8 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
       <Graded look={p.look}>{body}</Graded>
       {/* After dark a village's bonfire lights the ground round it, over the grade (the 3D look lights its own). */}
       {t.city === null && t.tile.village && t.tile.building === null && layers.village && (p.look?.fire ?? 0) > 0 ? <FireGlow strength={p.look!.fire} /> : null}
+      {/* The chest's twinkle, over the grade too, so a glint stays bright at night; under the veil, which dims it. */}
+      {chest !== null ? <g transform={chest || undefined}><ChestTwinkle seed={twinkleSeed(t.key)} /></g> : null}
       {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
       {layers.border && ownerFaction !== undefined && t.borderEdges.length > 0 ? (
