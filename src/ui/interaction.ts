@@ -35,6 +35,12 @@ export function offered(state: MatchState, viewer: PlayerId): ActionIndex {
   return indexActions(legalActions(believedState(aiInputFor(state, viewer))));
 }
 
+// rules 11: the state a card is judged on: what the viewer believes, without the AI's planning guess that a Woodland
+// rival knows Archery, so a card never shows a guess as fact (a rival is shown with its starting tech only).
+export function shownState(state: MatchState, viewer: PlayerId): MatchState {
+  return believedState(aiInputFor(state, viewer), { guess: false });
+}
+
 // Whether `action` is one the screen offers the viewer (whatever the order of its fields).
 export function isOffered(state: MatchState, viewer: PlayerId, action: Action): boolean {
   if (state.current !== viewer || state.winner !== null) return false;

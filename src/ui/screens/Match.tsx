@@ -3,7 +3,6 @@ import type { CSSProperties, ReactElement } from 'react';
 import {
   isHidden, DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, rewardOptions, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
-import { aiInputFor, believedState } from '../../ai/input';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
 import { roundOf } from '../../app/record';
 import { lookOf } from '../../app/advanced';
@@ -12,7 +11,7 @@ import type { Notice } from '../../app/store';
 import { useApp } from '../../app/useApp';
 import { formatClock } from '../../online/clock';
 import { T, digestText, fill } from '../text';
-import { indexActions, marksFor, offered, readyTiles, spentUnits } from '../interaction';
+import { indexActions, marksFor, offered, readyTiles, shownState, spentUnits } from '../interaction';
 import type { ActionIndex, Selection } from '../interaction';
 import { hearingFor, isMuted, play, setMuted, soundFor, warmSound } from '../sound';
 import { cityCommands, techRows, tileCommands, unitCommands } from '../panels/commands';
@@ -24,7 +23,7 @@ import { Menu } from '../panels/Menu';
 import { RewardSheet } from '../panels/RewardSheet';
 import { TechSheet } from '../panels/TechSheet';
 import { TilePanel } from '../panels/TilePanel';
-import { UnitPanel } from '../panels/UnitPanel';
+import { UnitPanel, rangeCauseOf } from '../panels/UnitPanel';
 import { SelectionSheet } from '../panels/SelectionSheet';
 import type { SheetApi } from '../panels/SelectionSheet';
 import { Board } from '../board/Board';
@@ -72,7 +71,7 @@ export function matchData(state: MatchState, viewer: PlayerId, selection: Select
 }
 
 function blockadesSeen(state: MatchState, viewer: PlayerId): Map<number, number> {
-  const believed = believedState(aiInputFor(state, viewer));
+  const believed = shownState(state, viewer);
   const out = new Map<number, number>();
   for (const c of believed.cities) {
     if (c.owner !== viewer) continue;
@@ -275,12 +274,12 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       const commands = u.owner === viewer ? unitCommands(selection, state, ix) : [];
       // The myth touch, the brace and the movement are judged on what the viewer believes, never on the whole match, so an
       // enemy's card cannot tell of a hero or a helper beside it that the viewer has not seen.
-      const believed = believedState(aiInputFor(state, viewer));
+      const believed = shownState(state, viewer);
       const myth = mythTouched(believed, u);
       const thresholds = u.owner === viewer
         ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
       panel = (
-        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
+        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} rangeCause={rangeCauseOf(believed, u)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
           commands={commands} onCommand={onCommand} />
       );
     }
@@ -290,7 +289,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       const mine = city.owner === viewer;
       const owner = state.players[city.owner]!.faction;
       // Joined to its owner's capital now, judged on what the viewer believes (roads seen, never ones in the fog).
-      const believed = believedState(aiInputFor(state, viewer));
+      const believed = shownState(state, viewer);
       const seen = believed.cities.find((c) => c.id === city.id);
       const connected = seen !== undefined && isConnected(believed, seen);
       panel = mine ? (

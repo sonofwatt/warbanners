@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, isHero, momentumStart } from '../../engine';
-import type { DeedId, FactionId, Unit, statsOf } from '../../engine';
+import { CONFIG, DEEDS, FACTIONS, UNITS, canEarnTraits, forestEyeReach, isHero, momentumStart, mountainReach } from '../../engine';
+import type { DeedId, FactionId, MatchState, Unit, statsOf } from '../../engine';
 import { BootIcon, HeartIcon, RangeIcon, ShieldIcon, SwordIcon } from '../icons';
 import { T } from '../text';
 import { CardHead, Stats } from './Card';
@@ -11,14 +11,24 @@ import type { Look } from '../art/palette';
 
 export interface UnitPanelProps {
   unit: Unit; faction: FactionId; stats: ReturnType<typeof statsOf>; myth: boolean;
+  rangeCause?: RangeCause;                        // what adds to the unit's range where it stands (rangeCauseOf)
   look?: Look;                                    // the owner's colours in this match (seatLook)
   braced?: boolean;                              // rules 7: a Hoplite with enough Hoplite mates beside it
   thresholds: Record<DeedId, number> | null;     // null for a unit the viewer does not own: its deeds stay hidden
   commands: Command[]; onCommand: (c: Command) => void;
 }
 
+// What adds reach to a unit's attacks where it stands, so the card labels the range by its cause: a mountain (rules 8)
+// or the forest eye (rules 11). A blinded unit has neither (its reach is the blinded reach). A Skirmisher's bow with
+// Archery is its normal range, so it gets no label.
+export type RangeCause = 'mountain' | 'forest' | null;
+export function rangeCauseOf(s: MatchState, u: Unit): RangeCause {
+  if (u.blinded) return null;
+  return mountainReach(s, u) > 0 ? 'mountain' : forestEyeReach(s, u) > 0 ? 'forest' : null;
+}
+
 // An enemy unit gets the same card with an empty command list.
-export function UnitPanel({ unit, faction, look, stats, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
+export function UnitPanel({ unit, faction, look, stats, rangeCause = null, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
   // rules 8: relay riding, a faction rule rather than a trait (mounted units only, where the faction says so)
@@ -40,7 +50,8 @@ export function UnitPanel({ unit, faction, look, stats, myth, braced = false, th
         { icon: <SwordIcon />, label: T.ui.attackStat, value: stats.atk },
         { icon: <ShieldIcon />, label: T.ui.defence, value: stats.def },
         { icon: <BootIcon />, label: T.ui.movement, value: stats.move },
-        { icon: <RangeIcon />, label: T.ui.range, value: stats.range > def.range ? T.ui.rangeOnMountain(stats.range) : stats.range },   // rules 8
+        { icon: <RangeIcon />, label: T.ui.range, value: rangeCause === 'mountain' ? T.ui.rangeOnMountain(stats.range)
+          : rangeCause === 'forest' ? T.ui.rangeForestEye(stats.range) : stats.range },   // rules 8 and 11
       ]} />
       </div>
       <div className="card-more">

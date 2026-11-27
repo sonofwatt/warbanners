@@ -18,7 +18,9 @@ import { Menu } from './Menu';
 import { RewardSheet } from './RewardSheet';
 import { TechSheet } from './TechSheet';
 import { TilePanel } from './TilePanel';
-import { UnitPanel } from './UnitPanel';
+import { UnitPanel, rangeCauseOf } from './UnitPanel';
+import { shownState } from '../interaction';
+import { aiInputFor, believedState } from '../../ai/input';
 
 const open = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
 const ix = indexActions(legalActions(open));
@@ -28,7 +30,7 @@ const DEED_IDS: DeedId[] = ['fight', 'march', 'survive', 'rest'];
 // The props a unit's card takes, built the way the match screen builds them.
 function panelOf(s: MatchState, u: Unit, mine: boolean, myth = false) {
   const thresholds = mine ? Object.fromEntries(DEED_IDS.map((d) => [d, thresholdOf(s, u, d)])) as Record<DeedId, number> : null;
-  return { unit: u, faction: s.players[u.owner]!.faction, stats: statsOf(s, u), myth, thresholds };
+  return { unit: u, faction: s.players[u.owner]!.faction, stats: statsOf(s, u), rangeCause: rangeCauseOf(s, u), myth, thresholds };
 }
 // A lone unit of `faction` on an empty board, for the cards that need no match around them.
 function lone(type: 'horseArcher' | 'khansGuard' | 'horseman' | 'warrior' | 'knight', faction: 'mongols' | 'spartans', patch: Partial<Unit> = {}, mine = true, myth = false) {
@@ -313,4 +315,32 @@ test('rules 8: the mountain tile says what it does; a field says nothing of it',
   expect(peak).toContain(T.ui.mountainBlurb.replace(/'/g, '&#x27;'));
   const flat = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
   expect(flat).not.toContain('whole turn');
+});
+test('rules 11: the range is labelled by its cause: a Skirmisher with Archery reads a plain 2, a Hunter on a forest unmoved its forest eye', () => {
+  const s = blankMatch({ factions: ['woodland', 'mongols'] });
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  s.players[0]!.techs.push('archery');
+  const skirmisher = renderToStaticMarkup(<UnitPanel {...panelOf(s, addUnit(s, 'skirmisher', 0, 0, 0), true)} commands={[]} onCommand={noop} />);
+  expect(skirmisher).toContain('>2<');
+  expect(skirmisher).not.toContain('(mountain)');
+  setTile(s, 1, 0, { terrain: 'forest' });
+  const hunter = addUnit(s, 'woodlandHunter', 0, 1, 0);
+  expect(renderToStaticMarkup(<UnitPanel {...panelOf(s, hunter, true)} commands={[]} onCommand={noop} />)).toContain('3 (forest eye)');
+  hunter.moved = true;
+  const moved = renderToStaticMarkup(<UnitPanel {...panelOf(s, hunter, true)} commands={[]} onCommand={noop} />);
+  expect(moved).not.toContain('(forest eye)');
+  expect(moved).not.toContain('(mountain)');
+});
+test('rules 11: an enemy Skirmisher card never shows the AI guess of Archery as fact', () => {
+  const s = blankMatch({ factions: ['woodland', 'mongols'] });
+  addCity(s, 0, 0, 3); addCity(s, 1, 0, -3);
+  s.players[0]!.turnsTaken = 5;
+  const u = addUnit(s, 'skirmisher', 0, 0, -2);
+  const seen = shownState(s, 1);
+  const shown = seen.units.find((x) => x.id === u.id)!;
+  expect(statsOf(seen, shown).range).toBe(1);
+  // the AI's own planning still guesses Archery
+  expect(statsOf(believedState(aiInputFor(s, 1)), shown).range).toBe(2);
+  const html = renderToStaticMarkup(<UnitPanel {...panelOf(seen, shown, false)} commands={[]} onCommand={noop} />);
+  expect(html).toMatch(/Range<\/[^>]+>\s*<[^>]+>1</);
 });
