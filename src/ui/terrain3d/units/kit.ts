@@ -48,6 +48,10 @@ export interface BuiltPiece {
   basis: readonly [V3, V3, V3];
   /** The piece it was built inside, which carries it (a rider's lance moves with the rider), or null. */
   parent: string | null;
+  /** A spear's or a lance's own line, from butt to point (unit length, figure space), for a jab along it; or null. */
+  shaft: V3 | null;
+  /** For an arm that follows its weapon's grip: where its hand is (figure space); or null. */
+  hand: V3 | null;
 }
 
 export interface BuiltFigure {
@@ -67,22 +71,25 @@ export class Kit {
   private readonly stack: Matrix4[] = [];
   private decals = 0;
   private piece: string | null = null;
-  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3; basis: readonly [V3, V3, V3]; parent: string | null }>();
+  private readonly pivots = new Map<string, { pivot: V3; axis: V3; fwd: V3; up: V3; basis: readonly [V3, V3, V3]; parent: string | null; shaft: V3 | null; hand: V3 | null }>();
 
   /**
    * Run `f` with every part it adds going to the moving piece `name`, which turns about `at` (in this frame) and
    * this frame's z axis (toward the viewer before any turn, so the piece swings in the figure's own plane), or the
    * axis `o.axis` of this frame. `o.fwd` (default this frame's z) and `o.up` (its y) say which way the piece pushes
    * toward a target and which way it lifts. A piece made inside another piece is carried by it. Calling it again
-   * with the same name adds more parts to the same piece (its pivot is taken from the first call).
+   * with the same name adds more parts to the same piece (its pivot is taken from the first call). `o.shaft` is the
+   * line of a spear or lance in it (butt to point, this frame), for a jab; `o.hand` marks an arm whose hand (a point in
+   * this frame) follows its weapon's grip.
    */
-  pivot(name: string, at: V3, f: () => void, o: { axis?: V3; fwd?: V3; up?: V3 } = {}): void {
-    const p = new Vector3(...at).applyMatrix4(this.mat);
+  pivot(name: string, at: V3, f: () => void, o: { axis?: V3; fwd?: V3; up?: V3; shaft?: V3; hand?: V3 } = {}): void {
+    const pt = (v: V3): V3 => { const q = new Vector3(...v).applyMatrix4(this.mat); return [q.x, q.y, q.z]; };
     const dir = (v: V3): V3 => { const d = new Vector3(...v).transformDirection(this.mat); return [d.x, d.y, d.z]; };
     if (!this.pivots.has(name)) {
       this.pivots.set(name, {
-        pivot: [p.x, p.y, p.z], axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]),
+        pivot: pt(at), axis: dir(o.axis ?? [0, 0, 1]), fwd: dir(o.fwd ?? [0, 0, 1]), up: dir(o.up ?? [0, 1, 0]),
         basis: [dir([1, 0, 0]), dir([0, 1, 0]), dir([0, 0, 1])], parent: this.piece,
+        shaft: o.shaft === undefined ? null : dir(o.shaft), hand: o.hand === undefined ? null : pt(o.hand),
       });
     }
     const was = this.piece;
@@ -169,6 +176,50 @@ export class Kit {
     g.translate(0, 0, -depth / 2);
     g.applyQuaternion(tmpQ.setFromEuler(tmpE.set(rot[0], rot[1], rot[2], 'YXZ')).clone());
     g.translate(...at);
+    this.add(g, colour, o);
+  }
+
+  /**
+   * A curved sheet `depth` thick (a cloak): `rows` is a grid of points on its outer face, row by row (top to hem),
+   * each row the same number of points. The inner face lies `depth` in from the outer one, toward the vertical line
+   * through `axis` (x, z) that the sheet wraps round, and the edges are closed, so it has a hull like any solid.
+   */
+  shell(rows: readonly (readonly V3[])[], depth: number, colour: string, axis: readonly [number, number], o: PartOpts = {}): void {
+    const nr = rows.length, nc = rows[0]!.length;
+    const P = rows.map((r) => r.map((p) => new Vector3(...p)));
+    const at = (r: number, c: number): Vector3 => P[Math.max(0, Math.min(nr - 1, r))]![Math.max(0, Math.min(nc - 1, c))]!;
+    // Each point's outward normal, from its neighbours along and down the sheet, turned away from the axis.
+    const N = P.map((row, r) => row.map((p, c) => {
+      const du = at(r, c + 1).clone().sub(at(r, c - 1));
+      const dv = at(r + 1, c).clone().sub(at(r - 1, c));
+      const n = du.cross(dv).normalize();
+      if (n.x * (p.x - axis[0]) + n.z * (p.z - axis[1]) < 0) n.negate();
+      return n;
+    }));
+    const I = P.map((row, r) => row.map((p, c) => p.clone().addScaledVector(N[r]![c]!, -depth)));
+    const pos: number[] = [];
+    // A triangle wound to face along `ref`.
+    const tri = (a: Vector3, b: Vector3, c: Vector3, ref: Vector3): void => {
+      const f = b.clone().sub(a).cross(c.clone().sub(a));
+      const [p, q] = f.dot(ref) >= 0 ? [b, c] : [c, b];
+      pos.push(a.x, a.y, a.z, p.x, p.y, p.z, q.x, q.y, q.z);
+    };
+    const quad = (a: Vector3, b: Vector3, c: Vector3, d: Vector3, ref: Vector3): void => { tri(a, b, c, ref); tri(a, c, d, ref); };
+    for (let r = 0; r + 1 < nr; r++) for (let c = 0; c + 1 < nc; c++) {
+      const n = N[r]![c]!.clone().add(N[r]![c + 1]!).add(N[r + 1]![c]!).add(N[r + 1]![c + 1]!);
+      quad(P[r]![c]!, P[r]![c + 1]!, P[r + 1]![c + 1]!, P[r + 1]![c]!, n);
+      quad(I[r]![c]!, I[r]![c + 1]!, I[r + 1]![c + 1]!, I[r + 1]![c]!, n.clone().negate());
+    }
+    // The edges: each wall faces away from the sheet's next row or column in.
+    const wall = (r0: number, c0: number, r1: number, c1: number, ri: number, ci: number): void => {
+      const mid = P[r0]![c0]!.clone().add(P[r1]![c1]!).multiplyScalar(0.5);
+      const ref = mid.sub(at(ri, ci).clone().add(at(ri + (r1 - r0), ci + (c1 - c0))).multiplyScalar(0.5));
+      quad(P[r0]![c0]!, P[r1]![c1]!, I[r1]![c1]!, I[r0]![c0]!, ref);
+    };
+    for (let c = 0; c + 1 < nc; c++) { wall(0, c, 0, c + 1, 1, c); wall(nr - 1, c, nr - 1, c + 1, nr - 2, c); }
+    for (let r = 0; r + 1 < nr; r++) { wall(r, 0, r + 1, 0, r, 1); wall(r, nc - 1, r + 1, nc - 1, r, nc - 2); }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
     this.add(g, colour, o);
   }
 
@@ -273,7 +324,7 @@ export class Kit {
     for (const k of groups.keys()) {
       if (k === null) continue;
       const at = this.pivots.get(k)!;
-      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up, basis: at.basis, parent: at.parent };
+      pieces[k] = { ...mergeOf(k), pivot: at.pivot, axis: at.axis, fwd: at.fwd, up: at.up, basis: at.basis, parent: at.parent, shaft: at.shaft, hand: at.hand };
     }
     return { ...mergeOf(null), triangles, pieces };
   }

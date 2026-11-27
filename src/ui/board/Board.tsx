@@ -3,11 +3,12 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityMark, Grove, PendingStar, ResourceMark, Road, SnareMark, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, ChestTwinkle, CityLights, CityMark, FireGlow, LanternGlow, Grove, PendingStar, ResourceMark, Road, SnareMark, TerrainFeature, Treasure, Village } from '../art/features';
 import { seatAccent, seatColour } from '../art/palette';
+import { twinkleSeed } from '../art/twinkle';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
-import { WarBanner } from '../art/banner';
+import { BannerPlace, WarBanner } from '../art/banner';
 import {
   cameraBetween, centreOn, easeInOut, followAction, keepCorner, keepInView, NO_INSETS, panMs, refit, screenToBoard, slackFor, startCamera, panBy, zoomAt,
 } from './camera';
@@ -20,14 +21,14 @@ import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
-import { glUnitsOf, unitShown } from '../terrain3d/unitsInput';
+import { carriesLantern, glUnitsOf, unitShown } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
 import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
 import type { AmbientLoop } from '../terrain3d/ambient';
 import { startTerrain3d } from '../terrain3d/lifecycle';
 import { setUnits3dDrawing, webgl2Available } from '../terrain3d/option';
 import type { Terrain3d } from '../terrain3d/terrain3d';
-import { svgGrade } from '../terrain3d/sky';
+import { skyLight, svgGrade } from '../terrain3d/sky';
 import { DAYLIGHT_ROUNDS } from '../terrain3d/daylight';
 import type { Look } from '../../app/advanced';
 import { livePose, liveTransform } from './livePose';
@@ -130,6 +131,17 @@ const BESIDE = 'translate(17 1) scale(0.75)';    // a treasure under a unit: off
 const BEFORE_GROVE = 'translate(1 5) scale(0.8)'; // what stands in a forest, in front of the trees along the back
 
 /**
+ * Where TileArt draws a tile's treasure chest (the transform round it, '' for none), or null when no chest shows: a
+ * city, a village or a building hides it, as does the 3D look, which draws its own.
+ */
+export function chestPlace(tile: Tile, occupied: boolean | undefined, layers?: SvgLayers): string | null {
+  if (!tile.treasure || tile.building !== null || tile.village || !(layers?.treasure ?? true)) return null;
+  if (occupied === true) return BESIDE;
+  if (tile.terrain === 'forest') return BEFORE_GROVE;
+  return tile.terrain !== 'water' && tile.terrain !== 'field' ? FRONT : '';
+}
+
+/**
  * What stands on an explored, non-city tile, composed so each tile reads at a glance:
  * - a building replaces what it was built on (a farm its cropland, a mine its ore and
  *   mountain); a lumber camp or mill (only ever built in a forest) stands in front of a grove
@@ -226,7 +238,9 @@ function CityArt(p: { city: City; factions: readonly FactionId[]; viewer: Player
 // grade's colour at a low opacity, as the veil is, so only the ground and what stands on it darken; marks, rings, the
 // ready glow and the units drawn after the tile keep their full contrast. `wx` lays a faint static rain or snow
 // texture over the tile's top face (the SVG look only: the 3D board has falling rain and snow).
-interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null }
+// `fire` is how much light the village bonfires cast now (sky.ts fire), `windows` how much the windows light up (sky.ts
+// windows): both 0 by day.
+interface TileLook { grade: string; opacity: number; wx: 'rain' | 'snow' | null; fire: number; windows: number }
 function Graded(p: { look: TileLook | undefined; children: ReactNode }): ReactElement | null {
   if (p.look === undefined || p.look.opacity === 0) return null;
   return <g className="grade" opacity={p.look.opacity} pointerEvents="none" style={{ '--grade': p.look.grade } as CSSProperties}>{p.children}</g>;
@@ -279,6 +293,7 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
     );
   }
   const ownerFaction = t.owner === null ? undefined : p.factions[t.owner];
+  const chest = t.city === null ? chestPlace(t.tile, t.occupied, layers) : null;
   const body = (
     <>
       {layers.base ? <TileBase ground={groundFor(t.tile, t.city !== null)} /> : null}
@@ -290,6 +305,14 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
     <g data-hex={t.key} transform={at}>
       {body}
       <Graded look={p.look}>{body}</Graded>
+      {/* After dark a village's bonfire lights the ground round it, over the grade (the 3D look lights its own). */}
+      {t.city === null && t.tile.village && t.tile.building === null && layers.village && (p.look?.fire ?? 0) > 0 ? <FireGlow strength={p.look!.fire} /> : null}
+      {/* The chest's twinkle, over the grade too, so a glint stays bright at night; under the veil, which dims it. */}
+      {chest !== null ? <g transform={chest || undefined}><ChestTwinkle seed={twinkleSeed(t.key)} /></g> : null}
+      {/* And a city's windows light up and spill light on the ground in front of its houses. */}
+      {t.city !== null && layers.town && (p.look?.windows ?? 0) > 0 && p.factions[t.city.owner] !== undefined ? (
+        <CityLights faction={p.factions[t.city.owner]!} level={t.city.level} strength={p.look!.windows} />
+      ) : null}
       {layers.base ? <Weathered look={p.look} /> : null}
       {t.veiled ? <Veil>{body}</Veil> : null}
       {t.snare === true ? <SnareMark /> : null}
@@ -308,13 +331,16 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
 
 // `figure` false: the 3D figures draw the unit (and a hero's pennant) on their canvas, and this draws only what
 // stands around it: the war banner, its marks and the item badge, in the same places.
-function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean }): ReactElement | null {
+// `lamp`: how bright the units' lanterns burn (sky.ts windows, 0 by day); every unit carries one (unitsInput.ts
+// carriesLantern) and has its glow on the ground drawn under its svg figure (the 3D figures light their own).
+function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean; lamp?: number }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
   const maxHp = maxHpOf(unit);
   // Spent: darker, never see-through (theme.css .unit-shade); hidden: the eye on the banner (unitsInput.ts).
   const shown = unitShown({ mine: p.u.mine, spent: p.u.spent, hidden: p.u.hidden });
+  const look = p.figure === false ? '3d' : 'svg';
   return (
     <g
       data-unit={unit.id}
@@ -324,6 +350,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
     >
       {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and darkens with it. */}
       <g className="unit-body">
+        {p.figure !== false && (p.lamp ?? 0) > 0 && carriesLantern(unit.type) ? <LanternGlow strength={p.lamp!} /> : null}
         {p.figure === false ? null : (
           // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
           <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
@@ -333,22 +360,26 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
             </g>
           </g>
         )}
-        <WarBanner
-          type={unit.type}
-          colour={seatColour(p.factions, unit.owner)}
-          hp={unit.hp}
-          maxHp={maxHp}
-          spent={shown.shaded}
-          fresh={unit.fresh}
-          taunted={unit.taunted}
-          blinded={unit.blinded}
-          hunkered={unit.hunkered}
-          hero={isHero(unit)}
-          hidden={shown.eye}
-        />
-        {unit.item !== null ? (
-          <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered, shown.eye))} 0)`}><ItemBadge item={unit.item} /></g>
-        ) : null}
+        {/* The banner (and the item badge) sits behind the head, and drops with it when the unit hunkers. */}
+        <BannerPlace type={unit.type} maxHp={maxHp} hidden={shown.eye} look={look} hunkered={unit.hunkered}>
+          <WarBanner
+            type={unit.type}
+            colour={seatColour(p.factions, unit.owner)}
+            hp={unit.hp}
+            maxHp={maxHp}
+            spent={shown.shaded}
+            fresh={unit.fresh}
+            taunted={unit.taunted}
+            blinded={unit.blinded}
+            hunkered={unit.hunkered}
+            hero={isHero(unit)}
+            hidden={shown.eye}
+            look={look}
+          />
+          {unit.item !== null ? (
+            <g transform={`translate(${r2(itemBadgeX(maxHp, unit.fresh || unit.hunkered, shown.eye))} 0)`}><ItemBadge item={unit.item} /></g>
+          ) : null}
+        </BannerPlace>
       </g>
     </g>
   );
@@ -360,7 +391,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
 /** One tile as the board draws it, for tests. */
 export const BoardTile = TileViewOf;
 const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && a.look === b.look && sameData(a.factions, b.factions) && sameData(a.t, b.t));
-const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
+const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && a.lamp === b.lamp && sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
  * After the slot has changed size (a rotation, a window or browser bar resize) with something selected: the view
@@ -425,8 +456,9 @@ export function Board(p: BoardProps): ReactElement {
   const tileLook = useMemo<TileLook | undefined>(() => {
     const g = svgGrade(look, lightRound);
     const wx = !gl && (look.weather === 'rain' || look.weather === 'snow') ? look.weather : null;
-    if (g === null && wx === null) return undefined;
-    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx };
+    const { fire, windows } = skyLight(look, lightRound);
+    if (g === null && wx === null && fire <= 0 && windows <= 0) return undefined;
+    return { grade: g?.fill ?? '#000000', opacity: g?.opacity ?? 0, wx, fire, windows };
   }, [look, lightRound, gl]);
   const vp = useRef<Viewport>(ASSUMED_VIEWPORT);
   const measured = useRef(false);
@@ -953,7 +985,7 @@ export function Board(p: BoardProps): ReactElement {
       it.kind === 'tile' ? (
         <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} look={tileLook} />
       ) : (
-        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} />
+        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} lamp={tileLook?.windows ?? 0} />
       );
     const sliding = (it: SceneItem): boolean => {
       if (it.kind !== 'unit') return false;

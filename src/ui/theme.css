@@ -507,6 +507,8 @@ input:focus { border-color: var(--blue); }
 .digest-line { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); width: 100%; min-height: 44px; padding: 6px var(--s3); cursor: pointer; font: inherit; color: inherit; }
 .digest-line:focus-visible { outline: 3px solid var(--sea); outline-offset: -3px; border-radius: var(--r-s); }
 .digest-go { font-size: 22px; line-height: 1; color: var(--ink-soft); }
+.digest-text { flex: 1; }
+.digest-skull { flex: none; color: var(--ink); }
 /* Looking at one report line on the board: the card steps aside for a strip with the line and the way back. The
    Hud stays dimmed and takes no taps until the report is answered. */
 .screen.match.peeking .hud { pointer-events: none; opacity: 0.55; }
@@ -678,9 +680,18 @@ input:focus { border-color: var(--blue); }
 /* The gold glow on a tile where a unit can capture or claim a treasure: a soft, slow pulse. */
 .ready-glow { animation: ready-pulse 2.6s ease-in-out infinite; }
 @keyframes ready-pulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+/* A treasure chest's twinkle (art/twinkle.ts): each glint dark most of its cycle, then lit and gone in about two thirds
+   of a second, swelling as it brightens. Each glint's duration and delay are set inline (twinkleCss). */
+.chest-twinkle { opacity: 0; transform-box: fill-box; transform-origin: center; animation: chest-twinkle 4s linear infinite; }
+@keyframes chest-twinkle {
+  0%, 84% { opacity: 0; transform: scale(0.45); animation-timing-function: ease-in-out; }
+  89.6% { opacity: 1; transform: scale(1); animation-timing-function: ease-in-out; }
+  100% { opacity: 0; transform: scale(0.45); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ready-glow { animation: none; }
+  .chest-twinkle { animation: none; opacity: 0; }
   .selection, .sheet, .overlay, .overlay > .digest, .medallion, .result-banner, .bit, .dot { animation: none; }
   .selection.pull[data-ready] { transition: none; }
   button { transition: none; }
@@ -701,13 +712,15 @@ input:focus { border-color: var(--blue); }
    in and out; at once when less motion is asked for. The 3D look draws its own crouch (terrain3d/units/crouch.ts). */
 .unit-crouch { transition: transform 230ms ease-in-out; }
 .unit-crouch.hunkered { transform: translate(0px, 0.8px) scale(1.06, 0.8); }
+/* The war banner behind the head (art/banner.tsx BannerPlace): it drops with a hunkering head, in the crouch's time. */
+.banner-place { transition: transform 230ms ease-in-out; }
 /* An own unit with nothing left to do this turn: its svg figure and its war banner (art/banner.tsx) are drawn 40
    percent darker and a little greyer, never see-through, eased in as it is spent and out as its next turn starts.
    The 3D figure gets the same in its shader (terrain3d/units/units3d.ts). The marks round the banner keep their colour. */
 .unit-shade { transition: filter 200ms ease-in-out; }
 .unit-shade.spent { filter: brightness(0.6) saturate(0.75); }
 @media (prefers-reduced-motion: reduce) {
-  .unit-crouch, .unit-shade { transition: none; }
+  .unit-crouch, .unit-shade, .banner-place { transition: none; }
 }
 
 /* The veil (art/tiles.tsx): a veiled tile's art drawn again as one dark silhouette. Every shape in it takes

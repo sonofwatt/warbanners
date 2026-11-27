@@ -217,11 +217,13 @@ export function borderLines(edges: readonly number[]): { d: number; a: Pt; b: Pt
 
 /** The strongest the selected city's glow gets, right at its outer edge. */
 export const CITY_GLOW_MAX = 0.5;
+/** How far across the tile (opposite sides' middles, one tile width) the glow's fade runs before it reaches nothing. */
+export const CITY_GLOW_FADE = 0.6;
 
 /**
  * The land of the selected city: an inner glow of the faction colour, CITY_GLOW_MAX strong right at each outer edge of
- * the city's land (`edges`, the directions where the neighbour is not this city's) and fading to nothing one tile
- * width in (at the tile's opposite side), so a ring a tile deep glows and the middle of a large city stays clear.
+ * the city's land (`edges`, the directions where the neighbour is not this city's) and fading to nothing CITY_GLOW_FADE (60%) of a tile
+ * width in (the width is the gap between opposite sides), so a ring a tile deep glows and the middle of a large city stays clear.
  * Each edge's fade is a white-to-black gradient in a mask, and the fades combine by taking the stronger
  * (mix-blend-mode lighten), so where two edges meet the glow never passes CITY_GLOW_MAX. One colour fill through the
  * mask; no line. `id` names the mask and its gradients and is unique on the board.
@@ -244,7 +246,7 @@ export function CityGlow(p: { id: string; edges: readonly number[]; colour: stri
         {fades.map((f) => (
           <linearGradient key={f.d} id={`${p.id}-${f.d}`} gradientUnits="userSpaceOnUse" x1={r1(f.from.x)} y1={r1(f.from.y)} x2={r1(f.to.x)} y2={r1(f.to.y)}>
             <stop offset="0" stopColor="#FFFFFF" />
-            <stop offset="1" stopColor="#000000" />
+            <stop offset={CITY_GLOW_FADE} stopColor="#000000" />
           </linearGradient>
         ))}
         <mask id={p.id} maskUnits="userSpaceOnUse" x={-60} y={-60} width={120} height={120}>

@@ -8,7 +8,7 @@
 import type { BuildingId, HexKey } from '../../engine';
 import type { GlMap, GlTile } from './input';
 import { centre, COS_E, edgeDist, hash2, heightFn, parse, SQUASH, tileSetup } from './layout';
-import { FURNACE } from './townLayout';
+import { FURNACE, townSpills } from './townLayout';
 
 /** The buildings this file lays out; the mine and the foundry are built into the mountain (townLayout.ts). */
 export type FieldBuilding = Exclude<BuildingId, 'mine' | 'foundry'>;
@@ -303,17 +303,22 @@ export const MILL_CHIMNEY = { x: -4.5, y: 19.6, z: -1.6 } as const;
 export const FOUNDRY_CHIMNEY = { x: FURNACE.x + 2.2, y: 19.5, z: FURNACE.z - 1.6 } as const;
 
 /** A smoking chimney: where its smoke starts (world), how full it is (a thin wisp, or fuller), and its board box. */
-export interface SmokeSpot { key: HexKey; x: number; y: number; z: number; kind: 'wisp' | 'full'; seed: number; box: { x0: number; x1: number; y0: number; y1: number } }
+export interface SmokeSpot { key: HexKey; x: number; y: number; z: number; kind: 'thin' | 'wisp' | 'full'; seed: number; box: { x0: number; x1: number; y0: number; y1: number } }
 
-/** Puffs a chimney sends up at once: a thin wisp has fewer, smaller ones. */
-export const SMOKE_PUFFS = { wisp: 4, full: 6 } as const;
+/** Puffs a chimney sends up at once: a wisp has fewer, smaller ones; a bonfire's thin wisp smaller ones still. */
+export const SMOKE_PUFFS = { thin: 4, wisp: 4, full: 6 } as const;
+/** Each kind's puff size (world units). */
+export const SMOKE_SIZE = { thin: 1.9, wisp: 3.2, full: 4.4 } as const;
+/** How see-through each kind's puffs are: a bonfire's wisp is faint, so it never hides the huts behind it. */
+export const SMOKE_ALPHA = { thin: 0.45, wisp: 1, full: 1 } as const;
 /** How high a puff rises over its life, and how far the wind carries it to the right (world units). */
 export const SMOKE_RISE = 22;
 export const SMOKE_DRIFT = 9;
 
-/** Every smoking chimney on the map: lumber camps, lumber mills and foundries. */
+/** Every smoking chimney on the map: lumber camps, lumber mills and foundries, and the villages' bonfires. */
 export function smokeSpots(map: GlMap): SmokeSpot[] {
   const out: SmokeSpot[] = [];
+  const fires = new Map(fireSpots(map).map((f) => [f.key, f]));
   for (const k of Object.keys(map.tiles).sort()) {
     const t = map.tiles[k]!;
     if (t.city) continue;
@@ -321,7 +326,11 @@ export function smokeSpots(map: GlMap): SmokeSpot[] {
     const c = centre(q, r);
     let at: { x: number; y: number; z: number } | null = null;
     let kind: SmokeSpot['kind'] = 'full';
-    if (t.building === 'foundry' && t.terrain === 'mountain') at = FOUNDRY_CHIMNEY;
+    const fire = fires.get(k);
+    if (fire !== undefined) {
+      at = { x: fire.x - c.x, y: fire.y + FLAME_TOP, z: fire.z - c.z };
+      kind = 'thin';
+    } else if (t.building === 'foundry' && t.terrain === 'mountain') at = FOUNDRY_CHIMNEY;
     else if (t.building === 'lumberCamp' || t.building === 'lumberMill') {
       const setup = tileSetup(map, k);
       const camp = t.building === 'lumberCamp';
@@ -335,6 +344,38 @@ export function smokeSpots(map: GlMap): SmokeSpot[] {
     const x = c.x + at.x, z = c.z + at.z;
     const bx = x + SMOKE_DRIFT / 2, by = z * SQUASH - (at.y + SMOKE_RISE / 2) * COS_E;
     out.push({ key: k, x, y: at.y, z, kind, seed: hash2(q * 2.9, r * 1.3), box: { x0: bx - 12, x1: bx + 12, y0: by - 16, y1: by + 16 } });
+  }
+  return out;
+}
+
+/** How high a bonfire's flames reach over its ground (world units): its smoke starts there. */
+export const FLAME_TOP = 6.5;
+
+export interface FireSpot {
+  key: HexKey;
+  /** World position of the fire's foot, on its ground. */
+  x: number;
+  y: number;
+  z: number;
+  seed: number;
+  /** Board box round the flames and their light, for the ambient loop's in-view test. */
+  box: { x0: number; x1: number; y0: number; y1: number };
+}
+
+/** Every village bonfire on the map, in a stable order (a captured village is a city: its fire is out). */
+export function fireSpots(map: GlMap): FireSpot[] {
+  const out: FireSpot[] = [];
+  for (const k of Object.keys(map.tiles).sort()) {
+    const t = map.tiles[k]!;
+    if (t.city || !t.village || t.building !== null) continue;
+    const setup = tileSetup(map, k);
+    const f = setup.town?.fire;
+    if (f == null) continue;
+    const { q, r } = parse(k);
+    const c = centre(q, r);
+    const x = c.x + f.x, z = c.z + f.z, y = heightFn(setup)(f.x, f.z);
+    const by = z * SQUASH - (y + FLAME_TOP / 2) * COS_E;
+    out.push({ key: k, x, y, z, seed: hash2(q * 1.9, r * 2.7), box: { x0: x - 16, x1: x + 16, y0: by - 14, y1: by + 14 } });
   }
   return out;
 }
@@ -360,4 +401,24 @@ export function smokePuff(t: number, i: number, n: number, w: number): { life: n
     size: 0.45 + 1.05 * Math.sqrt(life),
     alpha: Math.min(1, life / 0.12) * (1 - life) * (1 - life) * 1.15,
   };
+}
+
+/** The light a tile's lit windows throw on its ground (townLayout.ts townSpills), in world space. */
+export interface WindowSpill { key: HexKey; lights: { x: number; z: number; dx: number; dz: number; weight: number }[] }
+
+/** Every city's and village's lit windows' light on the ground, by tile, in a stable order. */
+export function windowSpills(map: GlMap): WindowSpill[] {
+  const out: WindowSpill[] = [];
+  for (const k of Object.keys(map.tiles).sort()) {
+    const t = map.tiles[k]!;
+    if (!t.city && !(t.village && t.building === null)) continue;
+    const plan = tileSetup(map, k).town;
+    if (plan === null) continue;
+    const lights = townSpills(plan);
+    if (lights.length === 0) continue;
+    const { q, r } = parse(k);
+    const c = centre(q, r);
+    out.push({ key: k, lights: lights.map((l) => ({ ...l, x: c.x + l.x, z: c.z + l.z })) });
+  }
+  return out;
 }

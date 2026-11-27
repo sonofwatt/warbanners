@@ -17,6 +17,17 @@ export interface GlUnit {
   spent: boolean;
   /** Dug in (rules 7): a unit that hunkers turns back to its rest facing (units/facing.ts). */
   hunkered: boolean;
+  /** It carries a lantern, lit after dark (carriesLantern); none when left out. */
+  lantern?: boolean;
+}
+
+/**
+ * Whether a unit of this type carries a lantern after dark: every unit does, the Scout included (David's call,
+ * 2026-11-27: it was once left dark for its hidden trait). Heroes, riders, the trebuchet and the camp all carry one.
+ * A look only: the rules never read it, and a lantern does not make a hidden unit any easier to see.
+ */
+export function carriesLantern(_type: UnitTypeId): boolean {
+  return true;
 }
 
 /**
@@ -45,6 +56,7 @@ export function glUnitsOf(items: readonly SceneItem[], factions: readonly Factio
       x: it.at.x, y: it.at.y,
       spent: it.mine && it.spent,
       hunkered: u.hunkered,
+      lantern: carriesLantern(u.type),
     });
   }
   const key = units.map((u) => `${u.id}:${u.type}:${u.look.main}${u.look.dark}${u.look.accent}:${u.hero ? 'h' : ''}:${u.x},${u.y}:${u.spent ? 's' : ''}:${u.hunkered ? 'k' : ''}`).join(' ');

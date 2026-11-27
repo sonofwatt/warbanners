@@ -9,13 +9,14 @@
 import { ARM_TOP } from './idle';
 
 /** How each unit strikes. */
-export type StrikeKind = 'swing' | 'thrust' | 'bow' | 'bash' | 'sling' | 'rear' | 'lunge' | 'none';
+export type StrikeKind = 'swing' | 'thrust' | 'jab' | 'couch' | 'bow' | 'bash' | 'sling' | 'rear' | 'lunge' | 'none';
 /** How a unit takes a blow it survives. */
 export type ReactKind = 'block' | 'flinch';
 
 const KINDS: Record<string, StrikeKind> = {
   warrior: 'swing', swordsman: 'swing', sellsword: 'swing',
-  spearman: 'thrust', hoplite: 'thrust', kingsGuard: 'thrust', horseman: 'thrust', knight: 'thrust', scout: 'thrust',
+  // Spears on foot jab; a rider's spear or lance is couched and driven home; the scout stabs with his dagger.
+  spearman: 'jab', hoplite: 'jab', kingsGuard: 'jab', horseman: 'couch', knight: 'couch', scout: 'thrust',
   archer: 'bow', horseArcher: 'bow', woodlandHunter: 'bow',
   skirmisher: 'swing', warChief: 'swing',   // rules 11: the club and the gunstock club
   defender: 'bash',
@@ -68,10 +69,43 @@ export const COUNTER_AFTER_MS = 110;
  * along its `up` (world units); how far the arrow is drawn along its own `fwd` (`draw`, world units) and whether it is
  * on the string; a lean of the whole figure toward its aim (radians, forward positive) and a rear (radians, the front
  * of a horse up).
+ *
+ * A jab or a couched lance adds: `level`, how far the spear or lance is brought from its rest to level at the target
+ * (0 to 1; units3d.ts turns it about the piece's axis by what that takes for the figure's own weapon), `reach`, how far
+ * it then travels along its own line (world units, toward the point positive; the holding arm reaches with it),
+ * `step`, a step of the whole figure toward its aim (world units), and `hunch`, a rider's tip forward over the horse
+ * (radians).
  */
-export interface StrikePose { angle: number; push: number; lift: number; draw: number; lean: number; rear: number; arrow: boolean }
+export interface StrikePose {
+  angle: number; push: number; lift: number; draw: number; lean: number; rear: number; arrow: boolean;
+  level: number; reach: number; step: number; hunch: number;
+}
 
-export const AT_REST: StrikePose = Object.freeze({ angle: 0, push: 0, lift: 0, draw: 0, lean: 0, rear: 0, arrow: true });
+export const AT_REST: StrikePose = Object.freeze({ angle: 0, push: 0, lift: 0, draw: 0, lean: 0, rear: 0, arrow: true, level: 0, reach: 0, step: 0, hunch: 0 });
+
+/** A jab's keys (phases of the strike): levelled and drawn back by JAB_WIND, driven home by MELEE_HIT, held to JAB_HOLD. */
+export const JAB_WIND = 0.15;
+export const JAB_HOLD = 0.44;
+/** How far a spear is drawn back, and how far it is then driven along its own line past its rest (world units). */
+export const JAB_DRAW = 3.2;
+export const JAB_REACH = 5.5;
+/** A couched lance moves less in the hand: the rider and the horse drive it home. */
+export const COUCH_DRAW = 1.6;
+export const COUCH_REACH = 3.4;
+/** How far above level a jab's spear or a couched lance points (radians): at the chest of a figure on its own ground. */
+export const LEVEL_TILT = 0.06;
+
+/**
+ * The turn about `axis` (a level axis) that brings a weapon along `shaft` (both unit length, in the figure's frame, y
+ * up) from its rest to pointing LEVEL_TILT above level, toward the side a positive turn tips it to (axis cross up).
+ */
+export function levelTurn(shaft: readonly [number, number, number], axis: readonly [number, number, number]): number {
+  const [ax, ay, az] = axis;
+  const along = shaft[0] * ax + shaft[1] * ay + shaft[2] * az;
+  const px = shaft[0] - along * ax, py = shaft[1] - along * ay, pz = shaft[2] - along * az;
+  // The way a positive turn takes the top: axis cross up is (-az, 0, ax).
+  return Math.atan2(py, -az * px + ax * pz) - LEVEL_TILT;
+}
 
 const smooth = (x: number): number => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 /** Quick into the blow: an ease in that ends at full speed. */
@@ -99,6 +133,21 @@ export function strikePose(kind: StrikeKind, p: number | null | undefined): Stri
       // Drawn back a little, then levelled and driven forward.
       const push = blow(p, -1.6, 3.4);
       return { ...AT_REST, angle: blow(p, -0.12, 0.95), push, draw: push, lean };
+    }
+    case 'jab':
+    case 'couch': {
+      // Levelled at the target and drawn back; driven straight out along its own line, fast, the body leaning in and
+      // stepping after it; held a moment at full reach; then drawn back in and raised to rest. A rider couches the
+      // lance and hunches over it as the horse lunges.
+      const foot = kind === 'jab';
+      const draw = foot ? JAB_DRAW : COUCH_DRAW, far = foot ? JAB_REACH : COUCH_REACH;
+      const level = p < JAB_WIND ? seg(p, 0, JAB_WIND * 0.85, 0, 1) : p < JAB_HOLD ? 1 : 1 - smooth((p - 0.58) / 0.42);
+      const reach = p < JAB_WIND ? seg(p, 0, JAB_WIND, 0, -draw) : p < MELEE_HIT ? seg(p, JAB_WIND, MELEE_HIT, -draw, far, accel)
+        : p < JAB_HOLD ? far : seg(p, JAB_HOLD, 0.82, far, 0);
+      const into = p < JAB_WIND ? 0 : p < MELEE_HIT ? smooth((p - JAB_WIND) / (MELEE_HIT - JAB_WIND)) : p < JAB_HOLD ? 1 : 1 - smooth((p - JAB_HOLD) / (1 - JAB_HOLD));
+      const back = p < JAB_WIND ? smooth(p / JAB_WIND) : p < MELEE_HIT ? 1 - smooth((p - JAB_WIND) / (MELEE_HIT - JAB_WIND)) : 0;
+      if (foot) return { ...AT_REST, level, reach, lean: 0.13 * into - 0.04 * back, step: 2.4 * into };
+      return { ...AT_REST, level, reach, lean: 0.03 * into, step: 3.2 * into, hunch: 0.3 * into - 0.06 * back, rear: 0.05 * back - 0.06 * into };
     }
     case 'bash': {
       // The shield driven forward into the enemy.

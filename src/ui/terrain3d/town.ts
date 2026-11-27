@@ -10,7 +10,7 @@ import type { FactionId } from '../../engine';
 import { ACCENT, MIRROR_ACCENT, MIRROR_COLOUR, PLAYER_COLOURS } from '../art/palette';
 import { coloured, repaint } from './geom';
 import { hash2 } from './layout';
-import { FURNACE, LANTERN, LANTERN_WALL, MINE } from './townLayout';
+import { FIRE_RING, FURNACE, hallDoor, houseSize, hutSize, LANTERN, LANTERN_WALL, MINE, yurtGap, yurtRadius } from './townLayout';
 import type { TownPiece, TownPlan, WallPlan } from './townLayout';
 
 const TOWN = {
@@ -18,7 +18,7 @@ const TOWN = {
   column: '#FBF6E9', door: '#8A6A48', window: '#5A4632',
   felt: '#F1E7D3', feltDoor: '#8C5A33',
   wood: '#A87545', woodDark: '#6B4A2B', pole: '#6B4A2B',
-  mud: '#D9C59C', thatch: '#B8975A', thatchDark: '#9C7C45', logEnd: '#E2C08A', log: '#A8743F',
+  mud: '#D9C59C', ash: '#4E4741', thatch: '#B8975A', thatchDark: '#9C7C45', logEnd: '#E2C08A', log: '#A8743F',
   rock: '#7F786E', rockLight: '#958D80', rockDark: '#635D55', tunnel: '#3B2B20', tunnelDeep: '#1F1814', floor: '#3A2B20',
   timber: '#8C5D35', timberDark: '#6E4528', rail: '#7D7A80', sleeper: '#6B4A2B', iron: '#3A3532', glass: '#FFD98A',
   ore: '#4E4B58', crystal: '#BFE3FA', spoil: '#6E6A78', spoilDark: '#55525E',
@@ -75,7 +75,7 @@ type Colour = { main: string; dark: string };
 // Spartans
 
 function spartanHouse(k: Kit, colour: Colour, tall: boolean, seed: number): void {
-  const w = 7.6 + seed * 1.2, d = 6.8, h = tall ? 11 : 6.2;
+  const { w, d } = houseSize(seed), h = tall ? 11 : 6.2;
   k.box(w, h, d, 0, -0.4, 0, TOWN.plaster, 0.7);
   if (tall) k.box(w + 0.5, 0.6, d + 0.5, 0, 5.4, 0, TOWN.plasterShade, 0.3);
   const roof = gable(w, d, 3.8);
@@ -100,6 +100,8 @@ function spartanHall(k: Kit, colour: Colour, accent: string, grand: boolean): vo
   const top = -0.6 + steps * 1.1;
   const colH = grand ? 9 : 7.2;
   k.box(w - 4, colH, d - 4.5, 0, top, -1.4, TOWN.plasterShade, 0.5); // the hall behind the columns
+  // Its doorway, between the middle columns: lit warm after dark, as the houses' windows are.
+  k.box(hallDoor(grand).w, colH * 0.62, 0.25, 0, top, -1.4 + (d - 4.5) / 2 + 0.08, TOWN.window, 0.1);
   const span = w - 2.2;
   for (let i = 0; i < cols; i++) {
     const x = -span / 2 + (span * i) / (cols - 1);
@@ -170,6 +172,8 @@ function yurt(k: Kit, colour: Colour, accent: string, r: number, wallH: number, 
   crown.translate(0, wallH - 0.4 + roofH - 0.6, 0);
   k.add(crown, accent, 0.25, 0.5);
   k.box(2.0, Math.min(3.6, wallH * 0.72), 0.5, 0, -0.4, r - 0.05, TOWN.feltDoor, 0.2);
+  // The door stands a hand ajar: a thin gap beside it in the windows' colour, lit warm after dark (shaders.ts).
+  k.box(0.55, Math.min(3.2, wallH * 0.64), 0.3, yurtGap(r), -0.4, Math.sqrt(r * r - yurtGap(r) ** 2) + 0.1, TOWN.window, 0.1);
   return wallH - 0.4 + roofH;
 }
 
@@ -200,6 +204,7 @@ function greatYurt(k: Kit, colour: Colour, accent: string): void {
   fin.translate(0, y2 + 4 + 4.4 + 1.2, 0);
   k.add(fin, accent, 0.25, 0.7);
   k.box(3.0, 4.6, 0.6, 0, -0.4, r - 0.05, TOWN.feltDoor, 0.25);
+  k.box(0.7, 4.0, 0.3, yurtGap(r), -0.4, Math.sqrt(r * r - yurtGap(r) ** 2) + 0.1, TOWN.window, 0.1);
   k.box(4.2, 0.8, 0.8, 0, 4.2, r + 0.1, accent, 0.2);
 }
 
@@ -325,7 +330,7 @@ function walls(w: WallPlan, spartan: boolean): Kit {
 // Villages
 
 function hut(k: Kit, seed: number): void {
-  const w = 8.2 + seed, d = 7.2;
+  const { w, d } = hutSize(seed);
   k.box(w, 5.6, d, 0, -0.4, 0, TOWN.mud, 0.6);
   const roof = gable(w, d, 6, 1.5);
   roof.translate(0, 5.0, 0);
@@ -344,6 +349,37 @@ function woodpile(k: Kit): void {
   }
 }
 
+/**
+ * A village's bonfire, still parts only (its flames, glow and smoke move, on the figures' canvas: bonfires.ts): a
+ * bed of dark ash, a ring of rough stones, four logs crossed over the middle, and the embers glowing between them.
+ */
+function bonfire(k: Kit): void {
+  const ash = new CylinderGeometry(FIRE_RING - 0.5, FIRE_RING - 0.3, 0.3, 10);
+  ash.translate(0, 0.05, 0);
+  k.add(ash, TOWN.ash, 0.15);
+  const stones = 9;
+  for (let i = 0; i < stones; i++) {
+    const a = (i / stones) * Math.PI * 2 + 0.3;
+    const r = FIRE_RING - 0.7;
+    const g = new DodecahedronGeometry(0.75 + 0.15 * ((i * 7) % 3), 0);
+    g.scale(1, 0.75, 1);
+    g.rotateY(i * 1.3);
+    g.translate(r * Math.cos(a), 0.45, r * Math.sin(a));
+    k.add(g, i % 2 === 0 ? TOWN.rockLight : TOWN.rock, 0.2);
+  }
+  // Four logs, each leaning in from the ring so they cross just over the ashes.
+  for (let i = 0; i < 4; i++) {
+    const g = new CylinderGeometry(0.32, 0.36, 3.6, 6);
+    g.rotateZ(Math.PI / 2 - 0.32);
+    g.rotateY((i * Math.PI) / 4 + 0.4);
+    g.translate(0, 0.75, 0);
+    k.add(g, i % 2 === 0 ? TOWN.log : TOWN.timberDark, 0.2);
+  }
+  const embers = new CylinderGeometry(0.9, 1.1, 0.35, 8);
+  embers.translate(0, 0.3, 0);
+  k.add(embers, TOWN.ember, 0);
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Every part of a city or village, standing on the ground. */
@@ -357,6 +393,11 @@ export function townParts(plan: TownPlan, cx: number, cz: number, height: (lx: n
   if (plan.banner !== null) out.push(...banner(colour, accent, plan.banner.h).done(cx + plan.banner.x, height(plan.banner.x, plan.banner.z), cz + plan.banner.z, 0));
   if (plan.pennant !== null) out.push(...pennant(colour).done(cx + plan.pennant.x, plan.pennant.y, cz + plan.pennant.z, 0));
   if (plan.walls !== null) out.push(...walls(plan.walls, spartan).done(cx, 0, cz, 0));
+  if (plan.fire !== null) {
+    const k = new Kit();
+    bonfire(k);
+    out.push(...k.done(cx + plan.fire.x, height(plan.fire.x, plan.fire.z), cz + plan.fire.z, 0));
+  }
   return out;
 }
 
@@ -445,9 +486,9 @@ function piece(p: TownPiece, colour: Colour, accent: string, spartan: boolean): 
     case 'tall': spartanHouse(k, colour, true, p.seed); break;
     case 'hall': spartanHall(k, colour, accent, false); break;
     case 'grandHall': spartanHall(k, colour, accent, true); break;
-    case 'yurt': yurt(k, colour, accent, 4.3 + p.seed * 0.4, 4.6, 4.2, false); break;
-    case 'tallYurt': yurt(k, colour, accent, 4.6, 6.6, 4.6, true); break;
-    case 'yurtHall': yurt(k, colour, accent, 7, 6, 5.8, true); break;
+    case 'yurt': yurt(k, colour, accent, yurtRadius(p.kind, p.seed), 4.6, 4.2, false); break;
+    case 'tallYurt': yurt(k, colour, accent, yurtRadius(p.kind, p.seed), 6.6, 4.6, true); break;
+    case 'yurtHall': yurt(k, colour, accent, yurtRadius(p.kind, p.seed), 6, 5.8, true); break;
     case 'greatYurt': greatYurt(k, colour, accent); break;
     case 'tower': if (spartan) spartanTower(k, colour); else watchtower(k, colour); break;
     case 'hut': hut(k, p.seed); break;

@@ -188,6 +188,7 @@ const ui = {
   cityTitle: 'City', capitalTitle: 'Capital', techTitle: 'Technologies',
   level: 'Level', growth: 'Growth', unitsHeld: 'Units', walled: 'Walled', notWalled: 'No walls', yes: 'Yes', no: 'No',
   terrain: 'Terrain', resourceWord: 'Resource', buildingWord: 'Building', roadWord: 'Road', none: 'None',
+  village: 'Village', treasureChest: 'Treasure chest', chest: 'Chest',
   statusOwned: 'Known', statusReady: 'Ready', statusCostly: 'Too costly now', statusLocked: 'Locked',
   research: 'Research', unlocks: 'Opens', close: 'Close', later: 'Later', chooseReward: 'Choose a reward',
   soundOn: 'Sound on', soundOff: 'Sound off', terrain3dOn: '3D terrain on', terrain3dOff: '3D terrain off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
@@ -284,7 +285,7 @@ const ui = {
   connectedToCapital: 'Connected to the capital', levelOf: 'Level {n}',
   // rules 8 (0.6.0) in two sentences, its numbers and names from CONFIG and the tables
   // rules 10 (0.8.0) in three sentences
-  whatsNew: `New in rules 10: on their own land, Mongol riders pay the usual cost for the first tile they ride each turn, so they ride one tile less at home. A new Advanced menu on the match screen sets how many treasure chests the map holds, the weather and the time of day; dawn brightens and dusk darkens over the first 30 rounds. In the 3D look units now cast shadows that follow the light, and mist and smoke darken at night.`,
+  whatsNew: `New in rules 11: a third faction, the Woodland Nations, joins the Spartans and the Mongols. Their units hide in forests, cross them as easily as fields and strike from cover, their Trappers set snares and their Smoke Keepers heal and veil their friends. Every Woodland harvest pays 3 gold back, and from level 4 their cities offer a War Chief or a Smoke Keeper.`,
   relayRiding: 'Rides Mongol land',
   relayRidingBlurb: 'In Mongol territory the first tile it enters each turn costs the usual, and every later one only what a road costs, whether the move starts inside it or rides in. Outside it, a normal move.',
   chainEnded: 'Chain ends',

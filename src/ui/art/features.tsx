@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import type { BuildingId, FactionId, Resource, Terrain } from '../../engine';
 import { ACCENT } from './palette';
 import { edgeCorners, r1 } from './tiles';
+import { twinkleCss } from './twinkle';
 
 // Every piece here draws around the tile centre in board units. The light comes
 // from the left: left faces are lighter, right faces darker, as on the tile walls.
@@ -578,19 +579,120 @@ export function Road(p: { links: readonly number[]; wear?: number; edgeWear?: re
   );
 }
 
+/** The village huts' windows (their top left corners, before VILLAGE_SCALE), lit after dark by FireGlow. */
+const HUT_WINDOWS: readonly (readonly [number, number])[] = [[-8.4, -6], [14.4, 1.6]];
+/** Lamplight in a window after dark, and its pool on the ground (CityLights, FireGlow; the 3D look's windows' colours). */
+const LAMP_WINDOW = '#FFD27A', LAMP_POOL = '#FF9F3A';
+/** A soft warm pool of light on the ground: three nested ellipses, faint at the rim and warmer toward the middle. */
+function pool(ink: Ink, x: number, y: number, rx: number, ry: number, k = 1): void {
+  ink.ellipse(x, y, rx, ry, LAMP_POOL, 0.12 * k);
+  ink.ellipse(x, y, rx * 0.68, ry * 0.68, LAMP_POOL, 0.14 * k);
+  ink.ellipse(x, y, rx * 0.36, ry * 0.36, '#FFC266', 0.18 * k);
+}
+
 const HUT: HouseColours = { front: '#E6D5B0', side: '#C9B68E', roof: '#9A8878', roofSide: '#7E6E60' };
 
+/**
+ * The village art's scale, and where its bonfire burns (board units, the stones' centre): at the front left, where a
+ * unit standing in the middle of the tile does not hide it.
+ */
+const VILLAGE_SCALE = 1.15;
+const FIRE_AT = { x: -7.5, y: 12 } as const;
+export const VILLAGE_FIRE = { x: FIRE_AT.x * VILLAGE_SCALE, y: FIRE_AT.y * VILLAGE_SCALE } as const;
+
+/** The bonfire's flames: an orange tongue with a yellow heart, at (x, y), the foot of the flames. */
+function flames(ink: Ink, x: number, y: number): void {
+  ink.shape(`M ${x - 2} ${y} Q ${x - 2.2} ${y - 3.4} ${x - 0.2} ${y - 7} Q ${x + 0.6} ${y - 4.2} ${x + 1.4} ${y - 4.6} Q ${x + 2.4} ${y - 2.4} ${x + 2} ${y} Z`, '#FF8A1F');
+  ink.shape(`M ${x - 1} ${y} Q ${x - 1.1} ${y - 2.4} ${x + 0.1} ${y - 4.4} Q ${x + 0.5} ${y - 2.6} ${x + 1.1} ${y - 2.4} Q ${x + 1.4} ${y - 1.2} ${x + 1.1} ${y} Z`, '#FFDF6A');
+  ink.ellipse(x + 0.05, y - 0.9, 0.7, 1.1, '#FFF6C8');
+}
+
+/** A small bonfire: a ring of stones round the ash, two crossed logs, flames, and a thin wisp of smoke above. */
+function bonfire(x: number, y: number): ReactElement {
+  const back = new Ink(VILLAGE_SCALE), front = new Ink(VILLAGE_SCALE), smoke = new Ink(VILLAGE_SCALE);
+  const stones = 8;
+  back.ellipse(x, y, 2.8, 1.4, '#5A4E44');
+  for (let i = 0; i < stones; i++) {
+    const a = (i / stones) * Math.PI * 2 + 0.2;
+    const sx = x + 3 * Math.cos(a), sy = y + 1.6 * Math.sin(a);
+    (Math.sin(a) < 0 ? back : front).ellipse(sx, sy, 1, 0.75, i % 2 === 0 ? '#A49C90' : '#857D72');
+  }
+  back.line(x - 2.2, y + 0.5, x + 2, y - 1, '#7A4F2A', 1.1);
+  back.line(x - 2, y - 1, x + 2.2, y + 0.5, '#8C5D35', 1.1);
+  flames(back, x, y);
+  smoke.stroke(`M ${x + 0.1} ${y - 8} Q ${x - 1.2} ${y - 10.5} ${x + 0.5} ${y - 12.5} Q ${x + 2} ${y - 14.5} ${x + 1} ${y - 16.5}`, '#D9D5CE', 0.8);
+  return (
+    <g data-bonfire="true">
+      {back.done()}
+      {front.done()}
+      <g opacity={0.7}>{smoke.done()}</g>
+    </g>
+  );
+}
+
 export function Village(): ReactElement {
-  const ink = new Ink(1.15);
-  house(ink, -7, -1, 11, 7, HUT, 10);
-  ink.rect(-8.5, -5, 3, 4, '#6B5A48');
-  house(ink, 7, 6, 10, 6, HUT, 9);
-  ink.rect(5.6, 2.4, 2.8, 3.6, '#6B5A48');
-  // A woodpile of three short logs between the huts.
-  ink.circle(-1, 8, 1.6, '#C49A5E');
-  ink.circle(-4, 8, 1.6, '#C49A5E');
-  ink.circle(-2.5, 5.6, 1.6, '#C49A5E');
-  return ink.done();
+  // The huts stand apart, the woodpile in the open ground between them; the bonfire at the front left.
+  const back = new Ink(VILLAGE_SCALE), front = new Ink(VILLAGE_SCALE);
+  house(back, -11, -2, 11, 7, HUT, 10);
+  back.rect(-12.5, -6, 3, 4, '#6B5A48');
+  house(front, 12, 7, 10, 6, HUT, 9);
+  front.rect(10.6, 3.4, 2.8, 3.6, '#6B5A48');
+  // A woodpile of three short logs, between the huts.
+  const pile = new Ink(VILLAGE_SCALE);
+  pile.circle(1.1, 3.4, 1.6, '#C49A5E');
+  pile.circle(4.1, 3.4, 1.6, '#C49A5E');
+  pile.circle(2.6, 1.0, 1.6, '#C49A5E');
+  return (
+    <g>
+      {back.done()}
+      {pile.done()}
+      {front.done()}
+      {bonfire(FIRE_AT.x, FIRE_AT.y)}
+    </g>
+  );
+}
+
+/**
+ * The bonfire's light on the SVG board after dark (`strength` 0 to 1, sky.ts fire): a soft warm pool round the fire,
+ * drawn over the time of day's grade, and the flames again at full brightness, so the fire glows in the dark.
+ */
+export function FireGlow({ strength }: { strength: number }): ReactElement | null {
+  if (strength <= 0) return null;
+  const s = Math.min(1, strength);
+  const { x, y } = VILLAGE_FIRE;
+  const fl = new Ink(VILLAGE_SCALE);
+  flames(fl, FIRE_AT.x, FIRE_AT.y);
+  // The huts' small windows, lit as the city's are (CityLights), with a little light under each.
+  const win = new Ink(VILLAGE_SCALE);
+  for (const [wx, wy] of HUT_WINDOWS) {
+    pool(win, wx + 0.9, wy + 5.5, 3.6, 1.5);
+    win.rect(wx, wy, 1.8, 1.7, LAMP_WINDOW);
+  }
+  return (
+    <g data-fire-glow={s.toFixed(2)} pointerEvents="none">
+      <g opacity={s}>{win.done()}</g>
+      <ellipse cx={x} cy={y} rx={17} ry={8.5} fill="#FF8A2E" fillOpacity={0.16 * s} />
+      <ellipse cx={x} cy={y} rx={10.5} ry={5.2} fill="#FF9838" fillOpacity={0.2 * s} />
+      <ellipse cx={x} cy={y - 0.5} rx={5} ry={2.8} fill="#FFC060" fillOpacity={0.3 * s} />
+      <g opacity={s}>{fl.done()}</g>
+    </g>
+  );
+}
+
+/**
+ * A unit's lantern light on the SVG board after dark (`strength` 0 to 1, sky.ts windows): the SVG figures have no
+ * facing, so a small round warm glow on the ground at its feet, soft at the rim, drawn under the figure.
+ */
+export function LanternGlow({ strength }: { strength: number }): ReactElement | null {
+  if (strength <= 0) return null;
+  const s = Math.min(1, strength);
+  return (
+    <g data-lantern-glow={s.toFixed(2)} pointerEvents="none">
+      <ellipse cx={0} cy={4} rx={16} ry={7} fill={LAMP_POOL} fillOpacity={0.12 * s} />
+      <ellipse cx={0} cy={4} rx={11} ry={4.8} fill={LAMP_POOL} fillOpacity={0.14 * s} />
+      <ellipse cx={0} cy={4} rx={6} ry={2.6} fill="#FFC266" fillOpacity={0.18 * s} />
+    </g>
+  );
 }
 
 export function Treasure(): ReactElement {
@@ -610,6 +712,28 @@ export function Treasure(): ReactElement {
   ink.glint(8, -16, 4, '#FFF4B8');
   ink.glint(-9, -12, 2.2, '#FFF4B8');
   return ink.done();
+}
+
+// Where the chest's twinkling glints sit (art/twinkle.ts), in Treasure's own units, in the order of TWINKLES: the
+// lock, the right band's top where it meets the lid's front, and the left band's foot.
+const CHEST_GLINTS: readonly [number, number, number][] = [[-1, -5.5, 3.1], [2.6, -9.3, 2.8], [-4, 3.6, 2.4]];
+
+/**
+ * The chest's twinkle: small glints on its gold that light up for a moment and fade, each at its own pace, offset by
+ * the chest's `seed` (twinkle.ts twinkleSeed). Drawn over the time of day's grade, so a glint stays bright at night.
+ * Played by CSS (theme.css .chest-twinkle); with reduced motion none shows, and the chest keeps its static sparkle.
+ */
+export function ChestTwinkle({ seed }: { seed: number }): ReactElement {
+  return (
+    <g data-twinkle="true" pointerEvents="none">
+      {CHEST_GLINTS.map(([x, y, s], i) => {
+        const ink = new Ink(1.2);
+        ink.glint(x, y, s, '#FFFBE8');
+        ink.circle(x, y, s * 0.3, '#FFFFFF');
+        return <g key={i} className="chest-twinkle" style={twinkleCss(i, seed)}>{ink.done()}</g>;
+      })}
+    </g>
+  );
 }
 
 // ---- cities ----
@@ -827,6 +951,43 @@ export function CityMark(p: {
   if (p.walls) palisade(ink);
   if (p.pending) pendingStar(ink);
   return ink.done();
+}
+
+/**
+ * A city's lit windows after dark (`strength` 0 to 1, sky.ts windows), drawn over the time of day's grade as the
+ * village's FireGlow is: each house's two windows either side of its door, the gaps between the hall's columns, a
+ * tent's door standing ajar, and a soft warm pool on the ground in front of each.
+ */
+export function CityLights(p: { faction: FactionId; level: number; strength: number }): ReactElement | null {
+  if (p.strength <= 0) return null;
+  const s = Math.min(1, p.strength);
+  const pools = new Ink(), lit = new Ink();
+  const count = Math.max(2, Math.min(MAX_BUILDINGS, Math.trunc(p.level) + 1));
+  SLOTS.slice(0, count).forEach(([x, y], slot) => {
+    if (p.faction === 'spartans') {
+      if (slot === 0) {
+        // The hall (spartanHall): lamplight between its four columns.
+        pool(pools, x, y + 2.4, 11, 3);
+        for (let i = 0; i < 3; i++) lit.rect(x - 8.5 + 3.4 + i * 4.3, y - 10, 1.9, 6.5, LAMP_WINDOW);
+        return;
+      }
+      const h = slot === 5 ? 9 : 9 + (slot % 3);
+      pool(pools, x, y + 2.6, 8.5, 2.8);
+      lit.rect(x - 4.3, y - h + 2.6, 1.9, 1.9, LAMP_WINDOW);
+      lit.rect(x + 2.4, y - h + 2.6, 1.9, 1.9, LAMP_WINDOW);
+      return;
+    }
+    // A tent (tent): its door ajar, a lit strip down its right side.
+    const doorH = (slot === 0 ? 8 : 7) * 0.65;
+    pool(pools, x + 0.6, y + 2.4, slot === 0 ? 8 : 6, 2.4);
+    lit.rect(x + 0.3, y - doorH + 0.4, 1.3, doorH - 0.4, LAMP_WINDOW);
+  });
+  return (
+    <g data-city-lights={s.toFixed(2)} pointerEvents="none" opacity={s}>
+      {pools.done()}
+      {lit.done()}
+    </g>
+  );
 }
 
 function pendingStar(ink: Ink): void {

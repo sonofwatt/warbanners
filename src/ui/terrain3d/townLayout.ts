@@ -47,6 +47,8 @@ export interface TownPlan {
   /** A small pennant on the hall's roof, for a city that is not the capital. */
   pennant: { x: number; y: number; z: number } | null;
   walls: WallPlan | null;
+  /** A village's bonfire, in the open ground between its huts (local x, z); null in a city. */
+  fire: { x: number; z: number } | null;
 }
 
 /** The open square in the middle of a city, where a unit stands: no building reaches into it. */
@@ -142,6 +144,7 @@ export function townPlan(town: GlTown, q: number, r: number): TownPlan {
       banner: town.capital ? { x: 9, z: -7, h: 40 } : null,
       pennant: town.capital ? null : { x: top.x, y: top.h + 1, z: top.z },
       walls: town.walls || town.level >= 5 ? wallPlan() : null,
+      fire: null,
     };
   }
   const spartan = town.faction === 'spartans';
@@ -166,22 +169,36 @@ export function townPlan(town: GlTown, q: number, r: number): TownPlan {
   }
   const banner = town.capital ? { x: 9, z: -7, h: 40 } : null;
   const pennant = town.capital ? null : { x: HALL[0], y: hallH + 1, z: HALL[1] };
-  return { faction: town.faction, ...(town.mirror ? { mirror: true as const } : {}), pieces, banner, pennant, walls: town.walls ? wallPlan() : null };
+  return { faction: town.faction, ...(town.mirror ? { mirror: true as const } : {}), pieces, banner, pennant, walls: town.walls ? wallPlan() : null, fire: null };
 }
 
-/** A village: two humble huts and a woodpile, mirrored by the tile's turn. */
+/** The bonfire's ring of stones (its outer radius, world units), and the most a hut's eaves reach from its middle. */
+export const FIRE_RING = 2.6;
+export const HUT_REACH = 7.9;
+/** Where a village's bonfire burns (world units from the tile's middle, x mirrored by the turn): near the front edge, left of middle, low enough on screen that a unit standing in the middle (drawn over the terrain) does not cover it. */
+export const VILLAGE_FIRE_AT = { x: -6, z: 19.5 } as const;
+/** How far behind the middle a village's woodpile lies (world units, z): just clear of the middle square. */
+export const VILLAGE_PILE_Z = -10;
+
+/**
+ * A village: two humble huts, mirrored by the tile's turn, a woodpile in the open ground between them, and a
+ * bonfire at the front of the tile, where a unit standing in the middle does not hide it. Its stones clear both
+ * huts' eaves.
+ */
 export function villagePlan(v: number, turn: number, q: number, r: number): TownPlan {
   const m = turn % 2 === 0 ? 1 : -1;
   const s = (i: number): number => hash(q * 2.3 + i, r * 4.1 - i);
   const A: readonly [number, number, number, number][][] = [
-    [[-11, -5, 0.3, 1], [11, 6, -0.4, 0.88]],
-    [[-10, 5, 0.5, 0.92], [9, -7, -0.2, 1]],
-    [[-12, -2, 0.1, 1], [8, 9, -0.6, 0.85]],
-    [[-8, -9, 0.4, 0.95], [12, 3, -0.3, 0.9]],
+    [[-12, -5, 0.3, 1], [12, 6, -0.4, 0.88]],
+    [[-12, 5, 0.5, 0.92], [11, -7, -0.2, 1]],
+    [[-13, -2, 0.1, 1], [10, 9, -0.6, 0.85]],
+    [[-9, -10, 0.4, 0.95], [13, 3, -0.3, 0.9]],
   ];
   const pieces: TownPiece[] = A[v % 4]!.map(([x, z, rot, k], i) => ({ kind: 'hut', x: x * m, z, rot: rot * m, foot: 6.5 * k, h: 15 * k, seed: s(i) }));
-  pieces.push({ kind: 'woodpile', x: 2 * m, z: 13, rot: 0.2 * m, foot: 3, h: 3, seed: s(9) });
-  return { faction: null, pieces, banner: null, pennant: null, walls: null };
+  const [a, b] = [pieces[0]!, pieces[1]!];
+  // The woodpile lies between the huts, just behind the middle (the middle itself is kept clear for a unit's feet).
+  pieces.push({ kind: 'woodpile', x: (a.x + b.x) / 2, z: VILLAGE_PILE_Z, rot: 0.2 * m, foot: 3, h: 3, seed: s(9) });
+  return { faction: null, pieces, banner: null, pennant: null, walls: null, fire: { x: VILLAGE_FIRE_AT.x * m, z: VILLAGE_FIRE_AT.z } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -263,4 +280,63 @@ export function lanternFlicker(t: number, level: number, voice: 0 | 1 = 0): numb
 /** Whether a piece stands fully on the tile and clear of the square; for tests. */
 export function pieceFits(p: TownPiece): boolean {
   return edgeDist(p.x, p.z) >= p.foot * 0.75 && Math.hypot(p.x, p.z) >= SQUARE + p.foot * 0.5;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Lit windows
+
+/** A Spartan house's width and depth (town.ts shapes it; the windows' spill reads them too). */
+export const houseSize = (seed: number): { w: number; d: number } => ({ w: 7.6 + seed * 1.2, d: 6.8 });
+/** A columned hall's lit doorway: its width, and its front's z (town.ts spartanHall: the hall behind the columns). */
+export const hallDoor = (grand: boolean): { w: number; z: number } => ({ w: grand ? 3.4 : 2.6, z: -1.4 + ((grand ? 13 : 10) - 4.5) / 2 });
+/** A village hut's width and depth. */
+export const hutSize = (seed: number): { w: number; d: number } => ({ w: 8.2 + seed, d: 7.2 });
+/** A Mongol tent's radius: the great tent's, the hall's, a tall one's and a small one's (by its seed). */
+export const yurtRadius = (kind: TownKind, seed: number): number =>
+  kind === 'greatYurt' ? 8.6 : kind === 'yurtHall' ? 7 : kind === 'tallYurt' ? 4.6 : 4.3 + seed * 0.4;
+/** A tent has no windows: its door stands a hand ajar, a lit gap this far right of the door's middle (x its radius). */
+export const yurtGap = (r: number): number => (r > 6 ? 2.1 : 1.35);
+
+/**
+ * The light a building's lit windows throw on the ground in front of it, in the piece's own frame (its front faces
+ * +z): the middle of its lit windows across the front (x), the front's z, and how much light (a ground floor window
+ * 1, an upper one 0.6, a tower's high slits 0.8 together, a tent's door gap 0.8, a hall's doorway 1.4). Null for a
+ * piece without windows (a watchtower, a woodpile).
+ */
+export function pieceSpill(p: TownPiece, spartan: boolean): { x: number; z: number; weight: number } | null {
+  switch (p.kind) {
+    case 'house': { const { w, d } = houseSize(p.seed); return { x: w * 0.24, z: d / 2, weight: 1 }; }
+    case 'tall': {
+      const { w, d } = houseSize(p.seed);
+      return { x: (w * 0.24 + 0.6 * (-w * 0.2) + 0.6 * (w * 0.22)) / 2.2, z: d / 2, weight: 2.2 };
+    }
+    case 'hut': { const { w, d } = hutSize(p.seed); return { x: w * 0.25, z: d / 2, weight: 1 }; }
+    case 'hall': case 'grandHall': return { x: 0, z: hallDoor(p.kind === 'grandHall').z, weight: 1.4 };
+    case 'tower': return spartan ? { x: 0, z: 3.05, weight: 0.8 } : null;
+    case 'yurt': case 'tallYurt': case 'yurtHall': case 'greatYurt': {
+      const r = yurtRadius(p.kind, p.seed);
+      return { x: yurtGap(r), z: Math.sqrt(r * r - yurtGap(r) ** 2), weight: 0.8 };
+    }
+    default: return null;
+  }
+}
+
+/** The most window lights one tile throws (a city of level 6 and up has 7 houses and 2 towers round its hall). */
+export const MAX_SPILLS = 12;
+
+/**
+ * The lit windows' light on a city's or a village's ground (tile local, x and z), each where its building's front
+ * meets the ground under its windows, with the way the front faces (unit length) and how much light: at most
+ * MAX_SPILLS, the strongest first.
+ */
+export function townSpills(plan: TownPlan): { x: number; z: number; dx: number; dz: number; weight: number }[] {
+  const out: { x: number; z: number; dx: number; dz: number; weight: number }[] = [];
+  for (const p of plan.pieces) {
+    const s = pieceSpill(p, plan.faction === 'spartans');
+    if (s === null) continue;
+    // As town.ts Kit.done turns a piece: about the vertical by rot, then to its place.
+    const c = Math.cos(p.rot), n = Math.sin(p.rot);
+    out.push({ x: p.x + s.x * c + s.z * n, z: p.z - s.x * n + s.z * c, dx: n, dz: c, weight: s.weight });
+  }
+  return out.sort((a, b) => b.weight - a.weight).slice(0, MAX_SPILLS);
 }

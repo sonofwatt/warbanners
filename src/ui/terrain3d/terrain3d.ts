@@ -4,8 +4,8 @@
 // the board's rim and the figures' idle life are drawn on the units canvas, which alone redraws in the board's
 // ambient loop (ambient.ts), so the terrain itself is never redrawn for them.
 import {
-  BackSide, BufferGeometry, Color, ColorManagement, Float32BufferAttribute, LinearSRGBColorSpace, Mesh,
-  OrthographicCamera, Scene, ShaderMaterial, Vector3, WebGLRenderer,
+  BackSide, BufferGeometry, Color, ColorManagement, DataTexture, Float32BufferAttribute, FloatType, LinearSRGBColorSpace, Mesh,
+  NearestFilter, OrthographicCamera, RGBAFormat, Scene, ShaderMaterial, Vector3, Vector4, WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { HexKey } from '../../engine';
@@ -14,7 +14,9 @@ import type { TilePieces } from './build';
 import { tileCode } from './codes';
 import type { GlMap, GlTile } from './input';
 import { centre, COS_E, EDGE_NB, heightFn, parse, SQUASH, tileSetup } from './layout';
-import { groundFrag, groundVert, propFrag, propVert } from './shaders';
+import { groundFrag, groundVert, MAX_FIRES, propFrag, propVert } from './shaders';
+import { createBonfires } from './bonfires';
+import { createLampMask, hidesLampLight } from './lampMask';
 import { createFalls } from './falls';
 import { createBorders } from './borders';
 import { createLanterns } from './lanterns';
@@ -22,9 +24,11 @@ import { anyInView } from './fallsLayout';
 import { createUnits3d } from './units/units3d';
 import { createWheels } from './wheels';
 import { createChests } from './chests';
+import { createChestShine } from './chestShine';
 import { createSmoke } from './smoke';
 import { createFish, createSurface, frontOf } from './water';
-import { chestPlays, chestSpots } from './buildingLayout';
+import { chestPlays, chestSpots, fireSpots, windowSpills } from './buildingLayout';
+import { MAX_SPILLS } from './townLayout';
 import type { Units3d } from './units/units3d';
 import { createWeather } from './weather';
 import { skyLight } from './sky';
@@ -57,6 +61,10 @@ export interface Terrain3d {
   water(): { surface: number; fish: { tiles: number; fish: number; time: number; triangles: number; occluder: number } };
   /** The smoking chimneys on the map and the smoke's clock now, for tests. */
   smoke(): { count: number; time: number };
+  /** The village bonfires on the map, their flames' clock, each flicker voice now and the light they cast, for tests. */
+  bonfires(): { count: number; time: number; flicker: [number, number]; light: number };
+  /** Triangles of the built tiles' parts that hide the units' lantern light (0 without the figures' canvas). */
+  lampMask(): number;
   /**
    * Treasure claimed (the action's claim effects: the tile and its delay): each chest the map showed there opens, its
    * lid swinging back, then fades away. Nothing with reduced motion (`reduced`), or without the units canvas.
@@ -68,6 +76,8 @@ export interface Terrain3d {
   wheels(): { count: number; angle: number; triangles: number };
   /** The chests opening now, for tests. */
   opening(): { key: string; lid: number; alpha: number }[];
+  /** The shut chests that twinkle and each glint's brightness now (chestShine.ts), for tests. */
+  shine(): { chests: HexKey[]; shine: number[] };
   /** Triangles in the territory border mesh, for tests. */
   borderTriangles(): number;
   /** The 3D unit figures, or null when there is no units canvas or it has no WebGL 2 (the svg then draws the units). */
@@ -83,6 +93,19 @@ export interface Terrain3d {
   dispose(): void;
   /** Triangles and draw calls of the last frame, for tests and tuning. */
   stats(): { triangles: number; calls: number; tiles: number };
+}
+
+/** How much of a bonfire's light a figure beside it catches, against a hut's: a little, so it stays readable. */
+export const FIGURE_FIRE = 0.45;
+
+/** The lit windows' texture: MAX_SPILLS texels a row (x, z, and the front's facing times its light), read exactly. */
+function winTexture(data: Float32Array<ArrayBuffer>, rows: number): DataTexture {
+  const t = new DataTexture(data, MAX_SPILLS, rows, RGBAFormat, FloatType);
+  t.minFilter = NearestFilter;
+  t.magFilter = NearestFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
 }
 
 /** The highest device pixel ratio the terrain renders at: sharp on phones, without paying for 3x. */
@@ -122,11 +145,18 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uGlowBoost: { value: 1 },
     // The light on mist and smoke (1 by day), and how dark the figures' cast shadows are (units3d.ts).
     uAir: { value: new Color(1, 1, 1) }, uCast: { value: 0.42 },
+    // The village bonfires (shaders.ts FIRE_GLSL): where each burns (w 1 when lit), and how much light they cast now.
+    uFires: { value: Array.from({ length: MAX_FIRES }, () => new Vector4(0, 0, 0, 0)) }, uFireLight: { value: 0 },
+    // The lit windows' light on the ground (shaders.ts WINDOW_GLSL): a row per tile, a texel per building front.
+    uWinTex: { value: winTexture(new Float32Array(4 * MAX_SPILLS), 1) },
+    // How bright the units' lanterns burn (sky.ts windows: 0 by day); only the figures' canvas lights them.
+    uLantern: { value: 0 },
   };
   // The unit figures draw on a second canvas, above the tile svg (cities, villages and marks) and below the svg
   // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders,
   // but their own lighter grade and no snow or wet, so the figures stay readable at night and in any weather.
-  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 } };
+  // A figure near a bonfire catches a little of its light on the side toward it (FIGURE_FIRE of the huts' share).
+  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uFireLight: { value: 0 }, uLantern: { value: 0 } };
   const units = opts.units ? createUnits3d(opts.units, unitShared) : null;
   // The waterfalls go with the figures, whose canvas redraws on its own; without it they stand still on the terrain.
   const falls = createFalls(shared);
@@ -139,7 +169,13 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const wheels = createWheels(shared);
   // Chimney smoke (camps, mills, foundries) drifts on the same clock as the waterfalls' mist.
   const smoke = createSmoke(shared);
+  // The villages' bonfires: their flames and flickering glow move, so they go with the figures too.
+  const bonfires = createBonfires(shared, units !== null);
+  // The buildings hide the units' lantern light behind them (lampMask.ts), on the figures' canvas.
+  const lampMask = units ? createLampMask() : null;
   const chestsFx = units ? createChests(shared) : null;
+  // The shut chests twinkle on the figures' canvas; without it they keep their static sparkle only.
+  const shine = units ? createChestShine() : null;
   // water3d: the clear surface over the beds lies on the terrain; the fish swim on the figures' canvas, which redraws.
   const surface = createSurface(shared);
   const fish = createFish(shared, units !== null);
@@ -156,8 +192,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
   scene.add(ground, outline, props, surface.mesh, borders.group);
-  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, chestsFx!.group, fish.group, weather.group);
-  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group, fish.group, weather.group);
+  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, bonfires.group, chestsFx!.group, shine!.group, fish.group, weather.group, lampMask!.group);
+  else scene.add(falls.group, lanterns.group, wheels.group, smoke.group, bonfires.group, fish.group, weather.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
   const cache = new Map<string, TilePieces>();
@@ -209,7 +245,30 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
       }
     }
     fish.setMap(map, occluders);
+    // The bonfires: where each burns, for the light in the shaders, and the village's own parts, which hide the fire.
+    const fires = fireSpots(map);
+    shared.uFires.value.forEach((v, i) => {
+      const f = fires[i];
+      if (f === undefined) v.set(0, 0, 0, 0);
+      else v.set(f.x, f.y, f.z, 1);
+    });
+    const villages: BufferGeometry[] = [];
+    for (const f of fires) {
+      const g = cache.get(sigOf.get(f.key) ?? '')?.props;
+      if (g) villages.push(g);
+    }
+    bonfires.setMap(map, villages);
+    if (lampMask) {
+      const built: BufferGeometry[] = [];
+      for (const k of Object.keys(map.tiles).sort()) {
+        if (!hidesLampLight(map.tiles[k]!)) continue;
+        const g = cache.get(sigOf.get(k) ?? '')?.props;
+        if (g) built.push(g);
+      }
+      lampMask.setParts(built);
+    }
     weather.setMap(map);
+    setWindows(map);
     paintVeil();
     noteChests(map);
   }
@@ -231,12 +290,36 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     for (const k of next.keys()) chestsGone.delete(k);
     while (chestsGone.size > 16) chestsGone.delete(chestsGone.keys().next().value!);
     chestsNow = next;
+    shine?.setChests(next);
   }
   function chests(claims: readonly { at: HexKey; delay: number }[], nowMs: number, reduced: boolean): void {
     if (chestsFx === null) return;
     const spots = new Map([...chestsGone, ...chestsNow]);
     chestsFx.play(chestPlays(claims, spots, nowMs, reduced));
     for (const c of claims) chestsGone.delete(c.at);
+  }
+
+  // The lit windows: one texture row per city or village, and aWin on the ground's vertices (that row plus 1, 0 on
+  // every other tile), written as the veil is. Only remade when the map is.
+  let winSig = '';
+  let winRow = new Map<number, number>();
+  function setWindows(map: GlMap): void {
+    const spills = windowSpills(map);
+    const sig = spills.map((s) => `${s.key}:${s.lights.map((l) => `${l.x.toFixed(2)},${l.z.toFixed(2)},${l.weight}`).join(';')}`).join(' ');
+    if (sig !== winSig) {
+      winSig = sig;
+      const data = new Float32Array(4 * MAX_SPILLS * Math.max(1, spills.length));
+      spills.forEach((s, row) => s.lights.forEach((l, i) => data.set([l.x, l.z, l.dx * l.weight, l.dz * l.weight], 4 * (row * MAX_SPILLS + i))));
+      (shared.uWinTex.value as DataTexture).dispose();
+      shared.uWinTex.value = winTexture(data, Math.max(1, spills.length));
+      winRow = new Map(spills.map((s, row) => { const { q, r } = parse(s.key); return [hexId(q, r), row + 1]; }));
+    }
+    const geo = ground.geometry;
+    const hex = geo.attributes.aHex;
+    if (hex === undefined) return;
+    const arr = new Float32Array(hex.count);
+    if (winRow.size > 0) for (let i = 0; i < hex.count; i++) arr[i] = winRow.get(hexId(hex.getX(i), hex.getY(i))) ?? 0;
+    geo.setAttribute('aWin', new Float32BufferAttribute(arr, 1));
   }
 
   // The veil: aVeil on every vertex, 1 where its tile (aHex) is veiled. Rewritten in place, so no rebuild.
@@ -263,6 +346,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     lanterns.setVeil(veiled);
     wheels.setVeil(veiled);
     smoke.setVeil(veiled);
+    bonfires.setVeil(veiled);
+    shine?.setVeil(veiled);
     fish.setVeil(veiled);
   }
 
@@ -308,6 +393,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     chestsFx?.tick(nowMs);
     // The lanterns flicker on the wall clock, scaled by the level: at rest and under reduced motion they hold steady.
     lanterns.setTime(nowMs / 1000, level);
+    bonfires.setTime(flow, nowMs / 1000, level);
+    shine?.setTime(flow, level);
   }
   function animating(cam: TerrainCamera, vp: TerrainViewport): boolean {
     if (units === null) return false;
@@ -316,7 +403,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     if (weather.active()) return true; // rain, snow and clouds cover the whole board
     const hw = vp.w / 2 / cam.scale, hh = vp.h / 2 / cam.scale;
     const view = { x0: cam.cx - hw, x1: cam.cx + hw, y0: cam.cy - hh, y1: cam.cy + hh };
-    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view) || anyInView(smoke.boxes(), view) || anyInView(fish.boxes(), view);
+    return anyInView(falls.boxes(), view) || anyInView(lanterns.boxes(), view) || anyInView(wheels.boxes(), view) || anyInView(smoke.boxes(), view) || anyInView(bonfires.boxes(), view) || anyInView(fish.boxes(), view) || anyInView(shine?.boxes() ?? [], view);
   }
 
   // The match's weather and time of day: new light, grade and weather, no geometry rebuilt. Day and Clear are the
@@ -333,6 +420,10 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     setRgb(unitShared.uTint, sky.unitTint);
     shared.uGlowBoost.value = sky.glow;
     shared.uWindows.value = sky.windows;
+    shared.uFireLight.value = sky.fire;
+    unitShared.uFireLight.value = sky.fire * FIGURE_FIRE;
+    unitShared.uLantern.value = sky.windows;
+    bonfires.setLight(sky.fire);
     setRgb(shared.uAir, sky.air);
     shared.uCast.value = sky.cast;
     shared.uSnow.value = look.weather === 'snow' ? 1 : 0;
@@ -347,15 +438,19 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     lanterns.dispose();
     wheels.dispose();
     smoke.dispose();
+    bonfires.dispose();
+    lampMask?.dispose();
     surface.dispose();
     fish.dispose();
     chestsFx?.dispose();
+    shine?.dispose();
     units?.dispose();
     for (const p of cache.values()) { p.ground.dispose(); p.props?.dispose(); }
     cache.clear();
     ground.geometry.dispose();
     props.geometry.dispose();
     groundMat.dispose(); propMat.dispose(); outlineMat.dispose();
+    (shared.uWinTex.value as DataTexture).dispose();
     renderer.dispose();
     renderer.forceContextLoss();
   }
@@ -365,10 +460,13 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     setLook, look: () => { const w = weather.stats(); return { ...lookNow, particles: w.particles, triangles: w.triangles, clock: w.time }; },
     lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow(), tunnel: lanterns.tunnel() }),
     smoke: () => ({ count: smoke.count(), time: smoke.time() }),
+    bonfires: () => ({ count: bonfires.count(), ...bonfires.state() }),
+    lampMask: () => lampMask?.triangles() ?? 0,
     water: () => ({ surface: surface.triangles(), fish: fish.stats() }),
     chests, playing: (nowMs) => chestsFx?.playing(nowMs) === true,
     wheels: () => ({ count: wheels.count(), angle: wheels.angle(), triangles: wheels.triangles() }),
     opening: () => chestsFx?.state() ?? [],
+    shine: () => shine?.state() ?? { chests: [], shine: [] },
     borderTriangles: () => borders.triangles(),
     stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, tiles: tileCount }),
   };

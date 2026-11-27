@@ -17,7 +17,7 @@ import { versionLine } from '../Version';
 import { Menu } from './Menu';
 import { RewardSheet } from './RewardSheet';
 import { TechSheet } from './TechSheet';
-import { TilePanel } from './TilePanel';
+import { TilePanel, tileTitle } from './TilePanel';
 import { UnitPanel, rangeCauseOf } from './UnitPanel';
 import { shownState } from '../interaction';
 import { aiInputFor, believedState } from '../../ai/input';
@@ -121,6 +121,33 @@ test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
   expect(html).toContain('Mountain'); expect(html).toContain('Ore');
 });
+test('a tile with an unclaimed village is called a Village, pictured with its huts, and keeps its real terrain', () => {
+  const html = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} village commands={[]} onCommand={noop} />);
+  const title = html.slice(html.indexOf('class="card-title"'));
+  expect(title).toMatch(/^[^<]*<[^>]*>[^<]*Village/);
+  // Terrain still says Field; the Building box says Village, not None.
+  expect(html).toMatch(/Terrain<\/[^>]+>\s*<[^>]+>Field</);
+  expect(html).toMatch(/Building<\/[^>]+>\s*<[^>]+>Village</);
+  expect(html).not.toMatch(/Building<\/[^>]+>\s*<[^>]+>None</);
+  // The picture draws the village (its bonfire is part of the art), not a bare field.
+  const plain = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
+  const pic = (h: string): string => h.slice(h.indexOf('<svg class="picture"'), h.indexOf('</svg>'));
+  expect(pic(html)).not.toBe(pic(plain));
+  expect(pic(html)).toContain('data-bonfire');
+});
+test('a tile with a treasure chest is called a Treasure chest, pictured with it, and its Resource box says Chest', () => {
+  const html = renderToStaticMarkup(<TilePanel terrain="forest" resource={null} building={null} road={false} treasure commands={[]} onCommand={noop} />);
+  expect(tileTitle({ terrain: 'forest', building: null, treasure: true })).toBe(T.ui.treasureChest);
+  expect(html).toContain(`>${T.ui.treasureChest}<`);
+  expect(html).toMatch(/Terrain<\/[^>]+>\s*<[^>]+>Forest</);
+  expect(html).toMatch(new RegExp(`Resource<\\/[^>]+>\\s*<[^>]+>${T.ui.chest}<`));
+  expect(html).toContain('data-treasure="centre"');
+});
+test('a plain tile, or one with a building, is still called by its terrain', () => {
+  expect(tileTitle({ terrain: 'field', building: null })).toBe('Field');
+  expect(tileTitle({ terrain: 'forest', building: 'lumberCamp' })).toBe('Forest');
+  expect(tileTitle({ terrain: 'field', building: null, village: false, treasure: false })).toBe('Field');
+});
 test('rules 8: the tile panel says a resource was harvested and can still be built on', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="field" resource="orchard" building={null} road={false} harvested commands={[]} onCommand={noop} />);
   expect(html).toContain(`${T.resource.orchard} (${T.ui.harvestedTag})`); expect(html).toContain(T.ui.harvestedBlurb);
@@ -194,6 +221,19 @@ test('the digest card shows six lines and counts the rest', () => {
   const lines: DigestLine[] = Array.from({ length: 8 }, () => ({ kind: 'cityLost', at: '0,0' }));
   const html = renderToStaticMarkup(<DigestCard lines={lines} />);
   expect(html.match(/<li>/g)).toHaveLength(6); expect(html.match(/data-testid="digest-line"/g)).toHaveLength(6); expect(html).toContain('and 2 more');
+});
+test('a digest line where one of our units was killed starts with a skull and crossbones; no other line has one', () => {
+  const lines: DigestLine[] = [
+    { kind: 'unitLost', unitType: 'warrior', by: 'archer', at: '0,0' },
+    { kind: 'unitHurt', unitType: 'warrior', damage: 3, by: null, at: '0,0' },
+    { kind: 'unitLost', unitType: 'scout', by: null, at: '1,0' },
+    { kind: 'cityLost', at: '2,0' },
+  ];
+  const html = renderToStaticMarkup(<DigestCard lines={lines} />);
+  const items = html.split('<li>').slice(1);
+  expect(items.map((li) => li.includes('data-testid="digest-skull"'))).toEqual([true, false, true, false]);
+  // Decoration only: hidden from screen readers, which read the line's own words.
+  expect(html.match(/<svg[^>]*aria-hidden="true"/g)).toHaveLength(2);
 });
 test('an own city under blockade shows the gold it will lose; one that is not shows no such line', () => {
   const html = renderToStaticMarkup(<CityPanel level={3} walls={false} income={4} blockade={2} commands={[]} onCommand={noop} />);

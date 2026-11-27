@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Figure turntable</title>
+<style>
+  html, body { margin: 0; background: #6f8f4e; font: 600 13px system-ui, sans-serif; color: #1b2414; }
+  #wrap { position: relative; }
+  canvas { position: absolute; left: 0; top: 0; }
+  .label { position: absolute; transform: translate(-50%, 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="ground"></canvas><canvas id="units"></canvas></div>
+<script type="module" src="./sheet.ts"></script>
+</body>
+</html>

@@ -14,7 +14,8 @@ export interface SkyLight {
   tint: Rgb; // a grade multiplied in last, over the terrain and the props
   unitTint: Rgb; // the same grade for the unit figures, lighter so they stay readable
   glow: number; // lanterns, furnaces and city windows: 1 by day, brighter in the dark
-  windows: number; // how much the city windows light up (0 by day)
+  windows: number; // how much the windows light up and light the ground (0 by day): the bonfires' night factor, fire
+  fire: number; // how much light the village bonfires cast round them (0 by day, 1 at night)
   sea: string; // the sea beyond the board's edge (the slot's background)
   cast: number; // how dark the figures' cast shadows are (units3d.ts): clear by day 0.42, faint at night
   air: Rgb; // the light on mist and smoke, relative to the day's: exactly 1 by day in clear weather
@@ -25,22 +26,22 @@ type TimeLight = Omit<SkyLight, 'air'>;
 const TIMES: Record<TimeOfDay, TimeLight> = {
   day: {
     dir: [-0.55, 0.8, 0.28], light: [1.05, 1.02, 0.96], shadow: [0.68, 0.70, 0.80], tint: [1, 1, 1], unitTint: [1, 1, 1],
-    glow: 1, windows: 0, sea: '#3E80AE', cast: 0.42,
+    glow: 1, windows: 0, fire: 0, sea: '#3E80AE', cast: 0.42,
   },
   // The warm middle of a dawn (daylight.ts WARM): low warm light from the left (the east), pink in the shade.
   dawn: {
     dir: [-0.9, 0.36, 0.42], light: [1.14, 0.92, 0.78], shadow: [0.60, 0.56, 0.72], tint: [1.0, 0.94, 0.93], unitTint: [1.0, 0.97, 0.96],
-    glow: 1.15, windows: 0.25, sea: '#4D7AA6', cast: 0.42,
+    glow: 1.15, windows: 0.5, fire: 0.5, sea: '#4D7AA6', cast: 0.42,
   },
   // The warm middle of a dusk: low orange light from the right (the west), violet shade.
   dusk: {
     dir: [0.88, 0.34, 0.36], light: [1.16, 0.82, 0.58], shadow: [0.52, 0.46, 0.64], tint: [0.96, 0.87, 0.86], unitTint: [1.0, 0.94, 0.92],
-    glow: 1.35, windows: 0.6, sea: '#3D5F8E', cast: 0.4,
+    glow: 1.35, windows: 0.62, fire: 0.62, sea: '#3D5F8E', cast: 0.4,
   },
   // A cool moon high on the left; the lit windows, lanterns and furnaces carry the warmth.
   night: {
     dir: [-0.35, 0.86, 0.38], light: [0.70, 0.78, 1.0], shadow: [0.36, 0.42, 0.62], tint: [0.56, 0.64, 0.90], unitTint: [0.86, 0.89, 1.0],
-    glow: 1.9, windows: 1, sea: '#18284A', cast: 0.2,
+    glow: 1.9, windows: 1, fire: 1, sea: '#18284A', cast: 0.2,
   },
 };
 
@@ -54,7 +55,7 @@ const SUN_LOW_DIR: Record<'dawn' | 'dusk', readonly [number, number, number]> = 
 function blend(a: TimeLight, b: TimeLight, t: number): TimeLight {
   return {
     dir: a.dir, light: lerp3(a.light, b.light, t), shadow: lerp3(a.shadow, b.shadow, t), tint: lerp3(a.tint, b.tint, t),
-    unitTint: lerp3(a.unitTint, b.unitTint, t), glow: lerp(a.glow, b.glow, t), windows: lerp(a.windows, b.windows, t),
+    unitTint: lerp3(a.unitTint, b.unitTint, t), glow: lerp(a.glow, b.glow, t), windows: lerp(a.windows, b.windows, t), fire: lerp(a.fire, b.fire, t),
     sea: lerpHex(a.sea, b.sea, t), cast: lerp(a.cast, b.cast, t),
   };
 }

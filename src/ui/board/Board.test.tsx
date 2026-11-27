@@ -207,6 +207,23 @@ test('a treasure under a unit is drawn beside the figure, so the unit never hide
   expect(under).not.toContain('data-treasure="centre"');
 });
 
+test('a shut chest twinkles where it is drawn, over the grade; a claimed chest is gone and twinkles no more', () => {
+  const view = structuredClone(playerView(s, 0));
+  const k = '-1,4';                                         // explored, not a city, field
+  view.tiles[k]!.treasure = true;
+  const alone = tileMarkup(draw({ view }), k);
+  expect((alone.match(/class="chest-twinkle"/g) ?? []).length).toBe(3);
+  // Beside a unit the glints go with the chest.
+  view.units[0]!.pos = k;
+  const under = tileMarkup(draw({ view }), k);
+  expect(under).toContain('<g transform="translate(17 1) scale(0.75)"><g data-twinkle="true"');
+  // Each glint at its own pace.
+  const delays = [...alone.matchAll(/animation-delay:(-?[\d.]+)s/g)].map((m) => m[1]);
+  expect(new Set(delays).size).toBe(3);
+  view.tiles[k]!.treasure = false;
+  expect(tileMarkup(draw({ view }), k)).not.toContain('data-twinkle');
+});
+
 /** The markup of one unit's group. */
 function unitMarkup(html: string, id: number): string {
   return groupAt(html, html.lastIndexOf('<g', html.indexOf(`data-unit="${id}"`)));
@@ -260,6 +277,27 @@ test('a ready tile glows gold under its selection mark, and only ready tiles glo
   expect(draw()).not.toContain('data-ready');
 });
 
+test('after dark a city\'s windows light up over the grade, and every unit, the Scout included, has a lantern glow at its feet', () => {
+  const view = structuredClone(playerView(s, 0));
+  const city = '-2,5';
+  const at = (look?: { weather: 'clear'; time: 'day' | 'dawn' | 'dusk' | 'night' }, round = 1): string => renderToStaticMarkup(
+    <Board items={buildScene(input({ view }))} radius={6} factions={['spartans', 'mongols']} focus="-2,5" onTap={() => {}} look={look} round={round} />,
+  );
+  expect(tileMarkup(at(), city)).not.toContain('data-city-lights');
+  const night = tileMarkup(at({ weather: 'clear', time: 'night' }), city);
+  expect(night).toContain('data-city-lights="1.00"');
+  expect(night.indexOf('data-city-lights')).toBeGreaterThan(night.lastIndexOf('class="grade"'));
+  const dusk = Number(tileMarkup(at({ weather: 'clear', time: 'dusk' }, 20), city).match(/data-city-lights="([\d.]+)"/)![1]);
+  expect(dusk).toBeGreaterThan(0.3); expect(dusk).toBeLessThan(1);
+  // The units: the Scout carries a lantern like every other unit; a warrior too, lit only after dark.
+  const me = view.units[0]!;
+  expect(me.type).toBe('scout');
+  expect(unitMarkup(at({ weather: 'clear', time: 'night' }), me.id)).toContain('data-lantern-glow="1.00"');
+  view.units[0] = { ...me, type: 'warrior' };
+  expect(unitMarkup(at({ weather: 'clear', time: 'night' }), me.id)).toContain('data-lantern-glow="1.00"');
+  expect(unitMarkup(at(), me.id)).not.toContain('data-lantern-glow');
+});
+
 test('a hunkered unit crouches in the svg look and keeps its hunker mark; a plain one stands', () => {
   const view = structuredClone(playerView(s, 0));
   const me = view.units[0]!;
@@ -273,4 +311,32 @@ test('a hunkered unit crouches in the svg look and keeps its hunker mark; a plai
   // The banner and its mark stay outside the crouch: only the figure sinks.
   const crouch = groupAt(html, html.indexOf('<g class="unit-crouch hunkered"'));
   expect(crouch).not.toContain('data-hunker-mark');
+  // The banner drops with the head instead: it is placed behind the crouched head.
+  const place = (m: string): string => /data-banner-place="svg" style="transform:([^"]*)"/.exec(m)![1]!;
+  expect(place(html)).not.toBe(place(standing));
+  expect(groupAt(html, html.lastIndexOf('<g', html.indexOf('data-banner-place')))).toContain('data-hunker-mark');
+});
+
+test('a village\'s bonfire lights the svg board after dark: a warm glow over the grade at night, weaker at dawn, none by day', () => {
+  const view = structuredClone(playerView(s, 0));
+  const k = s.players[0]!.explored.find((x) => view.tiles[x]?.terrain === 'field' && view.tiles[x]?.cityId === null && !s.units.some((u) => u.pos === x))!;
+  view.tiles[k] = { ...view.tiles[k]!, village: true, resource: null, building: null, treasure: false };
+  const at = (look?: { weather: 'clear'; time: 'day' | 'dawn' | 'dusk' | 'night' }, round = 1): string => tileMarkup(renderToStaticMarkup(
+    <Board items={buildScene(input({ view }))} radius={6} factions={['spartans', 'mongols']} focus="-2,5" onTap={() => {}} look={look} round={round} />,
+  ), k);
+  const day = at();
+  expect(day).toContain('data-bonfire="true"');
+  expect(day).not.toContain('data-fire-glow');
+  const night = at({ weather: 'clear', time: 'night' });
+  expect(night).toContain('data-fire-glow="1.00"');
+  // The glow is drawn after the grade, so the grade never darkens it.
+  expect(night.indexOf('data-fire-glow')).toBeGreaterThan(night.lastIndexOf('class="grade"'));
+  const dawn = Number(at({ weather: 'clear', time: 'dawn' }, 15).match(/data-fire-glow="([\d.]+)"/)![1]);
+  expect(dawn).toBeGreaterThan(0.3); expect(dawn).toBeLessThan(0.9);
+  expect(at({ weather: 'clear', time: 'dawn' }, 30)).not.toContain('data-fire-glow');
+  // A plain field has no fire to light it.
+  const plain = s.players[0]!.explored.find((x) => x !== k && view.tiles[x]?.terrain === 'field' && !view.tiles[x]?.village && view.tiles[x]?.cityId === null)!;
+  expect(tileMarkup(renderToStaticMarkup(
+    <Board items={buildScene(input({ view }))} radius={6} factions={['spartans', 'mongols']} focus="-2,5" onTap={() => {}} look={{ weather: 'clear', time: 'night' }} />,
+  ), plain)).not.toContain('data-fire-glow');
 });

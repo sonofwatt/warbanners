@@ -2,7 +2,8 @@ import { describe, expect, test, vi } from 'vitest';
 import { UNITS } from '../../../engine';
 import type { UnitTypeId } from '../../../engine';
 import type { Group } from 'three';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
+import type { Mesh } from 'three';
 import type { GlUnit } from '../unitsInput';
 
 // The units renderer without a GPU: three.js runs for real except the WebGLRenderer, which is a stand-in that
@@ -114,11 +115,24 @@ describe('the 3D unit figures', () => {
     expect(t.pieces.arm!.pivot).toEqual(t.pieces.stone!.pivot);
     expect(Math.hypot(...t.pieces.arm!.axis)).toBeCloseTo(1, 5);
     const knight = buildFigure('knight', { look: RED, wear: CLEAN }).pieces;
-    expect(Object.keys(knight).sort()).toEqual(['legs', 'neck', 'rider', 'weapon']);
-    // The lance is carried by the rider, who hunches over the horse's neck in a crouch.
+    expect(Object.keys(knight).sort()).toEqual(['legs', 'neck', 'rider', 'spearArm', 'weapon']);
+    // The lance and the arm that couches it are carried by the rider, who hunches over the horse's neck in a crouch.
     expect(knight.weapon!.parent).toBe('rider');
+    expect(knight.spearArm!.parent).toBe('rider');
     expect(knight.rider!.parent).toBeNull();
-    expect(Object.keys(buildFigure('hoplite', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'weapon']);
+    expect(Object.keys(buildFigure('hoplite', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['feet', 'legs', 'shield', 'spearArm', 'weapon']);
+    // Every spear and lance knows its own line and has an arm whose hand is on its grip; nothing else does.
+    for (const t of ALL_TYPES) {
+      const pcs = buildFigure(t, { look: RED, wear: CLEAN }).pieces;
+      const spear = ['spearman', 'hoplite', 'kingsGuard', 'horseman', 'knight'].includes(t);
+      expect(pcs.weapon?.shaft != null, t).toBe(spear);
+      expect(pcs.spearArm !== undefined, t).toBe(spear);
+      if (spear) {
+        expect(Math.hypot(...pcs.weapon!.shaft!)).toBeCloseTo(1, 6);
+        const [hx, hy, hz] = pcs.spearArm!.hand!, [px, py, pz] = pcs.weapon!.pivot;
+        expect(Math.hypot(hx - px, hy - py, hz - pz), `${t}: the hand is on the grip`).toBeLessThan(1);
+      }
+    }
     expect(Object.keys(buildFigure('piper', { look: RED, wear: CLEAN }).pieces).sort()).toEqual(['feet', 'legs']);
     const sw = buildFigure('swordsman', { look: RED, wear: CLEAN }).pieces;
     expect([sw.weapon!.parent, sw.weapon2!.parent]).toEqual(['armR', 'armL']);
@@ -270,6 +284,106 @@ describe('the 3D unit figures', () => {
       u.tick(1000, 0);
       expect(turnOf(sword)).toBeLessThan(1e-6);
       expect(u.turning(1000)).toBe(false);
+    });
+
+    /** The innermost group of a piece, whose space is the figure's as built (under an arm's stretch). */
+    const innerOf = (g: Group): Group => { let o = g; while (o.children[0] !== undefined && !(o.children[0] as Mesh).isMesh) o = o.children[0] as Group; return o; };
+    /** A spear's point, its grip and its holding hand in world space, and its line, from the built figure. */
+    const spearOf = (type: GlUnit['type'], g: Group) => {
+      const pcs = buildFigure(type, { look: RED, wear: CLEAN }).pieces;
+      const w = pcs.weapon!, arm = pcs.spearArm!;
+      const shaft = new Vector3(...w.shaft!);
+      const grip = new Vector3(...w.pivot);
+      const tip = grip.clone().addScaledVector(shaft, 30);
+      return (): { tip: Vector3; grip: Vector3; hand: Vector3; line: Vector3; tipIn: Vector3; lineIn: Vector3 } => {
+        g.updateMatrixWorld(true);
+        const wi = innerOf(pieceOf(g, 'weapon')), ai = innerOf(pieceOf(g, 'spearArm'));
+        const t = wi.localToWorld(tip.clone()), gr = wi.localToWorld(grip.clone());
+        // What carries the spear: the body on foot, the rider (who hunches over it) mounted.
+        const carrier = pieceOf(g, 'weapon').parent!;
+        const tipIn = carrier.worldToLocal(t.clone());
+        return {
+          tip: t, grip: gr, hand: ai.localToWorld(new Vector3(...arm.hand!)), line: t.clone().sub(gr).normalize(),
+          tipIn, lineIn: tipIn.clone().sub(carrier.worldToLocal(gr.clone())).normalize(),
+        };
+      };
+    };
+    const NEIGHBOURS: [number, number][] = [[52, 0], [-52, 0], [26, 45 * SQUASH], [-26, 45 * SQUASH], [26, -45 * SQUASH], [-26, -45 * SQUASH]];
+
+    test('a spear jab: levelled and drawn back, driven straight out along its own line, held, and back to rest', () => {
+      for (const type of ['spearman', 'hoplite', 'kingsGuard', 'horseman', 'knight'] as const) {
+        const u = make();
+        u.setUnits([unit(1, { type, x: 0, y: 0 }), unit(2, { x: 52, y: 0, look: BLUE })], 0);
+        const [a] = figures(u) as [Group];
+        const at = spearOf(type, a);
+        u.tick(0, 0);
+        const rest = at();
+        u.aim(1, 52, 0, 0, 0);
+        u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: false }], 0);
+        u.tick(68, 0);
+        const wound = at();
+        u.tick(100, 0);
+        const driving = at();
+        u.tick(135, 0);
+        const hit = at();
+        u.tick(180, 0);
+        const held = at();
+        // Seen from what carries it (so the lean, the step and a rider's hunch aside), the point moves only along the
+        // spear's own line, and the line does not turn.
+        expect(hit.tipIn.clone().sub(wound.tipIn).normalize().dot(hit.lineIn), `${type}: straight along the shaft`).toBeGreaterThan(0.9999);
+        expect(driving.tipIn.clone().sub(wound.tipIn).normalize().dot(hit.lineIn), `${type}: all the way`).toBeGreaterThan(0.9999);
+        expect(wound.lineIn.dot(hit.lineIn)).toBeGreaterThan(0.9999);
+        // It reaches out toward the target, much farther than at rest and than drawn back.
+        expect(Math.abs(hit.line.y), `${type}: about level`).toBeLessThan(0.35);
+        expect(hit.tip.x - wound.tip.x, `${type}: a long thrust`).toBeGreaterThan(type === 'horseman' || type === 'knight' ? 5 : 9);
+        expect(hit.tip.x - rest.tip.x, `${type}: farther than at rest`).toBeGreaterThan(15);
+        expect(held.tip.distanceTo(hit.tip), `${type}: held at full reach`).toBeLessThan(2.5);
+        // The hand stays on the grip all the way.
+        for (const f of [wound, driving, hit, held]) expect(f.hand.distanceTo(f.grip), `${type}: hand on the grip`).toBeLessThan(1.2);
+        u.tick(1000, 0);
+        const after = at();
+        // Back to rest, facing its target: the spear as built, the arm unstretched.
+        expect(pieceOf(a, 'weapon').quaternion.angleTo(new Quaternion()), `${type}: the spear is back upright`).toBeLessThan(1e-6);
+        expect((pieceOf(a, 'spearArm').children[0] as Group).scale.x, `${type}: the arm is back`).toBeCloseTo(1, 9);
+        expect(after.hand.distanceTo(after.grip)).toBeLessThan(1.2);
+        expect(u.turning(1000)).toBe(false);
+      }
+    });
+
+    test('the jab points at its target in every direction, foot and mounted', () => {
+      for (const type of ['hoplite', 'knight'] as const) for (const [dx, dy] of NEIGHBOURS) {
+        const u = make();
+        u.setUnits([unit(1, { type, x: 0, y: 0 }), unit(2, { x: dx, y: dy, look: BLUE })], 0);
+        const [a] = figures(u) as [Group];
+        const at = spearOf(type, a);
+        u.aim(1, dx, dy, 0, 0);
+        u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: dx, y: dy }, delay: 0, survives: true, counter: false }], 0);
+        u.tick(68, 0);
+        const wound = at();
+        u.tick(135, 0);
+        const hit = at();
+        // On the ground, the target lies along (dx, dy / SQUASH).
+        const aim = new Vector3(dx, 0, dy / SQUASH).normalize();
+        const flat = new Vector3(hit.line.x, 0, hit.line.z).normalize();
+        expect(flat.dot(aim), `${type} toward ${dx},${dy}: the spear points at it`).toBeGreaterThan(Math.cos(0.3));
+        expect(hit.tip.clone().sub(wound.tip).dot(aim), `${type} toward ${dx},${dy}: driven at it`).toBeGreaterThan(5);
+      }
+    });
+
+    test('a hunkered spearman jabs from his crouch: the spear comes down into his hand, and he settles back after', () => {
+      const u = make();
+      u.setUnits([unit(1, { type: 'spearman', x: 0, y: 0, hunkered: true }), unit(2, { x: 52, y: 0, look: BLUE })], 0);
+      const [a] = figures(u) as [Group];
+      const at = spearOf('spearman', a);
+      u.tick(100, 0);
+      const guard = pieceOf(a, 'weapon').position.clone();
+      u.strikes([{ unit: 1, target: 2, from: { x: 0, y: 0 }, to: { x: 52, y: 0 }, delay: 0, survives: true, counter: false }], 200);
+      u.tick(200 + 135, 0);
+      const hit = at();
+      expect(hit.hand.distanceTo(hit.grip), 'hand on the grip').toBeLessThan(1.2);
+      expect(Math.abs(hit.line.y)).toBeLessThan(0.35);
+      u.tick(1400, 0);
+      expect(pieceOf(a, 'weapon').position.distanceTo(guard), 'back in its guard').toBeLessThan(1e-6);
     });
 
     test('a defender without a shield flinches away from the blow; one that dies does not react', () => {

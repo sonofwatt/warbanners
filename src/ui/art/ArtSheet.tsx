@@ -14,7 +14,7 @@ import { Border, Highlight, ReadyGlow, TileBase, Veil } from './tiles';
 import type { Mark } from './tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from './hero';
 import { SHARED_FIGURES } from './units';
-import { WarBanner } from './banner';
+import { BannerPlace, WarBanner } from './banner';
 import type { SharedFigure } from './units';
 import { ACCENT } from './palette';
 
@@ -198,17 +198,23 @@ export function ArtSheet(): ReactElement {
           ] as const
         ).map(([label, s]) => (
           <Cell key={label} label={label} ground="grass" tall>
-            {SHARED_FIGURES.spearman({ colour: playerColour('spartans'), accent: ACCENT.spartans })}
-            <WarBanner type="spearman" colour={playerColour('spartans')} spent={false} fresh={false} taunted={false} blinded={false} {...s} />
+            <g className={'hunkered' in s ? 'unit-crouch hunkered' : 'unit-crouch'}>{SHARED_FIGURES.spearman({ colour: playerColour('spartans'), accent: ACCENT.spartans })}</g>
+            <BannerPlace type="spearman" maxHp={s.maxHp} look="svg" hunkered={'hunkered' in s}>
+              <WarBanner type="spearman" colour={playerColour('spartans')} spent={false} fresh={false} taunted={false} blinded={false} {...s} />
+            </BannerPlace>
           </Cell>
         ))}
         <Cell label="spent (darker)" ground="grass" tall>
           <g className="unit-shade spent">{SHARED_FIGURES.archer({ colour: playerColour('mongols'), accent: ACCENT.mongols })}</g>
-          <WarBanner type="archer" colour={playerColour('mongols')} hp={10} maxHp={10} spent fresh={false} taunted={false} blinded={false} />
+          <BannerPlace type="archer" maxHp={10} look="svg">
+            <WarBanner type="archer" colour={playerColour('mongols')} hp={10} maxHp={10} spent fresh={false} taunted={false} blinded={false} />
+          </BannerPlace>
         </Cell>
         <Cell label="hidden (own scout)" ground="grass" tall>
           {FIGURES.scout({ colour: playerColour('spartans'), accent: ACCENT.spartans })}
-          <WarBanner type="scout" colour={playerColour('spartans')} hp={5} maxHp={5} spent={false} fresh={false} taunted={false} blinded={false} hidden />
+          <BannerPlace type="scout" maxHp={5} hidden look="svg">
+            <WarBanner type="scout" colour={playerColour('spartans')} hp={5} maxHp={5} spent={false} fresh={false} taunted={false} blinded={false} hidden />
+          </BannerPlace>
         </Cell>
       </Section>
       <Section title="Heroes and treasures">
@@ -231,8 +237,10 @@ export function ArtSheet(): ReactElement {
             <Cell key={`${label}${f}`} label={label} ground="grass" tall>
               {'hero' in o ? <HeroMark accent={ACCENT[f]} /> : null}
               {FIGURES[id]({ colour: playerColour(f), accent: ACCENT[f] })}
-              <WarBanner type={id} colour={playerColour(f)} hero={'hero' in o} hp={hp} maxHp={hp} spent={false} fresh={fresh} taunted={false} blinded={false} />
-              {'item' in o ? <g transform={`translate(${itemBadgeX(hp, fresh)} 0)`}><ItemBadge item="draught" /></g> : null}
+              <BannerPlace type={id} maxHp={hp} look="svg">
+                <WarBanner type={id} colour={playerColour(f)} hero={'hero' in o} hp={hp} maxHp={hp} spent={false} fresh={fresh} taunted={false} blinded={false} />
+                {'item' in o ? <g transform={`translate(${itemBadgeX(hp, fresh)} 0)`}><ItemBadge item="draught" /></g> : null}
+              </BannerPlace>
             </Cell>
           );
         })}

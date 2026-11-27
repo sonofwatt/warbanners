@@ -6,15 +6,21 @@
 // materials are shared by all. Units are rebuilt only when the scene's units change; a move or a lunge only moves
 // a unit's group for the frames it plays.
 import {
-  BackSide, CircleGeometry, CustomBlending, DoubleSide, Group, LinearSRGBColorSpace, MaxEquation, Mesh, MeshBasicMaterial,
-  OrthographicCamera, Quaternion, Scene, ShaderMaterial, Vector3, WebGLRenderer,
+  BackSide, BoxGeometry, BufferGeometry, CircleGeometry, ConeGeometry, CustomBlending, DoubleSide, Float32BufferAttribute, Group,
+  LinearSRGBColorSpace, MaxEquation, Mesh, MeshBasicMaterial, OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, Quaternion, Scene,
+  ShaderMaterial, SrcAlphaFactor, Vector3, Vector4, WebGLRenderer,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { coloured } from '../geom';
+import { LAMP_REACH, LANTERN_GLSL, lampShape, lanternHang } from './lantern';
 import { castShadow } from '../daylight';
 import type { Material } from 'three';
 import type { GlUnit } from '../unitsInput';
 import { COS_E, R, SQ3, SQUASH } from '../layout';
-import { propFrag, propVert } from '../shaders';
-import { ARM, ARROW, buildFigure, SHIELD, STONE_PIECE, WEAPON, WEAPON2 } from './figures';
+// After layout.ts: layout, buildingLayout and townLayout import one another, and must load from layout.
+import { lanternFlicker } from '../townLayout';
+import { LANTERN_GLASS, MAX_LAMPS, propFrag, propVert } from '../shaders';
+import { ARM, ARROW, buildFigure, RIDER, SHIELD, SPEAR_ARM, STONE_PIECE, WEAPON, WEAPON2 } from './figures';
 import type { Figure } from './figures';
 import { CLEAN } from './parts';
 import { armSwing, idleKind, idlePose, settleWeight, stoneLoaded } from './idle';
@@ -23,8 +29,8 @@ import { AIM_TURN_MS, aimYaw, facingBusy, facingYaw, frontsOf, heldAt, moveYaw, 
 import type { Facing as Face } from './facing';
 import { gaitKind, gaitPose, gaitWeight } from './gait';
 import type { GaitKind } from './gait';
-import { exchange, REACT_MS, reactPose, strikePose } from './strike';
-import type { ReactKind, StrikeKind } from './strike';
+import { exchange, levelTurn, REACT_MS, reactPose, strikePose } from './strike';
+import type { ReactKind, StrikeKind, StrikePose } from './strike';
 import { CROUCH_MS, crouchAt, crouchBusy, crouchNow, crouchTo, guardOf } from './crouch';
 import { SHADE_MS, SHADE_STEPS, shadeStep } from './shade';
 import type { Crouch, Guard } from './crouch';
@@ -93,7 +99,8 @@ export interface Units3d {
   readonly extras: Group;
   draw(cam: UnitsCamera, vp: UnitsViewport, dpr: number): void;
   dispose(): void;
-  stats(): { triangles: number; calls: number; units: number; looks: number; falls: number; shades: number };
+  /** `lamps`: the lanterns lit in the last frame drawn (their pools are one draw call). */
+  stats(): { triangles: number; calls: number; units: number; looks: number; falls: number; shades: number; lamps: number };
 }
 
 /** The figures' hull, a little thinner than the terrain's (0.55), as the figures are small. */
@@ -101,17 +108,91 @@ const UNIT_OUTLINE = 0.5;
 /** The soft blob under a figure: black at 18 percent, as the svg Shadow. */
 const SHADOW_ALPHA = 0.18;
 
-const lookKey = (type: string, look: GlUnit['look'], hero: boolean): string => `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}`;
+const lookKey = (type: string, look: GlUnit['look'], hero: boolean, lantern = false): string =>
+  `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}|${lantern ? 'l' : ''}`;
+
+/**
+ * The lantern a unit carries (units/lantern.ts): a small iron frame round amber glass, with a cap and a ring. Its
+ * glass is painted LANTERN_GLASS, which the figures' shader lights after dark (shaders.ts uLantern). Built once.
+ */
+function lanternGeometry(): BufferGeometry {
+  const iron = '#3A3532', parts: BufferGeometry[] = [];
+  const put = (g: BufferGeometry, x: number, y: number, z: number, colour: string, out: number): void => { g.translate(x, y, z); parts.push(coloured(g, colour, 0, out)); };
+  put(new BoxGeometry(1.5, 2.0, 1.5), 0, 0, 0, LANTERN_GLASS, 0.5);
+  for (const [x, z] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]] as const) put(new BoxGeometry(0.3, 2.1, 0.3), x, 0, z, iron, 0);
+  put(new BoxGeometry(1.9, 0.4, 1.9), 0, -1.15, 0, iron, 0.4);
+  const cap = new ConeGeometry(1.35, 1.0, 4);
+  cap.rotateY(Math.PI / 4);
+  put(cap, 0, 1.5, 0, iron, 0.4);
+  put(new BoxGeometry(0.3, 1.0, 0.3), 0, 2.3, 0, iron, 0.3);
+  const g = mergeGeometries(parts)!;
+  for (const p of parts) p.dispose();
+  g.scale(1.6, 1.6, 1.6);
+  return g;
+}
+
+// The lanterns' light on the ground: one quad per lit lantern, laid on the ground about the point under the lantern
+// and turned the way it shines (units/lantern.ts lampShape), all in one mesh (one draw call for every unit),
+// rewritten each frame (a few floats a unit). The fragment shader shapes the light (units/lantern.ts lampLight: a
+// smooth gradient brightest ahead, dark under the lantern, none behind and none where the unit's body blocks it).
+/** The halo's radius round a lit lantern (world units). */
+const HALO = 6;
+// Each lantern also has a soft halo round the lantern itself (aKind 1), a quad facing the camera.
+const poolVert = /* glsl */ `
+attribute vec3 aCentre; attribute vec2 aHead; attribute vec2 aCorner; attribute float aBright; attribute float aKind; attribute vec2 aShape;
+varying vec2 vLocal; varying float vBright; varying float vKind; varying vec2 vShape;
+void main() {
+  vLocal = aCorner; vBright = aBright; vKind = aKind; vShape = aShape;
+  if (aKind > 0.5) {
+    vec4 mv = viewMatrix * vec4(aCentre, 1.0);
+    mv.xy += aCorner * ${HALO.toFixed(2)};
+    gl_Position = projectionMatrix * mv;
+    return;
+  }
+  vec3 side = vec3(aHead.y, 0.0, -aHead.x);
+  vec3 w = aCentre + vec3(aHead.x, 0.0, aHead.y) * aCorner.x + side * aCorner.y;
+  gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+}`;
+const poolFrag = /* glsl */ `
+${LANTERN_GLSL}
+uniform float uLight;
+varying vec2 vLocal; varying float vBright; varying float vKind; varying vec2 vShape;
+void main() {
+  if (vKind > 0.5) {
+    float d = length(vLocal);
+    if (d >= 1.0) discard;
+    float n = 1.0 - d;
+    gl_FragColor = vec4(1.0, 0.80, 0.45, clamp(0.9 * uLight * vBright * n * n, 0.0, 1.0));
+    return;
+  }
+  float l = lampLight(vLocal, vShape);
+  if (l <= 0.0) discard;
+  gl_FragColor = vec4(1.0, 0.70, 0.34, clamp(1.25 * uLight * vBright * l, 0.0, 0.9));
+}`;
+
+/** The quad round a lantern's light: from LAMP_REACH ahead to 0.75 of it behind (the side quarters reach back). */
+const POOL_BACK = LAMP_REACH * 0.75;
 
 /**
  * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,
  * turned about its pivot, and its crouch guard (units/crouch.ts) in figure space: a turn about `gAxis` and a shift.
  */
-interface Piece { group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3 }
+interface Piece {
+  group: Group; pivot: Vector3; axis: Vector3; fwd: Vector3; up: Vector3; gAxis: Vector3; gAngle: number; gShift: Vector3;
+  /** A spear's or a lance's line (figure space, unit length) and the turn about `axis` that levels it at the target. */
+  shaft: Vector3 | null; levelTurn: number;
+  /**
+   * An arm that reaches with its weapon: the group that stretches it along its length (turned so its x runs from the
+   * shoulder to the hand), the shoulder-to-hand line at rest (unit length) and its length.
+   */
+  reach: { stretch: Group; dir: Vector3; len: number } | null;
+}
 interface Built {
   group: Group; body: Group; arm: Group | null; armAxis: Vector3; stone: Group | null; pieces: Map<string, Piece>; shadow: Mesh; shadowX: number;
   /** Its opaque meshes (a fall's see-through ones are not listed), and whether each is the hull: a shade repaints them. */
   paint: { mesh: Mesh; hull: boolean }[];
+  /** The lantern it carries (in its body), or null. */
+  lamp: Group | null;
 }
 /** A strike or a reaction under way or waiting its time, on one unit (ms on the frame clock). */
 type Act =
@@ -129,6 +210,8 @@ interface Placed extends Built {
   trip: { x0: number; y0: number } | null; stride: number; travel: number | null;
   /** The crouch it takes when hunkered. */
   guard: Guard;
+  /** The heading its front leads with this frame (radians, facing.ts), where its lantern's light falls. */
+  heading: number;
 }
 /** The distance between neighbouring tile centres, in board units. */
 const TILE_STEP = R * SQ3;
@@ -215,13 +298,96 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   renderer.autoClear = false;
   renderer.info.autoReset = false;
 
+  // The lit lanterns nearest the middle of the view (world positions, w 1 when lit) and how bright they are now: the
+  // figures' vertex shader warms the faces turned toward them (shaders.ts, WORLD_NORMAL).
+  const lampU = { uLamps: { value: Array.from({ length: MAX_LAMPS }, () => new Vector4(0, 0, 0, 0)) }, uLampLight: { value: 0 } };
   const uniforms = (outline: boolean, alpha?: number): Record<string, { value: unknown }> => ({
-    ...shared, uOutline: { value: outline ? UNIT_OUTLINE : 0 }, uIsOutline: { value: outline }, ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
+    ...shared, ...lampU, uOutline: { value: outline ? UNIT_OUTLINE : 0 }, uIsOutline: { value: outline }, ...(alpha === undefined ? {} : { uAlpha: { value: alpha } }),
   });
   // The figures turn (facing.ts), so their normals are taken to world space for the light, which stays put.
   const fillMat = new ShaderMaterial({ uniforms: uniforms(false), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, defines: { WORLD_NORMAL: '' } });
   const hullMat = new ShaderMaterial({ uniforms: uniforms(true), vertexShader: propVert, fragmentShader: propFrag, vertexColors: true, side: BackSide, defines: { WORLD_NORMAL: '' } });
   const shadowGeo = new CircleGeometry(1, 20);
+  const lanternGeo = lanternGeometry();
+  // The lanterns' pools of light on the ground (poolVert): grown as more units carry one, never shrunk.
+  const poolU = { uLight: { value: 0 } };
+  const poolMat = new ShaderMaterial({
+    uniforms: poolU, vertexShader: poolVert, fragmentShader: poolFrag, depthWrite: false, depthTest: true,
+    blending: CustomBlending, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
+  });
+  const pools = new Mesh(new BufferGeometry(), poolMat);
+  pools.frustumCulled = false;
+  // After the bonfires' depth is cleared (bonfires.ts, -6), before the figures and their blobs; depth tested against
+  // the built tiles' parts (lampMask.ts, drawn just before), so a building hides the light on the ground behind it.
+  pools.renderOrder = -5;
+  let poolCap = 0;
+  function poolGeometry(cap: number): BufferGeometry {
+    const g = new BufferGeometry();
+    const corner: number[] = [], kind: number[] = [], index: number[] = [];
+    for (let i = 0; i < cap; i++) {
+      // Eight corners a lantern: its pool on the ground, then its halo.
+      corner.push(-POOL_BACK, -LAMP_REACH, LAMP_REACH, -LAMP_REACH, LAMP_REACH, LAMP_REACH, -POOL_BACK, LAMP_REACH, -1, -1, 1, -1, 1, 1, -1, 1);
+      kind.push(0, 0, 0, 0, 1, 1, 1, 1);
+      for (const o of [0, 4]) index.push(8 * i + o, 8 * i + o + 1, 8 * i + o + 2, 8 * i + o, 8 * i + o + 2, 8 * i + o + 3);
+    }
+    g.setAttribute('position', new Float32BufferAttribute(new Float32Array(cap * 24), 3));
+    g.setAttribute('aCentre', new Float32BufferAttribute(new Float32Array(cap * 24), 3));
+    g.setAttribute('aHead', new Float32BufferAttribute(new Float32Array(cap * 16), 2));
+    g.setAttribute('aCorner', new Float32BufferAttribute(corner, 2));
+    g.setAttribute('aKind', new Float32BufferAttribute(kind, 1));
+    g.setAttribute('aBright', new Float32BufferAttribute(new Float32Array(cap * 8), 1));
+    g.setAttribute('aShape', new Float32BufferAttribute(new Float32Array(cap * 16), 2));
+    g.setIndex(index);
+    return g;
+  }
+  /** Lay each lit lantern's pool where its unit stands now, turned to its heading; and pick the lamps that warm the figures. */
+  const lampAt = new Vector3();
+  const lampList: { x: number; y: number; z: number; d: number }[] = [];
+  function placeLamps(cx: number, cz: number): void {
+    const light = typeof shared.uLantern?.value === 'number' ? shared.uLantern.value : 0;
+    poolU.uLight.value = light;
+    lampU.uLampLight.value = light;
+    const lit: Placed[] = [];
+    if (light > 0) for (const p of placed.values()) if (p.lamp !== null) lit.push(p);
+    pools.visible = lit.length > 0;
+    litNow = lit.length;
+    for (const v of lampU.uLamps.value) v.w = 0;
+    if (lit.length === 0) return;
+    if (lit.length > poolCap) {
+      poolCap = Math.max(16, 2 ** Math.ceil(Math.log2(lit.length)));
+      pools.geometry.dispose();
+      pools.geometry = poolGeometry(poolCap);
+    }
+    const g = pools.geometry;
+    const c = g.attributes.aCentre!.array as Float32Array, h = g.attributes.aHead!.array as Float32Array, b = g.attributes.aBright!.array as Float32Array;
+    const sh = g.attributes.aShape!.array as Float32Array;
+    lampList.length = 0;
+    lit.forEach((p, i) => {
+      // The light falls about the point under the lantern, aimed the way it shines: the heading turned toward the
+      // lantern's side by its shape's aim (a rider's out to its side, the trebuchet's straight out sideways).
+      p.lamp!.getWorldPosition(lampAt);
+      const shape = lampShape(p.unit.type);
+      const aim = p.heading + shape.aim;
+      const hx = Math.sin(aim), hz = Math.cos(aim);
+      const fl = lanternFlicker(flickT, flickLevel, (p.unit.id % 2) as 0 | 1);
+      for (let k = 0; k < 8; k++) {
+        if (k < 4) c.set([lampAt.x, CAST_PLANE + 0.05, lampAt.z], 24 * i + 3 * k);
+        else c.set([lampAt.x, lampAt.y, lampAt.z], 24 * i + 3 * k);
+        h.set([hx, hz], 16 * i + 2 * k);
+        sh.set([shape.core, shape.cut], 16 * i + 2 * k);
+        b[8 * i + k] = fl;
+      }
+      lampList.push({ x: lampAt.x, y: lampAt.y, z: lampAt.z, d: Math.hypot(lampAt.x - cx, lampAt.z - cz) });
+    });
+    g.attributes.aCentre!.needsUpdate = true;
+    g.attributes.aHead!.needsUpdate = true;
+    g.attributes.aShape!.needsUpdate = true;
+    g.attributes.aBright!.needsUpdate = true;
+    g.setDrawRange(0, lit.length * 12);
+    lampList.sort((a, z2) => a.d - z2.d);
+    lampList.slice(0, MAX_LAMPS).forEach((l, i) => lampU.uLamps.value[i]!.set(l.x, l.y, l.z, 1));
+  }
+  let flickT = 0, flickLevel = 0, litNow = 0;
   const shadowMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: SHADOW_ALPHA, depthWrite: false, ...MAX_BLEND });
   const castMat = new ShaderMaterial({
     uniforms: { uStep: { value: [0, 0] }, uAlpha: { value: 0 } }, vertexShader: castVert, fragmentShader: castFrag,
@@ -304,7 +470,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
 
   /** One figure's meshes in a group whose origin is the tile centre on the ground; the feet stand 4 board units lower on screen, as the svg feet. */
-  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, own?: Dim): Built {
+  function makeGroup(type: GlUnit['type'], look: GlUnit['look'], hero: boolean, own?: Dim, lantern = false): Built {
     const f = figureOf(type, look, hero);
     const g = new Group();
     const body = new Group();
@@ -342,6 +508,21 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       at.position.set(...pc.pivot);
       const inner = new Group();
       inner.position.set(-pc.pivot[0], -pc.pivot[1], -pc.pivot[2]);
+      // An arm that reaches: stretched along its own shoulder-to-hand line, between a turn that lays that line on x
+      // and the turn back.
+      let reach: Piece['reach'] = null;
+      if (pc.hand !== null) {
+        const line = new Vector3(pc.hand[0] - pc.pivot[0], pc.hand[1] - pc.pivot[1], pc.hand[2] - pc.pivot[2]);
+        const len = line.length();
+        const dir = line.divideScalar(len);
+        const stretch = new Group(), back = new Group();
+        stretch.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), dir);
+        back.quaternion.copy(stretch.quaternion).invert();
+        at.add(stretch);
+        stretch.add(back);
+        back.add(inner);
+        reach = { stretch, dir, len };
+      }
       const ms = dim !== null
         ? [new Mesh(pc.hull, dim.depthHull), new Mesh(pc.fill, dim.depthFill), new Mesh(pc.hull, dim.hull), new Mesh(pc.fill, dim.fill)]
         : [new Mesh(pc.hull, hullMat), new Mesh(pc.fill, fillMat)];
@@ -350,7 +531,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         ms[1]!.layers.enable(CAST_LAYER);
       }
       for (const m of ms) { m.frustumCulled = false; inner.add(m); }
-      at.add(inner);
+      if (reach === null) at.add(inner);
       const carrier = pc.parent === null ? null : piece(pc.parent);
       (carrier ?? body).add(at);
       inners.set(name, inner);
@@ -364,16 +545,29 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         group: at, pivot: new Vector3(...pc.pivot), axis: new Vector3(...pc.axis), fwd: new Vector3(...pc.fwd), up: new Vector3(...pc.up),
         gAxis: g?.axis !== undefined ? inFigure(g.axis).normalize() : new Vector3(...pc.axis),
         gAngle: g?.angle ?? 0, gShift: g !== undefined ? inFigure(g.shift) : new Vector3(),
+        shaft: pc.shaft === null ? null : new Vector3(...pc.shaft), levelTurn: pc.shaft === null ? 0 : levelTurn(pc.shaft, pc.axis), reach,
       });
       return inner;
     };
     for (const name of Object.keys(f.pieces)) piece(name);
+    let lamp: Group | null = null;
+    if (lantern && dim === null) {
+      // The lantern hangs at the figure's side, a little ahead (units/lantern.ts lanternHang), turning with the body.
+      lamp = new Group();
+      const h = lanternHang(type), m = frontsOf(type).move;
+      lamp.position.set(Math.sin(m) * h.ahead + Math.cos(m) * h.side, h.y, Math.cos(m) * h.ahead - Math.sin(m) * h.side);
+      const lh = new Mesh(lanternGeo, hullMat), lf = new Mesh(lanternGeo, fillMat);
+      lf.layers.enable(CAST_LAYER);
+      for (const m2 of [lh, lf]) { m2.frustumCulled = false; lamp.add(m2); }
+      paint.push({ mesh: lh, hull: true }, { mesh: lf, hull: false });
+      body.add(lamp);
+    }
     const arm = pieces.get(ARM)?.group ?? null;
     const stone = pieces.get(STONE_PIECE)?.group ?? null;
     const axis = f.pieces[ARM]?.axis;
     g.add(body);
     g.add(sh);
-    const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x, paint };
+    const built = { group: g, body, arm, stone, pieces, armAxis: axis ? new Vector3(...axis) : new Vector3(0, 0, 1), shadow: sh, shadowX: f.shadow.x, paint, lamp };
     placeShadow(built, 0, blobOff);
     return built;
   }
@@ -427,7 +621,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         fc.spent = u.spent;
         fc.type = u.type; fc.x = u.x; fc.y = u.y; fc.hunkered = u.hunkered;
       }
-      const sig = lookKey(u.type, u.look, u.hero);
+      const sig = lookKey(u.type, u.look, u.hero, u.lantern === true);
       let p = placed.get(u.id);
       if (p !== undefined && p.sig !== sig) {
         scene.remove(p.group);
@@ -435,8 +629,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       }
       if (p === undefined) {
         p = {
-          sig, unit: u, ...makeGroup(u.type, u.look, u.hero), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
+          sig, unit: u, ...makeGroup(u.type, u.look, u.hero, undefined, u.lantern === true), step: 0, kind: idleKind(u.type), gait: gaitKind(u.type),
           moving: false, restSince: -Infinity, lunge: null, weight: 0, trip: null, stride: 0, travel: null, guard: guardOf(u.type),
+          heading: frontsOf(u.type).move,
         };
         scene.add(p.group);
         placed.set(u.id, p);
@@ -603,7 +798,38 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     pc.group.position.copy(pc.pivot).addScaledVector(pc.fwd, push).addScaledVector(pc.up, lift);
     if (crouch > 0) pc.group.position.addScaledVector(pc.gShift, crouch);
   }
+  const grip = new Vector3(), toHand = new Vector3();
+  /**
+   * The weapon (and a second blade) at strike pose `sp` from the guard at `crouch`; a spear or a lance is levelled
+   * and driven along its own line, and the arm that holds it reaches so its hand stays on the grip.
+   */
+  function poseWeapons(pieces: ReadonlyMap<string, Piece>, sp: StrikePose, crouch: number): void {
+    const w = pieces.get(WEAPON), w2 = pieces.get(WEAPON2);
+    grip.set(0, 0, 0);
+    if (w !== undefined) {
+      if (w.shaft === null || (sp.level === 0 && sp.reach === 0)) posePiece(w, sp.angle, sp.push, sp.lift, crouch);
+      else {
+        // Levelled out of its guard: a spear that slid up through the hand in the crouch comes back down into it.
+        posePiece(w, sp.angle + sp.level * w.levelTurn, sp.push, sp.lift, crouch * (1 - sp.level));
+        grip.copy(w.shaft).applyQuaternion(w.group.quaternion).multiplyScalar(sp.reach).addScaledVector(w.fwd, sp.push).addScaledVector(w.up, sp.lift);
+        w.group.position.add(grip);
+      }
+    }
+    if (w2 !== undefined) posePiece(w2, sp.angle, sp.push, sp.lift, crouch);
+    const a = pieces.get(SPEAR_ARM);
+    if (a !== undefined && a.reach !== null) {
+      // The hand goes where the grip goes; the arm turns from the shoulder toward it and stretches to reach it.
+      const r = a.reach;
+      toHand.copy(r.dir).multiplyScalar(r.len).add(grip);
+      const len = toHand.length();
+      a.group.position.copy(a.pivot);
+      a.group.quaternion.setFromUnitVectors(r.dir, toHand.divideScalar(len));
+      r.stretch.scale.set(len / r.len, 1, 1);
+    }
+  }
   function tick(nowMs: number, level: number): void {
+    flickT = nowMs / 1000;
+    flickLevel = level;
     const dt = Math.min(100, Math.max(0, nowMs - clock));
     clock = nowMs;
     tickFalls(nowMs);
@@ -636,9 +862,13 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
         }
       }
       const mh = fronts.move + face, ah = fronts.aim + face;
+      p.heading = mh;
       fwdM.set(Math.sin(mh), 0, Math.cos(mh)); sideM.set(Math.cos(mh), 0, -Math.sin(mh));
       sideA.set(Math.cos(ah), 0, -Math.sin(ah));
-      p.body.position.set(ip.shift + sideM.x * gp.sway + rdx * rp.knock, ip.bob + gp.bob - g.drop * cr, FEET_Z + sideM.z * gp.sway + rdz * rp.knock);
+      p.body.position.set(
+        ip.shift + sideM.x * gp.sway + rdx * rp.knock + Math.sin(ah) * sp.step, ip.bob + gp.bob - g.drop * cr,
+        FEET_Z + sideM.z * gp.sway + rdz * rp.knock + Math.cos(ah) * sp.step,
+      );
       // A positive turn about a side axis tips the figure's top forward along that heading (a crouch leans in).
       qw.setFromAxisAngle(sideM, gp.pitch - sp.rear + g.lean * cr)
         .multiply(qb.setFromAxisAngle(fwdM, gp.roll))
@@ -650,8 +880,10 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       // The weapon strikes; the shield blocks (or, for a unit whose shield is its weapon, bashes too); the rest of
       // the pieces hold their guard.
       const strikeOnShield = !p.pieces.has(WEAPON);
+      poseWeapons(p.pieces, sp, cr);
       for (const [name, pc] of p.pieces) {
-        if (name === WEAPON || name === WEAPON2) posePiece(pc, sp.angle, sp.push, sp.lift, cr);
+        if (name === WEAPON || name === WEAPON2 || name === SPEAR_ARM) continue;
+        if (name === RIDER) posePiece(pc, sp.hunch, 0, 0, cr);
         else if (name === ARROW) { posePiece(pc, 0, sp.draw, 0, cr); pc.group.visible = sp.arrow; }
         else if (name === SHIELD) {
           posePiece(pc, rp.angle + (strikeOnShield ? sp.angle : 0), rp.push + (strikeOnShield ? sp.push : 0), rp.lift + (strikeOnShield ? sp.lift : 0), cr);
@@ -673,9 +905,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       const f = fallStrikes.get(g.spot);
       if (f === undefined) continue;
       const sp = strikePose(f.strike, nowMs < f.at ? null : (nowMs - f.at) / f.ms);
-      const weapon = g.pieces.get(WEAPON), weapon2 = g.pieces.get(WEAPON2), shield = g.pieces.get(SHIELD), arrow = g.pieces.get(ARROW);
-      if (weapon !== undefined) posePiece(weapon, sp.angle, sp.push, sp.lift);
-      if (weapon2 !== undefined) posePiece(weapon2, sp.angle, sp.push, sp.lift);
+      const weapon = g.pieces.get(WEAPON), shield = g.pieces.get(SHIELD), arrow = g.pieces.get(ARROW), rider = g.pieces.get(RIDER);
+      poseWeapons(g.pieces, sp, 0);
+      if (rider !== undefined) posePiece(rider, sp.hunch, 0, 0);
       if (weapon === undefined && shield !== undefined) posePiece(shield, sp.angle, sp.push, sp.lift);
       if (arrow !== undefined) { posePiece(arrow, 0, sp.draw, 0); arrow.group.visible = sp.arrow; }
     }
@@ -690,6 +922,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   }
   const extras = new Group();
   scene.add(extras);
+  extras.add(pools);
 
   const target = new Vector3();
   const dir = new Vector3(0, -SQUASH, -COS_E);
@@ -709,6 +942,8 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     camera.lookAt(target);
     camera.updateProjectionMatrix();
     readLight();
+    scene.updateMatrixWorld();
+    placeLamps(target.x, target.z);
     renderer.info.reset();
     renderer.clear();
     // The cast shadows first, on the clear canvas, so the figures and everything else are drawn over them.
@@ -735,7 +970,9 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
       for (const pc of Object.values(f.pieces)) { pc.fill.dispose(); pc.hull.dispose(); }
     }
     looks.clear();
-    const mats: Material[] = [fillMat, hullMat, shadowMat, castMat];
+    const mats: Material[] = [fillMat, hullMat, shadowMat, castMat, poolMat];
+    lanternGeo.dispose();
+    pools.geometry.dispose();
     for (const m of shades.values()) mats.push(m.fill, m.hull);
     shades.clear();
     for (const m of mats) m.dispose();
@@ -746,7 +983,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
 
   return {
     setUnits, aim, strikes, forget, turning: anyTurning, pose, tick, onScreen, extras, draw, dispose,
-    stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, shades: shades.size }),
+    stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, units: placed.size, looks: looks.size, falls: fallen.size, shades: shades.size, lamps: litNow }),
   };
 }
 

@@ -96,10 +96,10 @@ test('rules 8: the mountain text names every ranged type from the unit data and 
   expect(T.ui.mountainBlurb).toContain(`${Math.round(CONFIG.mountain.longShotScale * 100)}% of the damage`);
   for (const t of (Object.keys(UNITS) as UnitTypeId[]).filter((x) => UNITS[x].range < 2)) expect(T.ui.mountainBlurb).not.toContain(`${T.unit[t].name},`);
 });
-test('rules 10 (0.8.0): whatsNew is three sentences about relay riding, the Advanced menu and the light', () => {
+test('rules 11 (0.9.0): whatsNew is three sentences about the Woodland Nations', () => {
   expect(T.ui.whatsNew.match(/[.!?](\s|$)/g)).toHaveLength(3);
-  expect(T.ui.whatsNew).toContain('rules 10');
-  expect(T.ui.whatsNew).toContain('Advanced menu');
-  expect(T.ui.whatsNew).toContain('30 rounds');
-  expect(T.ui.whatsNew).toContain('shadows');
+  expect(T.ui.whatsNew).toContain('rules 11');
+  expect(T.ui.whatsNew).toContain('Woodland Nations');
+  expect(T.ui.whatsNew).toContain('Trappers');
+  expect(T.ui.whatsNew).toContain('3 gold');
 });
