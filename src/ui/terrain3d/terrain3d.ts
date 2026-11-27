@@ -16,6 +16,7 @@ import type { GlMap, GlTile } from './input';
 import { centre, COS_E, EDGE_NB, heightFn, parse, SQUASH, tileSetup } from './layout';
 import { groundFrag, groundVert, MAX_FIRES, propFrag, propVert } from './shaders';
 import { createBonfires } from './bonfires';
+import { createLampMask, hidesLampLight } from './lampMask';
 import { createFalls } from './falls';
 import { createBorders } from './borders';
 import { createLanterns } from './lanterns';
@@ -62,6 +63,8 @@ export interface Terrain3d {
   smoke(): { count: number; time: number };
   /** The village bonfires on the map, their flames' clock, each flicker voice now and the light they cast, for tests. */
   bonfires(): { count: number; time: number; flicker: [number, number]; light: number };
+  /** Triangles of the built tiles' parts that hide the units' lantern light (0 without the figures' canvas). */
+  lampMask(): number;
   /**
    * Treasure claimed (the action's claim effects: the tile and its delay): each chest the map showed there opens, its
    * lid swinging back, then fades away. Nothing with reduced motion (`reduced`), or without the units canvas.
@@ -168,6 +171,8 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const smoke = createSmoke(shared);
   // The villages' bonfires: their flames and flickering glow move, so they go with the figures too.
   const bonfires = createBonfires(shared, units !== null);
+  // The buildings hide the units' lantern light behind them (lampMask.ts), on the figures' canvas.
+  const lampMask = units ? createLampMask() : null;
   const chestsFx = units ? createChests(shared) : null;
   // The shut chests twinkle on the figures' canvas; without it they keep their static sparkle only.
   const shine = units ? createChestShine() : null;
@@ -187,7 +192,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
   const outline = new Mesh(props.geometry, outlineMat);
   for (const m of [ground, props, outline]) m.frustumCulled = false;
   scene.add(ground, outline, props, surface.mesh, borders.group);
-  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, bonfires.group, chestsFx!.group, shine!.group, fish.group, weather.group);
+  if (units) units.extras.add(falls.group, lanterns.group, wheels.group, smoke.group, bonfires.group, chestsFx!.group, shine!.group, fish.group, weather.group, lampMask!.group);
   else scene.add(falls.group, lanterns.group, wheels.group, smoke.group, bonfires.group, fish.group, weather.group);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 4000);
 
@@ -253,6 +258,15 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
       if (g) villages.push(g);
     }
     bonfires.setMap(map, villages);
+    if (lampMask) {
+      const built: BufferGeometry[] = [];
+      for (const k of Object.keys(map.tiles).sort()) {
+        if (!hidesLampLight(map.tiles[k]!)) continue;
+        const g = cache.get(sigOf.get(k) ?? '')?.props;
+        if (g) built.push(g);
+      }
+      lampMask.setParts(built);
+    }
     weather.setMap(map);
     setWindows(map);
     paintVeil();
@@ -425,6 +439,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     wheels.dispose();
     smoke.dispose();
     bonfires.dispose();
+    lampMask?.dispose();
     surface.dispose();
     fish.dispose();
     chestsFx?.dispose();
@@ -446,6 +461,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     lanterns: () => ({ count: lanterns.count(), glow: lanterns.glow(), tunnel: lanterns.tunnel() }),
     smoke: () => ({ count: smoke.count(), time: smoke.time() }),
     bonfires: () => ({ count: bonfires.count(), ...bonfires.state() }),
+    lampMask: () => lampMask?.triangles() ?? 0,
     water: () => ({ surface: surface.triangles(), fish: fish.stats() }),
     chests, playing: (nowMs) => chestsFx?.playing(nowMs) === true,
     wheels: () => ({ count: wheels.count(), angle: wheels.angle(), triangles: wheels.triangles() }),

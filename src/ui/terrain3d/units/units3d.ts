@@ -312,12 +312,13 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
   // The lanterns' pools of light on the ground (poolVert): grown as more units carry one, never shrunk.
   const poolU = { uLight: { value: 0 } };
   const poolMat = new ShaderMaterial({
-    uniforms: poolU, vertexShader: poolVert, fragmentShader: poolFrag, depthWrite: false, depthTest: false,
+    uniforms: poolU, vertexShader: poolVert, fragmentShader: poolFrag, depthWrite: false, depthTest: true,
     blending: CustomBlending, blendSrc: SrcAlphaFactor, blendDst: OneMinusSrcAlphaFactor, blendSrcAlpha: OneFactor, blendDstAlpha: OneMinusSrcAlphaFactor,
   });
   const pools = new Mesh(new BufferGeometry(), poolMat);
   pools.frustumCulled = false;
-  // After the bonfires' depth is cleared (bonfires.ts, -6), before the figures and their blobs.
+  // After the bonfires' depth is cleared (bonfires.ts, -6), before the figures and their blobs; depth tested against
+  // the built tiles' parts (lampMask.ts, drawn just before), so a building hides the light on the ground behind it.
   pools.renderOrder = -5;
   let poolCap = 0;
   function poolGeometry(cap: number): BufferGeometry {

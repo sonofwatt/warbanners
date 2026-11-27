@@ -175,3 +175,18 @@ test('the lanterns are lit after dark only, and their pools are one mesh however
   expect(u.stats().lamps).toBe(32);
   u.dispose();
 });
+
+test('the built tiles hide the lantern light behind them: their parts go into the depth just before the pools, which are depth tested', async () => {
+  const { LAMP_MASK_ORDER, hidesLampLight } = await import('./lampMask');
+  const bare = { city: false, village: false, building: null } as unknown as Parameters<typeof hidesLampLight>[0];
+  expect(hidesLampLight(bare)).toBe(false);
+  expect(hidesLampLight({ ...bare, village: true })).toBe(true);
+  expect(hidesLampLight({ ...bare, city: true })).toBe(true);
+  expect(hidesLampLight({ ...bare, building: 'mine' } as typeof bare)).toBe(true);
+  // The mask is drawn after the bonfires clear the depth (-6), before the pools (-5), and cleared again before the
+  // fish (-4 on) and the figures, so it never hides a figure.
+  expect(LAMP_MASK_ORDER.occluder).toBeGreaterThan(-6);
+  expect(LAMP_MASK_ORDER.occluder).toBeLessThan(-5);
+  expect(LAMP_MASK_ORDER.clear).toBeGreaterThan(-5);
+  expect(LAMP_MASK_ORDER.clear).toBeLessThan(-4);
+});

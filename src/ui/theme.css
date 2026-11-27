@@ -504,6 +504,8 @@ input:focus { border-color: var(--blue); }
 .digest-line { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); width: 100%; min-height: 44px; padding: 6px var(--s3); cursor: pointer; font: inherit; color: inherit; }
 .digest-line:focus-visible { outline: 3px solid var(--sea); outline-offset: -3px; border-radius: var(--r-s); }
 .digest-go { font-size: 22px; line-height: 1; color: var(--ink-soft); }
+.digest-text { flex: 1; }
+.digest-skull { flex: none; color: var(--ink); }
 /* Looking at one report line on the board: the card steps aside for a strip with the line and the way back. The
    Hud stays dimmed and takes no taps until the report is answered. */
 .screen.match.peeking .hud { pointer-events: none; opacity: 0.55; }

@@ -220,6 +220,19 @@ test('the digest card shows six lines and counts the rest', () => {
   const html = renderToStaticMarkup(<DigestCard lines={lines} />);
   expect(html.match(/<li>/g)).toHaveLength(6); expect(html.match(/data-testid="digest-line"/g)).toHaveLength(6); expect(html).toContain('and 2 more');
 });
+test('a digest line where one of our units was killed starts with a skull and crossbones; no other line has one', () => {
+  const lines: DigestLine[] = [
+    { kind: 'unitLost', unitType: 'warrior', by: 'archer', at: '0,0' },
+    { kind: 'unitHurt', unitType: 'warrior', damage: 3, by: null, at: '0,0' },
+    { kind: 'unitLost', unitType: 'scout', by: null, at: '1,0' },
+    { kind: 'cityLost', at: '2,0' },
+  ];
+  const html = renderToStaticMarkup(<DigestCard lines={lines} />);
+  const items = html.split('<li>').slice(1);
+  expect(items.map((li) => li.includes('data-testid="digest-skull"'))).toEqual([true, false, true, false]);
+  // Decoration only: hidden from screen readers, which read the line's own words.
+  expect(html.match(/<svg[^>]*aria-hidden="true"/g)).toHaveLength(2);
+});
 test('an own city under blockade shows the gold it will lose; one that is not shows no such line', () => {
   const html = renderToStaticMarkup(<CityPanel level={3} walls={false} income={4} blockade={2} commands={[]} onCommand={noop} />);
   expect(html).toContain(`${T.ui.blockaded}</dt><dd>${T.ui.blockadeCut(2)}`);
