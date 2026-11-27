@@ -19,6 +19,8 @@ import type { ClockSec, Room } from '../../online/wire';
 import { App } from '../App';
 import { T, fill } from '../text';
 import { Match } from './Match';
+import { guestAfterHostPick } from './OnlineSetup';
+import { MIRROR_COLOUR, playerColour } from '../art/palette';
 
 // Each screen gets a store in a given state: the online view is set on the store directly, as the session would.
 
@@ -298,4 +300,19 @@ test('an action list this phone cannot read says so in words', () => {
   scene.store.setState({ online: { ...scene.store.getState().online!, failure: 'unreadable' } });
   const html = render(scene);
   expect(html).toContain(T.ui.recordUnreadable); expect(html).toContain('data-testid="online-failed"');
+});
+test('rules 11: a mirror lobby shows the two seats in two colours', () => {
+  const store = lobby({ guest: true });
+  const v = store.getState().online!;
+  store.setState({ online: { ...v, room: { ...v.room!, meta: { ...v.room!.meta, hostFaction: 'woodland', guestFaction: 'woodland' } } } });
+  const html = render(store);
+  // the seat's style (its colour) comes just before its test id
+  const seat = (n: number) => /<li[^>]*data-testid="lobby-seat-(\d)"/g.exec(html.slice(html.lastIndexOf('<li', html.indexOf(`data-testid="lobby-seat-${n}"`))))?.[0] ?? '';
+  expect(seat(0)).toContain(playerColour('woodland').main);
+  expect(seat(1)).toContain(MIRROR_COLOUR.main);
+});
+test('rules 11: the guest side never picked moves off the host side; one picked stays, even a mirror', () => {
+  expect(guestAfterHostPick('mongols', 'mongols', false)).toBe('spartans');
+  expect(guestAfterHostPick('woodland', 'mongols', false)).toBe('mongols');
+  expect(guestAfterHostPick('mongols', 'mongols', true)).toBe('mongols');
 });

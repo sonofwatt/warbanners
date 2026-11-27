@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { FACTIONS as PEOPLES } from '../../engine';
 import type { FactionId } from '../../engine';
 import { useApp } from '../../app/useApp';
-import { CLOCK_CHOICES, DEFAULT_CLOCK, MAX_NAME } from '../../online/wire';
+import { CLOCK_CHOICES, DEFAULT_CLOCK, MAX_NAME, factionsFor } from '../../online/wire';
 import type { ClockSec } from '../../online/wire';
 import { ACCENT, playerColour } from '../art/palette';
 import { BannerMark, HomeIcon } from '../icons';
@@ -35,6 +35,12 @@ export function SideChips({ chosen, onPick, label, seat }: { chosen: FactionId; 
   );
 }
 
+/** rules 11: the guest's side after the host picks their own. One the host picked stays, even a mirror; one never
+ * picked stays unless it now equals the host's, when it moves to the first other people (factionsFor). */
+export function guestAfterHostPick(host: FactionId, guest: FactionId, touched: boolean): FactionId {
+  return touched || guest !== host ? guest : factionsFor(host)[1];
+}
+
 /** The five turn clocks as a row of chips. */
 export function ClockChips({ chosen, onPick }: { chosen: ClockSec; onPick: (c: ClockSec) => void }): ReactElement {
   return (
@@ -58,7 +64,9 @@ export function OnlineSetup(): ReactElement {
   const names = useApp((s) => s.names);
   const [name, setName] = useState(() => names[0] ?? '');
   const [faction, setFaction] = useState<FactionId>('spartans');
-  const [guest, setGuest] = useState<FactionId>('mongols');
+  // Until the host picks it, the guest's side follows the host's: the first other people (factionsFor).
+  const [picked, setPicked] = useState<FactionId | null>(null);
+  const guest = picked ?? factionsFor(faction)[1];
   const [clock, setClock] = useState<ClockSec>(DEFAULT_CLOCK);
   const [busy, setBusy] = useState(false);
   const open = (): void => {
@@ -81,7 +89,7 @@ export function OnlineSetup(): ReactElement {
       </div>
       <div className="setup-seat">
         <span>{T.ui.guestFaction}</span>
-        <SideChips chosen={guest} onPick={setGuest} label={T.ui.guestFaction} seat={1} />
+        <SideChips chosen={guest} onPick={setPicked} label={T.ui.guestFaction} seat={1} />
       </div>
       <div className="setup-seat">
         <span>{T.ui.clockLabel}</span>

@@ -4,12 +4,12 @@ import type { PlayerId } from '../../engine';
 import { useApp } from '../../app/useApp';
 import { factionsFor } from '../../online/wire';
 import type { Room } from '../../online/wire';
-import { ACCENT, playerColour } from '../art/palette';
+import { seatAccent, seatColour } from '../art/palette';
 import { BannerMark, HomeIcon, InfoIcon } from '../icons';
 import { T, fill } from '../text';
 import { failureText } from './Join';
 import { NoticeLine } from './NoticeLine';
-import { clockName, ClockChips, SideChips } from './OnlineSetup';
+import { clockName, ClockChips, SideChips, guestAfterHostPick } from './OnlineSetup';
 import { AdvancedSection } from './Advanced';
 import { DEFAULT_ADVANCED } from '../../app/advanced';
 import type { Advanced } from '../../app/advanced';
@@ -19,12 +19,13 @@ const COPIED_MS = 2500;
 function Seat({ room, seat, mine }: { room: Room; seat: PlayerId; mine: boolean }): ReactElement {
   const factions = factionsFor(room.meta.hostFaction, room.meta.guestFaction);
   const faction = factions[seat] ?? room.meta.hostFaction;
-  const colour = playerColour(faction);
+  // Seat colours, so a mirror room shows two (rules 11)
+  const colour = seatColour(factions, seat);
   const who = room.seats[seat] ?? null;
   const style = { '--player': colour.main, '--player-dark': colour.dark } as CSSProperties;
   return (
     <li className={who === null ? 'lobby-seat open' : 'lobby-seat'} style={style} data-testid={`lobby-seat-${seat}`}>
-      <BannerMark colour={colour} accent={ACCENT[faction]} />
+      <BannerMark colour={colour} accent={seatAccent(factions, seat)} />
       <span className="lobby-seat-text">
         <strong>{who === null ? T.ui.seatOpen : who.name}</strong>
         <small>{T.faction[faction]}</small>
@@ -66,6 +67,7 @@ export function Lobby(): ReactElement | null {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [advanced, setAdvanced] = useState<Advanced>(DEFAULT_ADVANCED);
+  const [guestTouched, setGuestTouched] = useState(false);   // the host has picked the guest's side in this lobby
   useEffect(() => {
     if (!copied) return undefined;
     const t = setTimeout(() => setCopied(false), COPIED_MS);
@@ -97,11 +99,11 @@ export function Lobby(): ReactElement | null {
         <>
           <div className="setup-seat">
             <span>{T.ui.yourFaction}</span>
-            <SideChips chosen={room.meta.hostFaction} onPick={(f) => setLobby({ hostFaction: f, guestFaction: factionsFor(room.meta.hostFaction, room.meta.guestFaction)[1] })} label={T.ui.yourFaction} />
+            <SideChips chosen={room.meta.hostFaction} onPick={(f) => setLobby({ hostFaction: f, guestFaction: guestAfterHostPick(f, factionsFor(room.meta.hostFaction, room.meta.guestFaction)[1], guestTouched) })} label={T.ui.yourFaction} />
           </div>
           <div className="setup-seat">
             <span>{T.ui.guestFaction}</span>
-            <SideChips chosen={factionsFor(room.meta.hostFaction, room.meta.guestFaction)[1]} onPick={(f) => setLobby({ hostFaction: room.meta.hostFaction, guestFaction: f })} label={T.ui.guestFaction} seat={1} />
+            <SideChips chosen={factionsFor(room.meta.hostFaction, room.meta.guestFaction)[1]} onPick={(f) => { setGuestTouched(true); setLobby({ hostFaction: room.meta.hostFaction, guestFaction: f }); }} label={T.ui.guestFaction} seat={1} />
           </div>
           <div className="setup-seat">
             <span>{T.ui.clockLabel}</span>
