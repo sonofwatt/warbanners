@@ -24,7 +24,7 @@ export { TECHS, TECH_TREE, BRANCHES } from './data/techs';
 export type { BranchId, TechDef } from './data/techs';
 export { FACTIONS } from './data/factions';
 export { CONFIG } from './data/config';
-export { RULES_VERSION, DEEDS, HERO_TRAITS } from './types';
+export { ABILITIES, RULES_VERSION, DEEDS, HERO_TRAITS } from './types';
 export type * from './types';
 export { key, parseKey, distance, neighbors, range, mirror } from './hex';
 export type { Hex, HexKey } from './hex';

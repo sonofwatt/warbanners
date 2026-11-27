@@ -1,11 +1,15 @@
 // The AI's brain: plans one whole turn from what its player can know, inside a fixed work budget.
 import {
-  CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
-  canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, defenceOf, distance, maxHpOf, harvestRefusal, key, lureApplies, neighbors,
-  parseKey, reachable, restHealAt, roadRefusal, rngInt, strikeDamage, techPrice, trainRefusal, unitCapacity, unitCost, unitsOf, visibleTiles, wallsRefusal,
+  ABILITIES, CONFIG, UNITS, abilityTargets, addGrowth, applyAction, attackOf, attackReach, attackTargets, buildRefusal, campTrainRefusal,
+  canCapture, canClaimTreasure, canHunker, canResearch, canUseItem, damageFor, dashTargets, defenceOf, distance, maxHpOf, harvestRefusal, key,
+  lureApplies, neighbors, normalRange, parseKey, reachable, restHealAt, roadRefusal, rngInt, techPrice, trainRefusal, unitCapacity, unitCost,
+  unitsOf, visibleTiles, wallsRefusal,
 } from '../engine';
-import type { AbilityId, Action, BuildingId, City, GameEvent, HexKey, MatchState, Unit, UnitTypeId } from '../engine';
-import { GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, tauntCredit, unitValue, unitWorth, valueOf } from './assess';
+import type { AbilityId, Action, BuildingId, City, GameEvent, Hex, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
+import {
+  GOLD_WEIGHT, canMove, dangerMap, exposureCost, followCredit, healthFactor, moveScore, objectives, strikeEstimate, tauntCredit, unitValue,
+  unitWorth, valueOf,
+} from './assess';
 import type { Ctx } from './assess';
 import { aiInputFor, believedState, viewKey } from './input';
 import { availableTypes, chooseReward, chooseTech, chooseUnit, techGivesSomething } from './mix';
@@ -26,7 +30,7 @@ export interface Plan {
   evals: number; cutShort: boolean;
 }
 
-const ABILITY_IDS: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
+const ABILITY_IDS: readonly AbilityId[] = ABILITIES;
 const BUILDINGS = Object.keys(CONFIG.buildings) as BuildingId[];
 const WEIGHT_SCALE = 1_000_000;      // softmax weights are rounded to integers so every machine picks alike
 const MAX_STEPS_PER_UNIT = 8;        // a unit acts a few times at most (move, attack, move); a guard, not a rule
@@ -35,6 +39,8 @@ const NORMAL_FOCUS = skillFor(LEVEL_DIAL.normal).focus;   // the unit mix reads 
 const KILL_FLAT = 2;                // a kill's bonus: this much plus a share of the victim's worth, times skill.focus
 const KILL_SHARE = 0.25;
 const LURE_EDGE = 0.001;             // a safe lure scores this much above its plain twin, so a hard AI takes it
+const SNARE_SCORE = 0.3;             // rules 11: a snare on a way into the own land, from a seen enemy this near or nearer
+const SNARE_REACH = 4;
 
 type Applied = { state: MatchState; events: GameEvent[] };
 interface Cand {
@@ -79,7 +85,38 @@ function canKillThisTurn(b: MatchState, u: Unit): boolean {
   const at = parseKey(u.pos);
   const atk = attackOf(b, u) * healthFactor(u);
   return b.units.some((e) => e.owner !== u.owner && distance(at, parseKey(e.pos)) <= reach
-    && strikeDamage(b, e, u, atk) >= e.hp);
+    && strikeEstimate(b, e, u, atk) >= e.hp);
+}
+
+// rules 11: the counter the enemy e would strike back at the own unit u with, hit from the tile `from`: the bow
+// counter (bowShare of the formula at the bow's attack) for a bow unit with Archery 2 or more tiles away, else the
+// melee one, less the agile cut for an agile u. As the engine works it, without the counter's reach or a steadfast
+// factor (the estimate before rules 11 had neither, and a Spartan or Mongol estimate must not move).
+function counterEstimate(b: MatchState, e: Unit, u: Unit, from: Hex): number {
+  const bow = has(e, 'bow') && normalRange(b, e) >= 2 && distance(from, parseKey(e.pos)) >= 2;
+  let counter = bow
+    ? Math.max(1, Math.round(CONFIG.woodland.bowShare * damageFor(
+      (CONFIG.woodland.bowAtk + attackOf(b, e) - UNITS[e.type].atk) * CONFIG.counterFactor * healthFactor(e), defenceOf(b, u), 1)))
+    : damageFor(attackOf(b, e) * CONFIG.counterFactor * healthFactor(e), defenceOf(b, u), 1);
+  if (has(u, 'agile')) counter = Math.max(1, counter - CONFIG.heroes.agilityCut);
+  return counter;
+}
+
+// rules 11: a snare's score: SNARE_SCORE on a tile in or next to the own territory that lies on a way from a seen enemy
+// unit at most SNARE_REACH tiles off toward an own city (no more than a tile longer than the straight way), 0 otherwise.
+export function snareScore(b: MatchState, me: PlayerId, at: HexKey): number {
+  const own = new Set(b.cities.filter((c) => c.owner === me).map((c) => c.id));
+  const inLand = (k: HexKey): boolean => { const id = b.tiles[k]?.cityId; return id !== null && id !== undefined && own.has(id); };
+  const t = parseKey(at);
+  if (!inLand(at) && !neighbors(t).some((n) => inLand(key(n)))) return 0;
+  const cities = b.cities.filter((c) => c.owner === me).map((c) => parseKey(c.pos));
+  const onWay = b.units.some((e) => {
+    if (e.owner === me) return false;
+    const from = parseKey(e.pos);
+    const d = distance(from, t);
+    return d <= SNARE_REACH && cities.some((c) => d + distance(t, c) <= distance(from, c) + 1);
+  });
+  return onWay ? SNARE_SCORE : 0;
 }
 
 // Units are taken killers first, then ranged, melee, supports, the Camp, the rest.
@@ -416,10 +453,9 @@ class TurnPlanner {
     // unless its counter alone would kill the unit (a hopeless charge, which the plan never makes).
     if (c !== null && UNITS[u.type].atk > 0 && u.attacks > 0) {
       const from = [u.pos, ...(canMove(u) ? Object.keys(reachable(this.b, id)) : [])].map(parseKey);
-      const survivable = (e: Unit): boolean => UNITS[e.type].range === 0
-        || damageFor(attackOf(this.b, e) * CONFIG.counterFactor * healthFactor(e), defenceOf(this.b, u), 1) < u.hp;
-      const strikes = this.b.units.filter((e) => e.owner !== this.me && survivable(e));
-      if (strikes.some((e) => from.some((f) => distance(f, parseKey(e.pos)) <= UNITS[u.type].range))) return false;
+      const survivable = (e: Unit, f: Hex): boolean => UNITS[e.type].range === 0 || counterEstimate(this.b, e, u, f) < u.hp;
+      const strikes = this.b.units.filter((e) => e.owner !== this.me);
+      if (strikes.some((e) => from.some((f) => distance(f, parseKey(e.pos)) <= UNITS[u.type].range && survivable(e, f)))) return false;
     }
     // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in
     const met = CONFIG.hunker.healAtTurnEnd ? Math.min(maxHpOf(u), u.hp + restHealAt(this.b, { ...u, hunkered: true }, this.visible())) : u.hp;
@@ -540,6 +576,19 @@ class TurnPlanner {
       if (lureListed && movesOn && !died.has(victim.id) && safePull) push({ action: lure, base: own, score });
     }
 
+    // rules 11: a Dash-strike is a different attack from the plain one (an arrow, then a charge from the tile beside),
+    // so it is probed and scored as a candidate of its own.
+    for (const target of dashTargets(s, id)) {
+      const a: Action = { type: 'attack', unit: id, target, dash: true };
+      if (!this.allowed(a)) continue;
+      const victim = s.units.find((t) => t.pos === target)!;
+      const r = this.probe(s, a);
+      const died = new Set(r.events.flatMap((e) => (e.type === 'died' ? [e.unit] : [])));
+      if (died.has(id) && !died.has(victim.id)) continue;            // a hopeless charge
+      const score = this.scoreAfter(s, base, r, victim.id);
+      push({ action: a, base: score, score, result: r });
+    }
+
     // A drink is scored together with the best attack it opens, from before the drink to after that attack, so the
     // draught is drunk when the strike pays for its worth. With no attack after it there is no drink candidate.
     const drink: Action = { type: 'useItem', unit: id };
@@ -564,6 +613,12 @@ class TurnPlanner {
       for (const target of abilityTargets(s, id, ability)) {
         const a: Action = { type: 'ability', unit: id, ability, target };
         if (!this.allowed(a)) continue;
+        // rules 11: a snare is scored by where it is set (snareScore) and probed only if the plan looks at it again
+        if (ability === 'snare') {
+          const score = snareScore(s, this.me, target);
+          if (score > 0) push({ action: a, base: score, score });
+          continue;
+        }
         const r = this.probe(s, a);
         const targetId = s.units.find((t) => t.pos === target && t.owner !== this.me)?.id ?? null;
         const score = this.scoreAfter(s, base, r, targetId) + (ability === 'taunt' ? tauntCredit(s, this.me, target) : 0);
@@ -619,7 +674,8 @@ class TurnPlanner {
     // A lure is scored as its plain twin, a hair above it, so the tie the twin would win by list order goes to the lure.
     for (const c of cands) {
       if (c.action.type === 'attack' && c.action.lure === true) {
-        const twin = cands.find((t) => t.action.type === 'attack' && t.action.target === (c.action as { target: HexKey }).target && t.action.lure !== true);
+        const twin = cands.find((t) => t.action.type === 'attack' && t.action.target === (c.action as { target: HexKey }).target
+          && t.action.lure !== true && t.action.dash !== true);
         if (twin !== undefined) c.score = twin.score + LURE_EDGE;
       }
     }

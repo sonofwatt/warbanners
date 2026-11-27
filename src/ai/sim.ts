@@ -1,5 +1,5 @@
 // Bulk AI-against-AI matches for tuning: plays whole matches with the real turn driver and measures each side.
-import { CONFIG, FACTIONS, UNITS, createMatch, distance, isHero, parseKey, reachable, startTech, unitTech } from '../engine';
+import { CONFIG, FACTIONS, UNITS, createMatch, distance, factionUnits, isHero, parseKey, reachable, startTech, unitTech } from '../engine';
 import type { Action, FactionId, HeroTraitId, MatchState, PlayerId, RewardId, TechId, Trait, TreasureOutcome, Unit, UnitTypeId } from '../engine';
 import { adaptStep, betweenMatches, gapOf, standingOf } from './adapt';
 import type { AdaptState } from './adapt';
@@ -62,6 +62,13 @@ const roundsOf = (s: MatchState): number => Math.floor(s.stamp / 2);
 const isMounted = (t: UnitTypeId): boolean => (UNITS[t].traits as readonly string[]).includes('mounted');
 const isChain = (t: UnitTypeId): boolean => (UNITS[t].traits as readonly string[]).includes('chain');
 const citiesOf = (s: MatchState, p: PlayerId): number => s.cities.filter((c) => c.owner === p).length;
+// rules 11: what a forest costs the faction's units to enter (a field's cost for a forest-striding faction)
+const forestCost = (f: FactionId): number =>
+  (FACTIONS[f].forestStride ? CONFIG.terrain.field.enterCost : CONFIG.terrain.forest.enterCost);
+const FACTION_IDS = Object.keys(FACTIONS) as FactionId[];
+// A record with one entry per faction, each made fresh by `make`.
+const perFactionOf = <T>(make: () => T): Record<FactionId, T> =>
+  Object.fromEntries(FACTION_IDS.map((f) => [f, make()])) as Record<FactionId, T>;
 
 function emptySide(): SideMetrics {
   return {
@@ -186,7 +193,7 @@ export function runMatch(o: SimOpts): SimResult {
         if (u !== undefined && attackedBy.has(u.id)) { side.raidRetreats += 1; attackedBy.delete(u.id); }
         if (u !== undefined && isMounted(u.type)) side.mountedTiles += distance(parseKey(u.pos), parseKey(action.to));
         if (u !== undefined && isMounted(u.type) && before.tiles[action.to]?.terrain === 'forest'
-          && u.mp < CONFIG.terrain.forest.enterCost) side.forestEntriesWithLittleMp += 1;
+          && u.mp < forestCost(before.players[me]!.faction)) side.forestEntriesWithLittleMp += 1;
       }
       if (action.type === 'capture') {
         const u = before.units.find((x) => x.id === action.unit);
@@ -290,12 +297,11 @@ const total = (r: Partial<Record<string, number>>): number => Object.values(r).r
 // Means per match; unitsTrained, traitsEarned and treasures are the mean of their totals.
 export function summarize(results: readonly SimResult[]): Summary {
   const n = results.length;
-  const factions: FactionId[] = ['spartans', 'mongols'];
-  const winRate = { spartans: 0, mongols: 0 } as Record<FactionId, number>;
+  const factions = FACTION_IDS;
+  const winRate = perFactionOf(() => 0);
   const seatWinRate: [number, number] = [0, 0];
-  const sums = {} as Record<FactionId, Record<keyof SideMetrics, number>>;
-  const counts = { spartans: 0, mongols: 0 } as Record<FactionId, number>;
-  for (const f of factions) sums[f] = Object.fromEntries(METRIC_KEYS.map((k) => [k, 0])) as Record<keyof SideMetrics, number>;
+  const sums = perFactionOf(() => Object.fromEntries(METRIC_KEYS.map((k) => [k, 0])) as Record<keyof SideMetrics, number>);
+  const counts = perFactionOf(() => 0);
   for (const r of results) {
     for (const p of [0, 1] as const) {
       const f = r.factions[p];
@@ -356,16 +362,16 @@ export interface Census {
   roads: Record<FactionId, { laid: number; connections: number; matchesConnected: number }>;
 }
 
-// The types a faction can train: a cost, and either no faction or its own.
+// The types a faction can train: the engine's factionUnits (rules 11: less the shared types its own replace).
 export function trainableTypes(f: FactionId): UnitTypeId[] {
-  return (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].cost !== null && (UNITS[t].faction === null || UNITS[t].faction === f));
+  return factionUnits(f);
 }
 
 export function census(results: readonly SimResult[]): Census {
   const out: Census = {
-    units: { spartans: {}, mongols: {}, woodland: {} }, rewards: { spartans: {}, mongols: {}, woodland: {} }, tactics: { spartans: {}, mongols: {}, woodland: {} },
-    chivalry: { spartans: { had: 0, knights: 0 }, mongols: { had: 0, knights: 0 }, woodland: { had: 0, knights: 0 } },
-    roads: { spartans: { laid: 0, connections: 0, matchesConnected: 0 }, mongols: { laid: 0, connections: 0, matchesConnected: 0 }, woodland: { laid: 0, connections: 0, matchesConnected: 0 } },
+    units: perFactionOf(() => ({})), rewards: perFactionOf(() => ({})), tactics: perFactionOf(() => ({})),
+    chivalry: perFactionOf(() => ({ had: 0, knights: 0 })),
+    roads: perFactionOf(() => ({ laid: 0, connections: 0, matchesConnected: 0 })),
   };
   for (const r of results) for (const p of [0, 1] as const) {
     const f = r.factions[p];

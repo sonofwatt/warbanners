@@ -1,7 +1,7 @@
 // The AI's reading of a believed state: where it is in danger, what it wants, and how good a position is.
 import {
-  CONFIG, FACTIONS, UNITS, attackOf, blockadeLoss, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, key, maxHpOf, maxMp,
-  mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
+  CONFIG, FACTIONS, UNITS, ambushes, attackOf, blockadeLoss, attackReach, baseAttackOf, coverAt, damageFor, distance, isHero, isHidden, key,
+  maxHpOf, maxMp, mountainStep, strikeDamage, growthNeeded, mirror, parseKey, playerIncome, range, restHealAt, statsOf, visibleTiles,
 } from '../engine';
 import type { City, HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../engine';
 import type { Persona, Skill } from './types';
@@ -77,6 +77,20 @@ function enemyWorth(b: MatchState, e: Unit): number {
   return unitValue(e) + (city !== undefined && city.owner === e.owner ? GARRISON_SHARE * cityWorth(city) : 0);
 }
 
+// rules 11: the AI's estimate of a hit by its own unit `attacker` on `target` at effective attack effAtk: the engine's
+// strikeDamage with the ambush the engine would judge (from the believed state), and the bow formula only when the
+// owner knows Archery and the target is 2 or more tiles away. The engine's bowShot ignores Archery, so a Skirmisher
+// without it, which walks up and fights in melee, would otherwise be costed as a bow shot; its hit is worked as from
+// the target's own tile (no bow, no long shot), as a melee hit is. Units without the bow or ambush trait get exactly
+// strikeDamage, so the Spartan and Mongol estimates do not change.
+export function strikeEstimate(b: MatchState, target: Unit, attacker: Unit, effAtk: number): number {
+  const ambush = ambushes(b, attacker, target);
+  const shoots = b.players[attacker.owner]?.techs.includes('archery') === true
+    && distance(parseKey(attacker.pos), parseKey(target.pos)) >= 2;
+  const from = has(attacker, 'bow') && !shoots ? { ...attacker, pos: target.pos } : attacker;
+  return strikeDamage(b, target, from, effAtk, ambush);
+}
+
 // The value of the best attack u could make from where it stands, if it can still attack this turn:
 // the target's worth times the share of its health the hit takes. Base attack (traits, but no inspire or myth
 // touch), so that moving one unit never changes another unit's term.
@@ -91,7 +105,7 @@ function strikeOf(b: MatchState, u: Unit): number {
     // flat credit for standing on one (1, 0.5, or 1 only near a seen enemy) left one or two hard matches stalled at 60
     // rounds in character.test.ts, so there is none.
     if (e.owner === u.owner || distance(at, parseKey(e.pos)) > attackReach(b, u)) continue;
-    const dmg = strikeDamage(b, e, u, atk);   // the engine's damage, with the momentum cut (rules 7) and the long shot cut (rules 8)
+    const dmg = strikeEstimate(b, e, u, atk);   // the engine's damage, with the momentum cut (rules 7), the long shot cut (rules 8) and the ambush (rules 11)
     best = Math.max(best, enemyWorth(b, e) * Math.min(dmg, e.hp) / maxHpOf(e));
   }
   return STRIKE_SHARE * best;
@@ -120,6 +134,26 @@ export function dangerMap(b: MatchState, me: PlayerId): DangerMap {
       const cover = coverAt(b, { ...e, owner: me, pos: k });   // as if one of ours stood there
       out[k] = (out[k] ?? 0) + damageFor(atk, WARRIOR_DEF, cover);
     }
+  }
+  return out;
+}
+
+// rules 11: whether an own unit stands hidden by Woodland cover or a veil, so a seen enemy must first come within the
+// reveal range before it can strike. The hidden trait (the Spartan Scout) is left out: its estimate is as before rules 11.
+function coverHidden(b: MatchState, u: Unit): boolean {
+  return !has(u, 'hidden') && isHidden(b, u);
+}
+
+// rules 11: the danger on a hidden own unit's tile `at`: as dangerMap, but only from seen enemies that can come within
+// the reveal range next turn (full movement, ignoring terrain), since an enemy cannot attack what it cannot see.
+function hiddenDanger(b: MatchState, me: PlayerId, at: HexKey): number {
+  const there = parseKey(at);
+  let out = 0;
+  for (const e of b.units) {
+    if (e.owner === me || UNITS[e.type].atk === 0 || UNITS[e.type].range === 0) continue;
+    const reach = Math.floor(maxMp(b, e) / 2) + Math.min(UNITS[e.type].range, CONFIG.hiddenRevealRange);
+    if (distance(parseKey(e.pos), there) > reach) continue;
+    out += damageFor(attackOf(b, e), WARRIOR_DEF, coverAt(b, { ...e, owner: me, pos: at }));
   }
   return out;
 }
@@ -289,7 +323,8 @@ function unitTerms(b: MatchState, ctx: Ctx, u: Unit, visible: Visible): number {
 
   // A badly wounded unit keeps out of reach even at the skill levels that weigh danger little: it falls back to heal.
   // rules 8: a hunkered unit heals as its owner's turn ends, so the enemy's coming turn meets it with that heal in.
-  const threat = danger[u.pos] ?? 0;
+  // rules 11: a unit hidden by Woodland cover or a smoke's veil is in danger only from enemies that can come close
+  const threat = coverHidden(b, u) ? Math.min(danger[u.pos] ?? 0, hiddenDanger(b, me, u.pos)) : danger[u.pos] ?? 0;
   const care = hpShare <= BADLY_WOUNDED ? Math.max(skill.danger, WOUNDED_CARE * skill.focus) : skill.danger;
   const met = u.hunkered && CONFIG.hunker.healAtTurnEnd ? Math.min(maxHp, u.hp + restHealAt(b, u, visible())) : u.hp;
   v -= care * worth * Math.min(1, threat / met);

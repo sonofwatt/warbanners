@@ -1,9 +1,9 @@
 // What to train, what to research for it, and which level reward to take: scored from what the player can see.
 import {
-  CONFIG, FACTIONS, TECHS, UNITS, blockadeLoss, blockadeOf, buildRefusal, buildingTech, distance, growthNeeded, harvestRefusal, harvestTech,
-  maxHpOf, parseKey, playerIncome, roadTech, unitCapacity, unitCost, unitTech, unitsOf, wallsTech,
+  CONFIG, FACTIONS, TECHS, UNITS, blockadeLoss, blockadeOf, buildRefusal, buildingTech, distance, factionUnits, growthNeeded, harvestRefusal,
+  harvestTech, maxHpOf, parseKey, playerIncome, rewardOptions, roadTech, unitCapacity, unitCost, unitTech, unitsOf, wallsTech,
 } from '../engine';
-import type { BuildingId, City, FactionId, MatchState, PlayerId, Resource, TechId, UnitTypeId } from '../engine';
+import type { BuildingId, City, FactionId, MatchState, PlayerId, Resource, RewardId, TechId, UnitTypeId } from '../engine';
 import type { Persona } from './types';
 
 const DEFICIT_WEIGHT = 10;     // per share point the army is short of the persona's target mix
@@ -41,9 +41,10 @@ function counterStrength(t: UnitTypeId): { mounted: number; ranged: number; heav
   };
 }
 
-// The types a faction can ever train: a cost, and no faction or its own.
+// The types a faction can ever train: the engine's factionUnits (a cost, no faction or its own, less the shared types its
+// own replace, rules 11).
 export function factionTypes(f: FactionId): UnitTypeId[] {
-  return (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].cost !== null && (UNITS[t].faction === null || UNITS[t].faction === f));
+  return factionUnits(f);
 }
 
 // The types the player can train now (the tech held), in data order.
@@ -146,36 +147,44 @@ export function chooseTech(b: MatchState, me: PlayerId, persona: Persona, allowe
   return [...allowed].sort((x, y) => score(y) - score(x) || order.indexOf(x) - order.indexOf(y))[0]!;
 }
 
-// The level reward to take, 0 or 1, from the city's and the army's situation (CONFIG.rewards gives the pairs).
+// The level reward to take, 0 or 1, from the city's and the army's situation. The pair on offer is the engine's
+// rewardOptions (rules 11: from a faction's championFromLevel on it is champion or support).
 export function chooseReward(b: MatchState, me: PlayerId, city: City, level: number): 0 | 1 {
-  const row = Math.min(level, 5);
+  const options = rewardOptions(b, city, level);
+  const index = options.indexOf(preferredReward(b, me, city, options));
+  return index === 1 ? 1 : 0;
+}
+
+function preferredReward(b: MatchState, me: PlayerId, city: City, [first, second]: readonly [RewardId, RewardId]): RewardId {
   const own = b.units.filter((u) => u.owner === me);
-  if (row === 2) {
+  const pair = (x: RewardId, y: RewardId): boolean => (first === x && second === y) || (first === y && second === x);
+  if (pair('gold', 'scout')) {
     // gold, or the scout reward: worth it while much near the city is unexplored
     const explored = new Set(b.players[me]!.explored);
     const at = parseKey(city.pos);
     const dark = Object.keys(b.tiles).filter((k) => !explored.has(k) && distance(at, parseKey(k)) <= CONFIG.rewardScoutRadius).length;
-    return dark >= SCOUT_REWARD_TILES ? 1 : 0;
+    return dark >= SCOUT_REWARD_TILES ? 'scout' : 'gold';
   }
-  if (row === 3) {
+  if (pair('borders', 'barracks')) {
     // borders, or barracks when the city is (nearly) full
-    return unitCapacity(city) - unitsOf(b, city.id) <= BARRACKS_FREE ? 1 : 0;
+    return unitCapacity(city) - unitsOf(b, city.id) <= BARRACKS_FREE ? 'barracks' : 'borders';
   }
-  if (row === 4) {
+  if (pair('income', 'growth')) {
     // income, or growth when it brings the next level now
-    return growthNeeded(b, city) - city.growth <= CONFIG.rewardGrowth ? 1 : 0;
+    return growthNeeded(b, city) - city.growth <= CONFIG.rewardGrowth ? 'growth' : 'income';
   }
+  if (!pair('champion', 'support')) return first;
   // champion or support. Supports barely fight and fill the city's room: a big army that took one at every level
   // stood at home with a dozen Pipers and hundreds of gold it had no room to spend (stalled sims, 2026-11-24).
   const support = FACTIONS[b.players[me]!.faction].support;
-  if (own.filter((u) => u.type === support).length >= SUPPORT_CAP) return 0;
+  if (own.filter((u) => u.type === support).length >= SUPPORT_CAP) return 'champion';
   const wounded = own.filter((u) => u.hp < WOUNDED_SHARE * maxHpOf(u)).length;
-  if (wounded >= SUPPORT_WOUNDED) return 1;
+  if (wounded >= SUPPORT_WOUNDED) return 'support';
   const strong = own.filter((u) => UNITS[u.type].atk >= STRONG_ATK).length;
-  if (strong < CHAMPION_STRONG) return 0;
-  if (own.length >= BIG_ARMY) return 1;
+  if (strong < CHAMPION_STRONG) return 'champion';
+  if (own.length >= BIG_ARMY) return 'support';
   const attacking = b.cities.some((c) => c.owner !== me
     && own.some((u) => distance(parseKey(u.pos), parseKey(c.pos)) <= ATTACK_RANGE));
-  if (attacking) return 0;
-  return own.length >= SUPPORT_ARMY ? 1 : 0;
+  if (attacking) return 'champion';
+  return own.length >= SUPPORT_ARMY ? 'support' : 'champion';
 }

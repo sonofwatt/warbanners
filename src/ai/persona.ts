@@ -23,14 +23,16 @@ export const PERSONAS: Record<FactionId, Persona> = {
     mix: { hoplite: 6.5, warrior: 0.5, spearman: 0.6, archer: 1.2, defender: 0.8, swordsman: 1, scout: 0.8, catapult: 0.6, horseman: 0.4, knight: 0.6 },
     counter: 1,
   },
-  // rules 11 stand-in: the Spartan persona, opening with Trapping, until the Woodland persona is tuned
+  // rules 11 (spec section 7): the Woodland Nations fight loose (formation 0.5) from the forests, the Skirmisher and the
+  // Woodland Hunter their core, with Trappers to snare the ways in. A negative forestPenalty draws a unit to a forest
+  // (assess.ts subtracts it). Trapping first (the Trapper's tech), then Archery for the bow and the Hunter.
   woodland: {
-    formation: 1.5, hold: 0.6, spread: 2, raid: 0, forestPenalty: 0,
+    formation: 0.5, hold: 0.4, spread: 4, raid: 1, forestPenalty: -1,
     techOrder: [
-      'trapping', 'archery', 'prospecting', 'spears', 'foraging', 'defence', 'smithing', 'gathering', 'farming', 'mining',
-      'riding', 'logging', 'granary', 'siege', 'orchards', 'chivalry', 'foundry', 'plantations', 'milling', 'fishing', 'walls',
+      'trapping', 'archery', 'foraging', 'logging', 'gathering', 'farming', 'prospecting', 'spears', 'siege', 'orchards',
+      'riding', 'defence', 'walls', 'mining', 'smithing', 'granary', 'chivalry', 'milling', 'plantations', 'foundry', 'fishing',
     ],
-    mix: { skirmisher: 6.5, woodlandHunter: 1.2, spearman: 0.6, defender: 0.8, swordsman: 1, trapper: 0.4, catapult: 0.6, horseman: 0.4, knight: 0.6 },
+    mix: { skirmisher: 5, woodlandHunter: 2.5, trapper: 0.6, spearman: 0.8, catapult: 0.6, swordsman: 0.6, defender: 0.4, horseman: 0.4, knight: 0.4 },
     counter: 1,
   },
   mongols: {

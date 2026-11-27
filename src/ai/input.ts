@@ -22,7 +22,8 @@ function guessTile(input: AiInput, k: HexKey): Tile {
   return { terrain, resource: null, building: null, harvested: false, road: false, village: false, treasure: false, cityId: null };
 }
 
-// A playable engine state rebuilt from the input: unknown tiles are guessed, unseen units are absent.
+// A playable engine state rebuilt from the input: unknown tiles are guessed, unseen units are absent. rules 11: the
+// player's own snares are copied in (the view holds no other), so its planning knows where they are; absent when none.
 export function believedState(input: AiInput): MatchState {
   const tiles: Record<HexKey, Tile> = {};
   for (const h of range({ q: 0, r: 0 }, input.radius)) tiles[key(h)] = guessTile(input, key(h));
@@ -36,13 +37,16 @@ export function believedState(input: AiInput): MatchState {
   }
   const units = structuredClone(input.view.units);
   const cities = structuredClone(input.view.cities);
-  return {
+  const b: MatchState = {
     rulesVersion: RULES_VERSION, seed: 0, rng: 1, radius: input.radius, tiles, cities, units, players,
     current: input.me, stamp: input.stamp,
     nextUnitId: units.reduce((m, u) => Math.max(m, u.id + 1), 0),
     nextCityId: cities.reduce((m, c) => Math.max(m, c.id + 1), 0),
     winner: null,
   };
+  const snares = (input.view.snares ?? []).filter((n) => n.owner === input.me);
+  if (snares.length > 0) b.snares = structuredClone(snares);
+  return b;
 }
 
 const byKey = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -56,5 +60,6 @@ export function viewKey(input: AiInput): string {
     cities: [...view.cities].sort((a, b) => byKey(a.pos, b.pos)),
     units: [...view.units].sort((a, b) => byKey(a.pos, b.pos))
       .map((u) => { const { id: _id, ...rest } = u; return rest; }),
+    snares: view.snares,             // rules 11: the player's own only; left out of the key when it has none
   });
 }

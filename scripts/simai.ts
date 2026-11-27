@@ -1,11 +1,11 @@
 // Bulk AI-against-AI matches with a summary block, for tuning.
-// npm run sim:ai -- --matches 100 --seed 1 --a normal --b hard --max-rounds 60 --swap --jobs 3 [--json out.jsonl [--actions]]
+// npm run sim:ai -- --matches 100 --seed 1 --a normal --b hard --max-rounds 60 --swap --jobs 3 [--factions woodland,mongols] [--json out.jsonl [--actions]]
 // npm run sim:adaptive -- --matches 6 [--seed 1] [--max-rounds 60]
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { TACTICS, adaptiveSeries, census, runMatch, summarize } from '../src/ai/sim';
 import type { SeatSpec, SimOpts, SimResult } from '../src/ai/sim';
-import { HERO_TRAITS } from '../src/engine/index';
+import { FACTIONS, HERO_TRAITS } from '../src/engine/index';
 import type { FactionId, TreasureOutcome } from '../src/engine/index';
 
 const argv = process.argv.slice(2);
@@ -34,14 +34,24 @@ if (flag('adaptive')) {
 }
 
 const seats: [SeatSpec, SeatSpec] = [seatOf(opt('a', 'normal')), seatOf(opt('b', 'normal'))];
+// rules 11: the pair of factions to play (the first takes seat a; --swap exchanges them, as for the default pair)
+function factionsOf(text: string): [FactionId, FactionId] {
+  const pair = text.split(',');
+  if (pair.length !== 2 || pair.some((f) => !Object.hasOwn(FACTIONS, f))) {
+    throw new Error(`--factions takes two of ${Object.keys(FACTIONS).join(', ')}, comma separated, not ${text}`);
+  }
+  return pair as [FactionId, FactionId];
+}
+const pairing = factionsOf(opt('factions', 'spartans,mongols'));
+const played = [...new Set(pairing)];
 const swap = flag('swap');
 const jobs = Math.max(1, Number(opt('jobs', '1')));
 
 // Every match this run plays, in order: each seed, then (with --swap) the same seed with the factions exchanged.
 const all: SimOpts[] = [];
 for (let i = 0; i < matches; i++) {
-  all.push({ seed: seed + i, factions: ['spartans', 'mongols'], seats, maxRounds });
-  if (swap) all.push({ seed: seed + i, factions: ['mongols', 'spartans'] as [FactionId, FactionId], seats, maxRounds });
+  all.push({ seed: seed + i, factions: pairing, seats, maxRounds });
+  if (swap) all.push({ seed: seed + i, factions: [pairing[1], pairing[0]], seats, maxRounds });
 }
 
 const shard = opt('shard', '');
@@ -128,7 +138,7 @@ const heroLines = [
   `heroes per match: first seat ${f2(heroMeans[0]!)}  second seat ${f2(heroMeans[1]!)}  both ${f2(heroMeans[0]! + heroMeans[1]!)}`
     + `  (lost per match ${f2(results.reduce((a, r) => a + r.sides[0].heroesLost + r.sides[1].heroesLost, 0) / (n || 1))})`,
   `matches with at least one hero ${share(withHero, n)}  first hero's side won ${share(firstHeroWins, firstHeroMatches.length)} of ${firstHeroMatches.length} decided`,
-  ...(['spartans', 'mongols'] as const).map((f) => `${f} traits per match: ${traitLine(f)}  (total ${f2(per[f].traitsEarned)}, heroes ${f2(per[f].heroes)})`),
+  ...played.map((f) => `${f} traits per match: ${traitLine(f)}  (total ${f2(per[f].traitsEarned)}, heroes ${f2(per[f].heroes)})`),
   `treasures claimed per match ${f2(claimed / (n || 1))}: ${Object.entries(treasureSum).sort((a, b) => b[1] - a[1]).map(([o, c]) => `${o} ${f2(c / (n || 1))}`).join(', ')}`,
   `draughts drunk ${drunk} of ${draughtsFound} found (${share(drunk, draughtsFound)})`,
 ];
@@ -146,7 +156,7 @@ const travel = (f: FactionId): string => {
 };
 const cen = census(results);
 const ratio = (a: number, b: number): string => `${a}/${b} ${share(a, b)}`;
-const censusLines = (['spartans', 'mongols'] as const).flatMap((f) => [
+const censusLines = played.flatMap((f) => [
   `census ${f} units (matches trained / matches with the tech, per match): ${Object.entries(cen.units[f])
     .map(([t, r]) => `${t} ${ratio(r!.trained, r!.had)} ${f2(r!.total / (n || 1))}`).join(', ')}`,
   `census ${f} knights where chivalry: ${ratio(cen.chivalry[f].knights, cen.chivalry[f].had)}`
@@ -156,29 +166,30 @@ const censusLines = (['spartans', 'mongols'] as const).flatMap((f) => [
     .filter((t) => (cen.tactics[f][t]?.possible ?? 0) > 0)
     .map((t) => { const r = cen.tactics[f][t]!; return `${t} ${ratio(r.used, r.possible)} ${f2(r.total / (n || 1))}`; }).join(', ')}`,
 ]);
-const roadLines = (['spartans', 'mongols'] as const).map((f) => {
+const roadLines = played.map((f) => {
   const r = cen.roads[f];
   const played = results.filter((x) => x.factions.includes(f)).length;
   return `census ${f} roads: laid per match ${f2(r.laid / (played || 1))}  connections per match ${f2(r.connections / (played || 1))}`
     + `  matches with a connection ${ratio(r.matchesConnected, played)}`;
 });
-const travelLine = `travel: tiles moved per mounted unit per turn  mongols ${travel('mongols')}  spartans ${travel('spartans')}`;
+const classic = played.includes('spartans') && played.includes('mongols');
+const travelLine = `travel: tiles moved per mounted unit per turn  ${(classic ? ['mongols', 'spartans'] as FactionId[] : played).map((f) => `${f} ${travel(f)}`).join('  ')}`;
 console.log([
   `matches ${s.matches}  seats a=${opt('a', 'normal')} b=${opt('b', 'normal')}  seed ${seed}  max rounds ${maxRounds}${swap ? '  swap' : ''}`,
-  `win share: spartans ${pct(s.winRate.spartans)}  mongols ${pct(s.winRate.mongols)}  (adjudged stalls count half)`,
+  `win share: ${played.map((f) => `${f} ${pct(s.winRate[f])}`).join('  ')}  (adjudged stalls count half)`,
   `seat win share: first ${pct(s.seatWinRate[0])}  second ${pct(s.seatWinRate[1])}`,
   `stalled ${pct(s.stalledShare)}  rounds p10 ${s.rounds.p10}  median ${s.rounds.median}  p90 ${s.rounds.p90}`,
   `refusals ${refusals} (not moves ${nonMove})  replans ${replans}`,
-  ...(['spartans', 'mongols'] as const).map((f) => {
+  ...played.map((f) => {
     const m = per[f];
     return `${f}: cities ${f2(m.cities)}  at round 10 ${f2(m.citiesAtRound10)}  trained ${f2(m.unitsTrained)}  attacks ${f2(m.attacks)}  kills ${f2(m.kills)}`
       + `  mounted attacks ${f2(m.mountedAttacks)}  raid retreats ${f2(m.raidRetreats)}  adjacent ${f2(m.adjacentShare)}`
       + `  lures ${f2(m.lures)} onto capturable ${f2(m.lureOntoCapturable)} lured captures ${f2(m.luredCaptures)}  forest entries short of mp ${f2(m.forestEntriesWithLittleMp)}`
       + `\n  trained per match: ${trained(f)}`;
   }),
-  `spartan adjacent minus mongol ${f2(per.spartans.adjacentShare - per.mongols.adjacentShare)}`
+  ...(classic ? [`spartan adjacent minus mongol ${f2(per.spartans.adjacentShare - per.mongols.adjacentShare)}`
     + `  mongol cities at round 10 minus spartan ${f2(per.mongols.citiesAtRound10 - per.spartans.citiesAtRound10)}`
-    + `  mongol raid retreats / mounted attacks ${f2(per.mongols.mountedAttacks === 0 ? 0 : per.mongols.raidRetreats / per.mongols.mountedAttacks)}`,
+    + `  mongol raid retreats / mounted attacks ${f2(per.mongols.mountedAttacks === 0 ? 0 : per.mongols.raidRetreats / per.mongols.mountedAttacks)}`] : []),
   ...heroLines,
   chainLine,
   travelLine,
