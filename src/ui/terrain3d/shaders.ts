@@ -29,6 +29,25 @@ vec3 lightUp(vec3 albedo, float band) { return albedo * mix(uShadowColor, uLight
 vec3 finish(vec3 col, float veil) { return mix(col * uTint, uVeilColor, veil); }
 `;
 
+// The village bonfires' light (bonfires.ts): up to MAX_FIRES fires, each a vec4 (its foot in world space, w 1 when lit),
+// and how much light they cast now (sky.ts fire: 0 by day, so the board draws exactly as before). Each vertex picks
+// the fires near it, so a fragment pays for at most one distance. Steady on the terrain; the flicker is on the
+// figures' canvas, with the flames.
+export const MAX_FIRES = 8;
+/** How far a bonfire lights the ground, and the huts, trees and figures round it (world units). */
+export const FIRE_REACH = 16;
+export const FIRE_PROP_REACH = 21;
+/** The fire's light comes from this high over its foot (the middle of the flames). */
+export const FIRE_LIFT = 2.6;
+export const FIRE_GLSL = /* glsl */ `
+uniform vec4 uFires[${MAX_FIRES}];
+uniform float uFireLight;
+// Warm firelight over a lit colour: the colour brightened in the fire's orange, and orange light added, so even the
+// moonlit blue-green ground turns warm (not yellow-green) near the fire.
+const vec3 FIRE_COLOUR = vec3(1.0, 0.52, 0.18);
+vec3 fireLit(vec3 c, float warm) { return c + warm * (c * FIRE_COLOUR * 0.95 + FIRE_COLOUR * 0.4); }
+`;
+
 // After NOISE and LIGHT, in the ground and prop shaders only.
 export const WEATHER_GLSL = /* glsl */ `
 // Weather on the ground's top faces: a light white dusting of snow in soft patches, thicker where the ground faces up,
@@ -54,6 +73,8 @@ vec3 weatherOn(vec3 lit, vec3 n, vec2 p, bool skip) {
 
 // aVeil is 1 on a veiled tile's vertices (written in place when the veil changes), dimmed by the SVG veil's 0.3.
 export const groundVert = /* glsl */ `
+${FIRE_GLSL}
+varying vec4 vFire;
 attribute vec4 aInfo; attribute vec4 aTile; attribute float aAO; attribute vec2 aLocal; attribute float aRoad; attribute float aVeil;
 attribute vec2 aRoadWear;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
@@ -63,6 +84,16 @@ void main() {
   vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position, 1.0);
   vWorld = w.xyz;
+  // The nearest lit bonfire (villages stand far apart, so a tile's corners all pick the same one).
+  vFire = vec4(0.0);
+  if (uFireLight > 0.0) {
+    float best = ${(FIRE_REACH * 3).toFixed(1)};
+    for (int i = 0; i < ${MAX_FIRES}; i++) {
+      vec4 f = uFires[i];
+      float d = distance(f.xz, w.xz);
+      if (f.w > 0.5 && d < best) { best = d; vFire = f; }
+    }
+  }
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
@@ -70,6 +101,8 @@ export const groundFrag = /* glsl */ `
 ${NOISE}
 ${LIGHT}
 ${WEATHER_GLSL}
+${FIRE_GLSL}
+varying vec4 vFire;
 varying vec4 vInfo; varying vec4 vTile; varying float vAO; varying vec2 vLocal; varying vec3 vWorld; varying vec3 vNormal; varying float vRoad; varying float vVeil;
 varying vec2 vRoadWear;
 const float INR = ${INR.toFixed(4)};
@@ -260,13 +293,22 @@ void main() {
     lit *= mix(mix(0.84, 0.95, onRoad), 1.0, smoothstep(0.25, 1.1, edge));
     lit *= 1.0 + 0.05 * (smoothstep(1.0, 1.6, edge) - smoothstep(1.6, 3.0, edge));
   }
-  gl_FragColor = vec4(finish(lit, vVeil), 1.0);
+  vec3 done = finish(lit, vVeil);
+  if (vFire.w > 0.5 && !wall) {
+    // A bonfire's pool of light on the ground round it, falling off in two soft steps, weaker under the veil.
+    float near = clamp(1.0 - distance(vWorld.xz, vFire.xz) / ${FIRE_REACH.toFixed(1)}, 0.0, 1.0);
+    // A bright heart by the stones and a wide soft pool out to the huts, in two smooth steps.
+    float pool = 0.55 * near * near * (3.0 - 2.0 * near) + 0.45 * pow(near, 4.0);
+    done = fireLit(done, uFireLight * pool * (1.0 - 2.0 * vVeil));
+  }
+  gl_FragColor = vec4(done, 1.0);
 }`;
 
 export const propVert = /* glsl */ `
+${FIRE_GLSL}
 attribute float aGloss; attribute vec3 aOut; attribute float aVeil;
 uniform float uOutline;
-varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
+varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil; varying float vFire;
 #ifdef LAMP
 // A mine tunnel's inside, lit by its lantern (lanterns.ts): the lantern's place and which flicker voice it follows.
 attribute vec4 aLamp; varying vec4 vLamp;
@@ -285,6 +327,21 @@ void main() {
   vVeil = aVeil * 0.3;
   vec4 w = modelMatrix * vec4(position + aOut * uOutline, 1.0);
   vWorld = w.xyz;
+  // The bonfires' light: faces turned toward a fire near them (a hut's near side, a figure's side) take it, per vertex.
+  vFire = 0.0;
+  if (uFireLight > 0.0) {
+    vec3 nn = normalize(vNormal);
+    for (int i = 0; i < ${MAX_FIRES}; i++) {
+      vec4 f = uFires[i];
+      vec3 to = f.xyz + vec3(0.0, ${FIRE_LIFT.toFixed(1)}, 0.0) - w.xyz;
+      float d = length(to);
+      if (f.w < 0.5 || d > ${FIRE_PROP_REACH.toFixed(1)}) continue;
+      float near = 1.0 - d / ${FIRE_PROP_REACH.toFixed(1)};
+      float facing = 0.2 + 0.8 * max(dot(nn, to / max(d, 0.001)), 0.0);
+      vFire += facing * (0.8 * near + 0.7 * near * near);
+    }
+    vFire *= uFireLight * (1.0 - 2.0 * aVeil * 0.3);
+  }
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
@@ -308,7 +365,8 @@ vec3 shade(vec3 c) { return mix(c, mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))
 #else
 vec3 shade(vec3 c) { return c; }
 #endif
-varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil;
+varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil; varying float vFire;
+${FIRE_GLSL}
 #ifdef LAMP
 varying vec4 vLamp;
 uniform float uGlow0, uGlow1, uReach, uGlowBoost;
@@ -346,6 +404,7 @@ void main() {
   lit = lit * (1.0 + 2.6 * warm * vec3(1.0, 0.78, 0.48)) + warm * vec3(0.30, 0.17, 0.05);
 #endif
   vec3 done = finish(lit, vVeil);
+  if (vFire > 0.0) done = fireLit(done, min(vFire * 1.5, 1.6));
   done = mix(done, mix(vec3(1.0, 0.80, 0.42), uVeilColor, vVeil * 1.5), min(window, 1.0) * 0.9);
   gl_FragColor = vec4(shade(done), ALPHA);
 }`;

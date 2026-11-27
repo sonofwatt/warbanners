@@ -45,6 +45,8 @@ export interface TownPlan {
   /** A small pennant on the hall's roof, for a city that is not the capital. */
   pennant: { x: number; y: number; z: number } | null;
   walls: WallPlan | null;
+  /** A village's bonfire, in the open ground between its huts (local x, z); null in a city. */
+  fire: { x: number; z: number } | null;
 }
 
 /** The open square in the middle of a city, where a unit stands: no building reaches into it. */
@@ -126,22 +128,30 @@ export function townPlan(town: GlTown, q: number, r: number): TownPlan {
   }
   const banner = town.capital ? { x: 9, z: -7, h: 40 } : null;
   const pennant = town.capital ? null : { x: HALL[0], y: hallH + 1, z: HALL[1] };
-  return { faction: town.faction, pieces, banner, pennant, walls: town.walls ? wallPlan() : null };
+  return { faction: town.faction, pieces, banner, pennant, walls: town.walls ? wallPlan() : null, fire: null };
 }
 
-/** A village: two humble huts and a woodpile, mirrored by the tile's turn. */
+/** The bonfire's ring of stones (its outer radius, world units), and the most a hut's eaves reach from its middle. */
+export const FIRE_RING = 2.6;
+export const HUT_REACH = 7.9;
+
+/**
+ * A village: two humble huts and a woodpile, mirrored by the tile's turn, and a bonfire burning in the open ground
+ * halfway between the huts. The huts stand far enough apart that the fire's stones clear both huts' eaves.
+ */
 export function villagePlan(v: number, turn: number, q: number, r: number): TownPlan {
   const m = turn % 2 === 0 ? 1 : -1;
   const s = (i: number): number => hash(q * 2.3 + i, r * 4.1 - i);
   const A: readonly [number, number, number, number][][] = [
-    [[-11, -5, 0.3, 1], [11, 6, -0.4, 0.88]],
-    [[-10, 5, 0.5, 0.92], [9, -7, -0.2, 1]],
-    [[-12, -2, 0.1, 1], [8, 9, -0.6, 0.85]],
-    [[-8, -9, 0.4, 0.95], [12, 3, -0.3, 0.9]],
+    [[-12, -5, 0.3, 1], [12, 6, -0.4, 0.88]],
+    [[-12, 5, 0.5, 0.92], [11, -7, -0.2, 1]],
+    [[-13, -2, 0.1, 1], [10, 9, -0.6, 0.85]],
+    [[-9, -10, 0.4, 0.95], [13, 3, -0.3, 0.9]],
   ];
   const pieces: TownPiece[] = A[v % 4]!.map(([x, z, rot, k], i) => ({ kind: 'hut', x: x * m, z, rot: rot * m, foot: 6.5 * k, h: 15 * k, seed: s(i) }));
   pieces.push({ kind: 'woodpile', x: 2 * m, z: 13, rot: 0.2 * m, foot: 3, h: 3, seed: s(9) });
-  return { faction: null, pieces, banner: null, pennant: null, walls: null };
+  const [a, b] = [pieces[0]!, pieces[1]!];
+  return { faction: null, pieces, banner: null, pennant: null, walls: null, fire: { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
