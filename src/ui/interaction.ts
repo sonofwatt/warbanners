@@ -15,6 +15,7 @@ export const NONE: Selection = { kind: 'none' };
 
 export interface ActionIndex {
   moves: Record<number, HexKey[]>; attacks: Record<number, HexKey[]>; lures: Record<number, HexKey[]>;
+  dashes: Record<number, HexKey[]>;   // rules 11: the targets a unit can also Dash-strike
   abilities: Record<number, Partial<Record<AbilityId, HexKey[]>>>;
   captures: number[]; claims: number[]; items: number[];   // items: unit ids with a legal useItem (not counted in activeUnits)
   hunkers: number[];                                       // unit ids with a legal hunker (not counted in activeUnits)
@@ -49,7 +50,7 @@ function push<T>(map: Record<number | string, T[]>, k: number | string, v: T): v
 
 export function indexActions(actions: readonly Action[]): ActionIndex {
   const ix: ActionIndex = {
-    moves: {}, attacks: {}, lures: {}, abilities: {}, captures: [], claims: [], items: [], hunkers: [], unhunkers: [], campTrain: {}, train: {},
+    moves: {}, attacks: {}, lures: {}, dashes: {}, abilities: {}, captures: [], claims: [], items: [], hunkers: [], unhunkers: [], campTrain: {}, train: {},
     walls: [], rewards: [], harvest: [], build: {}, road: [], research: [], activeUnits: [],
   };
   const active = new Set<number>();
@@ -57,8 +58,10 @@ export function indexActions(actions: readonly Action[]): ActionIndex {
     switch (a.type) {
       case 'move': push(ix.moves, a.unit, a.to); active.add(a.unit); break;
       case 'attack':
-        push(ix.attacks, a.unit, a.target);
+        // A lure or a Dash-strike is a second way to attack the same target: listed once, asked about on the card.
         if (a.lure === true) push(ix.lures, a.unit, a.target);
+        else if (a.dash === true) push(ix.dashes, a.unit, a.target);
+        else push(ix.attacks, a.unit, a.target);
         active.add(a.unit); break;
       case 'ability': {
         const per = ix.abilities[a.unit] ?? (ix.abilities[a.unit] = {});
@@ -160,7 +163,7 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
     if ((ix.attacks[id] ?? []).includes(hex)) {
       // A second tap on the enemy the panel is already asking about takes the primary option: a plain attack.
       if (sel.askLure === hex) return { selection: sel, action: { type: 'attack', unit: id, target: hex } };
-      if ((ix.lures[id] ?? []).includes(hex)) return { selection: { kind: 'unit', id, armed: null, askLure: hex }, action: null };
+      if ((ix.lures[id] ?? []).includes(hex) || (ix.dashes[id] ?? []).includes(hex)) return { selection: { kind: 'unit', id, armed: null, askLure: hex }, action: null };
       return { selection: sel, action: { type: 'attack', unit: id, target: hex } };
     }
     if ((ix.moves[id] ?? []).includes(hex)) return { selection: sel, action: { type: 'move', unit: id, to: hex } };

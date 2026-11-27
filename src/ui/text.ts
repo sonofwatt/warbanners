@@ -1,5 +1,5 @@
 // Every word the player reads. Names are ours; blurbs are one plain sentence each and follow docs/rules/stage1-rules.md.
-import { CONFIG, FACTIONS, UNITS, buildingTech, harvestTech, roadTech, unitTech, wallsTech } from '../engine';
+import { CONFIG, FACTIONS, UNITS, buildingTech, factionUnits, harvestTech, roadTech, unitTech, wallsTech } from '../engine';
 import type {
   AbilityId, BranchId, BuildingId, DeedId, FactionId, HeroTraitId, ItemId, Resource, RewardId, TechId, Terrain, Trait,
   TreasureOutcome, UnitTypeId,
@@ -112,7 +112,8 @@ const tech: Record<TechId, string> = {
   gathering: 'Gathering', granary: 'Granary', fishing: 'Fishing',
 };
 // rules 8: a faction's own name for a tech. The Spartans build no walls; for them the walls tech is Deep stores.
-const techFor: Partial<Record<FactionId, Partial<Record<TechId, string>>>> = { spartans: { walls: 'Deep stores' } };
+// rules 11: the Woodland Nations' walls are a Palisade.
+const techFor: Partial<Record<FactionId, Partial<Record<TechId, string>>>> = { spartans: { walls: 'Deep stores' }, woodland: { walls: 'Palisade' } };
 const branch: Record<BranchId, string> = { orchards: 'Orchards', hunting: 'Hunting', mountains: 'Mountains', plains: 'Plains', waters: 'Waters' };
 const building: Record<BuildingId, string> = {
   farm: 'Farm', lumberCamp: 'Lumber camp', mine: 'Mine', market: 'Market',
@@ -173,7 +174,7 @@ const longShotPercent = (): number => Math.round(CONFIG.mountain.longShotScale *
 const ui = {
   appName: 'Warbanners', rulesWord: 'rules', versionWord: 'Version', builtWord: 'built',
   walls: 'Walls', road: 'Road', harvest: 'Harvest', build: 'Build', train: 'Train', capture: 'Capture', claimTreasure: 'Claim treasure',
-  attack: 'Attack', attackLure: 'Attack and lure', cancel: 'Cancel', needs: 'Needs',
+  attack: 'Attack', attackLure: 'Attack and lure', shoot: 'Shoot', attackDash: 'Dash-strike', cancel: 'Cancel', needs: 'Needs',
   turn: 'Turn', endTurn: 'End turn', nextUnit: 'Next unit', techs: 'Tech', menu: 'Menu', gold: 'Gold', incomeWord: 'Income',
   unitsCanAct: '{n} units to act', oneUnitCanAct: '1 unit to act', noUnitsCanAct: 'No units to act',
   health: 'Health', attackStat: 'Attack', defence: 'Defence', movement: 'Movement', range: 'Range', traits: 'Traits',
@@ -187,6 +188,7 @@ const ui = {
   digestLost: 'Your {unit} was lost.', digestLostBy: 'Your {unit} was lost to a {by}.',
   digestHurt: 'Your {unit} took {n} damage.', digestHurtBy: 'Your {unit} took {n} damage from a {by}.',
   digestCity: 'You lost a city.',
+  digestSnared: 'An enemy {unit} stepped on your snare and took {n} damage.', digestSnaredDied: 'An enemy {unit} died on your snare.',
   digestTileTaken: 'The {by} moved into its place.', digestTreasure: 'The enemy claimed a treasure.',
   offlineReady: 'Ready to play offline.',
   updateReady: 'A new version is ready.', updateButton: 'Update',
@@ -356,10 +358,9 @@ export function techName(id: TechId, faction?: FactionId): string {
 
 export function unlocks(id: TechId, faction?: FactionId): string[] {
   const out: string[] = [];
-  for (const type of Object.keys(UNITS) as UnitTypeId[]) {
-    const def = UNITS[type];
-    if (unitTech(type) === id && (faction === undefined || def.faction === null || def.faction === faction)) out.push(T.unit[type].name);
-  }
+  // Given a faction, only the units it trains (rules 11: the Woodland Nations train no Warrior or Archer).
+  const types = faction === undefined ? Object.keys(UNITS) as UnitTypeId[] : factionUnits(faction);
+  for (const type of types) if (unitTech(type) === id) out.push(T.unit[type].name);
   for (const b of Object.keys(CONFIG.buildings) as BuildingId[]) if (buildingTech(b) === id) out.push(T.building[b]);
   for (const res of Object.keys(T.resource) as Resource[]) if (harvestTech(res) === id) out.push(T.harvestVerb[res]);
   if (wallsTech() === id && (faction === undefined || FACTIONS[faction].canBuildWalls)) {
@@ -377,6 +378,7 @@ export function digestText(line: DigestLine): string {
   if (line.kind === 'traitEarned') return fill(T.ui.digestTrait, { unit: T.unit[line.unitType].name, trait: T.heroTrait[line.trait].name });
   if (line.kind === 'heroMade') return fill(T.ui.digestHero, { unit: T.unit[line.unitType].name });
   if (line.kind === 'tileTaken') return fill(T.ui.digestTileTaken, { by: T.unit[line.by].name });
+  if (line.kind === 'snareSprung') return fill(line.died ? T.ui.digestSnaredDied : T.ui.digestSnared, { unit: T.unit[line.unitType].name, n: line.damage });
   const name = T.unit[line.unitType].name;
   const by = line.by === null ? null : T.unit[line.by].name;
   if (line.kind === 'unitLost') return by === null ? fill(T.ui.digestLost, { unit: name }) : fill(T.ui.digestLostBy, { unit: name, by });

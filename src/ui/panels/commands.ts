@@ -37,10 +37,12 @@ export function unitCommands(sel: Extract<Selection, { kind: 'unit' }>, state: M
   if (unit === undefined || unit.owner !== state.current) return [];
   if (sel.askLure !== null) {
     const target = sel.askLure;
-    return [
-      { id: 'attack', label: T.ui.attack, cost: null, enabled: true, why: null, action: { type: 'attack', unit: unit.id, target }, arm: null },
-      { id: 'attack-lure', label: T.ui.attackLure, cost: null, enabled: true, why: null, action: { type: 'attack', unit: unit.id, target, lure: true }, arm: null },
-    ];
+    // The plain attack first (a second tap on the target takes it), then each other way the engine offers.
+    const dash = (ix.dashes[unit.id] ?? []).includes(target);
+    const out: Command[] = [{ id: 'attack', label: dash ? T.ui.shoot : T.ui.attack, cost: null, enabled: true, why: null, action: { type: 'attack', unit: unit.id, target }, arm: null }];
+    if ((ix.lures[unit.id] ?? []).includes(target)) out.push({ id: 'attack-lure', label: T.ui.attackLure, cost: null, enabled: true, why: null, action: { type: 'attack', unit: unit.id, target, lure: true }, arm: null });
+    if (dash) out.push({ id: 'attack-dash', label: T.ui.attackDash, cost: null, enabled: true, why: null, action: { type: 'attack', unit: unit.id, target, dash: true }, arm: null });
+    return out;
   }
   const out: Command[] = [];
   // An armed command turns into Cancel, which disarms: tapping it again must not arm the same thing once more.
