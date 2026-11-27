@@ -383,7 +383,7 @@ export function createAppStore(deps: Deps): StoreApi<AppState> {
       nextUnit: () => {
         const { screen, state, viewer, selection, aiBusy } = get();
         if (screen !== 'match' || state === null || viewer === null || !canAct(state, viewer) || aiBusy) return;
-        const next = nextUnitOf(selection, offered(state, viewer));
+        const next = nextUnitOf(selection, offered(state, viewer), playerView(state, viewer));
         if (next !== null) set({ selection: next });
       },
 

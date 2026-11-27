@@ -1,5 +1,5 @@
 // Pure selection and tap logic. Every order comes from the engine's legal actions: nothing here decides what is allowed.
-import { legalActions, mountainStep } from '../engine';
+import { legalActions, maxHpOf, mountainStep } from '../engine';
 import type { AbilityId, Action, BuildingId, HexKey, MatchState, PlayerId, PlayerView, TechId, UnitTypeId } from '../engine';
 import { aiInputFor, believedState } from '../ai/input';
 import type { Mark } from './board/mark';
@@ -191,12 +191,23 @@ export function tap(sel: Selection, hit: Hit, view: PlayerView, ix: ActionIndex)
 }
 
 // Next unit: the viewer's units that can still act, in id order. The one after the selected unit, wrapping round;
-// the first when the selection is anything else. Null when none can act.
-export function nextUnit(sel: Selection, ix: ActionIndex): Selection | null {
-  const list = ix.activeUnits;
+// the first when the selection is anything else. Null when none can act. With a view, a unit that is hunkered and
+// below full health is resting to heal and is skipped; if that leaves none, the answer is null, as when none can act.
+export function nextUnit(sel: Selection, ix: ActionIndex, view?: PlayerView): Selection | null {
+  const resting = (id: number): boolean => {
+    const u = view === undefined ? undefined : unitById(view, id);
+    return u !== undefined && u.hunkered && u.hp < maxHpOf(u);
+  };
+  const list = ix.activeUnits.filter((id) => !resting(id));
   if (list.length === 0) return null;
-  const at = sel.kind === 'unit' ? list.indexOf(sel.id) : -1;
-  return { kind: 'unit', id: list[(at + 1) % list.length]!, armed: null, askLure: null };
+  // The wrap starts from the selected unit's place among all active units, so a skipped selected unit still moves on.
+  const all = ix.activeUnits;
+  const from = sel.kind === 'unit' ? all.indexOf(sel.id) : -1;
+  for (let i = 1; i <= all.length; i++) {
+    const id = all[(from + i + all.length) % all.length]!;
+    if (!resting(id)) return { kind: 'unit', id, armed: null, askLure: null };
+  }
+  return null;
 }
 
 export function afterAction(sel: Selection, view: PlayerView, ix: ActionIndex): Selection {
