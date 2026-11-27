@@ -66,13 +66,16 @@ function tear(k: Kit, s: Surface, x: number, y: number, wd: number, ht: number, 
 
 // ---- the archer ----
 //
-// A hooded bowman of either army: a short cape and a deep hood in the owner's dark colour round a grim bearded face,
-// a quilted jerkin over a tunic in the owner's colour, leg wraps and ankle boots, a leather quiver on his back with
-// grey fletchings over his right shoulder, a bracer on the bow arm, and a tall recurved bow drawn to the chest.
-// Its wear: dirt, a frayed hem, the hood's tail torn and a cut in the jerkin, then the hood ripped away (his hair
-// shows), the bow snapped and no arrow on the string.
+// A hooded bowman of either army, broad and solidly built: a deep hood and a heavy shoulder mantle of undyed dark wool
+// round a grim bearded face, the hood's rim and a band round the mantle's hem in the owner's colour, a thick quilted
+// jerkin over a tunic in the owner's colour (its skirt and sleeves show), leg wraps and ankle boots, a leather quiver
+// on his back with grey fletchings over his right shoulder, a bracer on the bow arm, and a tall recurved bow drawn to
+// the chest. Its wear: dirt, a frayed hem, the hood's tail torn and a cut in the jerkin, then the hood ripped away (his
+// hair shows), the bow snapped and no arrow on the string.
 
-const JERKIN: Profile = [[6.0, 12.2], [5.6, 14.4], [6.1, 18.8], [6.5, 22.2], [6.2, 24.6], [4.4, 26.2]];
+const JERKIN: Profile = [[6.5, 12.2], [6.1, 14.4], [6.7, 18.8], [7.2, 22.2], [6.9, 24.6], [4.9, 26.2]];
+/** Undyed wool, a dark grey brown: the archer's hood and mantle. */
+const ARCHER_WOOL = '#5D5040';
 const JERKIN_COL = '#8C7653';
 
 function bowPoints(top: V3, grip: V3, bottom: V3, n: number): V3[] {
@@ -124,23 +127,23 @@ export function grittyArcher(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow 
   turned(k, () => {
     const own = c.main, ownDark = c.dark;
     // Legs in wraps, ankle boots.
-    standLegs(k, w, { wrap: '#8A7A60', boot: '#5A3C24', knee: 7.2 });
+    standLegs(k, w, { wrap: '#8A7A60', boot: '#5A3C24', knee: 7.2, spread: 3.1 });
     // The tunic's skirt, the jerkin, the belt with a knife.
-    skirt(k, 6.8, 12.6, 6.8, 5.8, own, ownDark);
-    const sf = skirtFront(6.8, 12.6, 6.8, 5.8);
+    skirt(k, 6.8, 12.6, 7.2, 6.2, own, ownDark);
+    const sf = skirtFront(6.8, 12.6, 7.2, 6.2);
     if (worn(w, 1)) { dirt(k, sf, 2.6, 7.6, 4.2, own); dirt(k, sf, -3.6, 7.4, 3.0, own); }
     tatters(k, w, 6.9, 4.8, ownDark);
     if (worn(w, 3)) tear(k, sf, -2.4, 10.0, 2.8, 2.4, own);
     lathe(k, JERKIN, JERKIN_COL, 0.72);
     const jf = frontOf(JERKIN, 0.72);
     const quilt = mix(JERKIN_COL, '#000000', 0.32);
-    for (const x of [-3.4, -1.2, 1.2, 3.4]) k.line([x, 13.6, x * 1.04, 22.6], 0.26, quilt, jf);
-    k.line([-5.2, 18.2, 5.2, 18.2], 0.26, quilt, jf);
+    for (const x of [-3.6, -1.2, 1.2, 3.6]) k.line([x, 13.6, x * 1.04, 21.0], 0.26, quilt, jf);
+    k.line([-5.6, 18.2, 5.6, 18.2], 0.26, quilt, jf);
     // The quiver's strap across the chest, from the right shoulder to the left hip.
-    k.line([4.6, 25.0, 1.0, 20.4, -3.0, 15.4, -5.4, 13.0], 0.9, LEATHER_DARK, frontOf(JERKIN, 0.72, 0.32));
-    k.frustum([0, 0, 0], 12.0, 13.2, 6.15, 6.05, LEATHER_DARK, { sz: 0.76, seg: 12, open: true });
-    k.box([0.2, 12.6, 4.65], [1.6, 1.3, 0.5], AGED, { gloss: 0.5 });
-    k.rod([4.2, 12.4, 3.6], [5.2, 8.6, 4.2], 0.7, LEATHER_DARK, { r1: 0.4, seg: 5 });
+    k.line([4.6, 21.0, 1.0, 18.2, -3.0, 15.4, -5.8, 13.0], 0.9, LEATHER_DARK, frontOf(JERKIN, 0.72, 0.32));
+    k.frustum([0, 0, 0], 12.0, 13.2, 6.6, 6.5, LEATHER_DARK, { sz: 0.76, seg: 12, open: true });
+    k.box([0.2, 12.6, 5.0], [1.6, 1.3, 0.5], AGED, { gloss: 0.5 });
+    k.rod([4.6, 12.4, 3.8], [5.6, 8.6, 4.4], 0.7, LEATHER_DARK, { r1: 0.4, seg: 5 });
     if (worn(w, 2)) dirt(k, jf, 3.0, 15.6, 3.2, JERKIN_COL);
     if (worn(w, 3)) { k.line([-4.2, 21.4, -2.0, 19.6, -0.8, 19.8], 0.5, '#2A1E14', jf); k.line([-4.0, 21.0, -2.0, 19.3], 0.18, '#D9CBAA', jf); }
     if (worn(w, 4)) tear(k, jf, 2.6, 21.0, 3.0, 2.6, JERKIN_COL, '#D9CBAA');
@@ -148,12 +151,12 @@ export function grittyArcher(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow 
     if (heavy(w)) { smear(k, jf, 2.2, 20.4, -0.2, -1, 4.2, 1.2); smear(k, sf, -1.4, 11.6, 0.1, -1, 3.0, 1.0); }
     if (heavy(w)) for (const s of [-1, 1]) drip(k, (x, y) => ({ p: [x, y, 1.75], n: [0, 0, 1] }), s * 2.8 - 0.3, 6.6, 3.4, 0.8);
     // The quiver on his back: leather, a dark mouth, the fletchings over his right shoulder.
-    const qb: V3 = [7.4, 16.8, -4.8], qt: V3 = [3.6, 35.0, -4.2];
+    const qb: V3 = [7.8, 16.8, -5.2], qt: V3 = [4.0, 35.0, -4.6];
     k.rod(qb, qt, 1.9, LEATHER, { r1: 2.1, seg: 8 });
-    k.rod([qt[0] + 0.2, qt[1] - 1.4, qt[2]], qt, 2.35, ownDark, { seg: 8 });
+    k.rod([qt[0] + 0.2, qt[1] - 1.4, qt[2]], qt, 2.35, LEATHER_DARK, { seg: 8 });
     k.rod([qb[0] - 0.1, qb[1] + 2.2, qb[2]], [qb[0] - 0.2, qb[1] + 3.0, qb[2]], 2.1, LEATHER_DARK, { seg: 8, hull: 0 });
     const qd = new Vector3(qt[0] - qb[0], qt[1] - qb[1], qt[2] - qb[2]).normalize();
-    const qs: Surface = (x, y) => ({ p: [x + 0.4, y, -2.6], n: [0, 0, 1] });
+    const qs: Surface = (x, y) => ({ p: [x + 0.4, y, -3.0], n: [0, 0, 1] });
     if (worn(w, 1)) scratches(k, qs, [[5.4, 24.4, 6.6, 23.0]], '#B79B74', 0.3);
     const arrows: [number, number, string][] = worn(w, 4) ? [[-0.6, 0.2, FEATHER], [0.8, -0.4, FEATHER_DARK]] : [[-0.9, 0.3, FEATHER], [0.2, -0.6, FEATHER_DARK], [1.0, 0.5, FEATHER], [-0.2, 0.9, FEATHER]];
     arrows.forEach(([dx, dz, col], i) => {
@@ -166,20 +169,21 @@ export function grittyArcher(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow 
       else fletch(k, end, [-qd.x, -qd.y, -qd.z], col, 2.0, 0.65);
     });
     // The neck and the head: a grim bearded face in a deep hood.
-    k.rod([0, 25.6, -0.1], [0, 29.2, 0.3], 1.75, SKIN, { seg: 7 });
+    k.rod([0, 25.6, -0.1], [0, 29.2, 0.3], 1.95, SKIN, { seg: 7 });
     const face: V3 = [-0.2, 31.9, 0.7];
     bareFace(k, face, w, { beard: '#4A2E1C' });
     if (helmBroken(w)) {
       // Torn away: only a ragged collar of the hood is left, his hair shaggy and loose.
-      hoodCollar(k, face, 3.9, ownDark);
+      hoodCollar(k, face, 3.9, ARCHER_WOOL);
       hairCap(k, face, 3.9, HAIR);
     } else {
-      hood(k, face, 3.9, ownDark, { point: [1.2, 2.6, -4.2], torn: worn(w, 3) });
-      if (worn(w, 2)) dirt(k, (x, y) => ({ p: [x, y, face[2] + 1.6], n: [0, 0.4, 1] }), face[0] + 3.0, face[1] + 4.6, 2.4, ownDark);
+      hood(k, face, 3.9, ARCHER_WOOL, { point: [1.2, 2.6, -4.2], torn: worn(w, 3), rim: own });
+      if (worn(w, 2)) dirt(k, (x, y) => ({ p: [x, y, face[2] + 1.6], n: [0, 0.4, 1] }), face[0] + 3.0, face[1] + 4.6, 2.4, ARCHER_WOOL);
     }
-    // The short cape over the shoulders, under the hood's collar.
-    k.frustum([0, 0, -0.3], 22.0, 26.4, 7.4, 5.0, ownDark, { sz: 0.82, seg: 12 });
-    if (worn(w, 3)) k.decal([-3.6, 22.1, -1.6, 20.8, -0.4, 22.1], ownDark, (x, y) => ({ p: [x, y, 0.82 * Math.sqrt(Math.max(1, 7.4 * 7.4 - x * x)) - 0.1], n: [0, -0.3, 1] }));
+    // The heavy mantle over the shoulders, under the hood's collar, a band of the owner's colour round its hem.
+    k.frustum([0, 0, -0.3], 20.6, 26.6, 8.4, 5.2, ARCHER_WOOL, { sz: 0.8, seg: 12 });
+    k.frustum([0, 0, -0.3], 20.5, 21.5, 8.52, 8.0, own, { sz: 0.8, seg: 12, open: true, hull: 0 });
+    if (worn(w, 3)) k.decal([-3.6, 20.6, -1.6, 19.2, -0.4, 20.6], ARCHER_WOOL, (x, y) => ({ p: [x, y, 0.8 * Math.sqrt(Math.max(1, 8.4 * 8.4 - x * x)) - 0.4], n: [0, -0.3, 1] }));
 
     // The bow, drawn: the bow arm out to the left, the arrow nocked at the chest. All one piece about the bow arm's
     // shoulder, so a crouch can bring it down and in.
@@ -192,12 +196,12 @@ export function grittyArcher(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow 
       const string = '#E2D8BE';
       k.rod(b.top, snapped ? loose : nock, 0.17, string, { seg: 3, hull: 0.4 });
       k.rod(snapped ? loose : nock, b.bottom, 0.17, string, { seg: 3, hull: 0.4 });
-      limb(k, [-5.4, 24.8, 0.4], [-10.2, 23.4, 2.6], [-14.4, 23.0, 3.8], { sleeve: own, sleeveTo: 0.8, bracer: LEATHER });
+      limb(k, [-6.0, 24.8, 0.4], [-10.4, 23.4, 2.6], [-14.4, 23.0, 3.8], { sleeve: own, sleeveTo: 0.8, bracer: LEATHER, r: 1.12 });
       fist(k, grip, [0, 1, 0], [-0.5, 0, 0.85], 1.0);
       if (w.blood >= 1) smear(k, (x, y) => ({ p: [x, y, grip[2] + 1.5], n: [0, 0, 1] }), -14.6, 24.2, 0.6, -1, 2.0, 0.9);
       // The drawing arm and hand: drawn back and loosed along the arrow (-x).
       k.pivot(WEAPON, [5.2, H(-15.6), 0.6], () => {
-        limb(k, [5.4, 24.8, 0.4], [8.4, 23.0, 3.4], [3.0, 23.0, 5.0], { sleeve: own, sleeveTo: 0.8 });
+        limb(k, [6.0, 24.8, 0.4], [8.8, 23.0, 3.4], [3.0, 23.0, 5.0], { sleeve: own, sleeveTo: 0.8, r: 1.12 });
         fist(k, [2.0, H(-14) + 0.1, 5.0], [0, 1, 0], [0.7, 0.2, 0.7], 0.95);
       }, { axis: DRAW_BACK, fwd: [-1, 0, 0] });
       if (!snapped) {
@@ -410,7 +414,7 @@ export function grittyKingsGuard(k: Kit, { look: c, wear: w }: SpecialOpts): Sha
       limb(k, [-6.2, 26.8, 0], [-10.2, 22.2, 1.4], [-10.8, 19.8, 4.6], { r: 1.08 });
       fist(k, [-10.8, 19.4, 5.2], [1, 0, 0], [0, 0, -1], 1.15);
       k.box([-10.8, 19.4, 5.2], [4.6, 0.5, 0.5], LEATHER_DARK, { hull: 0 });
-      k.frame([-11.2, 20.4, 7.0], [-0.34, -0.22, 0], () => bronzeShield(k, c, w, 12), [0.86, 0.86, 0.86]);
+      k.frame([-11.2, 20.4, 7.0], [-0.34, -0.22, 0], () => bronzeShield(k, c, w, 12, 7), [0.86, 0.86, 0.86]);
     }, { axis: TIP_FORWARD });
     if (w.blood >= 1) groundDrops(k, 3, 9, true, heavy(w));
   });
@@ -542,15 +546,17 @@ export function grittyPiper(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow {
 // ---- the scout ----
 //
 // The Spartans' runner, light and quick: crouched low on one knee, leaning into the spring, a short leaf blade held
-// forward. A young, beardless, grim face looking ahead under a deep hood, a long hooded cloak in the owner's dark
-// colour sweeping to the ground behind him, a short crimson tunic, a belt with a pouch, bare arms, leg wraps and
-// sandals. No armour at all. Its wear: dust on the knee he kneels on, a frayed hem, then a torn tunic, the hood's
-// tail and the cloak's hem torn; broken, the hood is ripped away (his short hair shows), the blade snapped, the
-// cloak in rags.
+// forward. A young, beardless, grim face looking ahead under a light hood of pale undyed wool, its short cloak flying
+// out behind him, a short tunic in the owner's colour with a sash of it knotted at the hip, a belt with a pouch, bare
+// arms, leg wraps and sandals. No armour at all. Lean where the archer is broad, pale where he is dark. Its wear: dust
+// on the knee he kneels on, a frayed hem, then a torn tunic, the hood's tail and the cloak's hem torn; broken, the
+// hood is ripped away (his short hair shows), the blade snapped, the cloak in rags.
 
 const SC_LEAN = -0.3;
 const SC_HIP: V3 = [0, 9.6, 0];
-const SC_TORSO: Profile = [[5.3, 0.4], [4.9, 2.2], [5.2, 6.2], [5.6, 9.2], [5.3, 11.0], [3.9, 12.4]];
+const SC_TORSO: Profile = [[5.1, 0.4], [4.6, 2.2], [4.9, 6.2], [5.3, 9.2], [5.0, 11.0], [3.7, 12.4]];
+/** Pale undyed wool, a light dun: the scout's hood and cloak. */
+const SCOUT_WOOL = '#A68D63';
 
 /** A point in the scout's leaning torso frame, in the figure's own frame. */
 function lean(p: V3): V3 {
@@ -563,13 +569,19 @@ export function grittyScout(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow {
     const own = c.main, ownDark = c.dark;
     const wrap = '#857257', sandal = GT.SANDAL;
     // The cloak sweeping down behind him to the ground (torn from battered, rags once broken).
-    const hem = worn(w, 4) ? [-14.0, 1.2, -12.2, 3.8, -10.8, 0.8, -9.0, 3.4, -7.6, 0.6, -6.2, 3.0]
-      : worn(w, 3) ? [-14.0, 1.2, -11.6, 2.6, -9.6, 0.8, -7.8, 2.2, -6.2, 1.0] : [-14.0, 1.2, -6.2, 1.0];
-    const outline = [6.4, 21.8, 1.0, 23.4, -3.8, 20.6, -8.2, 13.6, -12.0, 6.0, ...hem, -2.6, 6.4, 2.4, 13.0, 6.6, 17.0];
-    k.slab(outline, 1.1, ownDark, [0, 0, -4.6], [0, 0.22, 0]);
-    for (const [x0, y0, x1, y1] of [[-2.0, 20.6, -9.6, 3.4], [2.6, 20.8, -4.2, 6.6]] as const) {
-      k.slab([x0 - 0.8, y0, x0 + 0.6, y0, x1 + 1.2, y1, x1 - 1.2, y1], 1.2, mix(ownDark, '#000000', 0.28), [0, 0, -5.2], [0, 0.22, 0], { hull: 0 });
-    }
+    // The short cloak flying out behind him as he springs (its hem torn from battered, rags once broken).
+    const hem = worn(w, 4) ? [-16.2, 14.2, -15.0, 11.0, -13.4, 13.2, -12.0, 9.6, -10.2, 12.2, -8.6, 9.8, -6.8, 12.4]
+      : worn(w, 3) ? [-16.6, 14.6, -14.6, 11.4, -12.6, 12.8, -10.4, 10.4, -7.0, 12.2] : [-16.8, 14.8, -14.0, 11.2, -10.6, 10.8, -7.0, 12.2];
+    const outline = [6.2, 21.6, 1.0, 23.2, -4.2, 22.4, -8.0, 20.4, -11.4, 20.2, -15.0, 18.0, -18.2, 17.4, ...hem, -3.2, 13.0, 1.6, 15.8, 5.8, 18.0];
+    k.slab(outline, 0.8, SCOUT_WOOL, [0, 0, -4.4], [0, -0.12, 0]);
+    // Folds streaming back along it on the near face, darker in the troughs, a pale crest along the top.
+    const cf: Surface = (x, y) => ({ p: [x, y, 0.42], n: [0, 0, 1] });
+    const trough = mix(SCOUT_WOOL, '#000000', 0.3), crest = mix(SCOUT_WOOL, '#FFFFFF', 0.18);
+    k.frame([0, 0, -4.4], [0, -0.12, 0], () => {
+      k.line([-1.0, 20.8, -6.4, 18.6, -11.6, 16.6, -15.2, 15.6], 0.75, trough, cf);
+      k.line([1.6, 18.4, -3.8, 16.0, -8.6, 13.8], 0.65, trough, cf);
+      k.line([0.4, 22.4, -4.6, 21.4, -8.4, 19.6, -12.0, 19.2], 0.45, crest, cf);
+    });
     // The legs: the back knee down, the shin along the ground; the front leg bent, ready to spring.
     k.pivot(LEGS_PIECE, ANKLE_AT, () => {
       k.rod([-2.4, 9.4, -0.8], [-6.2, 2.4, -1.0], 1.85, SKIN, { r1: 1.55, seg: 7 });
@@ -598,9 +610,12 @@ export function grittyScout(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow {
       lathe(k, SC_TORSO, own, 0.72);
       const fold = mix(own, '#000000', 0.3);
       for (const [x0, x1] of [[-3.0, -2.2], [2.8, 2.0]] as const) k.line([x0, 10.4, x1, 2.4], 0.32, fold, front);
-      k.frustum([0, 0, 0], 0.2, 1.4, 5.45, 5.35, LEATHER_DARK, { sz: 0.77, seg: 12, open: true });
-      k.box([-3.6, 0.0, 3.4], [2.2, 2.0, 1.4], LEATHER, { rot: [0, -0.5, 0] });
-      k.box([0.4, 0.8, 4.1], [1.4, 1.1, 0.4], AGED, { gloss: 0.5 });
+      k.frustum([0, 0, 0], 0.2, 1.4, 5.15, 5.05, LEATHER_DARK, { sz: 0.77, seg: 12, open: true });
+      // The sash in the owner's colour over the belt, its knotted ends flying at the right hip.
+      k.frustum([0, 0, 0], 1.3, 2.7, 4.95, 5.05, own, { sz: 0.78, seg: 12, open: true, hull: 0.5 });
+      k.slab([0, 0, 1.2, 0.3, 3.6, -1.4, 3.2, -2.6, 1.8, -1.2, 0.4, -1.6], 0.4, own, [3.6, 2.0, 2.8], [0, -0.7, -0.3], { hull: 0.5 });
+      k.box([-3.4, 0.0, 3.2], [2.2, 2.0, 1.4], LEATHER, { rot: [0, -0.5, 0] });
+      k.box([0.4, 0.8, 3.9], [1.4, 1.1, 0.4], AGED, { gloss: 0.5 });
       // The blade's sheath at the left hip.
       k.rod([-4.6, 1.4, 2.8], [-6.4, -4.4, 3.6], 0.75, LEATHER_DARK, { r1: 0.45, seg: 5 });
       k.rod([-4.6, 1.4, 2.8], [-4.8, 0.8, 2.9], 0.85, AGED, { seg: 5, hull: 0 });
@@ -629,12 +644,12 @@ export function grittyScout(k: Kit, { look: c, wear: w }: SpecialOpts): Shadow {
       const face: V3 = [0, 0, 0];
       bareFace(k, face, w, { r: 3.6, beard: null });
       if (helmBroken(w)) {
-        hoodCollar(k, face, 3.6, ownDark, 1.2);
+        hoodCollar(k, face, 3.6, SCOUT_WOOL, 1.2);
         hairCap(k, face, 3.6, HAIR);
       } else {
-        hood(k, face, 3.6, ownDark, { point: [-1.6, 1.6, -5.2], torn: worn(w, 3), collar: 1.2 });
+        hood(k, face, 3.6, SCOUT_WOOL, { point: [-3.4, 0.6, -5.6], torn: worn(w, 3), collar: 1.2 });
         k.ball([1.6, -4.6, 2.6], 0.6, AGED, { detail: 0, hull: 0.4, gloss: 0.5 });
-        if (worn(w, 2)) dirt(k, (x, y) => ({ p: [x, y, 1.6], n: [0, 0.4, 1] }), 2.6, 4.2, 2.2, ownDark);
+        if (worn(w, 2)) dirt(k, (x, y) => ({ p: [x, y, 1.6], n: [0, 0.4, 1] }), 2.6, 4.2, 2.2, SCOUT_WOOL);
       }
     });
     if (w.blood >= 1) groundDrops(k, 4, 8, true, heavy(w));

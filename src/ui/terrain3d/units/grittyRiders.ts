@@ -4,6 +4,7 @@
 // pieces as its Bright figure in figures.ts (the horse's LEGS and NECK, the RIDER, and the WEAPON and ARROW where the
 // Bright one has them), so the gait, idle, strike and crouch code drives it unchanged.
 import { Vector3 } from 'three';
+import { hairCap } from './grittyBody';
 import { flat, H, Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
 import { BLOOD, crack, dent, dirt, discPoly, ell, groundDrops, scratches, smear, spear, tearPolys, worn } from './parts';
@@ -41,47 +42,96 @@ function coatWear(k: Kit, colour: string, w: Wear, under: string = '#CDBF9F'): v
 }
 
 // ---- the horseman: light cavalry, either side's ----
+//
+// A light rider of the open steppe, whoever's pay he takes: a quilted coat in the owner's colour, a sash, a felt cap
+// with a turned-up fur brim and ear flaps (rounded, not the horse archer's tall cone), a small round hide shield on the
+// left arm painted with the owner's colour, a curved sabre hung at the near side, a short spear with a pennon. Broken,
+// the cap is gone: cropped dark hair with a tail tied at the nape.
 
-/** A soft padded cap, its crown falling back into a tail; battered, the tail torn short. */
-function paddedCap(k: Kit, c: Look, w: Wear): void {
-  const h = HEAD_C, cap = c.dark;
-  k.dome([h[0], h[1] + 1.3, h[2] - 0.4], HEAD_R * 1.22, cap, { to: 1.25, seg: 10 });
-  k.frustum([h[0], 0, h[2] - 0.4], h[1] + 2.0, h[1] + 3.0, HEAD_R * 1.25, HEAD_R * 1.2, mix(cap, '#000000', 0.25), { seg: 10, sz: 1 });
-  const tailEnd: V3 = worn(w, 3) ? [h[0] + 3.0, h[1] + 3.0, h[2] - 3.6] : [h[0] + 4.6, h[1] + 0.2, h[2] - 4.6];
-  k.rod([h[0] + 1.0, h[1] + 4.6, h[2] - 1.2], tailEnd, 1.7, cap, { r1: worn(w, 3) ? 1.1 : 0.45, seg: 6 });
-  // Quilted seams over the crown.
+const HAIR_H = '#2C1E15';
+const FUR_H = '#76563A';
+
+/** A felt cap with a fur brim turned up all round and ear flaps hanging; battered, the near flap is torn off. */
+function riderCap(k: Kit, c: Look, w: Wear): void {
+  const h = HEAD_C, felt = c.dark;
+  // The crown: a rounded dome of felt, a little peaked, quilted down its front.
+  k.dome([h[0], h[1] + 1.6, h[2] - 0.4], HEAD_R * 1.16, felt, { to: 1.3, seg: 10, s: [1, 1.22, 1] });
   const s = (x: number, y: number): { p: V3; n: V3 } => {
-    const r = HEAD_R * 1.22 + 0.08, cx = h[0], cy = h[1] + 1.3;
-    const dx = x - cx, dy = y - cy, dz = Math.sqrt(Math.max(0.2, r * r - dx * dx - dy * dy));
+    const r = HEAD_R * 1.16 + 0.08, cx = h[0], cy = h[1] + 1.6;
+    const dx = x - cx, dy = (y - cy) / 1.22, dz = Math.sqrt(Math.max(0.2, r * r - dx * dx - dy * dy));
     return { p: [x, y, h[2] - 0.4 + dz], n: [dx / r, dy / r, dz / r] };
   };
-  for (const x of [-1.6, 0, 1.6]) k.line([h[0] + x * 1.2, h[1] + 3.2, h[0] + x * 0.6, h[1] + 5.2], 0.22, mix(cap, '#000000', 0.35), s);
-  if (worn(w, 2)) dirt(k, s, h[0] - 2.0, h[1] + 3.6, 2.4, cap);
+  for (const x of [-1.5, 0, 1.5]) k.line([h[0] + x * 1.25, h[1] + 3.6, h[0] + x * 0.45, h[1] + 6.0], 0.22, mix(felt, '#000000', 0.35), s);
+  k.ball([h[0], h[1] + 6.3, h[2] - 0.4], 0.6, mix(felt, '#000000', 0.2), { detail: 0, hull: 0.4 });
+  // The fur brim turned up round the head, tufted light and dark at the front.
+  k.frustum([h[0], 0, h[2] - 0.6], h[1] + 2.0, h[1] + 3.9, HEAD_R * 1.2, HEAD_R * 1.32, FUR_H, { seg: 12 });
+  const fs = (x: number, y: number): { p: V3; n: V3 } => {
+    const r = HEAD_R * 1.28 + 0.1, dx = Math.max(-r * 0.95, Math.min(r * 0.95, x - h[0])), dz = Math.sqrt(r * r - dx * dx);
+    return { p: [x, y, h[2] - 0.6 + dz], n: [dx / r, 0.15, dz / r] };
+  };
+  for (let i = 0; i < 7; i++) {
+    const x = h[0] - 3.3 + i * 1.1;
+    k.line([x, h[1] + 2.2, x + 0.25, h[1] + 3.6], 0.32, i % 2 ? '#9A7A58' : '#4A3220', fs);
+  }
+  // Ear flaps of fur-lined felt hanging over the ears (the near one, his left, torn off once battered).
+  for (const sd of [-1, 1]) {
+    if (sd < 0 && worn(w, 3)) continue;
+    k.slab([-1.3, 0, 1.3, 0, 1.0, -3.4, 0, -4.2, -1.0, -3.4], 0.55, FUR_H, [h[0] + sd * HEAD_R * 1.16, h[1] + 2.0, h[2] - 0.9], [0, sd * Math.PI / 2, sd * 0.12], { hull: 0.5 });
+  }
+  if (worn(w, 2)) dirt(k, s, h[0] - 1.6, h[1] + 4.2, 2.2, felt);
+}
+
+/** A small round hide shield on the left forearm, facing out: the owner's colour in a ring round an iron boss. */
+function buckler(k: Kit, c: Look, w: Wear, at: V3, rot: V3): void {
+  k.frame(at, rot, () => {
+    const R = 3.4, hide = '#8A6A44';
+    const rim = worn(w, 3) ? [0.0, 0.62, 1.0, 1.0, 0.7, 1.0, 1.0, 0.86, 1.0, 1.0, 1.0, 1.0] : null;
+    const ring: number[] = [];
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, r = R * (rim ? rim[i]! : 1); ring.push(Math.cos(a) * r, Math.sin(a) * r); }
+    k.slab(ring, 0.6, hide, [0, 0, 0], [0, 0, 0], { gloss: 0.2 });
+    const face: Surface = (x, y) => ({ p: [x, y, 0.31], n: [0, 0, 1] });
+    k.decal(ell(0, 0, R * 0.8, R * 0.8, 12), c.main, face);
+    k.decal(ell(0, 0, R * 0.5, R * 0.5, 10), hide, face);
+    k.line([...ell(0, 0, R * 0.93, R * 0.93, 12), R * 0.93, 0], 0.3, GT.LEATHER_DARK, face);
+    k.ball([0, 0, 0.4], 1.0, '#7E7A72', { detail: 0, gloss: 0.5, s: [1, 1, 0.6], hull: 0.5 });
+    if (worn(w, 1)) scratches(k, face, [[1.0, 1.8, 2.4, 0.8]], '#D9CBAA', 0.22);
+    if (worn(w, 2)) k.ball([-1.6, -1.2, 0.34], 0.35, '#2A1E14', { detail: 0, hull: 0 });
+    if (w.blood >= 1) smear(k, face, -0.6, 1.8, 0.1, -1, 2.4, 0.9);
+  });
 }
 
 export function grittyHorseman(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
   turned(k, MOUNT_YAW, () => {
     grittyHorse(k, BAY, { cloth: c.dark, trim: c.accent }, w);
-    riderLegs(k, { thigh: c.main, boot: BOOT }, w);
+    riderLegs(k, { thigh: c.main, boot: BOOT, upturned: true }, w);
+    // The sabre hung from the saddle on the near side, curving back, its hilt forward under his thigh.
+    const sab = [[-0.6, 19.0, 5.2], [-2.0, 16.6, 5.6], [-3.0, 14.0, 5.7], [-3.4, 11.6, 5.6]] as const;
+    for (let i = 0; i + 1 < sab.length; i++) k.rod([...sab[i]!], [...sab[i + 1]!], 0.62 - i * 0.06, GT.LEATHER_DARK, { seg: 5, caps: i === sab.length - 2 });
+    k.rod([-3.4, 11.6, 5.6], [-3.4, 11.0, 5.55], 0.48, GT.AGED, { seg: 5, hull: 0.4, gloss: 0.5 });
+    k.rod([-0.4, 19.4, 5.2], [0.6, 21.2, 5.1], 0.42, GT.LEATHER, { seg: 4 });
+    k.rod([-1.3, 19.4, 5.25], [0.5, 18.6, 5.25], 0.3, GT.AGED, { seg: 4, gloss: 0.5 });
   });
   turned(k, RIDER_YAW, () => {
     k.pivot(RIDER, SEAT, () => {
-      // A quilted coat in the owner's colour, belted, over breeches.
+      // A quilted coat in the owner's colour, a sash of the trim round the waist, over breeches.
       lapSkirt(k, c.main);
       torso(k, c.main);
       const front = torsoFront(0.12);
       const seam = mix(c.main, '#000000', 0.3);
-      for (const x of [-2.4, -0.8, 0.8, 2.4]) k.line([x, 23.0, x * 1.08, 29.6], 0.2, seam, front);
-      k.line([-0.4, 30.6, 1.4, 27.0, 1.2, 22.6], 0.35, mix(c.main, '#000000', 0.45), front);
-      k.frustum([0, 0, 0], 21.8, 23.0, 4.15, 4.05, GT.LEATHER_DARK, { sz: 0.8, seg: 10, open: true });
-      k.box([0, 22.4, 3.3], [1.4, 1.2, 0.5], c.accent, { gloss: 0.5 });
-      k.frustum([0, 0, 0.1], 30.6, 31.8, 3.5, 2.5, c.dark, { sz: 0.85, seg: 9 });
+      for (const x of [-2.4, -0.8, 0.8, 2.4]) k.line([x, 23.6, x * 1.08, 29.6], 0.2, seam, front);
+      k.line([-0.4, 30.6, 1.4, 27.0, 1.2, 23.4], 0.35, mix(c.main, '#000000', 0.45), front);
+      k.frustum([0, 0, 0], 21.6, 23.4, 4.2, 4.1, c.accent, { sz: 0.8, seg: 10, open: true, hull: 0.5 });
+      k.slab([0, 0, 1.0, 0, 1.3, -3.6, 0.5, -3.2, -0.2, -4.0], 0.45, c.accent, [3.2, 22.0, 2.8], [0, 0.6, -0.15], { hull: 0.5 });
+      // A leather baldric over the right shoulder.
+      k.line([2.6, 31.0, 0.4, 27.4, -2.6, 23.6], 0.7, GT.LEATHER_DARK, torsoFront(0.2));
+      k.frustum([0, 0, 0.1], 30.6, 31.8, 3.5, 2.5, FUR_H, { sz: 0.85, seg: 9 });
       coatWear(k, c.main, w);
       neck(k);
-      // The left hand holds the reins over the pommel.
+      // The left hand holds the reins over the pommel, the shield on its forearm.
       riderArm(k, [-4.4, 30.2, 0.1], [-5.6, 26.0, 1.6], [-2.6, 23.6, 4.0], { sleeve: c.main, cuff: GT.LEATHER });
       fist(k, [-1.6, 23.2, 4.6], [1, 0, 0], [-0.2, 0.3, 1], 0.9);
       k.rod([-1.0, 23.0, 4.6], [1.7, 21.4, 2.8], 0.26, GT.LEATHER_DARK, { seg: 4, hull: 0 });
+      buckler(k, c, w, [-5.6, 24.6, 3.4], [0.1, -0.75, 0]);
       // The right arm and the short spear, held high and pointing forward; the hand goes with the spear.
       riderArm(k, [4.4, 30.2, 0.1], [6.8, 26.4, 1.6], [5.6, 24.6, 3.6], { sleeve: c.main, cuff: GT.LEATHER });
       const butt: V3 = [2, H(-8), 4.4], top: V3 = [12.4, H(-31.6), 4.4];
@@ -96,10 +146,15 @@ export function grittyHorseman(k: Kit, { look: c, wear: w }: RiderOpts): Shadow 
           k.slab(tail, 0.35, c.main, [at.x - 0.3, at.y + 0.6, at.z], [0, 0, 0.12], { hull: 0.5 });
         }
       }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
-      // The face, and the cap over it; broken, the cap is gone and his hair shows.
+      // The face, and the cap over it; broken, the cap is gone: cropped hair, a tail tied at the nape.
       const bare = helmBroken(w);
-      bareFace(k, HEAD_C, w, { r: HEAD_R, hair: bare ? '#3A2616' : null });
-      if (!bare) paddedCap(k, c, w);
+      bareFace(k, HEAD_C, w, { r: HEAD_R, beard: '#3A2616' });
+      if (bare) {
+        hairCap(k, HEAD_C, HEAD_R, HAIR_H);
+        const h = HEAD_C;
+        k.ball([h[0], h[1] + 0.4, h[2] - 4.1], 0.75, GT.LEATHER_DARK, { detail: 0, hull: 0.4 });
+        k.rod([h[0], h[1] + 0.2, h[2] - 4.3], [h[0] + 0.3, h[1] - 4.2, h[2] - 4.9], 0.75, HAIR_H, { r1: 0.25, seg: 5 });
+      } else riderCap(k, c, w);
     }, { axis: HUNCH });
   });
   hoofBlood(k, w);
@@ -111,12 +166,14 @@ export function grittyHorseman(k: Kit, { look: c, wear: w }: RiderOpts): Shadow 
 const STEEL_G = '#A2A8AF';
 const STEEL_G_DARK = '#666C74';
 const MAIL = '#7C8188';
+/** The chanfron's blackened steel. */
+const CHANFRON = '#3F444B';
 /** A grey. */
 const GREY: Coat = { coat: '#A8A196', shade: '#88827A', mane: '#5E584F', hoof: '#3E352D' };
 
 /** The knight's caparison: cloth over the whole horse to the knees, scalloped, a band and the owner's mark. */
 function caparison(k: Kit, c: Look, w: Wear): void {
-  const NX = 12, X0 = -14.4, X1 = 10.4, OFF = 0.4;
+  const NX = 12, X0 = -14.4, X1 = 10.4, OFF = 0.75;
   const broken = helmBroken(w);
   // Broken (and scarred), a great piece is torn out of the near side, up to the flank; battered, one scallop rips.
   const tornCol = (i: number): boolean => broken && i >= 4 && i <= 6;
@@ -128,7 +185,7 @@ function caparison(k: Kit, c: Look, w: Wear): void {
   };
   drape(k, c.main, { x0: X0, x1: X1, far: -2.0, near, nx: NX, nu: 6, off: OFF, hull: 0.7 });
   // The peytral: the cloth hanging across the front of the chest, scalloped like the rest.
-  k.slab([-3.7, 16.6, 3.7, 16.6, 3.8, 7.0, 2.5, 7.8, 1.2, 6.6, 0, 7.8, -1.2, 6.6, -2.5, 7.8, -3.8, 7.0], 0.5, c.main, [10.5, 0, 0], [0, Math.PI / 2, 0], { hull: 0.7 });
+  k.slab([-3.7, 16.6, 3.7, 16.6, 3.8, 7.0, 2.5, 7.8, 1.2, 6.6, 0, 7.8, -1.2, 6.6, -2.5, 7.8, -3.8, 7.0], 0.5, c.main, [10.9, 0, 0], [0, Math.PI / 2, 0], { hull: 0.7 });
   const ds = drapeSurf(OFF + 0.02);
   const colX = (i: number): number => X0 + ((X1 - X0) * i) / NX;
   // The band above the hem, broken where the cloth is torn away.
@@ -158,12 +215,23 @@ function knightNeck(k: Kit, c: Look, w: Wear): void {
     lift: () => 0.35, colour: () => c.main,
   });
   if (!helmBroken(w)) {
-    loftSheet(k, HEAD_RINGS, { t0: 0.16, t1: 0.8, far: -0.95, cols: 3, rows: 2, near: () => 0.95, lift: () => 0.28, colour: () => STEEL_G, gloss: 0.5, hull: 0.5 });
-    metalEdge(k, [loftPoint(HEAD_RINGS, 0.16, 0, 0.45), loftPoint(HEAD_RINGS, 0.8, 0, 0.45)], 0.24, GT.GOLD_EDGE);
-    k.rod(loftPoint(HEAD_RINGS, 0.2, 0, 0.3), loftPoint(HEAD_RINGS, 0.12, 0, 2.6), 0.55, STEEL_G, { r1: 0.06, seg: 5, gloss: 0.5 });
-    if (worn(w, 2)) k.decal(ell(0, 0, 0.5, 0.4, 6), STEEL_G_DARK, (x, y) => ({ p: [loftPoint(HEAD_RINGS, 0.5, 0.5, 0.42)[0] + x, loftPoint(HEAD_RINGS, 0.5, 0.5, 0.42)[1] + y, loftPoint(HEAD_RINGS, 0.5, 0.5, 0.42)[2]], n: [0, 0.3, 1] }));
+    // Blackened steel, so it stands off the grey coat, wrapped well down the near cheek, gold along its edges and
+    // down its ridge, a spike on the brow and the owner's colour in a disc on the cheek.
+    const NEAR = 1.75, FAR = -1.2;
+    loftSheet(k, HEAD_RINGS, { t0: 0.16, t1: 0.84, far: FAR, cols: 3, rows: 3, near: () => NEAR, lift: () => 0.3, colour: () => CHANFRON, gloss: 0.55, hull: 0.6 });
+    metalEdge(k, [loftPoint(HEAD_RINGS, 0.16, 0, 0.48), loftPoint(HEAD_RINGS, 0.84, 0, 0.48)], 0.26, GT.GOLD_EDGE);
+    metalEdge(k, [0.16, 0.39, 0.62, 0.84].map((t) => loftPoint(HEAD_RINGS, t, NEAR, 0.36)), 0.22, GT.GOLD_EDGE);
+    metalEdge(k, [loftPoint(HEAD_RINGS, 0.17, FAR, 0.36), loftPoint(HEAD_RINGS, 0.17, 0.2, 0.42), loftPoint(HEAD_RINGS, 0.17, NEAR, 0.36)], 0.22, GT.GOLD_EDGE);
+    k.rod(loftPoint(HEAD_RINGS, 0.2, 0, 0.3), loftPoint(HEAD_RINGS, 0.12, 0, 2.8), 0.6, STEEL_G, { r1: 0.06, seg: 5, gloss: 0.5 });
+    const cheek = loftPoint(HEAD_RINGS, 0.36, 1.15, 0.5);
+    k.decal(ell(0, 0, 0.75, 0.75, 8), c.main, (x, y) => ({ p: [cheek[0] + x, cheek[1] + y, cheek[2]], n: [0, 0.2, 1] }));
+    if (worn(w, 1)) k.line([0, 0, 0.9, -0.5], 0.2, '#C9CCD0', (x, y) => { const q = loftPoint(HEAD_RINGS, 0.6, 0.9, 0.46); return { p: [q[0] + x, q[1] + y, q[2]], n: [0, 0.3, 1] }; });
+    if (worn(w, 2)) k.decal(ell(0, 0, 0.5, 0.4, 6), mix(CHANFRON, '#000000', 0.4), (x, y) => ({ p: [loftPoint(HEAD_RINGS, 0.5, 0.5, 0.45)[0] + x, loftPoint(HEAD_RINGS, 0.5, 0.5, 0.45)[1] + y, loftPoint(HEAD_RINGS, 0.5, 0.5, 0.45)[2]], n: [0, 0.3, 1] }));
   }
 }
+
+/** How far the knight's crest is turned across the helm (about the vertical). */
+const CREST_TURN = 0.6;
 
 /** The great helm: a flat-topped steel pot, eye slits, a cross of reinforcing bands, breaths, a combed crest. */
 function greatHelm(k: Kit, c: Look, w: Wear): void {
@@ -200,7 +268,10 @@ function greatHelm(k: Kit, c: Look, w: Wear): void {
   }
   k.frustum([h[0], 0, h[2] - 0.2], y1, y1 + 1.0, R - 0.1, R - 1.3, STEEL_G, { seg: 10, gloss: 0.45 });
   k.frustum([h[0], 0, h[2] - 0.2], y1 - 0.25, y1 + 0.25, R + 0.05, R + 0.05, GT.GOLD_EDGE, { seg: 10, hull: 0, gloss: 0.6 });
-  crestBrush(k, { root: [h[0], y1 + 0.9, h[2] - 0.6], colour: vivid(c.main), shorn: worn(w, 3), length: 5.2, height: 4.6, thick: 1.05 });
+  // The crest, turned a little across the helm so the game's camera sees its face and not only its edge, and thick.
+  k.frame([h[0], 0, h[2] - 0.6], [0, CREST_TURN, 0], () => {
+    crestBrush(k, { root: [0, y1 + 0.9, 0], colour: vivid(c.main), shorn: worn(w, 3), length: 5.6, height: 5.2, thick: 1.7 });
+  });
 }
 
 export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
@@ -272,7 +343,9 @@ const STRING_G = '#E6DFD0';
 /** A dun: sandy, with black points and a dark stripe down the back. */
 const DUN_G: Coat = { coat: '#B48A57', shade: '#8E6A40', mane: '#2A201B', hoof: '#3A2E24', points: '#2E241C', stripe: '#5A4128' };
 /** A black. */
-const BLACK_G: Coat = { coat: '#433630', shade: '#2E241F', mane: '#17110E', hoof: '#211A15' };
+const BLACK_G: Coat = { coat: '#4A3C35', shade: '#30261F', mane: '#17110E', hoof: '#211A15' };
+/** The Khan's guard's plumes: pale undyed horsehair, bright against the black horse and the dark lacquer. */
+const GUARD_PLUME = '#E4DAC4';
 /** A pale piebald. */
 const PALE_G: Coat = { coat: '#D8CFBF', shade: '#B2A895', mane: '#4E3A2C', hoof: '#7A6652' };
 
@@ -400,19 +473,28 @@ export function grittyHorseArcher(k: Kit, { look: c, wear: w }: RiderOpts): Shad
 // ---- the Khan's guard: the champion, in lacquered lamellar on a barded black horse ----
 
 /** Rows of lamellae on a surface: lacing lines across and the plates' edges, staggered row to row. */
-function lamellae(k: Kit, s: Surface, x0: number, x1: number, rows: readonly number[], lace: string, step = 1.6, skip?: (x: number, y: number) => boolean): void {
+function lamellae(k: Kit, s: Surface, x0: number, x1: number, rows: readonly number[], lace: string, step = 1.6, skip?: (x: number, y: number) => boolean, edge: string = lace): void {
   for (let r = 0; r < rows.length; r++) {
     const y = rows[r]!;
     k.line([x0, y, x1, y], 0.32, lace, s);
     if (r + 1 < rows.length) {
       const y2 = rows[r + 1]!;
-      for (let x = x0 + (r % 2 ? step / 2 : step); x < x1 - 0.3; x += step) if (!skip?.(x, (y + y2) / 2)) k.line([x, y - 0.2, x, y2 + 0.2], 0.16, lace, s);
+      for (let x = x0 + (r % 2 ? step / 2 : step); x < x1 - 0.3; x += step) if (!skip?.(x, (y + y2) / 2)) k.line([x, y - 0.2, x, y2 + 0.2], 0.16, edge, s);
     }
   }
 }
 
+/**
+ * The Khan's guard's lacquer: the plates in the owner's deep colour, laced across in gold cord, each plate's edge
+ * caught by a pale gleam of lacquer, so the dark armour on the black horse still reads at board size.
+ */
+function guardLacquer(c: Look): { plates: string; lace: string; gleam: string } {
+  const plates = vivid(c.main);
+  return { plates, lace: mix(GT.GOLD_EDGE, plates, 0.15), gleam: mix(plates, '#FFFFFF', 0.38) };
+}
+
 function guardBarding(k: Kit, c: Look, w: Wear): void {
-  const plates = vivid(c.main), lace = mix(c.dark, '#000000', 0.35);
+  const { plates, lace, gleam } = guardLacquer(c);
   const NX = 10, X0 = -13.4, X1 = 9.8, OFF = 0.45;
   const broken = helmBroken(w);
   // Broken (and scarred), a run of the lower plates is gone from the near flank for good; battered, a few hang loose.
@@ -426,7 +508,7 @@ function guardBarding(k: Kit, c: Look, w: Wear): void {
   const ds = drapeSurf(OFF + 0.02);
   const colX = (i: number): number => X0 + ((X1 - X0) * i) / NX;
   const gone = (x: number, y: number): boolean => broken && x > colX(3) && x < colX(6) && y < 13.4;
-  lamellae(k, ds, X0 + 0.4, X1 - 0.4, [18.6, 16.6, 14.6, 12.6, 10.8], lace, 2.1, gone);
+  lamellae(k, ds, X0 + 0.4, X1 - 0.4, [18.6, 16.6, 14.6, 12.6, 10.8], lace, 2.1, gone, gleam);
   for (let i = 0; i < NX; i++) if (!(broken && i >= 2 && i <= 6)) k.line([colX(i), 10.0, colX(i + 1), 10.0], 0.55, GT.GOLD_EDGE, ds);
   if (broken) tearLine(k, ds, [colX(3), 10.2, colX(3) + 1.0, 12.8, colX(4) + 0.5, 13.6, colX(5) + 0.4, 13.2, colX(6) - 1.0, 12.6, colX(6), 10.2], plates);
   if (worn(w, 3)) for (const [x, y, a] of [[4.4, 11.2, 0.4], [-10.6, 11.6, -0.3]] as const) k.box([x, y, (section(x).w + OFF + 0.4)], [1.5, 2.0, 0.3], plates, { rot: [0, 0, a], hull: 0.4 });
@@ -437,18 +519,21 @@ function guardBarding(k: Kit, c: Look, w: Wear): void {
 }
 
 function guardHorseNeck(k: Kit, c: Look, w: Wear): void {
-  const plates = vivid(c.main), lace = mix(c.dark, '#000000', 0.35);
+  const { plates, lace } = guardLacquer(c);
   loftSheet(k, NECK_RINGS, {
     t0: 0.0, t1: 0.82, far: -1.9, cols: 3, rows: 4,
     near: (j) => (worn(w, 3) && j === 2 ? 1.1 : 1.9),
     lift: () => 0.4, colour: (i) => (i % 2 ? plates : mix(plates, '#000000', 0.12)), gloss: 0.4,
   });
   for (const t of [0.22, 0.48, 0.74]) k.rod(loftPoint(NECK_RINGS, t, -0.2, 0.5), loftPoint(NECK_RINGS, t, 1.8, 0.5), 0.22, lace, { seg: 3, hull: 0 });
-  // A plume of dyed horsehair on the brow and a tassel under the jaw.
+  // A plume of pale horsehair on the brow, in a gold cup, and a tassel under the jaw.
   if (!helmBroken(w)) {
     const p = loftPoint(HEAD_RINGS, 0.16, 0, 0.3);
-    k.ball(p, 0.55, GT.GOLD_EDGE, { detail: 0, hull: 0.4, gloss: 0.6 });
-    k.rod(p, [p[0] - 1.6, p[1] + 3.8, p[2]], 0.5, plates, { r1: 1.3, seg: 6, hull: 0.6 });
+    k.ball(p, 0.7, GT.GOLD_EDGE, { detail: 0, hull: 0.4, gloss: 0.6 });
+    const top: V3 = [p[0] - 0.6, p[1] + 2.6, p[2]];
+    k.rod(p, top, 0.5, GUARD_PLUME, { r1: 1.15, seg: 6, hull: 0.6 });
+    k.rod(top, [p[0] - 4.6, p[1] + 1.2, p[2] + 0.2], 1.25, GUARD_PLUME, { r1: 0.3, seg: 6, hull: 0.6 });
+    k.rod([top[0] - 0.4, top[1] - 0.3, top[2]], [p[0] - 3.6, p[1] - 0.4, p[2] + 0.6], 0.8, mix(GUARD_PLUME, '#000000', 0.18), { r1: 0.2, seg: 5, hull: 0.4 });
   }
   const j = loftPoint(HEAD_RINGS, 0.5, Math.PI, 0.1);
   k.rod(j, [j[0] - 0.4, j[1] - 3.0, j[2]], 0.25, plates, { r1: 0.9, seg: 6, hull: 0.5 });
@@ -476,7 +561,7 @@ function guardHelm(k: Kit, c: Look, w: Wear): void {
     // The plume: dyed horsehair falling from a ring on the spike, back and to his right.
     k.frustum([h[0], 0, h[2] - 0.4], h[1] + 9.4, h[1] + 10.0, 0.75, 0.6, GT.GOLD_EDGE, { seg: 6, hull: 0.4 });
     const tuft = worn(w, 3) ? 0.55 : 1;
-    k.rod([h[0], h[1] + 9.6, h[2] - 0.6], [h[0] + 4.2 * tuft, h[1] + 9.6 - 6.4 * tuft, h[2] - 2.6 * tuft], 0.9, plates, { r1: 2.0, seg: 6 });
+    k.rod([h[0], h[1] + 9.6, h[2] - 0.6], [h[0] + 4.2 * tuft, h[1] + 9.6 - 6.4 * tuft, h[2] - 2.6 * tuft], 0.9, GUARD_PLUME, { r1: 2.1, seg: 6 });
   }
   const sv = (x: number, y: number): { p: V3; n: V3 } => {
     const r = HEAD_R * 1.18 + 0.06, dx = x - h[0], dy = (y - h[1] - 1.2 - L) / 1.35;
@@ -488,7 +573,7 @@ function guardHelm(k: Kit, c: Look, w: Wear): void {
 }
 
 export function grittyKhansGuard(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
-  const plates = vivid(c.main), lace = mix(c.dark, '#000000', 0.35);
+  const { plates, lace, gleam } = guardLacquer(c);
   const broken = helmBroken(w);
   turned(k, MOUNT_YAW, () => {
     grittyHorse(k, BLACK_G, { cloth: c.main, trim: GT.GOLD_EDGE, noCloth: true, metal: GT.GOLD_EDGE }, w, { covered: true, neck: () => guardHorseNeck(k, c, w) });
@@ -514,7 +599,7 @@ export function grittyKhansGuard(k: Kit, { look: c, wear: w }: RiderOpts): Shado
       lapSkirt(k, plates, { r0: 6.1, y0: 17.4 });
       torso(k, plates, { grow: 1.06, gloss: 0.4 });
       const ls = torsoFront(0.26, 1.06);
-      lamellae(k, ls, -4.6, 4.6, [29.2, 27.4, 25.6, 23.8, 22.0], lace, 1.5);
+      lamellae(k, ls, -4.6, 4.6, [29.2, 27.4, 25.6, 23.8, 22.0], lace, 1.5, undefined, gleam);
       k.frustum([0, 0, 0], 21.0, 22.0, 4.5, 4.4, GT.GOLD_EDGE, { sz: 0.8, seg: 10, open: true, hull: 0.5, gloss: 0.6 });
       k.frustum([0, 0, 0], 19.0, 21.0, 4.7, 4.5, GT.LEATHER_DARK, { sz: 0.8, seg: 10, open: true, hull: 0.5 });
       k.box([0, 20.0, 3.7], [1.6, 1.4, 0.5], GT.GOLD_EDGE, { gloss: 0.6, hull: 0.4 });
@@ -531,7 +616,7 @@ export function grittyKhansGuard(k: Kit, { look: c, wear: w }: RiderOpts): Shado
         const pts: V3[] = [[sd * 3.0, 31.0, 1.6], [sd * 6.2, 30.6, 1.2], [sd * 7.2, 26.2, 1.4], [sd * 4.4, 26.6, 2.6]];
         plate(k, pts, plates, [sd * 4.6, 28.8, -1.4], { gloss: 0.4, hull: 0.6 });
         metalEdge(k, [pts[2]!, pts[3]!], 0.24);
-        metalEdge(k, [[sd * 3.4, 29.4, 2.4], [sd * 6.6, 28.8, 1.6]], 0.14, lace);
+        metalEdge(k, [[sd * 3.4, 29.4, 2.4], [sd * 6.6, 28.8, 1.6]], 0.14, gleam);
       }
       // The left hand grips the standard; the right holds the reins.
       riderArm(k, [-4.4, 30.2, 0.1], [-8.0, 27.4, 1.6], [-8.6, 25.4, 0.2], { sleeve: c.dark, cuff: GT.GOLD_EDGE });

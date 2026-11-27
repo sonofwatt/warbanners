@@ -197,9 +197,9 @@ export function standLegs(k: Kit, w: Wear, o: LegOpts = {}): void {
 /**
  * A hood round a bare face centred on `face` (radius r as given to bareFace): the back of it, a deep cowl over the
  * brow, a rim round the opening and a collar falling to the shoulders. `point`: the tail of the hood (from the crown,
- * toward that offset), short when `torn`. Its colour is the owner's dark.
+ * toward that offset), short when `torn`. `rim`: the rim's colour (default a shade darker than the hood).
  */
-export function hood(k: Kit, face: V3, r: number, colour: string, o: { point?: V3; torn?: boolean; collar?: number } = {}): void {
+export function hood(k: Kit, face: V3, r: number, colour: string, o: { point?: V3; torn?: boolean; collar?: number; rim?: string } = {}): void {
   const f = r / 3.9;
   const dark = mix(colour, '#000000', 0.3);
   k.ball([face[0], face[1] + 0.5 * f, face[2] - 1.6 * f], r * 1.4, colour, { detail: 1, s: [1, 1.04, 1] });
@@ -207,7 +207,7 @@ export function hood(k: Kit, face: V3, r: number, colour: string, o: { point?: V
   const t = new TorusGeometry(r * 1.2, 0.75 * f, 4, 12);
   t.scale(1, 1.14, 0.7);
   t.translate(face[0], face[1] + 0.25 * f, face[2] + r * 0.6);
-  k.add(t, dark, { hull: 0.6 });
+  k.add(t, o.rim ?? dark, { hull: 0.6 });
   // The collar over the neck and shoulders.
   const cy = face[1] - r * 1.05;
   k.frustum([face[0], 0, face[2] - 0.6 * f], cy - (o.collar ?? 3.4) * f, cy, r * 1.85, r * 1.25, colour, { seg: 12, sz: 0.85 });

@@ -30,10 +30,11 @@ export function vivid(hex: string): string {
 
 /**
  * A finely cut mark on a curved surface: the polygon is triangulated, then split until no edge is longer than `step`,
- * so it follows the surface rather than cutting through it (a shield's dome, the helmet's opening).
+ * so it follows the surface rather than cutting through it (a shield's dome, the helmet's opening). `layer`: for marks
+ * laid over other fine marks on the same surface, each a step higher (0.006 a layer, at most 0.2) so they never fight;
+ * given by the caller, so a figure builds the same every time (no state kept between calls).
  */
-let fineCount = 0;
-export function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, step: number, lift = 0.1, clip?: (x: number, y: number) => [number, number]): void {
+export function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, step: number, lift = 0.1, clip?: (x: number, y: number) => [number, number], layer = 0): void {
   const contour: Vector2[] = [];
   // Densify the outline first.
   for (let i = 0; i + 1 < poly.length; i += 2) {
@@ -59,7 +60,7 @@ export function fineDecal(k: Kit, poly: Poly, colour: string, surf: Surface, ste
   // Clipped to what is there: every corner beyond the surface's edge is moved onto the edge, so the mark ends cleanly
   // along it (a triangle wholly beyond it flattens to nothing on the edge).
   if (clip) for (const t of flat) for (const v of t) { const [x, y] = clip(v.x, v.y); v.set(x, y); }
-  const up = lift + Math.min(0.2, 0.006 * fineCount++);
+  const up = lift + Math.min(0.2, 0.006 * layer);
   const pos: number[] = [], nor: number[] = [];
   for (const t of flat) {
     const vs = t.map((v) => {
@@ -190,13 +191,15 @@ function chipped(x: number, y: number, cuts: readonly Cut[], jag: number): [numb
   return [x, y];
 }
 
-/** The domed bronze shield in its own frame (face toward +z), with its wear; `sectors` round the rim. */
-export function bronzeShield(k: Kit, c: Look, w: Wear, sectors = SNU): void {
-  fineCount = 0;
-  shield(k, c, w, sectors);
+/**
+ * The domed bronze shield in its own frame (face toward +z), with its wear; `sectors` round the rim, and `rows` down
+ * what is left of it once broken (fewer for a figure short of triangles).
+ */
+export function bronzeShield(k: Kit, c: Look, w: Wear, sectors = SNU, rows = 12): void {
+  shield(k, c, w, sectors, rows);
 }
 
-function shield(k: Kit, c: Look, w: Wear, nu = SNU): void {
+function shield(k: Kit, c: Look, w: Wear, nu = SNU, NV = 12): void {
   const broken = worn(w, 4);
   const cuts: Cut[] = [];
   if (worn(w, 3) && !broken) cuts.push({ from: 285, to: 318, inner: SR * 0.62 });
@@ -206,7 +209,6 @@ function shield(k: Kit, c: Look, w: Wear, nu = SNU): void {
     const [px, py] = chipped(x, y, cuts, jag);
     return new Vector3(px, py, shieldZ(Math.hypot(px, py)) - (back ? 0.75 : 0));
   };
-  const NV = 12;
   const yMax = SR * 0.97;
   /** Broken: where the break runs at height y (the same jagged line the rows of what is left start from). */
   const breakAt = (y: number): number => {

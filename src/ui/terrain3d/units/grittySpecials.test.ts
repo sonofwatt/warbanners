@@ -2,7 +2,9 @@ import { Color } from 'three';
 import { describe, expect, test } from 'vitest';
 import { buildFigure, GRITTY_TYPES } from './figures';
 import type { UnitType } from './figures';
+import { Kit } from './kit';
 import { BLOOD, BLOOD_LIGHT, CLEAN } from './parts';
+import { fineDecal } from './shield3d';
 import type { Wear } from './parts';
 
 // Gritty's detailed toon archer, King's Guard, piper and scout (grittySpecials.ts) and camp (grittyCamp.ts).
@@ -88,5 +90,17 @@ describe("Gritty's camp", () => {
         for (const b of blood) expect(Math.abs(col[i]! - b.r) + Math.abs(col[i + 1]! - b.g) + Math.abs(col[i + 2]! - b.b) < 1e-4, JSON.stringify(w)).toBe(false);
       }
     }
+  });
+});
+
+describe('fineDecal', () => {
+  test('keeps no state between calls: the same mark builds the same wherever and however often it is drawn', () => {
+    const mark = (calls: number): number[] => {
+      const k = new Kit();
+      for (let i = 0; i < calls; i++) fineDecal(k, [0, 0, 4, 0, 4, 3, 0, 3], '#B3261E', (x, y) => ({ p: [x, y, 0], n: [0, 0, 1] }), 1);
+      return positions(k.build()).slice(-18 * 6);
+    };
+    // The last mark of three is laid exactly as a first one: no hidden counter lifts it.
+    expect(mark(3)).toEqual(mark(1));
   });
 });
