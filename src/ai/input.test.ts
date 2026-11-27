@@ -94,3 +94,13 @@ test('a treasure the other player claims out of sight changes nothing the AI can
     expect(aiInputFor(r.state, 0), outcome).toEqual(before);
   }
 });
+
+// rules 11: moved here from src/engine/woodland.snare.test.ts, which must not import outside the engine.
+test('rules 11: the Mongol AI input holds no Woodland snare; the Woodland input holds all three', () => {
+  const s = blankMatch({ factions: ['woodland', 'mongols'] });
+  addUnit(s, 'trapper', 0, 0, 0); addUnit(s, 'horseman', 1, 1, 0);   // the Horseman stands next to one of them
+  s.snares = [{ owner: 0, at: '2,0' }, { owner: 0, at: '0,1' }, { owner: 0, at: '-1,0' }];
+  expect(aiInputFor(s, 1).view.snares).toBeUndefined();
+  expect(JSON.stringify(aiInputFor(s, 1))).not.toContain('snares');
+  expect(aiInputFor(s, 0).view.snares).toEqual(s.snares);
+});

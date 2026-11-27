@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'vitest';
-import { aiInputFor } from '../ai/input';
 import { abilityTargets } from './abilities';
 import { applyAction, legalActions } from './apply';
 import { CONFIG } from './data/config';
@@ -194,16 +193,14 @@ describe('rules 11: springing a snare', () => {
 });
 
 describe('rules 11: snares are hidden', () => {
-  test('the Mongol view and AI input hold no Woodland snare; the Woodland view holds all three', () => {
+  // The AI input side of this lives in src/ai/input.test.ts (the engine imports nothing outside itself).
+  test('the Mongol view holds no Woodland snare; the Woodland view holds all three', () => {
     const s = match(['woodland', 'mongols']);
     addUnit(s, 'trapper', 0, 0, 0); addUnit(s, 'horseman', 1, 1, 0);   // the Horseman stands next to one of them
     s.snares = [snareOf(0, '2,0'), snareOf(0, '0,1'), snareOf(0, '-1,0')];
     expect(playerView(s, 1).snares).toBeUndefined();
-    expect(aiInputFor(s, 1).view.snares).toBeUndefined();
-    expect(JSON.stringify(aiInputFor(s, 1))).not.toContain('snares');
     expect(playerView(s, 0).snares).toEqual(s.snares);
     expect(playerView(s, 0).snares).not.toBe(s.snares);
-    expect(aiInputFor(s, 0).view.snares).toEqual(s.snares);
   });
 
   test('a mirror match: each side sees only its own snares', () => {

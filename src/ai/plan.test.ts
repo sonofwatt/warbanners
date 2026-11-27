@@ -14,6 +14,8 @@ import { LEVEL_DIAL } from './types';
 let cached: MatchState[] | null = null;
 // Seed 7 at 130 turns since rules 8 (it now ends after 135, and a plan on an ended match cannot end its turn).
 const fixtures = (): MatchState[] => (cached ??= [randomPlayout(7, 130), randomPlayout(1, 200), randomPlayout(3, 90), createMatch({ seed: 42, factions: ['spartans', 'mongols'] })]);
+// 300 s: the first case (dial 0) also builds the shared fixtures, about 90 s alone since rules 11 and well past 120 s
+// under the full suite's load on a busy machine. A timeout here is load, not a slow plan.
 test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is played, dial %f', (dial) => {
   fixtures().forEach((s, f) => {
     const input = aiInputFor(s, s.current);
@@ -35,7 +37,7 @@ test.each([0, 0.2, 0.5, 0.85, 1])('every planned action is legal where it is pla
     expect(plan.actions.some(a => a.type === 'resign')).toBe(false);
     expect(plan.evals).toBeLessThanOrEqual(skillFor(dial).evals);
   });
-}, 120_000);
+}, 300_000);
 test('same input and seed give the same plan; another seed may differ only below hard', () => {
   const input = aiInputFor(fixtures()[0]!, 0);
   expect(planTurn(input, { dial: 0.5, seed: 9, refused: [] })).toEqual(planTurn(structuredClone(input), { dial: 0.5, seed: 9, refused: [] }));
