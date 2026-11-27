@@ -66,7 +66,7 @@ taken enemy capital sits far away), one faction wiped out.
 
 ## How it looks
 
-A paper card under the tally table, in the same family as the result card and the tally: a caption with the
+A paper card above the tally table (the score is the headline, the tally the detail), in the same family as the result card and the tally: a caption with the
 player's name, then one row per line: the label, a small grey count under or beside it, and the points right
 aligned in tabular digits with a sign. A thin rule, the subtotal, the difficulty row, a heavier rule and the total
 in large bold type in the winner's colour. Sketch:
@@ -90,8 +90,10 @@ in large bold type in the winner's colour. Sketch:
 ```
 
 - One sheet per human seat, the winner's first. Solo play shows one sheet; pass-the-phone and online show two.
-- The result screen already scrolls when tall (it does on small phones today with the tally); the sheet keeps
-  the Home button reachable by scrolling, measured in the browser test.
+- The sheet makes the result taller than a phone. Measured: with the old `justify-content: center` the banner
+  sat 116 px above where scrolling could reach, so the result is now centred by auto margins and scrolls from
+  its top; the browser test checks the banner's top is on screen.
+- A Spartan with only the capital sees "no other cities" on the roads line rather than "0 of 0 joined".
 
 ## Approaches considered
 

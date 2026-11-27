@@ -35,6 +35,17 @@ describe.runIf(process.env.BROWSER === '1')('player stats', () => {
       await table.waitFor();
       expect(await table.textContent()).toContain('Ana');
       expect(await table.textContent()).toContain('Easy AI');
+      // The score sheet: Ana's only (the AI gets none), its points add up to the total, and Easy AI is the factor.
+      const sheet = page.getByTestId('score-sheet-0');
+      await sheet.waitFor();
+      expect(await page.getByTestId('score-sheet-1').count()).toBe(0);
+      const points = (await sheet.getByTestId('score-points').allTextContents()).map(Number);
+      const diff = Number((await sheet.getByTestId('score-difficulty').locator('td').textContent()) ?? 'NaN');
+      expect(await sheet.getByTestId('score-difficulty').textContent()).toContain('Easy AI');
+      expect(Number(await sheet.getByTestId('score-total').textContent())).toBe(Math.max(0, points.reduce((a, b) => a + b, 0) + diff));
+      expect(await sheet.getByTestId('score-line-victory').textContent()).toContain('not this time');
+      // The sheet makes the result taller than the phone: it must scroll from its top, the banner still reachable.
+      expect(await page.locator('.trophy').evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
       await shot(page, 'result');
       await page.getByTestId('result-home').tap();
 

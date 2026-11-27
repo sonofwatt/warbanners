@@ -5,6 +5,7 @@ import type {
   TreasureOutcome, UnitTypeId,
 } from '../engine';
 import type { DigestLine } from '../app/digest';
+import type { ScoreKey } from '../app/score';
 import type { AiLevel } from '../ai/types';
 
 type Entry = { name: string; blurb: string };
@@ -313,6 +314,19 @@ const stats = {
   usedName: 'Use the name {name}', recentNames: 'Names used before',
   tallyTitle: 'This match', tallyDealt: 'Damage dealt', tallyKills: 'Kills', tallyDeaths: 'Units lost',
   tallyCities: 'Cities taken', tallyHeroes: 'Heroes', tallyTreasures: 'Treasures',
+  // The score sheet on the result screen: a label and a short count for each line.
+  score: {
+    title: 'Score: {name}', subtotal: 'Subtotal', total: 'Total', factor: '{ai} \u00d7{factor}',
+    label: {
+      victory: 'Victory', kills: 'Units defeated', losses: 'Units lost', explored: 'Land explored',
+      villages: 'Villages captured', treasures: 'Treasures claimed', cities: 'Cities developed',
+      roads: 'Roads to the capital', wiped: 'Factions wiped out',
+    } as Record<ScoreKey, string>,
+    wonOn: 'on turn {n}', notWon: 'not this time',
+    tiles: '{n} of {of} tiles',
+    cities: (n: number, best: number): string => (n === 0 ? 'none held' : `${n === 1 ? '1 city' : `${n} cities`}, best level ${best}`),
+    joined: '{n} of {of} joined', noOthers: 'no other cities',
+  },
 };
 
 export const T = { unit, trait, heroTrait, deed, item, treasure, ability, reward, tech, branch, building, resource, harvestVerb, terrain, faction, reason, ui, ai, stats } as {

@@ -235,7 +235,11 @@ input:focus { border-color: var(--blue); }
 .screen.pass .big { width: min(100%, 340px); }
 
 /* The result: a small celebration in the winner's colour. */
-.screen.result { justify-content: center; align-items: center; text-align: center; gap: var(--s4); }
+/* Centred by auto margins, not justify-content: a result taller than the screen (the score sheet makes it so) then
+   scrolls from its top instead of pushing the banner above where scrolling can reach. */
+.screen.result { justify-content: flex-start; align-items: center; text-align: center; gap: var(--s4); }
+.screen.result > :first-child { margin-top: auto; }
+.screen.result > :last-child { margin-bottom: auto; }
 .trophy { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--s2); width: 100%; padding-top: var(--s3); }
 .result-banner { width: min(44vw, 170px); max-height: 30vh; height: auto; position: relative; animation: drop-in 360ms ease-out both; }
 .screen.result h1 {
@@ -944,6 +948,17 @@ input:focus { border-color: var(--blue); }
 .result-tally th[scope="row"] { text-align: left; color: var(--ink-soft); }
 .result-tally thead th { font-weight: 850; overflow-wrap: anywhere; }
 .result-tally tbody tr + tr { border-top: 1px solid var(--paper-edge); }
+/* The score sheet: a ledger card, a row per line with its count in small grey type, the total in the winner's colour. */
+.score-sheet { width: 100%; border-collapse: collapse; background: var(--paper); border-radius: var(--r-l); box-shadow: var(--lift); overflow: hidden; font-size: var(--t-m); font-variant-numeric: tabular-nums; }
+.score-sheet caption { font-weight: 850; font-size: var(--t-m); padding-bottom: var(--s1); overflow-wrap: anywhere; }
+.score-sheet th, .score-sheet td { padding: 5px var(--s3); font-weight: 650; }
+.score-sheet th { text-align: left; }
+.score-sheet th small { display: inline-block; margin-left: var(--s2); font-size: 0.82em; font-weight: 600; color: var(--ink-soft); }
+.score-sheet td { text-align: right; white-space: nowrap; }
+.score-sheet tbody tr + tr { border-top: 1px solid var(--paper-edge); }
+.score-sheet tfoot tr.subtotal { border-top: 2px solid var(--ink-soft); }
+.score-sheet tfoot tr.total { border-top: 3px double var(--ink-soft); }
+.score-sheet tfoot tr.total th, .score-sheet tfoot tr.total td { font-weight: 900; font-size: var(--t-h3); color: var(--player-dark, var(--ink)); padding-top: var(--s2); padding-bottom: var(--s2); }
 
 /* Setup: the Advanced section, closed at first; it opens in place under its button. */
 .advanced { display: flex; flex-direction: column; gap: var(--s2); }

@@ -75,3 +75,18 @@ test('the result shows both sides for the match', () => {
   expect(html).toContain(T.stats.tallyDealt);
   expect(html).toContain('<th scope="col">Ann</th><th scope="col">Ben</th>');
 });
+
+test('the result has a score sheet for each person, the winner first, with no AI difficulty between two people', () => {
+  const { store } = fakeStore();
+  finishOne(store);   // Ann resigns on her own turn: Ben wins
+  const html = render(store, <Result />);
+  const first = html.indexOf('data-testid="score-sheet-1"');
+  const second = html.indexOf('data-testid="score-sheet-0"');
+  expect(first).toBeGreaterThan(-1);
+  expect(second).toBeGreaterThan(first);
+  expect(html).toContain('Score: Ben');
+  expect(html).toContain('data-testid="score-line-victory"');
+  expect(html).toContain('data-testid="score-line-roads"');      // Ann's Spartans build roads
+  expect(html.match(/data-testid="score-total"/g)).toHaveLength(2);
+  expect(html).not.toContain('data-testid="score-difficulty"');
+});

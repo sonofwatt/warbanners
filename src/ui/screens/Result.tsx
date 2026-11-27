@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
+import type { MatchState } from '../../engine';
 import type { AppState } from '../../app/store';
 import { roundOf } from '../../app/record';
 import type { MatchRecord } from '../../app/record';
+import { scoreSheets } from '../../app/score';
+import type { ScoreLine, ScoreSheet } from '../../app/score';
 import { cachedTallies } from '../../app/tally';
 import type { Tally } from '../../app/tally';
 import { useApp } from '../../app/useApp';
@@ -46,6 +49,53 @@ function TallyTable({ record }: { record: MatchRecord }): ReactElement {
   );
 }
 
+const signed = (n: number): string => (n > 0 ? `+${n}` : String(n));
+
+// The small grey count beside a line's label.
+function countOf(l: ScoreLine): string {
+  const S = T.stats.score;
+  switch (l.key) {
+    case 'victory': return l.count > 0 ? fill(S.wonOn, { n: l.count }) : S.notWon;
+    case 'explored': return fill(S.tiles, { n: l.count, of: l.of ?? 0 });
+    case 'cities': return S.cities(l.count, l.best ?? 0);
+    case 'roads': return l.of === 0 ? S.noOthers : fill(S.joined, { n: l.count, of: l.of ?? 0 });
+    default: return String(l.count);
+  }
+}
+
+// One person's match as points: a row per line, the subtotal, the AI's difficulty, and the total.
+function ScoreTable({ sheet, name }: { sheet: ScoreSheet; name: string }): ReactElement {
+  const S = T.stats.score;
+  const d = sheet.difficulty;
+  return (
+    <table className="score-sheet" data-testid={`score-sheet-${sheet.seat}`}>
+      <caption>{fill(S.title, { name })}</caption>
+      <tbody>
+        {sheet.lines.map((l) => (
+          <tr key={l.key} data-testid={`score-line-${l.key}`}>
+            <th scope="row">{S.label[l.key]}<small>{countOf(l)}</small></th>
+            <td data-testid="score-points">{signed(l.points)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr className="subtotal" data-testid="score-subtotal"><th scope="row">{S.subtotal}</th><td>{sheet.subtotal}</td></tr>
+        {d === null ? null : (
+          <tr data-testid="score-difficulty">
+            <th scope="row">{fill(S.factor, { ai: T.ai.name[d.level], factor: d.factor.toFixed(1) })}</th><td>{signed(d.points)}</td>
+          </tr>
+        )}
+        <tr className="total"><th scope="row">{S.total}</th><td data-testid="score-total">{sheet.total}</td></tr>
+      </tfoot>
+    </table>
+  );
+}
+
+function ScoreSheets({ record, state }: { record: MatchRecord; state: MatchState }): ReactElement {
+  const sheets = scoreSheets(record, state, cachedTallies(record));
+  return <>{sheets.map((x) => <ScoreTable key={x.seat} sheet={x} name={record.players[x.seat]?.name ?? ''} />)}</>;
+}
+
 export function Result(): ReactElement | null {
   const record = useApp((s) => s.record);
   const state = useApp((s) => s.state);
@@ -84,6 +134,7 @@ export function Result(): ReactElement | null {
         {adaptive?.kind === 'ai' ? <p data-testid="ai-settled">{T.ai.settled(Math.round(adaptive.adapt.dial * 10))}</p> : null}
         {sending ? <p className="online-line" data-testid="result-sending" role="status">{T.ui.sending}</p> : null}
       </div>
+      <ScoreSheets record={record} state={state} />
       <TallyTable record={record} />
       <button type="button" className="primary big" data-testid="result-home" onClick={goHome}><HomeIcon />{T.ui.homeButton}</button>
     </div>
