@@ -1,4 +1,6 @@
 import { expect, test, vi } from 'vitest';
+import { UNITS } from '../../engine';
+import type { UnitTypeId } from '../../engine';
 import type { TimeOfDay, Weather } from '../../app/advanced';
 import type { GlMap, GlTile } from './input';
 
@@ -25,6 +27,9 @@ const { skyLight } = await import('./sky');
 const { DAYLIGHT_ROUNDS } = await import('./daylight');
 const { MAX_SPILLS, pieceSpill, townPlan, townSpills, villagePlan } = await import('./townLayout');
 const { windowSpills } = await import('./buildingLayout');
+const { LAMP_REACH, lampAngle, lampLight, lampSplit, lanternHang } = await import('./units/lantern');
+const { carriesLantern } = await import('./unitsInput');
+const { createUnits3d } = await import('./units/units3d');
 
 const TIMES: TimeOfDay[] = ['day', 'dawn', 'dusk', 'night'];
 const WEATHERS: Weather[] = ['clear', 'cloudy', 'rain', 'snow'];
@@ -91,4 +96,45 @@ test('the windows\' light is laid only on cities and villages, in world space ro
     const c = centre(q, r);
     for (const l of w.lights) expect(Math.hypot(l.x - c.x, l.z - c.z)).toBeLessThan(30);
   }
+});
+
+test('a lantern throws 60 percent of its light ahead, 20 to each side and none behind', () => {
+  const split = lampSplit(0.05);
+  expect(split.ahead).toBeCloseTo(0.6, 2);
+  expect(split.left).toBeCloseTo(0.2, 2);
+  expect(split.right).toBeCloseTo(0.2, 2);
+  expect(split.behind).toBe(0);
+  // Brightest at the feet and ahead; falling off with distance and angle; nothing past its reach.
+  expect(lampLight(0.01, 0)).toBeCloseTo(1, 2);
+  expect(lampLight(5, 0)).toBeGreaterThan(lampLight(0, 5));
+  expect(lampLight(0, 5)).toBeGreaterThan(0);
+  expect(lampLight(-5, 0)).toBe(0);
+  expect(lampLight(LAMP_REACH, 0)).toBe(0);
+  for (let a = 0; a < Math.PI; a += 0.05) expect(lampAngle(a + 0.05)).toBeLessThanOrEqual(lampAngle(a) + 1e-12);
+});
+
+test('every unit carries a lantern but the stealthy one: the Scout, the only unit with the hidden trait', () => {
+  const types = Object.keys(UNITS) as UnitTypeId[];
+  for (const t of types) expect(carriesLantern(t), t).toBe(!UNITS[t].traits.includes('hidden'));
+  expect(types.filter((t) => !carriesLantern(t))).toEqual(['scout']);
+  for (const t of ['horseman', 'knight', 'catapult', 'camp', 'khansGuard', 'kingsGuard'] as const) expect(carriesLantern(t)).toBe(true);
+  for (const t of types) expect(lanternHang(t).y).toBeGreaterThan(0);
+});
+
+test('the lanterns are lit after dark only, and their pools are one mesh however many units carry one', () => {
+  const shared = { uLantern: { value: 0 } };
+  const u = createUnits3d({} as HTMLCanvasElement, shared)!;
+  const look = { main: '#B3261E', dark: '#8E1D17', accent: '#C8963E' };
+  const units = Array.from({ length: 40 }, (_, i) => ({
+    id: i + 1, type: (i % 5 === 0 ? 'scout' : 'warrior') as UnitTypeId, look, hero: false, x: i * 10, y: 0, spent: false, hunkered: false,
+    lantern: i % 5 !== 0,
+  }));
+  u.setUnits(units);
+  const draw = (): void => u.draw({ cx: 0, cy: 0, scale: 1 }, { w: 100, h: 100 }, 1);
+  draw();
+  expect(u.stats().lamps).toBe(0); // by day
+  shared.uLantern.value = 1;
+  draw();
+  expect(u.stats().lamps).toBe(32);
+  u.dispose();
 });

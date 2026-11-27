@@ -3,6 +3,7 @@
 import { INR, RES_HARVESTED, ROAD_GROW, ROAD_HALF, WALL, WATER_Y } from './layout';
 import { BED_DEPTH } from './waterLayout';
 import { MAX_SPILLS } from './townLayout';
+import { LAMP_WARM_REACH } from './units/lantern';
 
 export const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -341,11 +342,24 @@ void main() {
   gl_FragColor = vec4(done, 1.0);
 }`;
 
+/** The glass of the lantern a unit carries (units/units3d.ts): the figures' shader lights it after dark (uLantern). */
+export const LANTERN_GLASS = '#C9A866';
+const glassRgb = (): string => {
+  const n = Number.parseInt(LANTERN_GLASS.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => (v / 255).toFixed(4)).join(', ');
+};
+/** The most lanterns that warm the figures near them (the nearest the middle of the view). */
+export const MAX_LAMPS = 16;
+
 export const propVert = /* glsl */ `
 ${FIRE_GLSL}
 attribute float aGloss; attribute vec3 aOut; attribute float aVeil;
 uniform float uOutline;
 varying vec3 vColor; varying vec3 vNormal; varying float vGloss; varying vec3 vWorld; varying float vVeil; varying float vFire;
+#ifdef WORLD_NORMAL
+uniform vec4 uLamps[${MAX_LAMPS}];
+uniform float uLampLight;
+#endif
 #ifdef LAMP
 // A mine tunnel's inside, lit by its lantern (lanterns.ts): the lantern's place and which flicker voice it follows.
 attribute vec4 aLamp; varying vec4 vLamp;
@@ -379,6 +393,23 @@ void main() {
     }
     vFire *= uFireLight * (1.0 - 2.0 * aVeil * 0.3);
   }
+#ifdef WORLD_NORMAL
+  // A figure: the lanterns the units carry (units3d.ts) warm the faces turned toward them, a little, after dark.
+  if (uLampLight > 0.0) {
+    vec3 nl = normalize(vNormal);
+    float warm = 0.0;
+    for (int i = 0; i < ${MAX_LAMPS}; i++) {
+      vec4 l = uLamps[i];
+      if (l.w < 0.5) continue;
+      vec3 to = l.xyz - w.xyz;
+      float d = length(to);
+      if (d > ${LAMP_WARM_REACH.toFixed(1)}) continue;
+      float near = 1.0 - d / ${LAMP_WARM_REACH.toFixed(1)};
+      warm += (0.15 + 0.85 * max(dot(nl, to / max(d, 0.001)), 0.0)) * near * near;
+    }
+    vFire += 0.55 * uLampLight * min(warm, 1.2);
+  }
+#endif
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
@@ -387,6 +418,7 @@ ${NOISE}
 ${LIGHT}
 ${WEATHER_GLSL}
 uniform bool uIsOutline;
+uniform float uLantern;
 // A fading fall's figure (units/units3d.ts) defines UNIT_ALPHA and sets uAlpha; everything else is opaque.
 #ifdef UNIT_ALPHA
 uniform float uAlpha;
@@ -443,6 +475,9 @@ void main() {
   vec3 done = finish(lit, vVeil);
   if (vFire > 0.0) done = fireLit(done, min(vFire * 1.5, 1.6));
   done = mix(done, mix(vec3(1.0, 0.80, 0.42), uVeilColor, vVeil * 1.5), min(window, 1.0) * 0.9);
+  // A unit's lantern glass (units3d.ts) glows after dark; by day it is dull amber glass.
+  float glass = 1.0 - step(0.012, distance(vColor, vec3(${glassRgb()})));
+  done = mix(done, vec3(1.0, 0.86, 0.52), glass * uLantern);
   gl_FragColor = vec4(shade(done), ALPHA);
 }`;
 

@@ -3,7 +3,7 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { isHero, maxHpOf, parseKey, UNITS } from '../../engine';
 import type { City, FactionId, HexKey, PlayerId, Tile } from '../../engine';
 import { FIGURES } from '../art/factionUnits';
-import { BuildingMark, CityLights, CityMark, FireGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
+import { BuildingMark, CityLights, CityMark, FireGlow, LanternGlow, Grove, PendingStar, ResourceMark, Road, TerrainFeature, Treasure, Village } from '../art/features';
 import { ACCENT, playerColour } from '../art/palette';
 import { Border, CityGlow, groundFor, Highlight, pts, ReadyGlow, TileBase, topCorners, Veil } from '../art/tiles';
 import { HeroMark, ItemBadge, itemBadgeX } from '../art/hero';
@@ -20,7 +20,7 @@ import type { SceneItem, SceneTile, SceneUnit } from './scene';
 import { sameData } from './same';
 import { useGestures } from './useGestures';
 import { glMapOf, svgLayers, THICK_3D } from '../terrain3d/input';
-import { glUnitsOf, unitShown } from '../terrain3d/unitsInput';
+import { carriesLantern, glUnitsOf, unitShown } from '../terrain3d/unitsInput';
 import type { SvgLayers } from '../terrain3d/input';
 import { createAmbientLoop, domAmbientEnv } from '../terrain3d/ambient';
 import type { AmbientLoop } from '../terrain3d/ambient';
@@ -314,7 +314,9 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
 
 // `figure` false: the 3D figures draw the unit (and a hero's pennant) on their canvas, and this draws only what
 // stands around it: the war banner, its marks and the item badge, in the same places.
-function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean }): ReactElement | null {
+// `lamp`: how bright the units' lanterns burn (sky.ts windows, 0 by day); a unit that carries one (unitsInput.ts
+// carriesLantern) has its glow on the ground drawn under its svg figure (the 3D figures light their own).
+function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean; lamp?: number }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
   if (faction === undefined) return null;
@@ -331,6 +333,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
     >
       {/* The body is what a lunge nudges, inside the group that places the unit. The hero's pennant stands behind the figure and darkens with it. */}
       <g className="unit-body">
+        {p.figure !== false && (p.lamp ?? 0) > 0 && carriesLantern(unit.type) ? <LanternGlow strength={p.lamp!} /> : null}
         {p.figure === false ? null : (
           // A hunkered unit crouches: the figure sinks and squats about its feet (theme.css .unit-crouch).
           <g className={unit.hunkered ? 'unit-crouch hunkered' : 'unit-crouch'}>
@@ -371,7 +374,7 @@ function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: 
 /** One tile as the board draws it, for tests. */
 export const BoardTile = TileViewOf;
 const TileView = memo(TileViewOf, (a, b) => a.viewer === b.viewer && a.gl === b.gl && a.look === b.look && sameData(a.factions, b.factions) && sameData(a.t, b.t));
-const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && sameData(a.factions, b.factions) && sameData(a.u, b.u));
+const UnitView = memo(UnitViewOf, (a, b) => a.figure === b.figure && a.lamp === b.lamp && sameData(a.factions, b.factions) && sameData(a.u, b.u));
 
 /**
  * After the slot has changed size (a rotation, a window or browser bar resize) with something selected: the view
@@ -965,7 +968,7 @@ export function Board(p: BoardProps): ReactElement {
       it.kind === 'tile' ? (
         <TileView key={`t${it.key}`} t={it} factions={factions} viewer={viewer} gl={gl} look={tileLook} />
       ) : (
-        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} />
+        <UnitView key={`u${it.unit.id}`} u={it} factions={factions} figure={!units3d} lamp={tileLook?.windows ?? 0} />
       );
     const sliding = (it: SceneItem): boolean => {
       if (it.kind !== 'unit') return false;

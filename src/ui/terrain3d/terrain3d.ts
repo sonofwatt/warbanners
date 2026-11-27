@@ -143,12 +143,14 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     uFires: { value: Array.from({ length: MAX_FIRES }, () => new Vector4(0, 0, 0, 0)) }, uFireLight: { value: 0 },
     // The lit windows' light on the ground (shaders.ts WINDOW_GLSL): a row per tile, a texel per building front.
     uWinTex: { value: winTexture(new Float32Array(4 * MAX_SPILLS), 1) },
+    // How bright the units' lanterns burn (sky.ts windows: 0 by day); only the figures' canvas lights them.
+    uLantern: { value: 0 },
   };
   // The unit figures draw on a second canvas, above the tile svg (cities, villages and marks) and below the svg
   // that carries every unit's status, so a unit standing in a city is never covered by it. Same light, same shaders,
   // but their own lighter grade and no snow or wet, so the figures stay readable at night and in any weather.
   // A figure near a bonfire catches a little of its light on the side toward it (FIGURE_FIRE of the huts' share).
-  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uFireLight: { value: 0 } };
+  const unitShared = { ...shared, uTint: { value: new Color(1, 1, 1) }, uSnow: { value: 0 }, uWet: { value: 0 }, uWindows: { value: 0 }, uFireLight: { value: 0 }, uLantern: { value: 0 } };
   const units = opts.units ? createUnits3d(opts.units, unitShared) : null;
   // The waterfalls go with the figures, whose canvas redraws on its own; without it they stand still on the terrain.
   const falls = createFalls(shared);
@@ -398,6 +400,7 @@ export function createTerrain3d(canvas: HTMLCanvasElement, opts: { background?: 
     shared.uWindows.value = sky.windows;
     shared.uFireLight.value = sky.fire;
     unitShared.uFireLight.value = sky.fire * FIGURE_FIRE;
+    unitShared.uLantern.value = sky.windows;
     bonfires.setLight(sky.fire);
     setRgb(shared.uAir, sky.air);
     shared.uCast.value = sky.cast;

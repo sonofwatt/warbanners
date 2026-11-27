@@ -673,6 +673,22 @@ export function FireGlow({ strength }: { strength: number }): ReactElement | nul
   );
 }
 
+/**
+ * A unit's lantern light on the SVG board after dark (`strength` 0 to 1, sky.ts windows): the SVG figures have no
+ * facing, so a small round warm glow on the ground at its feet, soft at the rim, drawn under the figure.
+ */
+export function LanternGlow({ strength }: { strength: number }): ReactElement | null {
+  if (strength <= 0) return null;
+  const s = Math.min(1, strength);
+  return (
+    <g data-lantern-glow={s.toFixed(2)} pointerEvents="none">
+      <ellipse cx={0} cy={4} rx={16} ry={7} fill={LAMP_POOL} fillOpacity={0.12 * s} />
+      <ellipse cx={0} cy={4} rx={11} ry={4.8} fill={LAMP_POOL} fillOpacity={0.14 * s} />
+      <ellipse cx={0} cy={4} rx={6} ry={2.6} fill="#FFC266" fillOpacity={0.18 * s} />
+    </g>
+  );
+}
+
 export function Treasure(): ReactElement {
   const ink = new Ink(1.2);
   ink.shadow(1, 4, 10, 2.8);
