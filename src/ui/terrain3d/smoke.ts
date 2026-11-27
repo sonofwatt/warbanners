@@ -1,12 +1,12 @@
 // Chimney smoke: the lumber camps' stovepipes, the lumber mills' chimneys and the foundries' chimneys send up soft
-// puffs that rise, swell and fade while the wind carries them gently to the right. One mesh for the whole map,
+// puffs (and the villages' bonfires a thin wisp) that rise, swell and fade while the wind carries them gently to the right. One mesh for the whole map,
 // rebuilt only when the chimneys change; each puff is a quad turned to face the camera and moved in the vertex
 // shader by one uniform, the terrain's motion clock (as the waterfalls' mist), so a frame of smoke costs one draw call
 // and no geometry upload. The clock runs only while the ambient loop is awake; at rest and under reduced motion it
 // stands still, and the smoke holds one still shape. Drawn with the waterfalls on the units canvas.
 import { BufferGeometry, Float32BufferAttribute, Group, Mesh, ShaderMaterial } from 'three';
 import type { HexKey } from '../../engine';
-import { SMOKE_DRIFT, SMOKE_PERIOD, SMOKE_PUFFS, SMOKE_RISE, smokeSpots } from './buildingLayout';
+import { SMOKE_ALPHA, SMOKE_DRIFT, SMOKE_PERIOD, SMOKE_PUFFS, SMOKE_RISE, SMOKE_SIZE, smokeSpots } from './buildingLayout';
 import type { SmokeSpot } from './buildingLayout';
 import type { GlMap } from './input';
 import { parse } from './layout';
@@ -28,7 +28,7 @@ export interface Smoke {
 // aPuff: x the puff's index, y how many the chimney sends, z its size, w the chimney's seed. The shader is
 // buildingLayout.ts smokePuff, line for line.
 const vert = /* glsl */ `
-attribute vec3 aCentre; attribute vec2 aCorner; attribute vec4 aPuff; attribute float aVeil;
+attribute vec3 aCentre; attribute vec2 aCorner; attribute vec4 aPuff; attribute float aVeil; attribute float aAlpha;
 uniform float uSmoke;
 varying vec2 vCorner; varying float vAlpha; varying float vVeil; varying float vLife;
 void main() {
@@ -44,7 +44,7 @@ void main() {
   gl_Position = projectionMatrix * mv;
   vCorner = aCorner;
   vLife = life;
-  vAlpha = min(1.0, life / 0.12) * (1.0 - life) * (1.0 - life) * 1.15;
+  vAlpha = min(1.0, life / 0.12) * (1.0 - life) * (1.0 - life) * 1.15 * aAlpha;
   vVeil = aVeil * 0.3;
 }`;
 
@@ -68,17 +68,18 @@ void main() {
 const hexId = (q: number, r: number): number => (q + 512) * 1024 + (r + 512);
 
 function geometryOf(spots: readonly SmokeSpot[]): BufferGeometry {
-  const centre: number[] = [], corner: number[] = [], puff: number[] = [], hex: number[] = [], index: number[] = [];
+  const centre: number[] = [], corner: number[] = [], puff: number[] = [], alpha: number[] = [], hex: number[] = [], index: number[] = [];
   let n = 0;
   for (const s of spots) {
     const { q, r } = parse(s.key);
     const count = SMOKE_PUFFS[s.kind];
-    const size = s.kind === 'wisp' ? 3.2 : 4.4;
+    const size = SMOKE_SIZE[s.kind];
     for (let i = 0; i < count; i++) {
       for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
         centre.push(s.x, s.y, s.z);
         corner.push(cx, cy);
         puff.push(i, count, size, s.seed);
+        alpha.push(SMOKE_ALPHA[s.kind]);
         hex.push(q, r);
       }
       index.push(n, n + 1, n + 2, n, n + 2, n + 3);
@@ -90,6 +91,7 @@ function geometryOf(spots: readonly SmokeSpot[]): BufferGeometry {
   g.setAttribute('aCentre', new Float32BufferAttribute(centre, 3));
   g.setAttribute('aCorner', new Float32BufferAttribute(corner, 2));
   g.setAttribute('aPuff', new Float32BufferAttribute(puff, 4));
+  g.setAttribute('aAlpha', new Float32BufferAttribute(alpha, 1));
   g.setAttribute('aHex', new Float32BufferAttribute(hex, 2));
   g.setIndex(index);
   return g;

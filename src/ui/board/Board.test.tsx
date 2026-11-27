@@ -278,3 +278,27 @@ test('a hunkered unit crouches in the svg look and keeps its hunker mark; a plai
   expect(place(html)).not.toBe(place(standing));
   expect(groupAt(html, html.lastIndexOf('<g', html.indexOf('data-banner-place')))).toContain('data-hunker-mark');
 });
+
+test('a village\'s bonfire lights the svg board after dark: a warm glow over the grade at night, weaker at dawn, none by day', () => {
+  const view = structuredClone(playerView(s, 0));
+  const k = s.players[0]!.explored.find((x) => view.tiles[x]?.terrain === 'field' && view.tiles[x]?.cityId === null && !s.units.some((u) => u.pos === x))!;
+  view.tiles[k] = { ...view.tiles[k]!, village: true, resource: null, building: null, treasure: false };
+  const at = (look?: { weather: 'clear'; time: 'day' | 'dawn' | 'dusk' | 'night' }, round = 1): string => tileMarkup(renderToStaticMarkup(
+    <Board items={buildScene(input({ view }))} radius={6} factions={['spartans', 'mongols']} focus="-2,5" onTap={() => {}} look={look} round={round} />,
+  ), k);
+  const day = at();
+  expect(day).toContain('data-bonfire="true"');
+  expect(day).not.toContain('data-fire-glow');
+  const night = at({ weather: 'clear', time: 'night' });
+  expect(night).toContain('data-fire-glow="1.00"');
+  // The glow is drawn after the grade, so the grade never darkens it.
+  expect(night.indexOf('data-fire-glow')).toBeGreaterThan(night.lastIndexOf('class="grade"'));
+  const dawn = Number(at({ weather: 'clear', time: 'dawn' }, 15).match(/data-fire-glow="([\d.]+)"/)![1]);
+  expect(dawn).toBeGreaterThan(0.3); expect(dawn).toBeLessThan(0.9);
+  expect(at({ weather: 'clear', time: 'dawn' }, 30)).not.toContain('data-fire-glow');
+  // A plain field has no fire to light it.
+  const plain = s.players[0]!.explored.find((x) => x !== k && view.tiles[x]?.terrain === 'field' && !view.tiles[x]?.village && view.tiles[x]?.cityId === null)!;
+  expect(tileMarkup(renderToStaticMarkup(
+    <Board items={buildScene(input({ view }))} radius={6} factions={['spartans', 'mongols']} focus="-2,5" onTap={() => {}} look={{ weather: 'clear', time: 'night' }} />,
+  ), plain)).not.toContain('data-fire-glow');
+});

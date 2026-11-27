@@ -10,7 +10,7 @@ import type { FactionId } from '../../engine';
 import { ACCENT, PLAYER_COLOURS } from '../art/palette';
 import { coloured, repaint } from './geom';
 import { hash2 } from './layout';
-import { FURNACE, LANTERN, LANTERN_WALL, MINE } from './townLayout';
+import { FIRE_RING, FURNACE, LANTERN, LANTERN_WALL, MINE } from './townLayout';
 import type { TownPiece, TownPlan, WallPlan } from './townLayout';
 
 const TOWN = {
@@ -18,7 +18,7 @@ const TOWN = {
   column: '#FBF6E9', door: '#8A6A48', window: '#5A4632',
   felt: '#F1E7D3', feltDoor: '#8C5A33',
   wood: '#A87545', woodDark: '#6B4A2B', pole: '#6B4A2B',
-  mud: '#D9C59C', thatch: '#B8975A', thatchDark: '#9C7C45', logEnd: '#E2C08A', log: '#A8743F',
+  mud: '#D9C59C', ash: '#4E4741', thatch: '#B8975A', thatchDark: '#9C7C45', logEnd: '#E2C08A', log: '#A8743F',
   rock: '#7F786E', rockLight: '#958D80', rockDark: '#635D55', tunnel: '#3B2B20', tunnelDeep: '#1F1814', floor: '#3A2B20',
   timber: '#8C5D35', timberDark: '#6E4528', rail: '#7D7A80', sleeper: '#6B4A2B', iron: '#3A3532', glass: '#FFD98A',
   ore: '#4E4B58', crystal: '#BFE3FA', spoil: '#6E6A78', spoilDark: '#55525E',
@@ -344,6 +344,37 @@ function woodpile(k: Kit): void {
   }
 }
 
+/**
+ * A village's bonfire, still parts only (its flames, glow and smoke move, on the figures' canvas: bonfires.ts): a
+ * bed of dark ash, a ring of rough stones, four logs crossed over the middle, and the embers glowing between them.
+ */
+function bonfire(k: Kit): void {
+  const ash = new CylinderGeometry(FIRE_RING - 0.5, FIRE_RING - 0.3, 0.3, 10);
+  ash.translate(0, 0.05, 0);
+  k.add(ash, TOWN.ash, 0.15);
+  const stones = 9;
+  for (let i = 0; i < stones; i++) {
+    const a = (i / stones) * Math.PI * 2 + 0.3;
+    const r = FIRE_RING - 0.7;
+    const g = new DodecahedronGeometry(0.75 + 0.15 * ((i * 7) % 3), 0);
+    g.scale(1, 0.75, 1);
+    g.rotateY(i * 1.3);
+    g.translate(r * Math.cos(a), 0.45, r * Math.sin(a));
+    k.add(g, i % 2 === 0 ? TOWN.rockLight : TOWN.rock, 0.2);
+  }
+  // Four logs, each leaning in from the ring so they cross just over the ashes.
+  for (let i = 0; i < 4; i++) {
+    const g = new CylinderGeometry(0.32, 0.36, 3.6, 6);
+    g.rotateZ(Math.PI / 2 - 0.32);
+    g.rotateY((i * Math.PI) / 4 + 0.4);
+    g.translate(0, 0.75, 0);
+    k.add(g, i % 2 === 0 ? TOWN.log : TOWN.timberDark, 0.2);
+  }
+  const embers = new CylinderGeometry(0.9, 1.1, 0.35, 8);
+  embers.translate(0, 0.3, 0);
+  k.add(embers, TOWN.ember, 0);
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Every part of a city or village, standing on the ground. */
@@ -357,6 +388,11 @@ export function townParts(plan: TownPlan, cx: number, cz: number, height: (lx: n
   if (plan.banner !== null) out.push(...banner(colour, accent, plan.banner.h).done(cx + plan.banner.x, height(plan.banner.x, plan.banner.z), cz + plan.banner.z, 0));
   if (plan.pennant !== null) out.push(...pennant(colour).done(cx + plan.pennant.x, plan.pennant.y, cz + plan.pennant.z, 0));
   if (plan.walls !== null) out.push(...walls(plan.walls, spartan).done(cx, 0, cz, 0));
+  if (plan.fire !== null) {
+    const k = new Kit();
+    bonfire(k);
+    out.push(...k.done(cx + plan.fire.x, height(plan.fire.x, plan.fire.z), cz + plan.fire.z, 0));
+  }
   return out;
 }
 

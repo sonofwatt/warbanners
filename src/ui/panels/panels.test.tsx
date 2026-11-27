@@ -17,7 +17,7 @@ import { versionLine } from '../Version';
 import { Menu } from './Menu';
 import { RewardSheet } from './RewardSheet';
 import { TechSheet } from './TechSheet';
-import { TilePanel } from './TilePanel';
+import { TilePanel, tileTitle } from './TilePanel';
 import { UnitPanel } from './UnitPanel';
 
 const open = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
@@ -118,6 +118,33 @@ test('the city card: the level on the picture\'s corner, not in the row; the roa
 test('the tile panel names the tile', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="mountain" resource="ore" building={null} road={false} commands={[]} onCommand={noop} />);
   expect(html).toContain('Mountain'); expect(html).toContain('Ore');
+});
+test('a tile with an unclaimed village is called a Village, pictured with its huts, and keeps its real terrain', () => {
+  const html = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} village commands={[]} onCommand={noop} />);
+  const title = html.slice(html.indexOf('class="card-title"'));
+  expect(title).toMatch(/^[^<]*<[^>]*>[^<]*Village/);
+  // Terrain still says Field; the Building box says Village, not None.
+  expect(html).toMatch(/Terrain<\/[^>]+>\s*<[^>]+>Field</);
+  expect(html).toMatch(/Building<\/[^>]+>\s*<[^>]+>Village</);
+  expect(html).not.toMatch(/Building<\/[^>]+>\s*<[^>]+>None</);
+  // The picture draws the village (its bonfire is part of the art), not a bare field.
+  const plain = renderToStaticMarkup(<TilePanel terrain="field" resource={null} building={null} road={false} commands={[]} onCommand={noop} />);
+  const pic = (h: string): string => h.slice(h.indexOf('<svg class="picture"'), h.indexOf('</svg>'));
+  expect(pic(html)).not.toBe(pic(plain));
+  expect(pic(html)).toContain('data-bonfire');
+});
+test('a tile with a treasure chest is called a Treasure chest, pictured with it, and its Resource box says Chest', () => {
+  const html = renderToStaticMarkup(<TilePanel terrain="forest" resource={null} building={null} road={false} treasure commands={[]} onCommand={noop} />);
+  expect(tileTitle({ terrain: 'forest', building: null, treasure: true })).toBe(T.ui.treasureChest);
+  expect(html).toContain(`>${T.ui.treasureChest}<`);
+  expect(html).toMatch(/Terrain<\/[^>]+>\s*<[^>]+>Forest</);
+  expect(html).toMatch(new RegExp(`Resource<\\/[^>]+>\\s*<[^>]+>${T.ui.chest}<`));
+  expect(html).toContain('data-treasure="centre"');
+});
+test('a plain tile, or one with a building, is still called by its terrain', () => {
+  expect(tileTitle({ terrain: 'field', building: null })).toBe('Field');
+  expect(tileTitle({ terrain: 'forest', building: 'lumberCamp' })).toBe('Forest');
+  expect(tileTitle({ terrain: 'field', building: null, village: false, treasure: false })).toBe('Field');
 });
 test('rules 8: the tile panel says a resource was harvested and can still be built on', () => {
   const html = renderToStaticMarkup(<TilePanel terrain="field" resource="orchard" building={null} road={false} harvested commands={[]} onCommand={noop} />);

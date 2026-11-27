@@ -163,6 +163,7 @@ const ui = {
   cityTitle: 'City', capitalTitle: 'Capital', techTitle: 'Technologies',
   level: 'Level', growth: 'Growth', unitsHeld: 'Units', walled: 'Walled', notWalled: 'No walls', yes: 'Yes', no: 'No',
   terrain: 'Terrain', resourceWord: 'Resource', buildingWord: 'Building', roadWord: 'Road', none: 'None',
+  village: 'Village', treasureChest: 'Treasure chest', chest: 'Chest',
   statusOwned: 'Known', statusReady: 'Ready', statusCostly: 'Too costly now', statusLocked: 'Locked',
   research: 'Research', unlocks: 'Opens', close: 'Close', later: 'Later', chooseReward: 'Choose a reward',
   soundOn: 'Sound on', soundOff: 'Sound off', terrain3dOn: '3D terrain on', terrain3dOff: '3D terrain off', resign: 'Resign', resignAsk: 'Resign this match?', resignYes: 'Yes, resign', resignNo: 'Keep playing',
