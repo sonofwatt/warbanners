@@ -51,6 +51,11 @@ export const RIDER = 'rider';
 export const BOW = 'bow';
 /** The swordsman's arms, each carrying its blade: brought in across the body. */
 export const ARM_R = 'armR';
+/**
+ * The arm that holds a spear or a lance (units/strike.ts jab and couch): it turns and reaches from the shoulder so its
+ * hand stays on the grip as the weapon is thrust along its own line.
+ */
+export const SPEAR_ARM = 'spearArm';
 export const ARM_L = 'armL';
 /** The seat of a rider in the rider's own turn (every mounted figure sits there). */
 const SEAT: V3 = [0, H(-10), 0.6];
@@ -75,6 +80,14 @@ const WIDE = { rx: 17, rz: 8.5, x: 0 };
 function turned(k: Kit, yaw: number, f: () => void): void {
   setYaw(yaw);
   k.frame([0, 0, 0], [0, yaw, 0], f);
+}
+
+/** The direction from `a` to `b`. */
+const lineOf = (a: V3, b: V3): V3 => [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+
+/** The arm that holds a spear or a lance: its own piece about the shoulder, so it can reach with the weapon. */
+function spearArm(k: Kit, shoulder: V3, hand: V3, sleeve: string): void {
+  k.pivot(SPEAR_ARM, shoulder, () => arm(k, shoulder, hand, sleeve), { hand });
 }
 
 /** Blood on the ground at the feet, from battered: a spot and a drop; more at the second level. */
@@ -170,8 +183,8 @@ function spearman(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [10, H(-11), 2.4], () => {
       spear(k, [10, 0.6, 2.4], [10, H(-29.6), 2.4], (36 - 29.6) / 0.785 + 0.6, { nick: worn(w, 2), snap: worn(w, 4) ? 0.62 : undefined, blood: w.blood });
-    }, { axis: TIP_FORWARD });
-    arm(k, [5.4, H(-15.6), 0], [10, H(-11), 3.0], c.main);
+    }, { axis: TIP_FORWARD, shaft: [0, 1, 0] });
+    spearArm(k, [5.4, H(-15.6), 0], [10, H(-11), 3.0], c.main);
     standingBody(k, c, w);
     const hd = head(k, 0, -23);
     helmet(k, hd, c.accent, w, { r: 7.1, lift: 0.8 });
@@ -342,7 +355,7 @@ function horseman(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
   turned(k, RIDER_YAW, () => {
     k.pivot(RIDER, SEAT, () => {
       rider(k, [0, H(-10), 0.6], c, c.main, w);
-      arm(k, [4.0, H(-19.4), 0.6], [5, H(-14.8), 4.2], c.main);
+      spearArm(k, [4.0, H(-19.4), 0.6], [5, H(-14.8), 4.2], c.main);
       arm(k, [-4.0, H(-19.4), 0.6], [-5.0, H(-13.6), 3.4], c.main);
       const hd = head(k, 0, -25.6, 5.4);
       // A soft cloth cap with a falling tail, no armour.
@@ -355,7 +368,7 @@ function horseman(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
       // A short spear held high in front of him, pointing forward: it comes down level and drives forward.
       k.pivot(WEAPON, [5, H(-14.8), 4.4], () => {
         spear(k, [2, H(-8), 4.4], [12.4, H(-31.6), 4.4], 5.6, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood }, 0.75);
-      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0], shaft: lineOf([2, H(-8), 4.4], [12.4, H(-31.6), 4.4]) });
     }, { axis: HUNCH });
   });
   feetBlood(k, w, 6, 9);
@@ -392,7 +405,7 @@ function knight(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
       k.frustum([0, 0, 0.9], H(-11), H(-18.6), 5.7, 4.9, c.dark, { sz: 0.72 });
       const ts = tunicSurf(1.1);
       if (worn(w, 2)) dent(k, ts, -1.4, H(-16), 1.2, c.dark);
-      arm(k, [4.2, top - 1.6, 0.6], [-1, H(-17.2), 5.2], STEEL_DARK);
+      spearArm(k, [4.2, top - 1.6, 0.6], [-1, H(-17.2), 5.2], STEEL_DARK);
       arm(k, [-4.2, top - 1.6, 0.6], [-6.4, H(-12.6), 3.8], STEEL_DARK);
       if (!(worn(w, 4) || w.scarred)) k.ball([-4.8, top - 1.0, 0.4], 2.6, STEEL, { s: [1.2, 0.8, 1.1], detail: 1, gloss: 0.3 });
       const hc: V3 = [0, H(-27.2), 0.4];
@@ -419,7 +432,7 @@ function knight(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
           k.rod(tip, [19.6, H(-35.4), 5.6], 1.5, STEEL_DARK, { r1: 0.05, seg: 6, gloss: 0.5 });
           if (bloody(w, 1)) k.ball([17.0, H(-33), 6.4], 0.9, BLOOD, { detail: 0, hull: 0 });
         }
-      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0], shaft: lineOf(butt, tip) });
       k.slab([0, 0, 4.6, 1.8, 0.6, 4.4], 0.6, c.accent, [-1.6, H(-12.6), 6.4], [0, 0, 0.55]);
     }, { axis: HUNCH });
   });
@@ -537,8 +550,8 @@ function hoplite(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [13, H(-11), 2.4], () => {
       spear(k, [12, 0.6, 2.4], [14.4, H(-30), 2.4], (36 - 30) / 0.785 + 0.8, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood });
-    }, { axis: TIP_FORWARD });
-    arm(k, [5.4, H(-15.6), 0], [13, H(-11), 2.8], c.main);
+    }, { axis: TIP_FORWARD, shaft: lineOf([12, 0.6, 2.4], [14.4, H(-30), 2.4]) });
+    spearArm(k, [5.4, H(-15.6), 0], [13, H(-11), 2.8], c.main);
     standingBody(k, c, w);
     const hd = head(k, 0, -22.4);
     helmet(k, hd, c.accent, w, { r: 7.1, lift: 0.4 });
@@ -563,7 +576,7 @@ function kingsGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     k.pivot(WEAPON, [13, H(-12.6), 1.6], () => {
       spear(k, [13, 0.6, 1.6], [13, H(-33.6), 1.6], (40 - 33.6) / 0.785 + 0.8, { nick: worn(w, 2), snap: worn(w, 4) ? 0.6 : undefined, blood: w.blood }, 0.85);
-    }, { axis: TIP_FORWARD });
+    }, { axis: TIP_FORWARD, shaft: [0, 1, 0] });
     // A long cape falls behind him to his heels (torn when broken).
     const capeHem = worn(w, 4) ? [12.6, 2.6, 8.6, -1.6, 5.0, 2.6, 1.4, -2.4, -2.6, 2.6, -6.4, -0.6, -12.8, 2.6] : [13, 2.6, -13, 2.6];
     const cape = [-7, -21, 7, -21, 11.6, -13, ...capeHem, -14, -3, -12, -12];
@@ -585,7 +598,7 @@ function kingsGuard(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     if (worn(w, 2)) dent(k, bs, 2.4, H(-19), 1.2, c.accent);
     if (worn(w, 3)) crack(k, bs, [-2.6, H(-21), -1.6, H(-18.6), -2.6, H(-16.4)]);
     if (bloody(w, 2)) smear(k, bs, 1.2, H(-13.4), 0.2, -1, 3.2, 1.6);
-    arm(k, [5.6, H(-19.6), 0], [13, H(-12.6), 2.4], c.main);
+    spearArm(k, [5.6, H(-19.6), 0], [13, H(-12.6), 2.4], c.main);
     const hd = head(k, 0, -26.6);
     helmet(k, hd, c.accent, w, { r: 7.1, lift: 0.4 });
     if (!worn(w, 4) && !w.scarred) cheekGuard(k, hd, 1, c.accent);
@@ -647,6 +660,43 @@ function piper(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   return NARROW;
 }
 
+/**
+ * The rings the scout's hood and cloak are laid on, from the crown to the hem (world units in his turn): the height,
+ * the centre (x, z), the reach to each side (rx: toward -x, where the cloak sweeps out behind him, then toward +x) and
+ * back (rz), and how far round each ring goes from straight behind (radians: toward -x, his trailing side, and toward
+ * +x, his dagger side). The top two rings are the cowl, close round the head and open at the face; the next wraps his
+ * shoulders toward the chest, above the dagger arm; below it the cloak stops short of the arm and the front knee on
+ * the dagger side and wraps forward on the other. The hem's height is given per point instead (SCOUT_HEM).
+ */
+const SCOUT_CLOAK: readonly { y: number; c: [number, number]; rx: [number, number]; rz: number; from: number; to: number }[] = [
+  { y: 29.0, c: [2.2, 0.8], rx: [4.6, 4.6], rz: 4.6, from: -2.25, to: 2.25 },
+  { y: 24.2, c: [2.0, 0.2], rx: [6.8, 6.6], rz: 6.4, from: -2.3, to: 2.15 },
+  { y: 19.6, c: [0.6, -0.4], rx: [8.0, 7.4], rz: 5.6, from: -2.35, to: 2.0 },
+  { y: 15.5, c: [-0.4, -0.6], rx: [10.4, 11.2], rz: 5.8, from: -2.3, to: 1.5 },
+  { y: 10.0, c: [-2.0, -0.8], rx: [12.0, 12.2], rz: 6.0, from: -2.2, to: 1.35 },
+  { y: 0, c: [-4.0, -1.2], rx: [10.6, 11.6], rz: 6.6, from: -2.0, to: 1.3 },
+];
+/** The hem's height at each of the cloak's nine points round it (from -x round to +x): torn points between notches. */
+const SCOUT_HEM = [2.6, 6.4, 3.6, 7.2, 4.4, 6.8, 3.4, 7.6, 5.2];
+/** In rags: the notches torn deeper and two points torn shorter. */
+const SCOUT_RAGS = [3.0, 9.4, 3.6, 10.6, 7.4, 9.8, 3.4, 11.0, 5.8];
+
+function scoutCloak(k: Kit, colour: string, rags: boolean): void {
+  const hem = rags ? SCOUT_RAGS : SCOUT_HEM;
+  const rows = SCOUT_CLOAK.map((ring, r) => hem.map((h, i): V3 => {
+    const a = ring.from + ((ring.to - ring.from) * i) / (hem.length - 1);
+    const y = r === SCOUT_CLOAK.length - 1 ? h : ring.y;
+    return [ring.c[0] + ring.rx[a < 0 ? 0 : 1] * Math.sin(a), y, ring.c[1] - ring.rz * Math.cos(a)];
+  }));
+  k.shell(rows, 0.8, colour, [0, -0.5]);
+  // A rolled edge round the face, from one shoulder up over the brow and down to the other, so the cowl reads as a
+  // hood and not as hair.
+  const last = hem.length - 1;
+  const brow: V3 = [2.2, 28.4, 5.7];
+  const edge: V3[] = [rows[2]![0]!, rows[1]![0]!, rows[0]![0]!, brow, rows[0]![last]!, rows[1]![last]!, rows[2]![last]!];
+  for (let i = 0; i + 1 < edge.length; i++) k.rod(edge[i]!, edge[i + 1]!, 0.75, mix(colour, '#000000', 0.25), { seg: 5 });
+}
+
 function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     // Crouched low: the back knee down, the front leg bent, ready to spring.
@@ -663,13 +713,12 @@ function scout(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     const ts = (x: number, y: number) => tunicSurf(0.3)(x, y);
     if (worn(w, 1)) dirt(k, ts, 2.6, H(-3.4), 3.6, c.dark);
     if (worn(w, 3)) { const [lip, gap] = tearPolys(1.6, H(-9.4), 3.4, 3.0); k.decal(lip, mix(c.main, '#000000', 0.45), ts); k.decal(gap, SKIN, ts); }
-    // The hooded cloak in the owner's dark colour, sweeping down his back (in rags when broken).
-    const hem = worn(w, 4) ? [-6.6, 0.6, -8.4, -1.6, -9.8, 2.8, -11.4, -0.8, -13.4, 2] : [-6.6, 0.6, -13.4, 2];
-    k.slab([-1, -22.6, -1, -12.6, -5.6, -10, ...hem, -12.6, -10, -9, -21].map((v, i) => (i % 2 ? H(v) : v)), 1.4, c.dark, [0, 0, -2.4], [0, 0.3, 0]);
+    // The hooded cloak in the owner's dark colour: a soft cowl round his head, open at the face, that falls onto his
+    // shoulders and back and sweeps out behind him (toward -x), its hem torn into points (in rags when broken).
+    scoutCloak(k, c.dark, worn(w, 4));
     const hd = head(k, 2.2, -14.8, 5.4, 1.2, 0.6);
-    k.ball([hd.c[0] - 0.4, hd.c[1] + 0.3, hd.c[2] - 1.6], 6.4, c.dark, { detail: 1 });
+    // The crown of the cowl: a round cap over the head, inside the cloak's top ring.
     k.dome([hd.c[0], hd.c[1] + 0.6, hd.c[2] - 0.2], 5.95, c.dark, { to: 0.9, seg: 12 });
-    k.rod([hd.c[0] - 4, hd.c[1] + 2.6, hd.c[2] - 3], [hd.c[0] - 9.4, hd.c[1] + 6.8, hd.c[2] - 4.6], 2.6, c.dark, { r1: 0.2, seg: 6 });
     faceWear(k, hd, w, 1);
     // A short dagger held low and forward.
     arm(k, [4.2, H(-11), 1.4], [8.8, H(-8.2), 5.0], c.main);
