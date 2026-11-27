@@ -568,6 +568,33 @@ Mongols
 - Spartans and Mongols keep the forest cost of section 9, and the Mongol rule that a mounted unit entering a
   forest loses the rest of its move.
 
+### 15.6 Bow, agile, ambush and forest eye
+
+Formula names as section 10: `damageFor(a, d, cover)` and the health factor `hf`.
+
+- **Bow (Skirmisher).** Once its owner knows `archery`, the Skirmisher's range is 2 (the card shows 1
+  before and 2 after). At distance 1 it fights in melee with its own attack (5) and advances on a kill as
+  usual. At distance 2 it shoots and never advances: a shot does 70% of an Archer's hit at its health,
+  `max(1, round(0.7 * damageFor((4 + bonus) * hf + ambush, guard, cover)))`, where `bonus` is every attack
+  bonus it has over its type's attack (Fierce +1, for example). It strikes back at distance 2 with the bow,
+  `max(1, round(0.7 * damageFor((4 + bonus) * f * hf, def, 1)))`, `f` the counter factor of section 10.
+  On a mountain it has range 3 like any ranged unit, and the long shot's 0.8 applies after the 0.7.
+- **Agile (Skirmisher).** A counter-attack against it does 1 less, never below 1. It stacks with Watchful
+  (2 less with both).
+- **Ambush (Skirmisher, Woodland Hunter, War Chief).** When the attacker is hidden as the attack begins
+  (Woodland cover, a veil or the `hidden` trait) and the target's owner cannot see it, the attack has +1
+  attack and the target does not strike back. Being only out of sight range on open ground is not an
+  ambush. An enemy next to the attacker sees it, so a melee attack is never an ambush against a target
+  that can see.
+- **Forest eye (Woodland Hunter).** Standing on a forest, if it has not moved or acted this turn, it has
+  range 3. A shot at distance 3 is a long shot (0.8, as from a mountain). Its sight stays 2, so a target at
+  3 can be attacked only when another unit or city of its player sees it. Its counter keeps range 2.
+- **No mountain range (Woodland Hunter).** It gets no range bonus on a mountain: range 2 there.
+- Worked numbers (fields, full health): a Skirmisher's shot at a Warrior does 4 and takes no counter; from
+  a forest unseen it does 6; in melee it does 8 and takes 1 back (2 before agile). An Archer's shot at a
+  Skirmisher does 7 and the bow strikes back for 1. A Hunter's shot at 3 from a forest does 5 (6 when it
+  is an ambush). A Skirmisher's shot at 3 from a mountain does 3.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both

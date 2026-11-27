@@ -10,6 +10,7 @@ import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { canClimb, maxMp, mountainStep } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
+import { bowShot, forestEyeReach, isHidden, normalRange } from './woodland';
 import type { Action, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
@@ -83,9 +84,15 @@ export function momentumShort(s: MatchState, target: Unit, attacker: Unit): numb
 
 // The damage this attacker's hit does to this target at effective attack effAtk: the formula against its guard and
 // cover, less 1 per missing point of momentum (rules 7), never below 1. The attack itself and every estimate use it.
-// Last, the long shot cut (rules 8) for a shot from a mountain beyond the attacker's normal range.
-export function strikeDamage(s: MatchState, target: Unit, attacker: Unit, effAtk: number): number {
-  const full = damageFor(effAtk, guardOf(s, target, attacker), coverAt(s, target));
+// Last, the long shot cut (rules 8) for a shot beyond the attacker's normal range (from a mountain or by forest eye).
+// rules 11: a bow shot works the formula at the bow's attack (bowAtk plus the attack bonuses effAtk carries over the
+// type's attack, at the same health) and does bowShare of it, rounded, at least 1. An ambush (the caller judges it with
+// `ambushes` before any damage) adds ambushAtk to the attack the formula uses.
+export function strikeDamage(s: MatchState, target: Unit, attacker: Unit, effAtk: number, ambush = false): number {
+  const bow = bowShot(s, attacker, target);
+  const atk = bow ? effAtk - (UNITS[attacker.type].atk - CONFIG.woodland.bowAtk) * healthFactor(attacker) : effAtk;
+  const raw = damageFor(atk + (ambush ? CONFIG.woodland.ambushAtk : 0), guardOf(s, target, attacker), coverAt(s, target));
+  const full = bow ? Math.max(1, Math.round(raw * CONFIG.woodland.bowShare)) : raw;
   const dmg = Math.max(1, full - momentumShort(s, target, attacker));
   return longShot(s, attacker, target) ? Math.max(1, Math.round(dmg * CONFIG.mountain.longShotScale)) : dmg;
 }
@@ -101,26 +108,36 @@ function healthFactor(u: Unit): number {
   return (u.hp + maxHp) / (2 * maxHp);
 }
 
-// The reach a unit counter-attacks with: its type's range, or the blinded reach. No mountain bonus (rules 8).
-function counterReach(u: Unit): number {
-  return u.blinded ? CONFIG.blindedReach : UNITS[u.type].range;
+// The reach a unit counter-attacks with: its normal range (rules 11: 2 for a bow unit once its owner knows Archery),
+// or the blinded reach. No mountain or forest eye bonus (rules 8 and 11).
+function counterReach(s: MatchState, u: Unit): number {
+  return u.blinded ? CONFIG.blindedReach : normalRange(s, u);
 }
 
-// rules 8: the extra reach a unit has for its own attacks where it stands: rangeBonus for a ranged unit (range 2 or
-// more) on a mountain, else 0. Blindness wins (attackReach).
+// rules 8: the extra reach a unit has for its own attacks where it stands: rangeBonus for a ranged unit (normal range 2
+// or more) on a mountain, else 0; rules 11: never for a noMountainRange unit. Blindness wins (attackReach).
 export function mountainReach(s: MatchState, u: Unit): number {
-  return UNITS[u.type].range >= 2 && tileAt(s, u.pos)?.terrain === 'mountain' ? CONFIG.mountain.rangeBonus : 0;
+  if (hasTrait(u, 'noMountainRange')) return 0;
+  return normalRange(s, u) >= 2 && tileAt(s, u.pos)?.terrain === 'mountain' ? CONFIG.mountain.rangeBonus : 0;
 }
 
-// rules 10 and 8: how far a unit's own attacks reach: the blinded reach, or its type's range plus the mountain bonus.
+// rules 10, 8 and 11: how far a unit's own attacks reach: the blinded reach, or its normal range plus the mountain
+// bonus plus the forest eye.
 export function attackReach(s: MatchState, u: Unit): number {
-  return u.blinded ? CONFIG.blindedReach : UNITS[u.type].range + mountainReach(s, u);
+  return u.blinded ? CONFIG.blindedReach : normalRange(s, u) + mountainReach(s, u) + forestEyeReach(s, u);
 }
 
-// rules 8: is this a long shot, one that uses the mountain's extra tile (the target is beyond the normal range)?
+// rules 8 and 11: is this a long shot, one that uses the extra tile of a mountain or the forest eye (the target is beyond
+// the normal range)? Only a unit that has such a tile now can make one, so an estimate at any distance agrees.
 export function longShot(s: MatchState, attacker: Unit, target: Unit): boolean {
-  return !attacker.blinded && mountainReach(s, attacker) > 0
-    && distance(parseKey(attacker.pos), parseKey(target.pos)) > UNITS[attacker.type].range;
+  return !attacker.blinded && mountainReach(s, attacker) + forestEyeReach(s, attacker) > 0
+    && distance(parseKey(attacker.pos), parseKey(target.pos)) > normalRange(s, attacker);
+}
+
+// rules 11, ambush: an ambush attacker hidden as the attack begins (Woodland cover, a veil or the hidden trait) that the
+// target's owner cannot see. Judged before any damage. It adds ambushAtk and the target does not strike back.
+export function ambushes(s: MatchState, attacker: Unit, target: Unit): boolean {
+  return hasTrait(attacker, 'ambush') && isHidden(s, attacker) && !canSeeUnit(s, target.owner, attacker);
 }
 
 // rules 13: a lure may be recorded when this attacker hits this target (the target must also survive)
@@ -158,22 +175,32 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   const attackerFrom = attacker.pos;
 
   const effAtk = attackOf(s, attacker) * healthFactor(attacker);
-  // rules 7: the price and the shortfall are judged now, before the target can fall
+  // rules 7: the price and the shortfall are judged now, before the target can fall; rules 11: so are the ambush and
+  // the bow shot
   const price = momentumPrice(s, target, attacker);
   const short = momentumShort(s, target, attacker);
-  const damage = strikeDamage(s, target, attacker, effAtk);
+  const ambush = ambushes(s, attacker, target);
+  const shot = bowShot(s, attacker, target);
+  const damage = strikeDamage(s, target, attacker, effAtk, ambush);
   if (short > 0) attacker.momentum = 0;                     // a short attack spends what is left, kill or not
   target.hp -= damage;
   const targetDied = target.hp <= 0;
 
   // The counter is worked out first so the one `attacked` event can carry it.
   let counter = 0;
-  if (!targetDied && attackOf(s, target) > 0 && !hasTrait(target, 'siege')
-    && distance(parseKey(attacker.pos), parseKey(target.pos)) <= counterReach(target)) {
+  if (!targetDied && !ambush && attackOf(s, target) > 0 && !hasTrait(target, 'siege')
+    && distance(parseKey(attacker.pos), parseKey(target.pos)) <= counterReach(s, target)) {
     const f = hasTrait(target, 'steadfast') ? CONFIG.steadfastFactor : CONFIG.counterFactor;
-    const cAtk = attackOf(s, target) * f * healthFactor(target);
-    counter = damageFor(cAtk, defenceOf(s, attacker), 1);
+    if (bowShot(s, target, attacker)) {
+      // rules 11: a bow unit strikes back from 2 tiles with the bow, at bowShare
+      const bonus = attackOf(s, target) - UNITS[target.type].atk;
+      const cAtk = (CONFIG.woodland.bowAtk + bonus) * f * healthFactor(target);
+      counter = Math.max(1, Math.round(CONFIG.woodland.bowShare * damageFor(cAtk, defenceOf(s, attacker), 1)));
+    } else {
+      counter = damageFor(attackOf(s, target) * f * healthFactor(target), defenceOf(s, attacker), 1);
+    }
     if (attacker.heroTraits.includes('watchful')) counter = Math.max(1, counter - CONFIG.heroes.agilityCut);   // agility
+    if (hasTrait(attacker, 'agile')) counter = Math.max(1, counter - CONFIG.heroes.agilityCut);             // rules 11
   }
   ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage, counter });
   let kills = 0;                                  // units this attack killed, for the attacker's fight deed
@@ -197,7 +224,8 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
     // rules 10: a melee killer steps into the emptied tile, at no movement cost
     // (rules 8: onto a mountain only once its owner may climb; the attack still happens, the killer just stays put)
     const climbBarred = tileAt(s, tileKey)?.terrain === 'mountain' && !canClimb(s, attacker.owner);
-    if (UNITS[attacker.type].range === 1 && !hasTrait(attacker, 'splash') && !climbBarred && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
+    // rules 11: a bow shot is not melee, so the shooter stays put
+    if (UNITS[attacker.type].range === 1 && !shot && !hasTrait(attacker, 'splash') && !climbBarred && isEnterable(s, tileKey) && unitAt(s, tileKey) === undefined) {
       attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
       ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
       climbed = mountainStep(s, attackerFrom, tileKey);
@@ -271,7 +299,7 @@ export interface UnitStats { atk: number; def: number; maxHp: number; move: numb
 
 // A unit's own numbers with its traits and its faction's mounted bonus, and no neighbour bonuses (no inspire,
 // phalanx or myth touch). `move` is in tiles; maxMp stays in half-points. Sight counts the mountain it stands on; range
-// is the engine's attack reach (rules 8): the mountain bonus for a ranged unit, or the blinded reach.
+// is the engine's attack reach (rules 8 and 11): the bow, the mountain bonus, the forest eye, or the blinded reach.
 export function statsOf(s: MatchState, u: Unit): UnitStats {
   const def = UNITS[u.type];
   return {
