@@ -75,7 +75,7 @@ function place(s: MatchState, faction: FactionId, type: UnitTypeId): void {
 }
 
 // Random play that takes an ability whenever one is offered, at most once per unit per turn.
-const abilityCounts: Record<AbilityId, number> = { heal: 0, taunt: 0, hasten: 0, dustStorm: 0 };
+const abilityCounts: Record<AbilityId, number> = { heal: 0, taunt: 0, hasten: 0, dustStorm: 0, guide: 0, smoke: 0, snare: 0 };
 test.each([1, 2, 3, 4, 5, 6])('seed %i: abilities in random play keep every invariant and replay to the same hash', (seed) => {
   const settings: MatchSettings = { seed, factions: seed % 2 ? ['spartans', 'mongols'] : ['mongols', 'spartans'] };
   const start = createMatch(settings);

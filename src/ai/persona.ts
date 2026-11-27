@@ -23,6 +23,16 @@ export const PERSONAS: Record<FactionId, Persona> = {
     mix: { hoplite: 6.5, warrior: 0.5, spearman: 0.6, archer: 1.2, defender: 0.8, swordsman: 1, scout: 0.8, catapult: 0.6, horseman: 0.4, knight: 0.6 },
     counter: 1,
   },
+  // rules 11 stand-in: the Spartan persona, opening with Trapping, until the Woodland persona is tuned
+  woodland: {
+    formation: 1.5, hold: 0.6, spread: 2, raid: 0, forestPenalty: 0,
+    techOrder: [
+      'trapping', 'archery', 'prospecting', 'spears', 'foraging', 'defence', 'smithing', 'gathering', 'farming', 'mining',
+      'riding', 'logging', 'granary', 'siege', 'orchards', 'chivalry', 'foundry', 'plantations', 'milling', 'fishing', 'walls',
+    ],
+    mix: { skirmisher: 6.5, woodlandHunter: 1.2, spearman: 0.6, defender: 0.8, swordsman: 1, trapper: 0.4, catapult: 0.6, horseman: 0.4, knight: 0.6 },
+    counter: 1,
+  },
   mongols: {
     formation: -0.25, hold: 0.2, spread: 6, raid: 3, forestPenalty: 1,
     techOrder: [

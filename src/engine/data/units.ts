@@ -25,5 +25,11 @@ export const UNITS: Record<UnitTypeId, UnitDef> = deepFreeze({
   khansGuard: { atk: 6, def: 4, range: 1, move: 3, hp: 20, sight: 2, cost: null, faction: 'mongols', traits: ['chain', 'inspire', 'mounted'] },
   skyCaller: { atk: 2, def: 2, range: 1, move: 2, hp: 10, sight: 2, cost: null, faction: 'mongols', traits: ['heal', 'hasten', 'dustStorm', 'mounted'] },
   camp: { atk: 0, def: 3, range: 0, move: 1, hp: 15, sight: 1, cost: 6, faction: 'mongols', traits: ['camp'] },
+  // rules 11: the Woodland Nations
+  skirmisher: { atk: 5, def: 2, range: 1, move: 1, hp: 10, sight: 2, cost: 3, faction: 'woodland', traits: ['bow', 'agile', 'ambush', 'dashStrike'] },
+  woodlandHunter: { atk: 4, def: 2, range: 2, move: 1, hp: 10, sight: 2, cost: 4, faction: 'woodland', traits: ['ambush', 'forestEye', 'noMountainRange'] },
+  warChief: { atk: 6, def: 5, range: 1, move: 1, hp: 20, sight: 2, cost: null, faction: 'woodland', traits: ['ambush', 'doubleStrike'] },
+  smokeKeeper: { atk: 2, def: 2, range: 1, move: 1, hp: 10, sight: 2, cost: null, faction: 'woodland', traits: ['heal', 'guide', 'smoke'] },
+  trapper: { atk: 2, def: 2, range: 1, move: 1, hp: 10, sight: 1, cost: 2, faction: 'woodland', traits: ['snare'] },
   sellsword: { atk: 5, def: 3, range: 1, move: 1, hp: 15, sight: 1, cost: null, faction: null, traits: [] },
 });

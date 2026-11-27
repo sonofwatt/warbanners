@@ -40,6 +40,11 @@ const unit: Record<UnitTypeId, Entry> = {
   khansGuard: { name: "Khan's Guard", blurb: 'The Mongol champion, a fast rider who attacks again after every kill and strengthens riders beside it.' },
   skyCaller: { name: 'Sky Caller', blurb: 'A Mongol helper who heals friends, speeds up riders beside it and blinds enemies with a dust storm.' },
   camp: { name: 'Camp', blurb: 'A Mongol camp that cannot attack but can train one unit each turn onto a free tile beside it.' },
+  skirmisher: { name: 'Skirmisher', blurb: 'A quick fighter who strikes hard up close and, once Archery is known, shoots or makes a Dash-strike from two tiles away.' },
+  woodlandHunter: { name: 'Woodland Hunter', blurb: 'A patient archer who shoots three tiles from a forest when it has not moved and a friend spots the target.' },
+  warChief: { name: 'War Chief', blurb: 'The Woodland Nations champion, a hard fighter with a gunstock war club who strikes twice each turn.' },
+  smokeKeeper: { name: 'Smoke Keeper', blurb: 'A Woodland helper who heals friends, guides them past enemies and hides them in smoke.' },
+  trapper: { name: 'Trapper', blurb: 'A woodsman who hides snares that hurt and stop the enemies who step on them.' },
   sellsword: { name: 'Sellsword', blurb: `A wandering fighter for hire who joins whoever finds it, already ${heroTrait[CONFIG.treasure.mercenaryTrait].name}.` },
 };
 
@@ -63,6 +68,15 @@ const trait: Record<Trait, Entry> = {
   taunt: { name: 'Taunt', blurb: 'Can force an enemy within 2 tiles to attack only Hoplites, when any are in its reach.' },
   hasten: { name: 'Hasten', blurb: 'Can give a friendly rider beside it one extra tile of movement.' },
   dustStorm: { name: 'Dust storm', blurb: 'Can blind enemies near a tile within 2, so they give their owner no vision and attack only from next door.' },
+  bow: { name: 'Bow', blurb: 'Once Archery is known, shoots from two tiles away for 70% of an Archer\'s damage.' },
+  agile: { name: 'Agile', blurb: 'Takes 1 less damage from every counter-attack.' },
+  ambush: { name: 'Ambush', blurb: 'When it attacks while hidden from its target, it has 1 more attack and is not struck back.' },
+  dashStrike: { name: 'Dash-strike', blurb: 'Shoots an enemy two tiles away, charges in past its shields and returns to where it started.' },
+  forestEye: { name: 'Forest eye', blurb: 'On a forest, if it has not moved or attacked, it shoots one tile farther at a target a friend can see.' },
+  noMountainRange: { name: 'No mountain range', blurb: 'Gets no longer reach on a mountain.' },
+  guide: { name: 'Guide', blurb: 'Can let a friendly unit beside it move past enemies without being stopped by them.' },
+  smoke: { name: 'Smoke', blurb: 'Can hide friends on and around a tile within 2 in smoke.' },
+  snare: { name: 'Snare', blurb: 'Can hide a snare beside it that hurts and stops the first enemy to step on it.' },
 };
 
 const ability: Record<AbilityId, Entry> = {
@@ -70,6 +84,9 @@ const ability: Record<AbilityId, Entry> = {
   taunt: { name: 'Taunt', blurb: 'Forces an enemy within 2 tiles to attack only Hoplites, when any are in its reach, until its owner next turn ends.' },
   hasten: { name: 'Hasten', blurb: 'Gives a friendly rider beside it one extra tile of movement this turn.' },
   dustStorm: { name: 'Dust storm', blurb: 'Blinds the enemies on and around a tile within 2, so they give no vision and attack only from next door, until their owner next turn ends.' },
+  guide: { name: 'Guide', blurb: 'A friendly unit beside it ignores enemy engagement for the rest of this turn.' },
+  smoke: { name: 'Smoke', blurb: 'Veils the friends on and around a tile within 2 until their owner next turn ends.' },
+  snare: { name: 'Snare', blurb: 'Hides a snare on a free tile beside it. An enemy that steps on it takes damage and stops.' },
 };
 
 const reward: Record<RewardId, Entry> = {
@@ -107,7 +124,7 @@ const harvestVerb: Record<Resource, string> = {
   orchard: 'Harvest fruit', cropland: 'Harvest wild grain', game: 'Trap game', ore: 'Harvest ore', jewels: 'Gather jewels', fish: 'Catch fish',
 };
 const terrain: Record<Terrain, string> = { field: 'Field', forest: 'Forest', mountain: 'Mountain', water: 'Water' };
-const faction: Record<FactionId, string> = { spartans: 'Spartans', mongols: 'Mongols' };
+const faction: Record<FactionId, string> = { spartans: 'Spartans', mongols: 'Mongols', woodland: 'Woodland Nations' };
 
 const reason: Record<string, string> = {
   'not enough gold': 'Not enough gold',

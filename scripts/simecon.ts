@@ -20,6 +20,7 @@ type Acc = {
 const acc: Record<FactionId, Acc> = {
   spartans: { sides: 0, wins: 0, techRound: {}, firstTechs: {}, spend: {}, count: {}, goldAt: {}, blockaded: 0, blockadeGold: 0, blockadeSides: 0 },
   mongols: { sides: 0, wins: 0, techRound: {}, firstTechs: {}, spend: {}, count: {}, goldAt: {}, blockaded: 0, blockadeGold: 0, blockadeSides: 0 },
+  woodland: { sides: 0, wins: 0, techRound: {}, firstTechs: {}, spend: {}, count: {}, goldAt: {}, blockaded: 0, blockadeGold: 0, blockadeSides: 0 },
 };
 const add = (r: Record<string, number>, k: string, v: number): void => { r[k] = (r[k] ?? 0) + v; };
 

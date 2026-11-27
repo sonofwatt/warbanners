@@ -1,7 +1,7 @@
 import type { HexKey } from './hex';
-export const RULES_VERSION = 10;
+export const RULES_VERSION = 11;
 export type PlayerId = number;
-export type FactionId = 'spartans' | 'mongols';
+export type FactionId = 'spartans' | 'mongols' | 'woodland';
 export type Terrain = 'field' | 'forest' | 'mountain' | 'water';
 // rules 8 adds jewels (on mountains) and fish (on water)
 export type Resource = 'orchard' | 'cropland' | 'game' | 'ore' | 'jewels' | 'fish';
@@ -15,13 +15,14 @@ export type TechId = 'foraging' | 'farming' | 'markets' | 'riding' | 'roads' | '
   | 'prospecting' | 'spears' | 'mining' | 'foundry' | 'gathering' | 'granary' | 'fishing';
 export type UnitTypeId = 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman'
   | 'knight' | 'catapult' | 'hoplite' | 'kingsGuard' | 'piper' | 'scout'
-  | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp' | 'sellsword';
+  | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp' | 'sellsword'
+  | 'skirmisher' | 'woodlandHunter' | 'warChief' | 'smokeKeeper' | 'trapper';
 export type Trait = 'steadfast' | 'doubleStrike' | 'retreat' | 'chain' | 'splash' | 'siege' | 'mounted'
   | 'phalanx' | 'unbowed' | 'hidden' | 'noCityCapture' | 'steady' | 'inspire' | 'camp' | 'heal' | 'taunt' | 'hasten' | 'dustStorm'
-  | 'pathfinder';
-export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm';
+  | 'pathfinder' | 'bow' | 'agile' | 'ambush' | 'dashStrike' | 'forestEye' | 'noMountainRange' | 'guide' | 'smoke' | 'snare';
+export type AbilityId = 'heal' | 'taunt' | 'hasten' | 'dustStorm' | 'guide' | 'smoke' | 'snare';
 // Every ability, in the order legalActions lists them.
-export const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm'];
+export const ABILITIES: readonly AbilityId[] = ['heal', 'taunt', 'hasten', 'dustStorm', 'guide', 'smoke', 'snare'];
 // Stage 2: what a unit does with its life (deeds) and the trait each deed earns.
 export type DeedId = 'fight' | 'march' | 'survive' | 'rest';
 export const DEEDS: readonly DeedId[] = ['fight', 'march', 'survive', 'rest'];

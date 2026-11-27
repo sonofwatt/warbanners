@@ -16,7 +16,7 @@ import type { Advanced } from '../../app/advanced';
 import { T, fill } from '../text';
 
 // Each people shown by one of its own soldiers, in its colours.
-const FACE: Record<FactionId, UnitTypeId> = { spartans: 'hoplite', mongols: 'horseArcher' };
+const FACE: Record<FactionId, UnitTypeId> = { spartans: 'hoplite', mongols: 'horseArcher', woodland: 'skirmisher' };
 
 function FactionCard({ faction, name, first }: { faction: FactionId; name: string; first: boolean }): ReactElement {
   const colour = playerColour(faction);

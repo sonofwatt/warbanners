@@ -16,7 +16,8 @@ import type { Cut, Look, Wear } from './parts';
 
 export type UnitType =
   | 'warrior' | 'spearman' | 'swordsman' | 'defender' | 'archer' | 'horseman' | 'knight' | 'catapult' | 'sellsword'
-  | 'hoplite' | 'kingsGuard' | 'piper' | 'scout' | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp';
+  | 'hoplite' | 'kingsGuard' | 'piper' | 'scout' | 'horseArcher' | 'khansGuard' | 'skyCaller' | 'camp'
+  | 'skirmisher' | 'woodlandHunter' | 'warChief' | 'smokeKeeper' | 'trapper';
 
 export interface FigureOpts { look: Look; wear: Wear; hero?: boolean }
 /** A built figure plus the size of its ground shadow (an ellipse at the feet, in world units). */
@@ -885,6 +886,8 @@ export function heroMark(k: Kit, accent: string): void {
 export const FIGURES: Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; rz: number; x: number }> = {
   warrior, spearman, swordsman, defender, archer, horseman, knight, catapult, sellsword,
   hoplite, kingsGuard, piper, scout, horseArcher, khansGuard, skyCaller, camp,
+  // stand-in until Tasks 15 and 16: the Woodland figures reuse existing ones
+  skirmisher: warrior, trapper: warrior, woodlandHunter: archer, warChief: swordsman, smokeKeeper: piper,
 };
 
 /** Build one figure: the fill and hull geometry (feet on y 0 at the origin) and its shadow's size. */

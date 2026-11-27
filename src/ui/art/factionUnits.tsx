@@ -297,4 +297,9 @@ export const FACTION_FIGURES: Record<FactionFigure, (p: FigureProps) => ReactEle
 };
 
 /** Every unit type's figure, shared and faction together. */
-export const FIGURES: Record<UnitTypeId, (p: FigureProps) => ReactElement> = { ...SHARED_FIGURES, ...FACTION_FIGURES };
+export const FIGURES: Record<UnitTypeId, (p: FigureProps) => ReactElement> = {
+  ...SHARED_FIGURES, ...FACTION_FIGURES,
+  // stand-in until Tasks 15 and 16: the Woodland figures reuse existing ones
+  skirmisher: SHARED_FIGURES.warrior, trapper: SHARED_FIGURES.warrior, woodlandHunter: SHARED_FIGURES.archer,
+  warChief: SHARED_FIGURES.swordsman, smokeKeeper: FACTION_FIGURES.piper,
+};

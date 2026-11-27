@@ -20,6 +20,14 @@ export interface FactionDef {
   // rules 9: the level the faction's capital starts the match at. It never levelled up, so it has no reward pending;
   // income, unit capacity and growth needs follow the level as for any city.
   capitalStartLevel: number;
+  // rules 11 (Woodland Nations); off for the Spartans and Mongols
+  forestStride: boolean;                 // a forest costs the faction's units a field's cost
+  forestHidden: boolean;                 // its units standing on a forest are hidden
+  harvestGold: number;                   // gold paid back on every harvest
+  buildingGrowthCut: number;             // growth per building minus this, never below 1
+  championFromLevel: number;             // the champion or support reward comes from this level
+  replaces: Partial<Record<UnitTypeId, UnitTypeId>>; // shared units the faction cannot train, and what takes their place
+  extraStartUnit: UnitTypeId | null;     // a second start unit, placed on or next to the capital
 }
 
 // rules 13
@@ -30,6 +38,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
     // than anyone's (growthExtra -1 from CONFIG.growthExtraFrom 2): 2 to leave level 1, then L to leave level L
     cityCover: 2, canBuildWalls: false, growthExtra: -1, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartLevel: 2,
     forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true, blockadeStores: true, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: true, mythTouch: true,
+    forestStride: false, forestHidden: false, harvestGold: 0, buildingGrowthCut: 0, championFromLevel: 5, replaces: {}, extraStartUnit: null,
   },
   mongols: {
     startUnit: 'horseman', champion: 'khansGuard', support: 'skyCaller',
@@ -38,5 +47,15 @@ export const FACTIONS: Record<FactionId, FactionDef> = deepFreeze({
     // growthExtra 0 (1 before rules 8): Mongol cities level as fast as anyone's, for the connection growth they lost
     // with their roads, and tribute 4 (3 before rules 8) for a village or a city's base (2026-11-24-rules8-tuning-report.md)
     forestStopsMounted: true, relayRiders: true, territoryRiding: false, relayMountedOnly: true, canBuildRoads: false, blockadeStores: false, tributeVillage: 4, tributeCityBase: 4, canLure: true, agoge: false, mythTouch: false,
+    forestStride: false, forestHidden: false, harvestGold: 0, buildingGrowthCut: 0, championFromLevel: 5, replaces: {}, extraStartUnit: null,
+  },
+  // rules 11: the Woodland Nations (docs/superpowers/specs/2026-11-26-woodland-nations-faction.md section 2)
+  woodland: {
+    startUnit: 'skirmisher', extraStartUnit: 'trapper', champion: 'warChief', support: 'smokeKeeper',
+    cityCover: 1.5, canBuildWalls: true, growthExtra: 0, mountedMoveBonus: 0, mountedDiscount: 0, capitalStartLevel: 1,
+    forestStopsMounted: false, relayRiders: false, territoryRiding: false, relayMountedOnly: false, canBuildRoads: true,
+    blockadeStores: false, tributeVillage: 0, tributeCityBase: 0, canLure: false, agoge: false, mythTouch: false,
+    forestStride: true, forestHidden: true, harvestGold: 3, buildingGrowthCut: 1, championFromLevel: 4,
+    replaces: { warrior: 'skirmisher', archer: 'woodlandHunter' },
   },
 });

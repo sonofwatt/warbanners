@@ -43,7 +43,8 @@ export const TECH_TREES: Record<TechTreeId, TreeDef> = deepFreeze({
       shieldwork: { tier: 2, requires: 'bronze', branch: 'mountains', row: null },
       smithing: { tier: 3, requires: 'shieldwork', branch: 'mountains', row: null },
     },
-    start: { spartans: 'bronze', mongols: 'riding' },
+    // woodland: a placeholder to satisfy the type; the Woodland Nations never play rules 7
+    start: { spartans: 'bronze', mongols: 'riding', woodland: 'hunting' },
     units: {
       spearman: 'bronze', swordsman: 'smithing', defender: 'shieldwork', archer: 'hunting', horseman: 'riding',
       knight: 'chivalry', catapult: 'engineering', hoplite: 'bronze', horseArcher: 'riding', camp: 'roads',
@@ -84,10 +85,11 @@ export const TECH_TREES: Record<TechTreeId, TreeDef> = deepFreeze({
       granary: { tier: 3, requires: 'farming', branch: 'plains', row: 'bottom' },
       fishing: { tier: 1, requires: null, branch: 'waters', row: null },
     },
-    start: { spartans: 'prospecting', mongols: 'gathering' },
+    start: { spartans: 'prospecting', mongols: 'gathering', woodland: 'trapping' },
     units: {
       defender: 'defence', archer: 'archery', catapult: 'siege', spearman: 'spears', hoplite: 'spears',
       swordsman: 'smithing', horseman: 'riding', horseArcher: 'riding', camp: 'riding', knight: 'chivalry',
+      woodlandHunter: 'archery', trapper: 'trapping',
     },
     harvest: { orchard: 'foraging', game: 'trapping', jewels: 'prospecting', cropland: 'gathering', fish: 'fishing' },
     buildings: {

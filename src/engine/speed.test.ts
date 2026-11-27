@@ -42,9 +42,9 @@ test.each([
   // (a relic, a draught, a map or a sellsword), so every digest and the legal counts moved; seed 1 now ends before turn 200,
   // so its row is the position after 140 turns, still unfinished; earlier, for rules version 3: Defender def 9 hp 20, scouts cannot capture cities; earlier: treasure claims, melee advance, home on capture, healing by place, the Mongol forest cost,
   // one unexplored tile per move, the Task 12 tuning numbers)
-  [7, 130, 58, '49c7ed6f56fa2344', '92cc4290b2fade9b', 'e323e981e382b2a6'],
-  [1, 75, 95, '1960d1443c05ab31', '6de6bf983bfcd7c7', '5e30ee3b57200c7c'],
-  [3, 90, 278, '72a63f11f6cb7014', '05ede37e5473da11', '9dcaf71e1d9e1d05'],
+  [7, 130, 58, '49c7ed6f56fa2344', '92cc4290b2fade9b', 'd0aff724365d2cdb'],
+  [1, 75, 95, '1960d1443c05ab31', '6de6bf983bfcd7c7', 'ae23c814c1f04da3'],
+  [3, 90, 278, '72a63f11f6cb7014', '05ede37e5473da11', 'c217c711ead95cb2'],
 ])('seed %i after %i turns: same legal actions and views', (seed, turns, count, legal, views, state) => {
   const s = randomPlayout(seed, turns);
   expect(hashState(s)).toBe(state);

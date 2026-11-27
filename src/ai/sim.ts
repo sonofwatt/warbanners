@@ -37,7 +37,7 @@ export interface SideMetrics {
 // owner had not explored.
 export const TACTICS = [
   'lure', 'retreat', 'chainKill', 'heal', 'taunt', 'hasten', 'dustStorm', 'steady', 'inspire', 'doubleStrike', 'splash',
-  'treasure', 'draught', 'pathfinder', 'campTrain',
+  'treasure', 'draught', 'pathfinder', 'campTrain', 'guide', 'smoke', 'snare',
 ] as const;
 export type Tactic = typeof TACTICS[number];
 
@@ -363,9 +363,9 @@ export function trainableTypes(f: FactionId): UnitTypeId[] {
 
 export function census(results: readonly SimResult[]): Census {
   const out: Census = {
-    units: { spartans: {}, mongols: {} }, rewards: { spartans: {}, mongols: {} }, tactics: { spartans: {}, mongols: {} },
-    chivalry: { spartans: { had: 0, knights: 0 }, mongols: { had: 0, knights: 0 } },
-    roads: { spartans: { laid: 0, connections: 0, matchesConnected: 0 }, mongols: { laid: 0, connections: 0, matchesConnected: 0 } },
+    units: { spartans: {}, mongols: {}, woodland: {} }, rewards: { spartans: {}, mongols: {}, woodland: {} }, tactics: { spartans: {}, mongols: {}, woodland: {} },
+    chivalry: { spartans: { had: 0, knights: 0 }, mongols: { had: 0, knights: 0 }, woodland: { had: 0, knights: 0 } },
+    roads: { spartans: { laid: 0, connections: 0, matchesConnected: 0 }, mongols: { laid: 0, connections: 0, matchesConnected: 0 }, woodland: { laid: 0, connections: 0, matchesConnected: 0 } },
   };
   for (const r of results) for (const p of [0, 1] as const) {
     const f = r.factions[p];

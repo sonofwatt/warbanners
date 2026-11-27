@@ -31,6 +31,7 @@ describe('momentum: the numbers', () => {
       warrior: 1, archer: 1, horseman: 1, spearman: 1, catapult: 1, piper: 1, skyCaller: 1,
       hoplite: 2, swordsman: 2, horseArcher: 2, knight: 2, sellsword: 2, camp: 2,
       defender: 3, kingsGuard: 3, khansGuard: 3,
+      skirmisher: 1, woodlandHunter: 1, smokeKeeper: 1, trapper: 1, warChief: 3,
     });
     expect(Object.keys(M.price).sort()).toEqual(Object.keys(UNITS).sort());
     expect(M.bracedPrice).toBe(4);

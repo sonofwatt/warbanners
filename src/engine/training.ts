@@ -4,7 +4,7 @@ import { UNITS } from './data/units';
 import { unitCapacity } from './economy';
 import { cityById, hasOwn, hasTrait, isEnterable, spawnUnit, tileAt, unitAt, unitById } from './state';
 import { distance, parseKey } from './hex';
-import type { Action, City, Handler, MatchState, PlayerId, UnitTypeId } from './types';
+import type { Action, City, FactionId, Handler, MatchState, PlayerId, UnitTypeId } from './types';
 
 // rules 8 and 13: the mounted discount applies to shared mounted units only
 export function unitCost(s: MatchState, p: PlayerId, type: UnitTypeId): number | null {
@@ -14,13 +14,18 @@ export function unitCost(s: MatchState, p: PlayerId, type: UnitTypeId): number |
   return mounted ? def.cost - FACTIONS[s.players[p]!.faction].mountedDiscount : def.cost;
 }
 
-export function trainable(s: MatchState, p: PlayerId): UnitTypeId[] {
-  const player = s.players[p]!;
+// rules 11: the unit types a faction can ever train: shared and its own, with a cost, less the shared units it replaces
+export function factionUnits(f: FactionId): UnitTypeId[] {
+  const replaced = FACTIONS[f].replaces;
   return (Object.keys(UNITS) as UnitTypeId[]).filter((t) => {
     const def = UNITS[t];
-    return (def.faction === null || def.faction === player.faction) && def.cost !== null
-      && (TECH_TREE.units[t] === undefined || player.techs.includes(TECH_TREE.units[t]!));
+    return (def.faction === null || def.faction === f) && def.cost !== null && replaced[t] === undefined;
   });
+}
+
+export function trainable(s: MatchState, p: PlayerId): UnitTypeId[] {
+  const player = s.players[p]!;
+  return factionUnits(player.faction).filter((t) => TECH_TREE.units[t] === undefined || player.techs.includes(TECH_TREE.units[t]!));
 }
 
 export function unitsOf(s: MatchState, cityId: number): number {

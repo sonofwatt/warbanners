@@ -124,6 +124,9 @@ const GUARDS: Record<UnitType, Guard> = {
   // Siege and the camp: a small settle, nothing more.
   catapult: { drop: 0, lean: 0, squash: 0.05, idle: 0.45, arm: -0.45, pieces: {} },
   camp: { drop: 0, lean: 0, squash: 0.04, idle: 0.45, arm: 0, pieces: {} },
+  // stand-in until Tasks 15 and 16
+  skirmisher: foot({}), trapper: foot({}), woodlandHunter: foot({ [BOW]: { angle: 0.85, axis: Z, shift: [3.0, -1.0, 2.0] } }),
+  warChief: foot({}), smokeKeeper: foot({}),
 };
 
 export function guardOf(type: UnitType): Guard {

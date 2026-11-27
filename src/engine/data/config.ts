@@ -89,8 +89,9 @@ export const CONFIG = deepFreeze({
     price: {
       scout: 0,
       warrior: 1, archer: 1, horseman: 1, spearman: 1, catapult: 1, piper: 1, skyCaller: 1,
+      skirmisher: 1, woodlandHunter: 1, smokeKeeper: 1, trapper: 1,
       hoplite: 2, swordsman: 2, horseArcher: 2, knight: 2, sellsword: 2, camp: 2,
-      defender: 3, kingsGuard: 3, khansGuard: 3,
+      defender: 3, kingsGuard: 3, khansGuard: 3, warChief: 3,
     },
     bracedPrice: 4,
   },
@@ -147,6 +148,11 @@ export const CONFIG = deepFreeze({
     maxTraits: 3, heroAt: 2,
     fierceAtk: 1, fierceHp: 2, tirelessMove: 1, hardyDef: 1, watchfulSight: 1, agilityCut: 1, mythAtk: 1, mythDef: 1,
   },
+  // rules 11, the Woodland Nations (docs/superpowers/specs/2026-11-26-woodland-nations-faction.md section 4)
+  woodland: {
+    bowAtk: 4, bowShare: 0.7, dashArrowShare: 0.33, dashCounterShare: 0.33, ambushAtk: 1,
+    forestEyeRange: 1, snareDamage: 3, snareMax: 3, smokeRange: 2, veilTurns: 2,
+  },
 } as const satisfies {
   mapRadius: number; techTree: TechTreeId; capitals: readonly [HexKey, HexKey]; startGold: readonly [number, number];
   terrain: Record<Terrain, { enterCost: number | null; cover: number }>;
@@ -180,5 +186,9 @@ export const CONFIG = deepFreeze({
     thresholds: Record<DeedId, number>; agogeThresholds: Record<DeedId, number>; maxTraits: number; heroAt: number;
     fierceAtk: number; fierceHp: number; tirelessMove: number; hardyDef: number; watchfulSight: number;
     agilityCut: number; mythAtk: number; mythDef: number;
+  };
+  woodland: {
+    bowAtk: number; bowShare: number; dashArrowShare: number; dashCounterShare: number; ambushAtk: number;
+    forestEyeRange: number; snareDamage: number; snareMax: number; smokeRange: number; veilTurns: number;
   };
 });

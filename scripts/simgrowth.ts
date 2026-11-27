@@ -32,7 +32,7 @@ const add = (r: Record<string, number>, k: string, v: number): void => { r[k] = 
 
 function study(file: string): Record<FactionId, Acc> {
   const lines = readFileSync(file, 'utf8').split('\n').filter((l) => l.trim() !== '').map((l) => JSON.parse(l) as Line);
-  const acc: Record<FactionId, Acc> = { spartans: fresh(), mongols: fresh() };
+  const acc: Record<FactionId, Acc> = { spartans: fresh(), mongols: fresh(), woodland: fresh() };
   for (const l of lines) {
     let s: MatchState = createMatch({ seed: l.seed, factions: l.factions });
     const gainedAt = new Map<number, number>();           // city id -> round its present owner gained it (non-capital)

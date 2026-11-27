@@ -85,7 +85,8 @@ const horseHead = (g: At, fg: string, bg: string): void => {
 };
 
 /** One original glyph per unit type: what the unit fights with, or what it is. */
-export const GLYPHS: Record<UnitTypeId, Glyph> = {
+type WoodlandId = 'skirmisher' | 'woodlandHunter' | 'warChief' | 'smokeKeeper' | 'trapper';
+const BASE_GLYPHS: Record<Exclude<UnitTypeId, WoodlandId>, Glyph> = {
   // A hand axe.
   warrior: (g, fg) => {
     g.line(-1, 4, -1, -3.6, fg, 1.2);
@@ -207,6 +208,13 @@ export const GLYPHS: Record<UnitTypeId, Glyph> = {
     g.poly([0, -4.6, -0.6, -2.8, 0.6, -2.8], fg);
     g.line(-1.8, 1.6, 1.8, 1.6, fg, 0.9);
   },
+};
+
+export const GLYPHS: Record<UnitTypeId, Glyph> = {
+  ...BASE_GLYPHS,
+  // stand-in until Tasks 15 and 16: the Woodland glyphs reuse existing ones
+  skirmisher: BASE_GLYPHS.warrior, trapper: BASE_GLYPHS.warrior, woodlandHunter: BASE_GLYPHS.archer,
+  warChief: BASE_GLYPHS.swordsman, smokeKeeper: BASE_GLYPHS.piper,
 };
 
 /** The slashed eye on an own hidden unit's banner: its enemies see it only from next to it. */
