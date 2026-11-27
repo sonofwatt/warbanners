@@ -87,9 +87,12 @@ test('hero digest lines read as sentences', () => {
 });
 
 test('rules 8: the mountain text names every ranged type from the unit data and takes its numbers from CONFIG', () => {
-  const ranged = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2);
+  const ranged = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2 && !UNITS[t].traits.includes('noMountainRange'));
   expect(ranged.length).toBeGreaterThan(0);
   for (const t of ranged) expect(T.ui.mountainBlurb).toContain(T.unit[t].name);
+  // rules 11: the Hunter gains no mountain reach; the Skirmisher does once it knows Archery
+  expect(T.ui.mountainBlurb).not.toContain(T.unit.woodlandHunter.name);
+  expect(T.ui.mountainBlurb).toContain(`${T.unit.skirmisher.name} with ${T.tech.archery}`);
   expect(T.ui.mountainBlurb).toContain(`${Math.round(CONFIG.mountain.longShotScale * 100)}% of the damage`);
   for (const t of (Object.keys(UNITS) as UnitTypeId[]).filter((x) => UNITS[x].range < 2)) expect(T.ui.mountainBlurb).not.toContain(`${T.unit[t].name},`);
 });

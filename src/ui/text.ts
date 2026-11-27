@@ -157,10 +157,17 @@ const reason: Record<string, string> = {
   'unit already acted this turn': 'This unit has already acted this turn',
 };
 
-// rules 8: the ranged unit types (range 2 or more), named from the unit data, as "A, B and C"; a tile count in words;
-// the long shot's share of the damage as a percentage. Built from UNITS and CONFIG so the text cannot drift.
+// rules 8: the unit types that gain reach on a mountain, named from the unit data, as "A, B and C": range 2 or more,
+// and rules 11: a bow unit once Archery is known (named so), never a noMountainRange unit. A tile count in words; the
+// long shot's share of the damage as a percentage. Built from UNITS and CONFIG so the text cannot drift.
+function mountainRangedTypes(): UnitTypeId[] {
+  return (Object.keys(UNITS) as UnitTypeId[]).filter((t) => {
+    const traits: readonly string[] = UNITS[t].traits;
+    return !traits.includes('noMountainRange') && (UNITS[t].range >= 2 || traits.includes('bow'));
+  });
+}
 function rangedNames(): string {
-  const n = (Object.keys(UNITS) as UnitTypeId[]).filter((t) => UNITS[t].range >= 2).map((t) => unit[t].name);
+  const n = mountainRangedTypes().map((t) => (UNITS[t].range < 2 ? `${unit[t].name} with ${tech.archery}` : unit[t].name));
   return n.length <= 1 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n.at(-1)!}`;
 }
 const tilesWord = (n: number): string => (n === 1 ? '1 tile' : `${n} tiles`);
