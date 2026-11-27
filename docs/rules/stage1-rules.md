@@ -554,7 +554,7 @@ Mongols
   (1 tile), and cannot attack or target it from further away.
 - On any other terrain a Woodland unit is seen as usual. Spartan and Mongol units
   never hide in a forest.
-- A veiled unit (`veilUntil`, set by Smoke Keeper rules in a later section) is hidden
+- A veiled unit (`veilUntil`, set by the Smoke Keeper's smoke, section 15.9) is hidden
   on any terrain through the stamp it names, and not after it.
 
 ### 15.5 Forest stride
@@ -643,6 +643,31 @@ The Trapper's snare is an ability, and uses its ability for the turn like any ot
   it is. A Dash-strike's charge tile is not a move (section 15.7). The owner's own units walk over it.
 - Snares stay when their Trapper dies or moves away.
 
+### 15.9 The Smoke Keeper: heal, guide and smoke
+
+Each is an ability, and uses the Smoke Keeper's attack and movement for the turn like any other. The Keeper
+must not be fresh.
+
+- **Heal.** As the Piper's and the Sky Caller's: +4 health to a hurt friendly unit next to it, +5 when that
+  unit is hunkered (section 11).
+- **Guide.** Target: a friendly unit next to the Keeper, not the Keeper itself, whose turn has not ended. For
+  the rest of this turn, entering a tile next to an enemy does not end that unit's move (section 9), so it can
+  walk past an enemy unit that would have stopped it. It still cannot pass through or stop on a tile that holds
+  an enemy. It works on a unit that has already moved, for the movement it has left. It changes nothing for a
+  unit that is not guided: reach for unguided units is as before. It lasts the stamp it was given and no more.
+- **Smoke.** Target: a tile within 2 of the Keeper that has at least one friendly unit on it or next to it.
+  Every friendly unit on that tile and next to it, the Keeper included if it is there, is veiled until the end
+  of its owner's next turn (`veilUntil` is the stamp plus 2). A veiled unit is hidden as a `hidden` unit is
+  (sections 14 and 15.4), whatever it stands on: an enemy sees it only from a unit or city next to it.
+  A veil is not renewed by a smoke that does not reach the unit, and using an ability does not break it.
+- **The veil ends when its unit attacks.** An attack of any kind (a melee attack, a bow shot or a
+  Dash-strike) is judged with the veil, so it can be an ambush (section 15.6), and then the veil is gone.
+  A counter-attack is not the veiled unit's own attack: a veiled unit that is hit keeps its veil. A unit
+  hidden by Woodland cover or the `hidden` trait stays hidden as usual; only the veil is lost.
+- Worked numbers (fields, full health): a veiled Skirmisher shoots a Warrior that cannot see it from 2
+  tiles for 6 and takes no counter, and is seen afterwards; from a forest the same shot is hidden afterwards
+  too.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both
@@ -730,3 +755,25 @@ This list, the one above and the one below are the file's changelog.
   (was 6). The first tile is counted per turn, so a split move or the retreat move
   after an attack does not pay it twice. Foot units, Spartans, roads and Hasten are
   unchanged (section 13).
+
+## Rules 11 changes
+
+The Woodland Nations, a third faction (section 15). Spartans and Mongols play as before.
+
+- The start: a Skirmisher and a Trapper, Trapping known, a level 1 capital (section 15.1).
+- Economy: a harvest pays 3 gold back; a building gives 1 less growth, never below 1; a treasure's unit
+  outcome is a Skirmisher (section 15.2).
+- Rewards: a champion (War Chief) or support (Smoke Keeper) from city level 4 on, with no income or
+  growth reward, in place of level 5 (section 15.3).
+- Woodland cover: a Woodland unit on a forest is hidden, as a `hidden` unit is; a veiled unit is hidden on
+  any terrain (section 15.4).
+- Forest stride: a forest costs a Woodland unit what a field costs (section 15.5).
+- Bow, agile, ambush and forest eye: the Skirmisher shoots at 2 once Archery is known, at 70%; a counter
+  against it does 1 less; a hidden attacker that its target cannot see has +1 attack and takes no counter;
+  the Woodland Hunter shoots at 3 from a forest and gets no mountain range (section 15.6).
+- Dash-strike: the Skirmisher's two-tile attack, a third of an arrow then a charge without shields
+  (section 15.7).
+- The Trapper's snares: up to 3 hidden snares that hurt and stop the enemy who springs one
+  (section 15.8).
+- The Smoke Keeper: heal as the Piper's, guide past engagement, and smoke that veils friends until the end of
+  their next turn; a veil ends when its unit attacks (section 15.9).

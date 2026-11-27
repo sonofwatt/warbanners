@@ -39,8 +39,14 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
     return dustStormTiles(s, u);
   } else if (ability === 'snare') {
     return snareTiles(s, u);
+  } else if (ability === 'guide') {
+    // rules 11: a friendly unit next to the Keeper, not itself, whose turn has not ended
+    found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
+      && !t.turnEnded);
+  } else if (ability === 'smoke') {
+    return smokeTiles(s, u);
   } else {
-    return [];   // guide and smoke: rules 11, Task 8
+    return [];
   }
   return found.map((t) => t.pos).sort();
 }
@@ -57,6 +63,22 @@ function snareTiles(s: MatchState, u: Unit): HexKey[] {
     if (t.village || t.treasure || unitAt(s, k) !== undefined || cityAt(s, k) !== undefined) continue;
     if (s.snares?.some((n) => n.at === k && n.owner === u.owner) === true) continue;
     out.push(k);
+  }
+  return out.sort();
+}
+
+// rules 11: friendly units a smoke on this tile would veil: on it or next to it
+function smokeVeiled(s: MatchState, owner: number, k: HexKey): Unit[] {
+  const centre = parseKey(k);
+  return s.units.filter((t) => t.owner === owner && distance(centre, parseKey(t.pos)) <= 1);
+}
+
+// rules 11: a smoke may be aimed at a tile within smokeRange with a friendly unit on it or next to it
+function smokeTiles(s: MatchState, u: Unit): HexKey[] {
+  const out: HexKey[] = [];
+  for (const h of range(parseKey(u.pos), CONFIG.woodland.smokeRange)) {
+    const k = key(h);
+    if (tileAt(s, k) !== undefined && smokeVeiled(s, u.owner, k).length > 0) out.push(k);
   }
   return out.sort();
 }
@@ -92,6 +114,10 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     for (const v of stormVictims(s, u.owner, a.target)) v.blinded = true;
   } else if (a.ability === 'snare') {
     setSnare(s, u.owner, a.target);
+  } else if (a.ability === 'guide') {
+    unitAt(s, a.target)!.guidedTurn = s.stamp;
+  } else if (a.ability === 'smoke') {
+    for (const v of smokeVeiled(s, u.owner, a.target)) v.veilUntil = s.stamp + CONFIG.woodland.veilTurns;
   } else if (a.ability === 'heal' || a.ability === 'taunt' || a.ability === 'hasten') {
     const target = unitAt(s, a.target)!;
     if (a.ability === 'heal') {
@@ -103,7 +129,7 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     else if (a.ability === 'taunt') target.taunted = true;
     else target.mp += CONFIG.hastenMp;
   } else {
-    return 'bad ability';   // guide and smoke: rules 11, Task 8 (abilityTargets lists none, so this is not reached)
+    return 'bad ability';
   }
   u.attacks -= 1;
   u.mp = 0;

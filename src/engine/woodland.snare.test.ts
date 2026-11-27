@@ -61,11 +61,8 @@ describe('rules 11: setting a snare', () => {
     expect(run(s, { type: 'ability', unit: t.id, ability: 'snare', target: '1,0' }).state.snares).toEqual([snareOf(0, '1,0')]);
   });
 
-  test('legalActions lists the snare targets; guide and smoke list none yet', () => {
+  test('legalActions lists the snare targets; guide and smoke are asked in woodland.smoke.test.ts', () => {
     const s = match(['woodland', 'spartans']); const t = addUnit(s, 'trapper', 0, 0, 0);
-    const k = addUnit(s, 'smokeKeeper', 0, 2, 0); addUnit(s, 'warrior', 0, 3, 0, { hp: 5 });
-    expect(abilityTargets(s, k.id, 'guide')).toEqual([]);
-    expect(abilityTargets(s, k.id, 'smoke')).toEqual([]);
     const snares = legalActions(s).filter((a) => a.type === 'ability' && a.ability === 'snare');
     expect(snares.map((a) => a.type === 'ability' && a.target)).toEqual(abilityTargets(s, t.id, 'snare'));
     expect(snares.length).toBe(6);

@@ -178,7 +178,7 @@ function explore(s: MatchState, u: Unit): Explored {
         if (!firstStep) continue;
         after = 0;
       }
-      if (nextToEnemy(s, u.owner, to)) after = 0;
+      if (u.guidedTurn !== s.stamp && nextToEnemy(s, u.owner, to)) after = 0;   // rules 11: guided, it is not engaged
       const n = node(to, open);
       if (!explored.has(to)) {
         fog.add(n);

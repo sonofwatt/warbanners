@@ -74,6 +74,8 @@ export interface Unit {
   // rules 11: last stamp through which a Smoke Keeper's veil hides it (absent until first veiled, so older states hash as
   // before); public (a veiled unit is never in the enemy's view)
   veilUntil?: number;
+  // rules 11: stamp of the turn a Smoke Keeper guided it (absent until first guided); it ignores engagement that turn; public
+  guidedTurn?: number;
   itemTurn: number | null;               // stamp of the turn it found or drank its item or spent its whole turn capturing or claiming (a draught waits for a later turn; a drink holds one attack back from abilities); public
 }
 export interface Player {

@@ -238,7 +238,7 @@ function dashStrike(s: MatchState, attacker: Unit, targetKey: HexKey, ev: GameEv
   return null;
 }
 
-export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a, ev) => {
+const attackInner: Handler<Extract<Action, { type: 'attack' }>> = (s, a, ev) => {
   if (typeof a.unit !== 'number' || typeof a.target !== 'string') return 'bad attack';
   const attacker = unitById(s, a.unit);
   if (attacker === undefined) return 'no such unit';
@@ -396,3 +396,14 @@ export function statsOf(s: MatchState, u: Unit): UnitStats {
     maxHp: maxHpOf(u), move: maxMp(s, u) / 2, sight: unitSight(s, u), range: attackReach(s, u),
   };
 }
+
+// rules 11: an attack of any kind (plain, bow, Dash-strike) is judged with the attacker's veil (it can be an ambush),
+// and then the veil is gone. A counter is no attack of its own, so a veiled defender keeps its veil.
+export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a, ev) => {
+  const reason = attackInner(s, a, ev);
+  if (reason === null) {
+    const attacker = unitById(s, a.unit);
+    if (attacker !== undefined) delete attacker.veilUntil;
+  }
+  return reason;
+};
