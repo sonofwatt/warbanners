@@ -1,5 +1,5 @@
 import { applyAction, createMatch } from '../engine';
-import type { Action, MatchSettings, MatchState, PlayerId } from '../engine';
+import type { Action, GameEvent, MatchSettings, MatchState, PlayerId } from '../engine';
 import { roundOf } from './record';
 import type { MatchRecord } from './record';
 
@@ -14,40 +14,46 @@ export const emptyTally = (): Tally => ({ dealt: 0, taken: 0, kills: 0, deaths: 
 export function matchTallies(settings: MatchSettings, actions: readonly Action[]): MatchTallies {
   const t: [Tally, Tally] = [emptyTally(), emptyTally()];
   let s: MatchState = createMatch(settings);
-  const other = (p: PlayerId): 0 | 1 => (p === 0 ? 1 : 0);
-  const side = (p: PlayerId): Tally => t[p === 0 ? 0 : 1];
   for (const a of actions) {
-    const before = s;
     const r = applyAction(s, a);
     if (!r.ok) break;
-    const ownerOf = (id: number): PlayerId =>
-      before.units.find(u => u.id === id)?.owner ?? r.state.units.find(u => u.id === id)?.owner ?? before.current;
-    for (const e of r.events) {
-      switch (e.type) {
-        case 'attacked': {
-          const atk = ownerOf(e.unit);
-          side(atk).dealt += e.damage;
-          side(other(atk)).dealt += e.counter;
-          break;
-        }
-        case 'splashed': side(before.current).dealt += e.damage; break;
-        case 'died': {
-          const owner = ownerOf(e.unit);
-          side(owner).deaths += 1;
-          side(other(owner)).kills += 1;
-          break;
-        }
-        case 'captured': side(e.by).cities += 1; break;
-        case 'heroTrait': if (e.hero) side(ownerOf(e.unit)).heroes += 1; break;
-        case 'treasure': side(before.current).treasures += 1; break;
-        default: break;
-      }
-    }
+    tallyStep(t, s, r.state, r.events);
     s = r.state;
   }
   t[0].taken = t[1].dealt;
   t[1].taken = t[0].dealt;
   return { tallies: t, rounds: roundOf(s), winner: s.winner };
+}
+
+// One action's events added to the counts (`taken` is filled in at the end, from the other side's `dealt`).
+export function tallyStep(t: [Tally, Tally], before: MatchState, after: MatchState, events: readonly GameEvent[]): void {
+  const other = (p: PlayerId): 0 | 1 => (p === 0 ? 1 : 0);
+  const side = (p: PlayerId): Tally => t[p === 0 ? 0 : 1];
+  const ownerOf = (id: number): PlayerId =>
+    before.units.find(u => u.id === id)?.owner ?? after.units.find(u => u.id === id)?.owner ?? before.current;
+  for (const e of events) {
+    switch (e.type) {
+      case 'attacked': {
+        const atk = ownerOf(e.unit);
+        side(atk).dealt += e.damage;
+        side(other(atk)).dealt += e.counter;
+        break;
+      }
+      case 'splashed': side(before.current).dealt += e.damage; break;
+      // rules 11: a snare's damage is dealt by its owner, the other side of the unit that stepped on it
+      case 'snared': side(other(ownerOf(e.unit))).dealt += e.damage; break;
+      case 'died': {
+        const owner = ownerOf(e.unit);
+        side(owner).deaths += 1;
+        side(other(owner)).kills += 1;
+        break;
+      }
+      case 'captured': side(e.by).cities += 1; break;
+      case 'heroTrait': if (e.hero) side(ownerOf(e.unit)).heroes += 1; break;
+      case 'treasure': side(before.current).treasures += 1; break;
+      default: break;
+    }
+  }
 }
 
 // The last few counts, by match and length, so the end of a match is replayed once for both the stats and the result

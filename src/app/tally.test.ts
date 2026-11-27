@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { applyAction, createMatch, replay } from '../engine';
+import { CONFIG, applyAction, createMatch, replay } from '../engine';
 import type { Action, MatchSettings, MatchState } from '../engine';
-import { randomPlayoutLog } from '../engine/testkit';
+import { addUnit, blankMatch, randomPlayoutLog } from '../engine/testkit';
 import { roundOf } from './record';
-import { matchTallies } from './tally';
+import { emptyTally, matchTallies, tallyStep } from './tally';
+import type { Tally } from './tally';
 
 const SETTINGS: MatchSettings = { seed: 3, factions: ['spartans', 'mongols'] };
 
@@ -70,4 +71,17 @@ test('a resign gives the other seat the win', () => {
 test('a refused action stops the count where the match stopped', () => {
   const t = matchTallies(SETTINGS, [{ type: 'endTurn' }, { type: 'move', unit: 999, to: '0,0' }, { type: 'endTurn' }]);
   expect(t.rounds).toBe(1);
+});
+
+test('rules 11: a snare\'s damage counts as dealt by its owner', () => {
+  const s = blankMatch({ factions: ['mongols', 'woodland'] });
+  const h = addUnit(s, 'horseman', 0, 0, 0);
+  s.snares = [{ owner: 1, at: '1,0' }];
+  const r = applyAction(s, { type: 'move', unit: h.id, to: '2,0' });
+  if (!r.ok) throw new Error(r.reason);
+  expect(r.events.some(e => e.type === 'snared')).toBe(true);
+  const t: [Tally, Tally] = [emptyTally(), emptyTally()];
+  tallyStep(t, s, r.state, r.events);
+  expect(t[1].dealt).toBe(CONFIG.woodland.snareDamage);
+  expect(t[0].dealt).toBe(0);
 });
