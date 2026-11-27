@@ -45,7 +45,7 @@ const GRITTY_BUDGET = 6000;
 describe("Gritty's Hoplite (the detailed toon)", () => {
   test('Gritty builds it for the Hoplite; Bright builds the toon figure, the same to the last vertex as before', () => {
     expect([...REAL_TYPES]).toEqual(['catapult']);
-    expect([...GRITTY_TYPES].sort()).toEqual(['catapult', 'defender', 'hoplite', 'sellsword', 'spearman', 'swordsman', 'warrior']);
+    expect([...GRITTY_TYPES].sort()).toEqual(['archer', 'camp', 'catapult', 'defender', 'hoplite', 'kingsGuard', 'piper', 'scout', 'sellsword', 'spearman', 'swordsman', 'warrior']);
     const bright = buildFigure('hoplite', { look: RED, wear: CLEAN });
     expect(gritty(CLEAN).real, 'a toon figure, drawn in the toon light').toBe(false);
     expect(positions(gritty(CLEAN))).not.toEqual(positions(bright));
