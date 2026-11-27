@@ -6,6 +6,7 @@ import { DIRS, add, distance, key, parseKey } from './hex';
 import type { HexKey } from './hex';
 import { addDeed } from './heroes';
 import { cityAt, cityById, hasOwn, hasTrait, isEnterable, tileAt, unitAt, unitById } from './state';
+import { snareAt, springSnare } from './woodland';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 13: half-points of movement a unit starts its turn with
@@ -64,8 +65,28 @@ export function reachable(s: MatchState, unitId: number): Record<HexKey, number>
   const u = unitById(s, unitId);
   if (u === undefined) return {};
   const out: Record<HexKey, number> = {};
-  for (const [k, v] of explore(s, u)) out[k] = v.left;
+  for (const [k, v] of explore(s, u).tiles) out[k] = v.left;
   return out;
+}
+
+// rules 11: the tiles of the way the search found to `to`, start excluded (empty when it cannot go there). A tile is
+// reached the first way that left the most movement, so the path is deterministic. Snares play no part: the mover
+// cannot see them, and moveHandler stops on the first enemy one along it.
+export function pathTo(s: MatchState, u: Unit, to: HexKey): HexKey[] {
+  return wayTo(explore(s, u), to).map((w) => w.k);
+}
+
+// The search nodes from the start (excluded) to the node that reached `to`.
+function wayTo(found: Explored, to: HexKey): Node[] {
+  const out: Node[] = [];
+  let n = found.tiles.get(to)?.node;
+  while (n !== undefined) {
+    const v = found.nodes.get(n)!;
+    if (v.parent === null) break;
+    out.push(v);
+    n = v.parent;
+  }
+  return out.reverse();
 }
 
 // rules 10: has this unit already entered its first relay tile this turn (or does the rule not apply)? From then on
@@ -75,12 +96,19 @@ function relayOpen(s: MatchState, u: Unit): boolean {
 }
 
 interface Step { cost: number; forced: boolean }
+interface Node { k: HexKey; open: boolean; left: number; parent: string | null }
+interface Explored {
+  tiles: Map<HexKey, { left: number; open: boolean; node: string }>;
+  nodes: Map<string, Node>;                                 // every search node, with the one it was best reached from
+}
 
 // The search behind reachable: tile it may stop on -> half-points left, and whether the best way there has opened
-// relay riding for the rest of the turn (rules 10). The search runs over (tile, relay open) pairs.
-function explore(s: MatchState, u: Unit): Map<HexKey, { left: number; open: boolean }> {
-  const result = new Map<HexKey, { left: number; open: boolean }>();
-  if (u.fresh || u.turnEnded || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return result;
+// relay riding for the rest of the turn (rules 10). The search runs over (tile, relay open) pairs; each keeps the node
+// its best value came from (rules 11: pathTo), the first found on a tie.
+function explore(s: MatchState, u: Unit): Explored {
+  const result = new Map<HexKey, { left: number; open: boolean; node: string }>();
+  const best = new Map<string, Node>();
+  if (u.fresh || u.turnEnded || u.mp <= 0 || (u.acted && !hasTrait(u, 'retreat'))) return { tiles: result, nodes: best };
   const faction = FACTIONS[s.players[u.owner]!.faction];
   const mounted = hasTrait(u, 'mounted');
   const relays = faction.relayRiders && (mounted || !faction.relayMountedOnly);   // rules 8: mounted units only
@@ -92,7 +120,7 @@ function explore(s: MatchState, u: Unit): Map<HexKey, { left: number; open: bool
   const node = (k: HexKey, open: boolean): string => `${k}|${open ? 1 : 0}`;
   const fog = new Set<string>();                            // unexplored tiles reached: ends of moves only
   const startOpen = relayOpen(s, u);
-  const best = new Map<string, { k: HexKey; open: boolean; left: number }>([[node(u.pos, startOpen), { k: u.pos, open: startOpen, left: budgetOf(s, u) }]]);
+  best.set(node(u.pos, startOpen), { k: u.pos, open: startOpen, left: budgetOf(s, u), parent: null });
   const done = new Set<string>();
   // What a step costs without relay riders (null: it may not be taken).
   const plainStep = (from: HexKey, to: HexKey, terrain: string, left: number, firstStep: boolean): Step | null => {
@@ -108,7 +136,7 @@ function explore(s: MatchState, u: Unit): Map<HexKey, { left: number; open: bool
     return { cost: CONFIG.terrain[cover as keyof typeof CONFIG.terrain].enterCost ?? left, forced: false };
   };
   for (;;) {
-    let cur: { k: HexKey; open: boolean; left: number } | null = null;
+    let cur: Node | null = null;
     let curNode = '';
     for (const [n, v] of best) {
       if (!done.has(n) && !fog.has(n) && v.left > 0 && (cur === null || v.left > cur.left)) { cur = v; curNode = n; }
@@ -156,16 +184,16 @@ function explore(s: MatchState, u: Unit): Map<HexKey, { left: number; open: bool
         fog.add(n);
         if (!keepsMoveInFog) after = 0;
       }
-      if (after > (best.get(n)?.left ?? -1)) best.set(n, { k: to, open, left: after });
+      if (after > (best.get(n)?.left ?? -1)) best.set(n, { k: to, open, left: after, parent: curNode });
     }
   }
-  for (const v of best.values()) {
+  for (const [n, v] of best) {
     if (v.k === u.pos || unitAt(s, v.k) !== undefined) continue;
     const had = result.get(v.k);
     // the most movement left; on a tie, the way that has opened relay riding (it is never worse later in the turn)
-    if (had === undefined || v.left > had.left || (v.left === had.left && v.open && !had.open)) result.set(v.k, { left: v.left, open: v.open });
+    if (had === undefined || v.left > had.left || (v.left === had.left && v.open && !had.open)) result.set(v.k, { left: v.left, open: v.open, node: n });
   }
-  return result;
+  return { tiles: result, nodes: best };
 }
 
 // rules 8: may units of `player` step onto a mountain? Only once the player has researched CONFIG.mountain.tech (none
@@ -203,6 +231,7 @@ function pullLured(s: MatchState, mover: Unit, from: HexKey, ev: GameEvent[]): v
   target.pos = dest; target.enteredTurn = s.stamp;
   ev.push({ type: 'lured', unit: target.id, from: old, to: dest });
   endHunker(target, ev);   // rules 7: pulled off its ground
+  springSnare(s, target, ev);   // rules 11: a lure onto an enemy snare springs it
 }
 
 export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev) => {
@@ -210,24 +239,33 @@ export const moveHandler: Handler<Extract<Action, { type: 'move' }>> = (s, a, ev
   const u = unitById(s, a.unit);
   if (u === undefined) return 'no such unit';
   if (u.owner !== s.current) return 'not your unit';
-  const option = explore(s, u).get(a.to);
+  const found = explore(s, u);
+  const option = found.tiles.get(a.to);
   if (option === undefined) return 'cannot reach that tile';
-  const left = option.left;
+  // rules 11: the move ends on the first enemy snare along its way (the mover could not see it); the movement left is
+  // lost when it springs, below. A snare under a unit (one placed there by a reward) is passed over: no stop there.
+  const way = wayTo(found, a.to);
+  const stop = way.find((w) => snareAt(s, w.k, u.owner) && unitAt(s, w.k) === undefined);
+  const to = stop?.k ?? a.to;
+  const open = stop?.open ?? option.open;
+  const left = stop?.left ?? option.left;
   // rules 10: the move entered its first relay tile of the turn, so later relay tiles this turn cost CONFIG.relayCost
-  if (option.open && !relayOpen(s, u)) u.relayTurn = s.stamp;
+  if (open && !relayOpen(s, u)) u.relayTurn = s.stamp;
   const from = u.pos;
-  const intoFog = !s.players[u.owner]!.explored.includes(a.to);
+  const intoFog = !s.players[u.owner]!.explored.includes(to);
   // rules 6: spending comes out of the riding bonus first; a move from enemy territory forfeits what was left of it
   u.bonusMp = bonusBarred(s, u) ? 0 : Math.max(0, u.bonusMp - (u.mp - left));
-  u.pos = a.to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
+  u.pos = to; u.mp = left; u.moved = true; u.enteredTurn = s.stamp;
   // rules 6: a pathfinder that ends a move in the fog has spent its turn: no more moving, attacking or abilities
   if (CONFIG.closedFog && intoFog) { u.mp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp; }
   // rules 8: a step onto or off a mountain ends the turn the same way, and for good: not even haste moves it again
-  if (mountainStep(s, from, a.to)) {
+  if (mountainStep(s, from, to)) {
     u.mp = 0; u.bonusMp = 0; u.attacks = 0; u.acted = true; u.itemTurn = s.stamp; u.turnEnded = true;
   }
-  ev.push({ type: 'moved', unit: u.id, from, to: a.to });
-  addDeed(s, u, 'march', distance(parseKey(from), parseKey(a.to)), ev);
+  ev.push({ type: 'moved', unit: u.id, from, to });
+  addDeed(s, u, 'march', distance(parseKey(from), parseKey(to)), ev);   // rules 11: up to the tile reached, even if it dies there
+  // rules 11: a rider that dies on a snare pulls nothing after it
+  if (stop !== undefined && springSnare(s, u, ev) && u.hp <= 0) return null;
   if (u.lure !== null) pullLured(s, u, from, ev);
   u.lure = null;
   return null;

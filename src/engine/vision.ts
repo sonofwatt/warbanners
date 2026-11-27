@@ -5,7 +5,7 @@ import type { HexKey } from './hex';
 import { freshDeeds } from './heroes';
 import { tileAt } from './state';
 import { isHidden } from './woodland';
-import type { City, MatchState, PlayerId, Tile, Unit } from './types';
+import type { City, MatchState, PlayerId, Snare, Tile, Unit } from './types';
 
 function addAround(s: MatchState, out: Set<HexKey>, center: HexKey, radius: number): void {
   for (const h of range(parseKey(center), radius)) {
@@ -63,6 +63,7 @@ export function canSeeUnit(
 
 export interface PlayerView {
   player: PlayerId; tiles: Record<HexKey, Tile>; cities: City[]; units: Unit[]; visible: HexKey[];
+  snares?: Snare[];          // rules 11: the viewer's own snares only, oldest first; absent when it has none
 }
 
 // The view is a copy that shares nothing with the match. It is made field by field rather than with structuredClone,
@@ -82,5 +83,9 @@ export function playerView(s: MatchState, player: PlayerId): PlayerView {
       deeds: u.owner === player ? { ...u.deeds } : freshDeeds(),   // deeds are private; traits and items are public
     }));
   const cities = s.cities.filter((c) => tiles[c.pos] !== undefined).map((c) => ({ ...c, pendingRewards: [...c.pendingRewards] }));
-  return { player, tiles, cities, units, visible: [...visible].sort() };
+  const view: PlayerView = { player, tiles, cities, units, visible: [...visible].sort() };
+  // rules 11: a snare is seen only by its owner; a viewer with none gets no key, so nothing says the enemy has any
+  const snares = (s.snares ?? []).filter((n) => n.owner === player).map((n) => ({ ...n }));
+  if (snares.length > 0) view.snares = snares;
+  return view;
 }

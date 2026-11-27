@@ -10,7 +10,7 @@ import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { canClimb, maxMp, mountainStep } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
-import { bowShot, chargeTile, forestEyeReach, isHidden, normalRange } from './woodland';
+import { bowShot, chargeTile, forestEyeReach, isHidden, normalRange, springSnare } from './woodland';
 import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
@@ -282,6 +282,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   let kills = 0;                                  // units this attack killed, for the attacker's fight deed
   let chainGranted = 0;                           // extra attacks the chain trait granted for those kills
   let climbed = false;                            // rules 8: the advance stepped onto or off a mountain
+  let advanced = false;                           // rules 11: the killer stepped into the tile (a snare may be there)
   const splashed: Unit[] = [];
 
   if (targetDied) {
@@ -305,6 +306,7 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
       attacker.pos = tileKey; attacker.enteredTurn = s.stamp;
       ev.push({ type: 'advanced', unit: attacker.id, from: attackerFrom, to: tileKey });
       climbed = mountainStep(s, attackerFrom, tileKey);
+      advanced = true;
     }
     if (paid && price > 0) ev.push({ type: 'momentum', unit: attacker.id, spent: price, left: attacker.momentum });
     if (chain && !paid) ev.push({ type: 'chainEnded', unit: attacker.id });
@@ -361,6 +363,16 @@ export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a
   if (climbed) {
     if (chainGranted > 0 && !chainTakenBack) ev.push({ type: 'chainEnded', unit: attacker.id });
     attacker.mp = 0; attacker.bonusMp = 0; attacker.attacks = 0; attacker.itemTurn = s.stamp; attacker.turnEnded = true;
+  }
+
+  // rules 11: a kill advance onto an enemy snare springs it, after the attack's credits, so the kill and its momentum
+  // count. A chain unit's chain ends there, as on a mountain advance (a snare is never on a mountain).
+  if (advanced && springSnare(s, attacker, ev)) {
+    if (attacker.hp <= 0) return null;
+    if (hasTrait(attacker, 'chain')) {
+      if (chainGranted > 0 && !chainTakenBack) ev.push({ type: 'chainEnded', unit: attacker.id });
+      attacker.attacks = 0;
+    }
   }
 
   // rules 13: a lure is recorded only when both survive and lureApplies; otherwise the request is ignored

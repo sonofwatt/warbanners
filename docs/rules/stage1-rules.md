@@ -622,6 +622,27 @@ The Skirmisher's Dash-strike is an attack, and uses its attack for the turn like
   counter is `round(0.33 * 6) = 2`, less 1 for agile, so 1. A plain melee attack on the same Hoplite does 5 and
   takes 6 back.
 
+### 15.8 The Trapper's snares
+
+The Trapper's snare is an ability, and uses its ability for the turn like any other (its attack and its movement).
+
+- **Setting one.** On a tile next to the Trapper that is a field or a forest, explored by its player, and holds no
+  unit, city, village, treasure or snare of that player's own. A player has at most 3 snares on the map; setting
+  a 4th removes their oldest, and the other player is not told.
+- **Seen by its owner only.** The other player never sees a snare until it springs. Their moves are planned and
+  offered as if it were not there.
+- **Springing.** An enemy unit that enters the tile by its own move, by a lure or by a kill advance springs it:
+  it takes 3 damage, which can kill it, and has no movement left this turn. It may still attack or use an
+  ability. The snare is used up. A kill by a snare gives no deeds to anyone.
+- **A move across one.** A move whose way crosses an enemy snare stops on the snare tile: the tiles beyond are
+  not entered and the movement left is lost. The March deed counts the tiles up to the snare, even if the unit
+  dies there. A snare under a unit standing on it is passed over.
+- **A kill advance onto one.** The kill, its deeds and its momentum count first; then the snare springs, and a
+  chain unit's chain ends there, as on a mountain advance.
+- **What does not spring it.** A unit placed on the tile (trained, a reward, a treasure) leaves the snare where
+  it is. A Dash-strike's charge tile is not a move (section 15.7). The owner's own units walk over it.
+- Snares stay when their Trapper dies or moves away.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both

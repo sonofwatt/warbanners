@@ -88,7 +88,11 @@ export interface MatchState {
   stamp: number;                         // +1 at every endTurn
   nextUnitId: number; nextCityId: number;
   winner: PlayerId | null;
+  // rules 11: the Trapper's snares on the map, oldest first (absent until the first is set, so older states hash as
+  // before; deleted again when the last is used up). Each is seen only by its owner (playerView).
+  snares?: Snare[];
 }
+export interface Snare { owner: PlayerId; at: HexKey }
 // The advanced match options. Each is optional and its absence means the default (today's game), so older records,
 // saves and replays read the same. Only `chests` is a rule (mapgen reads it); weather and time of day are looks the
 // engine never reads, kept here so a resumed or online match keeps them. 'random' is resolved by the app from the seed.
@@ -126,6 +130,7 @@ export type GameEvent =
   | { type: 'splashed'; target: number; damage: number }
   | { type: 'dashStrike'; unit: number; target: number; via: HexKey }  // rules 11: a Dash-strike begins; its two `attacked` events follow
   | { type: 'died'; unit: number }
+  | { type: 'snared'; unit: number; at: HexKey; damage: number }   // rules 11: it stepped on an enemy snare (a `died` may follow)
   | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
   | { type: 'momentum'; unit: number; spent: number; left: number } // rules 7: the momentum a chain unit paid for a kill
   | { type: 'chainEnded'; unit: number }                             // rules 6: a hero trait from the kill ended the chain; rules 7: so does a short kill

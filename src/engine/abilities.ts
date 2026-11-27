@@ -1,10 +1,11 @@
 import { CONFIG } from './data/config';
-import { distance, key, parseKey, range } from './hex';
+import { DIRS, add, distance, key, parseKey, range } from './hex';
 import type { HexKey } from './hex';
 import { addDeed, maxHpOf } from './heroes';
 import { drankThisTurn } from './items';
-import { hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
+import { cityAt, hasOwn, hasTrait, tileAt, unitAt, unitById } from './state';
 import { canSeeUnit, visibleTiles } from './vision';
+import { setSnare } from './woodland';
 import { ABILITIES } from './types';
 import type { AbilityId, Action, Handler, MatchState, Unit } from './types';
 
@@ -34,10 +35,30 @@ export function abilityTargets(s: MatchState, unitId: number, ability: AbilityId
   } else if (ability === 'hasten') {
     found = s.units.filter((t) => t.id !== u.id && t.owner === u.owner && distance(here, parseKey(t.pos)) === 1
       && hasTrait(t, 'mounted') && !t.fresh && !t.turnEnded);   // rules 8: no haste for a unit whose turn ended
-  } else {
+  } else if (ability === 'dustStorm') {
     return dustStormTiles(s, u);
+  } else if (ability === 'snare') {
+    return snareTiles(s, u);
+  } else {
+    return [];   // guide and smoke: rules 11, Task 8
   }
   return found.map((t) => t.pos).sort();
+}
+
+// rules 11: a snare may be set on an explored field or forest next to the Trapper with no unit, city, village or
+// treasure on it, and no snare of its owner's own (an enemy snare there is not known, so it does not count).
+function snareTiles(s: MatchState, u: Unit): HexKey[] {
+  const explored = new Set(s.players[u.owner]?.explored ?? []);
+  const out: HexKey[] = [];
+  for (const d of DIRS) {
+    const k = key(add(parseKey(u.pos), d));
+    const t = tileAt(s, k);
+    if (t === undefined || (t.terrain !== 'field' && t.terrain !== 'forest') || !explored.has(k)) continue;
+    if (t.village || t.treasure || unitAt(s, k) !== undefined || cityAt(s, k) !== undefined) continue;
+    if (s.snares?.some((n) => n.at === k && n.owner === u.owner) === true) continue;
+    out.push(k);
+  }
+  return out.sort();
 }
 
 // Enemy units a dust storm on this tile would blind: on it or next to it, seen or not.
@@ -69,7 +90,9 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
   ev.push({ type: 'ability', unit: u.id, ability: a.ability, target: a.target });
   if (a.ability === 'dustStorm') {
     for (const v of stormVictims(s, u.owner, a.target)) v.blinded = true;
-  } else {
+  } else if (a.ability === 'snare') {
+    setSnare(s, u.owner, a.target);
+  } else if (a.ability === 'heal' || a.ability === 'taunt' || a.ability === 'hasten') {
     const target = unitAt(s, a.target)!;
     if (a.ability === 'heal') {
       const before = target.hp;
@@ -79,6 +102,8 @@ export const abilityHandler: Handler<Extract<Action, { type: 'ability' }>> = (s,
     }
     else if (a.ability === 'taunt') target.taunted = true;
     else target.mp += CONFIG.hastenMp;
+  } else {
+    return 'bad ability';   // guide and smoke: rules 11, Task 8 (abilityTargets lists none, so this is not reached)
   }
   u.attacks -= 1;
   u.mp = 0;
