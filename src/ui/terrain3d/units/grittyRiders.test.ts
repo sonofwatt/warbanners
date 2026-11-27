@@ -4,6 +4,8 @@ import type { UnitType } from './figures';
 import { CLEAN } from './parts';
 import type { Wear } from './parts';
 import * as R from './grittyRider';
+import { grittyMedievalKnight } from './grittyRiders';
+import { Kit } from './kit';
 
 // Gritty's mounted units (grittyRiders.ts): the shared Gritty horse and rider, dressed as each unit.
 
@@ -98,5 +100,15 @@ describe("Gritty's riders", () => {
       expect(positions(gritty(t, CLEAN))).not.toEqual(positions(buildFigure(t, { look: RED, wear: CLEAN })));
       expect(positions(buildFigure(t, { look: RED, wear: CLEAN, gritty: false }))).toEqual(positions(buildFigure(t, { look: RED, wear: CLEAN })));
     }
+  });
+});
+
+// The steel knight, saved for a later faction (the Spartan knight in bronze is the knight now): kept buildable,
+// inside the budget and the same twice, so it is ready when a faction takes it.
+describe('the saved medieval knight', () => {
+  const build = (w: Wear) => { const k = new Kit(); grittyMedievalKnight(k, { look: RED, wear: w }); return k.build(); };
+  test('inside the triangle budget at every wear look, and the same twice', () => {
+    for (const w of LOOKS) expect(build(w).triangles, JSON.stringify(w)).toBeLessThanOrEqual(BUDGET);
+    for (const w of LOOKS) expect(Array.from(build(w).fill.attributes.position!.array)).toEqual(Array.from(build(w).fill.attributes.position!.array));
   });
 });

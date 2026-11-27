@@ -3,7 +3,7 @@
 // (grittyHorse.ts) as the shared Gritty rider (grittyRider.ts), dressed and armed as its unit, with the same moving
 // pieces as its Bright figure in figures.ts (the horse's LEGS and NECK, the RIDER, and the WEAPON and ARROW where the
 // Bright one has them), so the gait, idle, strike and crouch code drives it unchanged.
-import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
+import { BufferGeometry, Euler, Float32BufferAttribute, Vector3 } from 'three';
 import { hairCap } from './grittyBody';
 import { flat, H, Kit, mix } from './kit';
 import type { Surface, V3 } from './kit';
@@ -161,7 +161,10 @@ export function grittyHorseman(k: Kit, { look: c, wear: w }: RiderOpts): Shadow 
   return WIDE;
 }
 
-// ---- the knight: heavy horse in steel, a lance and a caparison, either side's ----
+// ---- the medieval knight: heavy horse in steel, a lance and a caparison ----
+//
+// Saved for a later faction (David, 2026-11-27: "I love this knight but it's not accurate for Spartans"): built by
+// grittyMedievalKnight, registered for no unit yet. The Spartan knight below is the knight now.
 
 const STEEL_G = '#A2A8AF';
 const STEEL_G_DARK = '#666C74';
@@ -209,9 +212,9 @@ function caparison(k: Kit, c: Look, w: Wear): void {
  * The peytral: the cloth round the front of the chest, curved over it from flank to flank (outside the caparison's
  * front edge and the chest, so no coat shows between them), hanging to a scalloped hem; battered, a scallop rips.
  */
-function peytral(k: Kit, colour: string, w: Wear): void {
-  const N = 8, CX = 8.4, RX = 3.6, RZ = 5.05, TOP = 18.6;
-  const hem = (i: number): number => (worn(w, 3) && i === 3 ? 9.6 : i % 2 === 0 ? 6.8 : 7.8);
+function peytral(k: Kit, colour: string, w: Wear, o: { top?: number; hem?: (i: number) => number; gloss?: number; hull?: number } = {}): void {
+  const N = 8, CX = 8.4, RX = 3.6, RZ = 5.05, TOP = o.top ?? 18.6;
+  const hem = o.hem ?? ((i: number): number => (worn(w, 3) && i === 3 ? 9.6 : i % 2 === 0 ? 6.8 : 7.8));
   const at = (i: number, y: number): Vector3 => {
     const a = -Math.PI / 2 + (Math.PI * i) / N;
     return new Vector3(CX + Math.cos(a) * RX, y, Math.sin(a) * RZ);
@@ -231,7 +234,7 @@ function peytral(k: Kit, colour: string, w: Wear): void {
   }
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  k.add(g, colour, { gloss: 0.1, hull: 0.7 });
+  k.add(g, colour, { gloss: o.gloss ?? 0.1, hull: o.hull ?? 0.7 });
 }
 
 /**
@@ -330,7 +333,7 @@ function greatHelm(k: Kit, c: Look, w: Wear): void {
   });
 }
 
-export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
+export function grittyMedievalKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
   turned(k, MOUNT_YAW, () => {
     grittyHorse(k, GREY, { cloth: c.main, trim: c.accent, noCloth: true }, w, { covered: true, noMane: true, neck: () => knightNeck(k, c, w) });
     caparison(k, c, w);
@@ -386,6 +389,232 @@ export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
         k.rod([v0.x, v0.y, v0.z], [v1.x, v1.y, v1.z], 2.3, STEEL_G, { r1: 1.0, seg: 8, gloss: 0.5 });
       }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
       greatHelm(k, c, w);
+    }, { axis: HUNCH });
+  });
+  hoofBlood(k, w);
+  return WIDE;
+}
+
+// ---- the knight: a Spartan horseman in bronze, either side's ----
+//
+// David (2026-11-27): "The spartan knight should have bronze armor, exposed arms, a Cape. Put bronze armor on the
+// shins and give them enclosed stirrups." An open bronze helm with a brow band and hinged cheek pieces under an arched
+// crest in the owner's colour (battered, its front is hacked away), a moulded bronze muscle cuirass over a short
+// tunic, leather strips at the waist, bare arms, a cape in the owner's colour pinned at the right shoulder and
+// streaming back over the horse, bronze greaves, sandalled feet in closed bronze toe-cup stirrups, a long cavalry
+// spear with a bronze butt spike, a small round bronze shield. The horse wears a bronze chest plate and face plate
+// over a saddle cloth in the owner's colour. Broken (and since), the near cheek piece is torn off the helm and the
+// face plate is gone from the horse; the cape is torn shorter from battered.
+
+/** Bright moulded bronze for the cuirass and greaves (the Hoplite's greave), aged bronze for the helm. */
+const BRONZE_S = '#B48236';
+const BRONZE_S_DARK = '#7E5A24';
+/** A dark bay, near black, so the bronze stands off it. */
+const DARK_BAY: Coat = { coat: '#4C3A31', shade: '#3A2C25', mane: '#1A1411', hoof: '#2E2620', points: '#1E1714' };
+
+/** The helm: an open bronze bowl, a brow band, cheek pieces, a neck guard and the arched crest. */
+function spartanHelm(k: Kit, c: Look, w: Wear): void {
+  const h = HEAD_C, R = HEAD_R * 1.14;
+  const bc: V3 = [h[0], h[1] + 0.5, h[2] - 0.35];
+  const open = helmBroken(w);
+  bareFace(k, h, w, { r: HEAD_R, beard: GT.BEARD });
+  // The bowl over the crown, and round the sides and back down to the nape.
+  k.dome(bc, R, GT.AGED, { seg: 10, gloss: 0.45 });
+  k.frustum([bc[0], 0, bc[2]], h[1] - 2.2, bc[1], R, R, GT.AGED, { seg: 9, arc: [Math.PI / 2 + 0.35, Math.PI - 0.7], gloss: 0.45 });
+  // The neck guard flaring out at the back.
+  k.frustum([bc[0], 0, bc[2]], h[1] - 3.2, h[1] - 2.2, R + 0.7, R, GT.AGED_DARK, { seg: 7, arc: [Math.PI / 2 + 0.55, Math.PI - 1.1], gloss: 0.4 });
+  // The brow band across the front, gold edged, rising a little to a point over the nose.
+  k.frustum([bc[0], 0, bc[2]], bc[1] - 0.3, bc[1] + 0.9, R + 0.12, R + 0.02, GT.AGED_DARK, { seg: 7, arc: [-1.35, 2.7], gloss: 0.5 });
+  const rim = (a: number, y: number, d = 0.2): V3 => [bc[0] + Math.sin(a) * (R + d), y, bc[2] + Math.cos(a) * (R + d)];
+  metalEdge(k, [-1.3, -0.65, 0, 0.65, 1.3].map((a) => rim(a, bc[1] + 0.9 + (a === 0 ? 0.35 : 0))), 0.2);
+  metalEdge(k, [-1.3, -0.45, 0.45, 1.3].map((a) => rim(a, bc[1] - 0.3)), 0.18);
+  // The cheek pieces, hinged under the band, down over the cheeks to the jaw (broken, the near one is torn off).
+  for (const sd of [1, -1]) {
+    const q = (x: number, y: number, z: number): V3 => [h[0] + sd * x, h[1] + y, h[2] + z];
+    if (open && sd > 0) {
+      tornEdge(k, [q(3.6, 0.2, 1.9), q(3.95, 0.05, 0.9), q(4.1, 0.25, -0.2), q(4.15, -0.2, -0.8)], 0.24);
+      continue;
+    }
+    const pts = [q(4.15, 0.3, -0.9), q(3.75, 0.3, 1.8), q(3.25, -1.9, 2.55), q(2.55, -3.7, 1.8), q(3.25, -2.8, -0.6)];
+    plate(k, pts, GT.AGED, h);
+    metalEdge(k, [pts[1]!, pts[2]!, pts[3]!], 0.16);
+    k.ball(q(4.25, 0.25, 0.4), 0.32, GT.GOLD_EDGE, { detail: 0, hull: 0, gloss: 0.6 });
+  }
+  // Wear on the bowl's front.
+  const bowl: Surface = (x, y) => {
+    const dx = x - bc[0], dy = y - bc[1], dz = Math.sqrt(Math.max(0.3, (R + 0.05) ** 2 - dx * dx - dy * dy));
+    return { p: [x, y, bc[2] + dz], n: [dx / R, dy / R, dz / R] };
+  };
+  if (worn(w, 1)) scratches(k, bowl, [[h[0] + 0.8, h[1] + 3.6, h[0] + 2.4, h[1] + 2.4]], '#E2C98E', 0.24);
+  if (worn(w, 2)) dent(k, bowl, h[0] - 1.9, h[1] + 3.0, 0.6, GT.AGED);
+  if (open) crack(k, bowl, [h[0] + 2.6, h[1] + 1.6, h[0] + 2.0, h[1] + 2.8, h[0] + 2.5, h[1] + 3.8], 0.24);
+  // The crest, turned a little across the helm so the game's camera sees its face and not only its edge.
+  k.frame([bc[0], 0, bc[2]], [0, CREST_TURN, 0], () => {
+    crestArch(k, { centre: [0, bc[1], 0], rz: R, colour: vivid(c.main), shorn: worn(w, 3), lose: 'front', band: 4.4, thick: 1.5 });
+  });
+}
+
+/** The cuirass: moulded bronze over a short tunic, the muscles in its face, leather strips at the waist. */
+function spartanCuirass(k: Kit, c: Look, w: Wear): void {
+  lapSkirt(k, c.dark, { r0: 5.8 });
+  // The leather strips hanging from under the cuirass over the tunic.
+  k.frustum([0, 0, 0], 19.4, 22.2, 4.95, 4.35, GT.LEATHER, { sz: 0.8, seg: 12, open: true, hull: 0.5 });
+  const strips = torsoFront(0.55, 1.12);
+  for (const x of [-3.0, -1.0, 1.0, 3.0]) k.line([x, 22.0, x * 1.06, 19.6], 0.16, GT.LEATHER_DARK, strips);
+  torso(k, BRONZE_S, { grow: 1.04, gloss: 0.55 });
+  const f = torsoFront(0.2, 1.04), deep = mix(BRONZE_S, '#000000', 0.38);
+  // The chest's two curves, the breastbone, the belly's lines and the navel.
+  k.line([-3.9, 28.4, -2.4, 27.2, -0.5, 27.4, 0, 28.0], 0.28, deep, f);
+  k.line([3.9, 28.4, 2.4, 27.2, 0.5, 27.4, 0, 28.0], 0.28, deep, f);
+  k.line([0, 30.2, 0, 22.8], 0.22, deep, f);
+  for (const y of [25.6, 24.0]) k.line([-2.0, y + 0.2, -0.3, y, 0.3, y, 2.0, y + 0.2], 0.2, deep, f);
+  k.decal(ell(0, 22.9, 0.32, 0.4, 6), deep, f);
+  // Gold edges at the neck and the waist.
+  k.frustum([0, 0, 0.05], 31.2, 31.8, 3.15, 2.75, GT.GOLD_EDGE, { sz: 0.82, seg: 10, hull: 0, gloss: 0.6 });
+  k.frustum([0, 0, 0], 21.9, 22.5, 4.45, 4.4, GT.GOLD_EDGE, { sz: 0.8, seg: 10, open: true, hull: 0, gloss: 0.6 });
+  if (worn(w, 1)) scratches(k, f, [[-3.2, 26.4, -1.6, 25.0], [1.4, 29.6, 3.0, 28.8]], '#E7CF95', 0.22);
+  if (worn(w, 2)) dent(k, f, 2.6, 24.8, 0.65, BRONZE_S);
+  if (worn(w, 3)) crack(k, f, [-2.6, 29.6, -1.8, 28.4, -2.4, 27.2], 0.22);
+  if (w.blood >= 1) smear(k, f, -1.8, 27.6, 0.15, -1, 3.6, 1.3);
+  if (w.blood >= 2) smear(k, f, 1.2, 25.6, -0.2, -1, 3.4, 1.2);
+}
+
+/** The cape: pinned at the right shoulder, over the back, streaming out behind; torn shorter from battered. */
+function spartanCape(k: Kit, c: Look, w: Wear): void {
+  // Over the shoulders and round the back of the neck.
+  k.frustum([0, 0, -0.2], 29.6, 31.6, 4.7, 3.2, c.main, { sz: 0.85, seg: 10, arc: [Math.PI / 2 - 0.2, Math.PI + 0.4], hull: 0.6 });
+  // Down the back from the shoulders, then flying out behind toward the horse's tail, its face to the sky.
+  const at: V3 = [0.4, 30.4, -4.3], yaw = 0.5;
+  const upper: V3 = [0.45, yaw, 0], lower: V3 = [1.3, yaw, 0];
+  const top = [-3.2, 0, 3.2, 0, 4.4, -5.6, -4.4, -5.6];
+  k.slab(top, 0.7, c.main, at, upper, { hull: 0.7 });
+  const bend = new Vector3(0, -5.4, 0).applyEuler(new Euler(upper[0], upper[1], upper[2], 'YXZ'));
+  const at2: V3 = [at[0] + bend.x, at[1] + bend.y, at[2] + bend.z];
+  // Battered, the hem is ragged; broken (and since), rips run deep up into it.
+  const hem = worn(w, 4) ? [7.0, -9.4, 5.0, -6.2, 3.2, -9.6, 0.6, -5.8, -1.8, -10.0, -4.2, -6.6, -6.8, -9.2]
+    : worn(w, 3) ? [7.4, -10.4, 4.0, -8.6, 1.4, -10.8, -1.6, -8.8, -4.4, -11.2, -7.0, -10.0]
+    : [7.6, -10.6, 2.2, -11.6, -3.2, -11.0, -7.2, -11.8];
+  k.slab([-4.6, 0.4, 4.6, 0.4, 7.2, -4.0, ...hem, -6.8, -4.4], 0.7, c.main, at2, lower, { hull: 0.7 });
+  k.frame(at2, lower, () => {
+    const face: Surface = (x, y) => ({ p: [x, y, -0.37], n: [0, 0, -1] });
+    const fold = mix(c.main, '#000000', 0.3), end = worn(w, 3) ? -7.6 : -9.8;
+    k.line([-1.6, 0, -3.2, -4.6, -4.2, end], 0.5, fold, face);
+    k.line([2.0, 0, 3.6, -4.6, 4.6, end + 0.4], 0.45, fold, face);
+    k.line([0.2, -1.0, 0.4, -5.6, 0.0, end + 0.6], 0.35, mix(c.main, '#FFFFFF', 0.18), face);
+    if (worn(w, 1)) dirt(k, face, 0, -8.4, 4.0, c.main);
+    if (w.blood >= 2) smear(k, face, 2.4, -1.0, 0.1, -1, 3.0, 1.1);
+  });
+  // The brooch at the right shoulder.
+  k.ball([3.4, 30.6, 2.4], 0.55, GT.GOLD_EDGE, { detail: 0, hull: 0.5, gloss: 0.6 });
+}
+
+/** The legs: bare thighs, bronze greaves over the knees and shins, sandals in closed toe-cup stirrups. */
+function spartanLegs(k: Kit, w: Wear): void {
+  for (const s of [1, -1]) {
+    const hip: V3 = [-0.3, 20.8, s * 2.3], knee: V3 = [3.4, 16.9, s * 5.5], ankle: V3 = [2.0, 11.6, s * 5.9];
+    if (s < 0) {
+      k.rod(hip, knee, 1.9, GT.SKIN, { r1: 1.55, seg: 6, caps: false });
+      k.rod(knee, ankle, 1.5, BRONZE_S, { r1: 1.2, seg: 6, caps: false, gloss: 0.5 });
+      continue;
+    }
+    // The stirrup's leather behind the leg, down to the cup.
+    k.rod([-0.9, 19.4, 5.1], [1.4, 10.4, 6.2], 0.32, GT.LEATHER_DARK, { seg: 4, caps: false, hull: 0.4 });
+    k.rod(hip, knee, 1.95, GT.SKIN, { r1: 1.55, seg: 7, caps: false });
+    // The greave from over the knee to the ankle, shaped to the calf.
+    k.ball(knee, 1.6, BRONZE_S, { detail: 0, gloss: 0.5 });
+    const d = new Vector3(...ankle).sub(new Vector3(...knee));
+    const calf = new Vector3(...knee).addScaledVector(d, 0.35);
+    k.rod(knee, [calf.x, calf.y, calf.z], 1.55, BRONZE_S, { r1: 1.65, seg: 7, caps: false, gloss: 0.5 });
+    k.rod([calf.x, calf.y, calf.z], ankle, 1.65, BRONZE_S, { r1: 1.2, seg: 7, caps: false, gloss: 0.5 });
+    const shin: Surface = (x, y) => ({ p: [x, y, ankle[2] + 1.55], n: [0, 0, 1] });
+    k.line([knee[0] + 0.9, knee[1] - 0.6, ankle[0] + 0.9, ankle[1] + 0.6], 0.16, GT.GOLD_EDGE, shin);
+    // The sandalled foot, its toes forward along the horse, in the stirrup: a tread under it and a closed bronze cup
+    // over the toes, gold round its mouth.
+    k.box([ankle[0] + 0.5, ankle[1] - 0.95, ankle[2]], [3.6, 1.6, 2.1], GT.SKIN_SHADE, { rot: [0, 0, 0.06] });
+    k.box([ankle[0] + 0.2, ankle[1] - 0.5, ankle[2]], [1.6, 0.4, 2.3], GT.SANDAL, { hull: 0 });
+    k.box([ankle[0] + 0.9, ankle[1] - 2.0, ankle[2]], [4.8, 0.5, 2.8], BRONZE_S_DARK, { gloss: 0.4 });
+    const cup: V3 = [ankle[0] + 2.0, ankle[1] - 1.8, ankle[2]];
+    k.dome(cup, 1.0, BRONZE_S_DARK, { seg: 8, s: [2.0, 1.65, 1.55], gloss: 0.5, hull: 0.6 });
+    k.frustum([cup[0] - 0.75, 0, cup[2]], cup[1], cup[1] + 1.6, 1.62, 1.5, GT.GOLD_EDGE, { seg: 8, arc: [Math.PI + 0.4, Math.PI - 0.8], sz: 1, hull: 0, gloss: 0.6 });
+    if (worn(w, 1)) k.decal(ell(ankle[0] + 1.6, ankle[1] + 2.4, 0.9, 0.6, 7), mix(BRONZE_S, '#3D3A34', 0.6), shin);
+    if (worn(w, 2)) dent(k, shin, knee[0] + 0.1, knee[1] - 2.6, 0.5, BRONZE_S);
+    if (w.blood >= 1) smear(k, (x, y) => ({ p: [x, y, s * 2.3 + 1.9], n: [0, 0, 1] }), 1.4, 19.4, 0.3, -1, 2.0, 0.8);
+  }
+}
+
+/**
+ * A small round bronze shield for a rider, in its own frame (face toward +z): a shallow bronze dome on a gold rim, the
+ * owner's chevron (the Hoplite's mark) across it. Scuffed, scratched; dented, dented; battered, a crack; broken (and
+ * since), a piece split off its edge along a dark torn line.
+ */
+function cavalryShield(k: Kit, c: Look, w: Wear): void {
+  const R = 3.9, D = 0.38, split = helmBroken(w);
+  const ring: number[] = [];
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2, cut = split && i >= 1 && i <= 3;
+    const r = (R + 0.35) * (cut ? [0.72, 0.6, 0.78][i - 1]! : 1);
+    ring.push(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  k.slab(ring, 0.5, GT.GOLD_EDGE, [0, 0, 0], [0, 0, 0], { gloss: 0.55 });
+  k.frame([0, 0, 0.2], [Math.PI / 2, 0, 0], () => k.dome([0, 0, 0], R, BRONZE_S, { seg: 12, s: [1, D, 1], gloss: 0.55, hull: 0.5 }));
+  const face: Surface = (x, y) => {
+    const q = Math.max(0, 1 - (x * x + y * y) / (R * R)), z = 0.2 + R * D * Math.sqrt(q);
+    return { p: [x, y, z], n: [x / R * D, y / R * D, 1] };
+  };
+  const mark = vivid(c.main);
+  k.decal([-2.9, -1.9, -2.0, -2.5, 0, 1.0, 2.0, -2.5, 2.9, -1.9, 0, 2.7], mark, face);
+  if (split) tornEdge(k, [[3.6, 1.0, 0.4], [2.6, 1.6, 0.6], [2.3, 2.6, 0.5], [1.3, 3.2, 0.4]], 0.22);
+  if (worn(w, 1)) scratches(k, face, [[-2.2, 2.0, -0.8, 1.0]], '#E7CF95', 0.2);
+  if (worn(w, 2)) dent(k, face, 1.4, -1.2, 0.5, BRONZE_S);
+  if (worn(w, 3)) crack(k, face, [-1.0, -2.8, -0.4, -1.6, -1.0, -0.6], 0.2);
+  if (w.blood >= 1) smear(k, face, 1.0, 1.6, 0.1, -1, 2.4, 0.9);
+}
+
+/** The horse's bronze face plate down its brow, gold edged (gone once broken). */
+function spartanHorseNeck(k: Kit, w: Wear): void {
+  if (helmBroken(w)) return;
+  const NEAR = 1.45, FAR = -1.0;
+  loftSheet(k, HEAD_RINGS, { t0: 0.18, t1: 0.82, far: FAR, cols: 3, rows: 3, near: () => NEAR, lift: () => 0.3, colour: () => GT.AGED, gloss: 0.55, hull: 0.6 });
+  metalEdge(k, [loftPoint(HEAD_RINGS, 0.18, 0, 0.48), loftPoint(HEAD_RINGS, 0.82, 0, 0.48)], 0.24, GT.GOLD_EDGE);
+  metalEdge(k, [0.18, 0.4, 0.62, 0.82].map((t) => loftPoint(HEAD_RINGS, t, NEAR, 0.36)), 0.2, GT.GOLD_EDGE);
+  if (worn(w, 2)) k.decal(ell(0, 0, 0.45, 0.35, 6), mix(GT.AGED, '#000000', 0.4), (x, y) => { const q = loftPoint(HEAD_RINGS, 0.5, 0.5, 0.45); return { p: [q[0] + x, q[1] + y, q[2]], n: [0, 0.3, 1] }; });
+}
+
+export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
+  turned(k, MOUNT_YAW, () => {
+    grittyHorse(k, DARK_BAY, { cloth: c.main, trim: c.accent, metal: GT.GOLD_EDGE }, w, { neck: () => spartanHorseNeck(k, w) });
+    // The bronze chest plate across the horse's breast, gold along its top.
+    peytral(k, BRONZE_S, w, { top: 18.0, hem: (i) => (worn(w, 3) && i === 5 ? 14.4 : 13.4), gloss: 0.5, hull: 0.7 });
+    const chest = (a: number, y: number): V3 => [8.4 + Math.cos(a) * 3.75, y, Math.sin(a) * 5.2];
+    metalEdge(k, [-1.4, -0.7, 0, 0.7, 1.4].map((a) => chest(a, 18.0)), 0.24);
+    k.ball(chest(0.5, 15.8), 0.55, GT.GOLD_EDGE, { detail: 0, hull: 0.4, gloss: 0.6 });
+    spartanLegs(k, w);
+  });
+  turned(k, RIDER_YAW, () => {
+    k.pivot(RIDER, SEAT, () => {
+      spartanCape(k, c, w);
+      spartanCuirass(k, c, w);
+      neck(k);
+      // Bare arms: the left hand on the reins with the shield on its forearm, the right couching the spear.
+      riderArm(k, [-4.4, 30.2, 0.1], [-5.8, 26.2, 1.8], [-2.8, 23.8, 4.4], { sleeve: GT.SKIN, cuff: GT.LEATHER_DARK });
+      k.frame([-6.5, 25.0, 3.2], [0.12, -0.8, 0.05], () => cavalryShield(k, c, w));
+      fist(k, [-1.9, 23.6, 4.9], [1, 0, 0], [-0.2, 0.3, 1], 0.95);
+      k.rod([-1.3, 23.4, 4.9], [1.7, 21.4, 2.8], 0.26, GT.LEATHER_DARK, { seg: 4, hull: 0 });
+      riderArm(k, [4.4, 30.2, 0.1], [5.6, 26.4, 3.0], [0.8, 27.0, 5.4], { sleeve: GT.SKIN, cuff: GT.LEATHER_DARK });
+      const butt: V3 = [-12, H(-8), 5.6], tip: V3 = [16.2, H(-32.4), 5.6], grip: V3 = [-1, H(-17.4), 5.6];
+      k.pivot(WEAPON, grip, () => {
+        const ax = new Vector3(...tip).sub(new Vector3(...butt)).normalize();
+        fist(k, grip, [ax.x, ax.y, ax.z], [0.2, 0.6, 0.8], 1.05);
+        spear(k, butt, tip, 5.4, { nick: worn(w, 2), snap: worn(w, 4) ? 0.55 : undefined, blood: w.blood }, 0.9, GT.LEATHER);
+        // The bronze butt spike, and a cord wrap at the grip.
+        const spike = new Vector3(...butt).addScaledVector(ax, -2.6);
+        k.rod(butt, [spike.x, spike.y, spike.z], 0.95, BRONZE_S, { r1: 0.1, seg: 5, gloss: 0.55 });
+        for (const t of [-1.8, 1.6]) {
+          const a = new Vector3(...grip).addScaledVector(ax, t), b = new Vector3(...grip).addScaledVector(ax, t + 0.7);
+          k.rod([a.x, a.y, a.z], [b.x, b.y, b.z], 1.02, c.main, { seg: 6, hull: 0, caps: false });
+        }
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      spartanHelm(k, c, w);
     }, { axis: HUNCH });
   });
   hoofBlood(k, w);

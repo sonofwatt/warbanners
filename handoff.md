@@ -71,6 +71,7 @@ never deploy a RULES_VERSION bump during a live online match).
 - **Gritty, later (David, 2026-11-27):** shared units (Warrior, Spearman and the like) built by the Mongols should
   get Mongol faces and hair (a steppe moustache, braids). Figures know only the owner's colours today, so this needs
   the faction passed to the figure builders. Not now; on the to-do list.
+- **Gritty Knight (David, 2026-11-27):** the Knight is now a Spartan horseman in bronze (open crested helm, muscle cuirass, bare arms, a cape, bronze greaves, closed toe-cup stirrups). The steel knight he loved is kept as `grittyMedievalKnight` in `grittyRiders.ts`, registered for no unit, saved for a later faction. Mongol-built Knights wear the bronze too until figures get the faction (the item above).
 - Ideas David is mulling (not approved): WebGL for a version 2 with weather and time of day (sample renders in the
   workspace repo; toon shading preferred), fantasy factions, Exalted Heroes.
 
