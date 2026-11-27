@@ -22,13 +22,12 @@ export interface GlUnit {
 }
 
 /**
- * Whether a unit of this type carries a lantern after dark: every unit but a stealthy one. Stealth is the engine's
- * hidden trait (vision.ts: a hidden unit is seen only by a unit or city next to it), which only the Scout has; a
- * lantern would give it away. Heroes, riders, the trebuchet and the camp all carry one (a hero is its type's unit with
- * deeds, and no hero trait hides it). A look only: the rules never read it.
+ * Whether a unit of this type carries a lantern after dark: every unit does, the Scout included (David's call,
+ * 2026-11-27: it was once left dark for its hidden trait). Heroes, riders, the trebuchet and the camp all carry one.
+ * A look only: the rules never read it, and a lantern does not make a hidden unit any easier to see.
  */
-export function carriesLantern(type: UnitTypeId): boolean {
-  return !UNITS[type].traits.includes('hidden');
+export function carriesLantern(_type: UnitTypeId): boolean {
+  return true;
 }
 
 /**

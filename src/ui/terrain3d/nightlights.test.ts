@@ -113,10 +113,10 @@ test('a lantern throws 60 percent of its light ahead, 20 to each side and none b
   for (let a = 0; a < Math.PI; a += 0.05) expect(lampAngle(a + 0.05)).toBeLessThanOrEqual(lampAngle(a) + 1e-12);
 });
 
-test('every unit carries a lantern but the stealthy one: the Scout, the only unit with the hidden trait', () => {
+test('every unit carries a lantern, the Scout included', () => {
   const types = Object.keys(UNITS) as UnitTypeId[];
-  for (const t of types) expect(carriesLantern(t), t).toBe(!UNITS[t].traits.includes('hidden'));
-  expect(types.filter((t) => !carriesLantern(t))).toEqual(['scout']);
+  for (const t of types) expect(carriesLantern(t), t).toBe(true);
+  expect(carriesLantern('scout')).toBe(true);
   for (const t of ['horseman', 'knight', 'catapult', 'camp', 'khansGuard', 'kingsGuard'] as const) expect(carriesLantern(t)).toBe(true);
   for (const t of types) expect(lanternHang(t).y).toBeGreaterThan(0);
 });

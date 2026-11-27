@@ -277,7 +277,7 @@ test('a ready tile glows gold under its selection mark, and only ready tiles glo
   expect(draw()).not.toContain('data-ready');
 });
 
-test('after dark a city\'s windows light up over the grade, and a unit with a lantern has a glow at its feet; a Scout has none', () => {
+test('after dark a city\'s windows light up over the grade, and every unit, the Scout included, has a lantern glow at its feet', () => {
   const view = structuredClone(playerView(s, 0));
   const city = '-2,5';
   const at = (look?: { weather: 'clear'; time: 'day' | 'dawn' | 'dusk' | 'night' }, round = 1): string => renderToStaticMarkup(
@@ -289,10 +289,10 @@ test('after dark a city\'s windows light up over the grade, and a unit with a la
   expect(night.indexOf('data-city-lights')).toBeGreaterThan(night.lastIndexOf('class="grade"'));
   const dusk = Number(tileMarkup(at({ weather: 'clear', time: 'dusk' }, 20), city).match(/data-city-lights="([\d.]+)"/)![1]);
   expect(dusk).toBeGreaterThan(0.3); expect(dusk).toBeLessThan(1);
-  // The units: the Scout (hidden) carries no lantern; a warrior does, lit only after dark.
+  // The units: the Scout carries a lantern like every other unit; a warrior too, lit only after dark.
   const me = view.units[0]!;
   expect(me.type).toBe('scout');
-  expect(unitMarkup(at({ weather: 'clear', time: 'night' }), me.id)).not.toContain('data-lantern-glow');
+  expect(unitMarkup(at({ weather: 'clear', time: 'night' }), me.id)).toContain('data-lantern-glow="1.00"');
   view.units[0] = { ...me, type: 'warrior' };
   expect(unitMarkup(at({ weather: 'clear', time: 'night' }), me.id)).toContain('data-lantern-glow="1.00"');
   expect(unitMarkup(at(), me.id)).not.toContain('data-lantern-glow');

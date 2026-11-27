@@ -1,6 +1,6 @@
 // Screenshots of the night lights (branch nightlights): a city's lit windows and their light on the ground, and the
 // lanterns the units carry, at night, at dusk round 20 and at dawn round 15, in the 3D look and the SVG look, with
-// units turned different ways round the Spartan capital (a Scout among them, who carries none). Run after `vite build`:
+// units turned different ways round the Spartan capital (a Scout among them). Run after `vite build`:
 //   npx tsx scripts/nightlights-shots.ts [what] [out dir]
 // what: all (default), 3d, svg, day, gif (frames of a unit walking and turning at night, for ffmpeg)
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -31,7 +31,7 @@ const FIGURES: { type: UnitTypeId; pos: string; hero?: boolean }[] = [
   { type: 'scout', pos: '-3,4' },
   { type: 'spearman', pos: '-2,6' },
 ];
-const MOVES: [string, string][] = [['-2,4', '-1,4'], ['-1,3', '-2,3'], ['-3,5', '-4,6'], ['-3,4', '-4,5'], ['-2,6', '-3,6']];
+const MOVES: [string, string][] = [['-2,4', '-1,4'], ['-1,3', '-2,3'], ['-3,5', '-4,6'], ['-2,6', '-3,6']];
 
 function stateOf(settings: MatchSettings, round: number): MatchState {
   const state = createMatch(settings);

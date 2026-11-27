@@ -329,8 +329,8 @@ function TileViewOf(p: { t: SceneTile; factions: readonly FactionId[]; viewer: P
 
 // `figure` false: the 3D figures draw the unit (and a hero's pennant) on their canvas, and this draws only what
 // stands around it: the war banner, its marks and the item badge, in the same places.
-// `lamp`: how bright the units' lanterns burn (sky.ts windows, 0 by day); a unit that carries one (unitsInput.ts
-// carriesLantern) has its glow on the ground drawn under its svg figure (the 3D figures light their own).
+// `lamp`: how bright the units' lanterns burn (sky.ts windows, 0 by day); every unit carries one (unitsInput.ts
+// carriesLantern) and has its glow on the ground drawn under its svg figure (the 3D figures light their own).
 function UnitViewOf(p: { u: SceneUnit; factions: readonly FactionId[]; figure?: boolean; lamp?: number }): ReactElement | null {
   const { unit } = p.u;
   const faction = p.factions[unit.owner];
