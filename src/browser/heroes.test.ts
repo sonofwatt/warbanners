@@ -82,13 +82,13 @@ describe.runIf(process.env.BROWSER === '1')('heroes in the browser', () => {
     }
   }, 60_000);
 
-  test('Home shows what is new and the version 0.8.4', async () => {
+  test('Home shows what is new and the version 0.8.5', async () => {
     const { page, close } = await openApp();
     try {
       await page.getByTestId('new-match').waitFor();
-      expect(APP_VERSION).toBe('0.8.4');
+      expect(APP_VERSION).toBe('0.8.5');
       expect(await page.locator('.whats-new p').textContent()).toBe(T.ui.whatsNew);
-      expect(await page.locator('.version').textContent()).toContain('0.8.4');
+      expect(await page.locator('.version').textContent()).toContain('0.8.5');
     } finally {
       await close();
     }
