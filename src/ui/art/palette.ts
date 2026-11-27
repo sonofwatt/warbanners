@@ -16,7 +16,7 @@ export const SKIN = '#E8B88A';
 export const PLAYER_COLOURS: Record<FactionId, { main: string; dark: string }> = {
   spartans: { main: '#B3261E', dark: '#8E1D17' },
   mongols: { main: '#2D6DB5', dark: '#1F4F87' },
-  woodland: { main: '#E0901A', dark: '#B26A0C' },
+  woodland: { main: '#EBAA1E', dark: '#B07A0E' },
 };
 
 export const ACCENT: Record<FactionId, string> = {

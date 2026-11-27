@@ -21,7 +21,6 @@ const MOCCASIN = '#8A6038';
 const BLACK_HAIR = '#2B211C';
 const FUR = '#7A5230';
 const FUR_DARK = '#5C3D23';
-const TRADE_BLUE = '#2F5E9E';
 const BRASS = '#D2A63C';
 const CLAY = '#B5653A';
 const CLAY_DARK = '#8F4E2C';
@@ -114,7 +113,7 @@ function woodlandHunter(p: FigureProps): ReactElement {
   return <g>{[<Shadow key="s" />, ...ink.items]}</g>;
 }
 
-// ---- War Chief: a gunstock club with brass tacks and a steel spike, a scalplock, a blue trade-cloth shirt ----
+// ---- War Chief: a gunstock club with brass tacks and a steel spike, a scalplock, a tasselled trade-cloth shirt ----
 
 function warChief(p: FigureProps): ReactElement {
   const ink = new Ink();
@@ -123,11 +122,11 @@ function warChief(p: FigureProps): ReactElement {
   // Garters below the knee.
   ink.rect(-4.8, -1.6, 3.8, 1, OCHRE);
   ink.rect(1, -1.6, 3.8, 1, OCHRE);
-  // The trade-cloth shirt, open at the chest to show a band of tattooed triangles.
-  // The trade-cloth shirt in the owner's colour (the sides must read apart), its blue trade-cloth trim at the hem.
+  // The trade-cloth shirt in the owner's colour (the sides must read apart), tassels below its lower edge, open at the
+  // chest to show a band of tattooed triangles.
+  for (let x = -6.4; x <= 6.5; x += 1.6) ink.line(x, -6, x * 1.05, -3.2, p.colour.dark, 0.7);
   ink.rect(-7.2, -20.4, 14.4, 15, p.colour.main, 3.6);
   ink.rect(3, -20.4, 4.2, 15, p.colour.dark, 2);
-  ink.rect(-7.2, -9.2, 14.4, 1.6, TRADE_BLUE, 0.6);
   ink.poly([-2.6, -20.4, 2.6, -20.4, 1.6, -12, -1.6, -12], SKIN);
   for (const x of [-1.6, 0, 1.6]) ink.poly([x - 0.7, -18.6, x + 0.7, -18.6, x, -17.4], '#2F3A4A');
   ink.rect(-7.4, -7.6, 14.8, 2.4, OCHRE, 1.1);
@@ -140,10 +139,11 @@ function warChief(p: FigureProps): ReactElement {
   ink.circle(0.6, -34, 1.6, OCHRE);
   ink.circle(-6.4, -25, 1, STEEL);
   // The gunstock club held low in the right hand, blade forward: dark wood, brass tacks, a steel spike at the elbow.
-  ink.poly([9.6, -6.6, 12, -8, 17.6, -19.6, 18.6, -24.4, 15.6, -22.4, 13.4, -17.6], WOOD_DARK);
-  for (const [x, y] of [[12.2, -10.4], [13.6, -13.4], [15.2, -16.8], [16.8, -20.2]] as const) ink.circle(x, y, 0.6, BRASS);
-  ink.poly([14.4, -15.2, 19.8, -13.4, 15.2, -13.6], STEEL_DARK);
-  ink.poly([14.4, -15.2, 19.8, -13.4, 15, -14.6], STEEL);
+  // A flat board, narrow at the grip and broad at the head, the spike in the front edge at the bend.
+  ink.poly([8.6, -6.2, 10.8, -6.8, 15.2, -15.4, 19.8, -22.6, 17.8, -26.4, 13.8, -24.8, 12.2, -17.4, 8.2, -7.6], WOOD_DARK);
+  for (const [x, y] of [[10.4, -8.6], [12.2, -12], [13.8, -15.6], [15.4, -19.2], [17, -22.6]] as const) ink.circle(x, y, 0.6, BRASS);
+  ink.poly([15, -15.6, 19.8, -14, 15.8, -14.2], STEEL_DARK);
+  ink.poly([15, -15.6, 19.8, -14, 15.4, -15], STEEL);
   ink.line(9.4, -6.6, 8.6, -4.6, BUCK_DARK, 0.8);
   ink.line(5.6, -16, 9.4, -8.6, p.colour.dark, 3.4);
   hand(ink, 9.8, -7.6);

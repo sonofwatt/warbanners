@@ -883,7 +883,6 @@ const FOREST = '#2F5D3A';
 const FOREST_DARK = '#22452B';
 const OCHRE = '#A4452C';
 const BONE = '#E9E1CF';
-const TRADE_BLUE = '#2F5E9E';
 const BRASS = '#D2A63C';
 const CLAY = '#B5653A';
 const CLAY_DARK = '#8F4E2C';
@@ -986,8 +985,12 @@ function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     leggings(k);
     // Ochre garters below the knees.
     for (const s of [-1, 1]) k.frustum([s * 2.8, 0, 0], H(-0.8), H(-1.8), 2.1, 2.1, OCHRE, { seg: 8 });
-    // The trade-cloth shirt in the owner's colour with a blue trade-cloth hem, an ochre sash and breechcloth.
-    standingBody(k, c, w, { legs: false, hem: TRADE_BLUE });
+    // The trade-cloth shirt in the owner's colour with tassels round its lower edge, an ochre sash and breechcloth.
+    standingBody(k, c, w, { legs: false, hem: c.main });
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2, x = Math.cos(a) * (TUNIC.r0 + 0.1), z = Math.sin(a) * (TUNIC.r0 + 0.1) * TUNIC.sz;
+      k.rod([x, TUNIC.y0 + 0.4, z], [x * 1.04, TUNIC.y0 - 2.4, z * 1.04], 0.4, c.dark, { r1: 0.28, seg: 4, hull: 0.5 });
+    }
     k.frustum([0, 0, 0], H(-5.2), H(-7.8), 7.2, 7.0, OCHRE, { sz: 0.72 });
     k.slab([-2.6, 0, 2.6, 0, 2.2, -6.2, -2.2, -6.2], 0.6, OCHRE, [0, H(-6.2), 5.2], [0.12, 0, 0]);
     // The shirt open at the chest over a band of tattooed downward triangles (our own pattern).
@@ -1004,13 +1007,16 @@ function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     k.rod([hd.c[0] + 2, hd.c[1] + 10.6, hd.c[2] - 3.4], [hd.c[0] + 5.6, hd.c[1] + 1, hd.c[2] - 6.8], 1.2, BLACK_HAIR, { r1: 0.5, seg: 6 });
     k.ball(onView(hd.c, hd.r, -hd.r * 0.96, -hd.r * 0.25, 0.4), 0.8, STEEL, { detail: 0, gloss: 0.5, hull: 0 });
     faceWear(k, hd, w);
-    // The gunstock club held low in the right hand, blade forward: dark wood, brass tacks, a steel spike.
+    // The gunstock club held low in the right hand, blade forward: a flat board of dark wood, narrow at the grip and
+    // broad at the head, brass tacks down its face and a steel spike set in the front edge at the bend.
     arm(k, [5.8, H(-16.4), 0], [9.8, H(-7.6), 3.8], c.dark);
     k.pivot(WEAPON, [9.8, H(-7.6), 3.8], () => {
-      k.rod([9.6, H(-6.6), 3.8], [15.6, H(-17.8), 3.8], 1.1, WOOD_DARK, { r1: 1.3, seg: 5 });
-      k.rod([15.6, H(-17.8), 3.8], [18.4, H(-24), 3.8], 1.3, WOOD_DARK, { r1: 0.9, seg: 5 });
-      for (const t of [0.2, 0.42, 0.64, 0.86]) k.ball([9.6 + 6 * t, H(-6.6 - 11.2 * t), 5.0], 0.5, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
-      k.slab([0, 0, 5.4, 1.6, 0.6, 1.4], 0.7, STEEL, [14.4, H(-15.2), 3.8], [0, 0, 0]);
+      const stock = [[8.6, -6.2], [10.8, -6.8], [15.6, -15.4], [20.8, -22.8], [18.6, -26.6], [14.2, -24.8], [12.4, -17.4], [8.2, -7.6]] as const;
+      k.slab(stock.flatMap(([x, y]) => [x, H(y)]), 1.6, WOOD_DARK, [0, 0, 3.8]);
+      for (const [x, y] of [[10.4, -8.6], [12.2, -12], [14, -15.6], [15.8, -19.2], [17.6, -22.8]] as const) {
+        k.ball([x, H(y), 4.75], 0.5, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
+      }
+      k.slab([0, 0, 5.6, -1.4, 0.4, 1.8], 0.7, STEEL, [15.2, H(-15.6), 3.8], [0, 0, 0]);
     }, { axis: TIP_FORWARD });
     arm(k, [-5.8, H(-16.4), 0], [-8.2, H(-7.8), 2.4], c.main);
     feetBlood(k, w);
