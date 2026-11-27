@@ -58,7 +58,7 @@ test('art stays inside its tile footprint', () => {
   const resources: Resource[] = ['orchard', 'cropland', 'game', 'ore', 'jewels', 'fish'];
   const buildings: BuildingId[] = ['farm', 'lumberCamp', 'mine', 'market', 'orchard', 'plantation', 'lumberMill', 'foundry', 'granary'];
   const marks: Mark[] = ['move', 'moveEnds', 'attack', 'ability', 'selected'];
-  const factions: FactionId[] = ['spartans', 'mongols'];
+  const factions: FactionId[] = ['spartans', 'mongols', 'woodland'];
   const all: ReactElement[] = [
     ...(['grass', 'water', 'rock', 'sand', 'fog'] as const).map((g) => <TileBase ground={g} />),
     <Veil><TileBase ground="grass" /></Veil>,
@@ -96,4 +96,25 @@ test('art stays inside its tile footprint', () => {
     }
   }
   expect(checked).toBeGreaterThan(200);
+});
+
+test('rules 11: a Woodland city is its own town: no Mongol tent, a longhouse from level 2 and a council lodge from level 4', () => {
+  const city = (faction: FactionId, level: number, o: { walls?: boolean } = {}) =>
+    html(<CityMark faction={faction} colour={playerColour(faction)} level={level} capital={false} walls={!!o.walls} pending={false} />);
+  const TENT_WALL = '#F3EAD8';   // the Mongol felt tent's lit wall
+  expect(city('mongols', 3)).toContain(TENT_WALL);
+  for (const level of [1, 2, 3, 4, 5]) {
+    expect(city('woodland', level)).not.toBe(city('mongols', level));
+    expect(city('woodland', level)).not.toContain(TENT_WALL);
+    expect(city('woodland', level)).toContain(playerColour('woodland').main);
+  }
+  const BARK = '#A88A62';
+  expect(city('woodland', 1)).not.toContain(BARK);
+  expect(city('woodland', 2)).toContain(BARK);
+  // the council lodge's door arch from level 4
+  const lodge = (h: string) => (h.match(/fill="#4E3B26"/g) ?? []).length;
+  expect(lodge(city('woodland', 4))).toBeGreaterThan(lodge(city('woodland', 3)));
+  expect(city('woodland', 4).length).toBeGreaterThan(city('woodland', 1).length);
+  expect(city('woodland', 9)).toBe(city('woodland', 5));
+  expect(city('woodland', 3, { walls: true })).not.toBe(city('woodland', 3));
 });

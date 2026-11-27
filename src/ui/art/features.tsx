@@ -699,6 +699,77 @@ function mongolTent(ink: Ink, x: number, y: number, slot: number, colour: Colour
   tent(ink, x, y, r, 7, colour, accent, false);
 }
 
+// rules 11: the Woodland Nations' town. Hide tipis with their poles, a bark longhouse from level 2 and a domed council
+// lodge as the hall from level 4, each with the owner's colour on it. Colours of their own, so no part reads as a tent.
+const HIDE = { lit: '#E8D2A6', shade: '#C7AE80', door: '#6E4E2E' };
+const BARK = { lit: '#A88A62', shade: '#856B4A', seam: '#6A5438', door: '#4E3B26' };
+
+/** A hide tipi on (x, y): a cone lit on the left, poles crossing out of its top and a band in the owner's colour. */
+function tipi(ink: Ink, x: number, y: number, r: number, h: number, colour: Colour, accent: string, hall: boolean): void {
+  const ry = r * 0.3;
+  const split = x + r * 0.25;
+  const top = y - h;
+  ink.shadow(x + 1.5, y + 0.5, r + 2, ry + 1, 0.14);
+  ink.line(x, top + 1, x - r * 0.35, top - 3.5, WOOD_DARK, 0.9);
+  ink.line(x, top + 1, x + r * 0.3, top - 3.2, WOOD_DARK, 0.9);
+  ink.line(x, top + 1, x + 0.3, top - 4, WOOD_DARK, 0.9);
+  ink.poly([x, top, ...frontArc(x, y - ry, r, ry, x - r, split)], HIDE.lit);
+  ink.poly([x, top, ...frontArc(x, y - ry, r, ry, split, x + r)], HIDE.shade);
+  // The band: a ring of the cone a little below its middle, in the owner's colour (darker on the shaded side).
+  const at = (t: number): number => r * (1 - t);
+  const t1 = 0.4, t2 = hall ? 0.54 : 0.5;
+  const y1 = y - h * t1, y2 = y - h * t2;
+  ink.poly([x - at(t1), y1, x + at(t1), y1, x + at(t2), y2, x - at(t2), y2], colour.main);
+  ink.poly([split - (split - x) * t1, y1 + 0.2, x + at(t1), y1, x + at(t2), y2, split - (split - x) * t2, y2 + 0.2], colour.dark);
+  if (hall) ink.circle(x, (y1 + y2) / 2, 1.3, accent);
+  ink.poly([x - r * 0.28, y + 0.2, x - 0.2, y - h * 0.36, x + r * 0.22, y + 0.2], HIDE.door);
+}
+
+/** A bark longhouse on (x, y): a long low vault with bark seams, its door hung with the owner's colour. */
+function longhouse(ink: Ink, x: number, y: number, colour: Colour): void {
+  const hw = 8;
+  ink.shadow(x + 2, y + 0.5, hw + 4, 2.4, 0.14);
+  // the far end, seen past the right of the long wall
+  ink.shape(`M ${x + hw} ${y} L ${x + hw} ${y - 3} Q ${x + hw + 2} ${y - 7.5} ${x + hw + 4} ${y - 5} L ${x + hw + 4} ${y - 1.6} Z`, BARK.shade);
+  ink.shape(`M ${x - hw} ${y} L ${x - hw} ${y - 3} Q ${x} ${y - 13} ${x + hw} ${y - 3} L ${x + hw} ${y} Z`, BARK.lit);
+  for (const k of [2.2, 4.6]) {
+    ink.stroke(`M ${x - hw + 0.6} ${y - 3 - k * 0.15} Q ${x} ${y - 13 + k * 1.1} ${x + hw - 0.6} ${y - 3 - k * 0.15}`, BARK.seam, 0.6);
+  }
+  ink.line(x - hw * 0.45, y, x - hw * 0.45, y - 5.6, BARK.seam, 0.6);
+  ink.line(x + hw * 0.45, y, x + hw * 0.45, y - 5.6, BARK.seam, 0.6);
+  ink.rect(x - 1.7, y - 4.6, 3.4, 4.6, BARK.door, 0.8);
+  ink.rect(x - 1.7, y - 4.6, 3.4, 2.6, colour.main, 0.8);
+}
+
+/** The council lodge on (x, y): a wide bark dome with seams, a band in the owner's colour and an arched door. */
+function councilLodge(ink: Ink, x: number, y: number, colour: Colour, accent: string): void {
+  const r = 10;
+  const h = 12;
+  ink.shadow(x + 2, y + 0.5, r + 3, 3, 0.14);
+  ink.shape(`M ${x - r} ${y} L ${x - r} ${y - 3} Q ${x - r} ${y - h} ${x} ${y - h} Q ${x + r} ${y - h} ${x + r} ${y - 3} L ${x + r} ${y} Z`, BARK.lit);
+  ink.shape(`M ${x + 3} ${y} L ${x + 3} ${y - h + 0.6} Q ${x + r} ${y - h + 1} ${x + r} ${y - 3} L ${x + r} ${y} Z`, BARK.shade);
+  for (const k of [4.5, 7.5, 10]) {
+    const w = r * Math.sqrt(1 - ((k - 1) / h) ** 2);
+    ink.stroke(`M ${x - w} ${y - k} Q ${x} ${y - k - 1.6} ${x + w} ${y - k}`, BARK.seam, 0.6);
+  }
+  ink.shape(`M ${x - r} ${y - 2} Q ${x} ${y - 4} ${x + r} ${y - 2} L ${x + r} ${y - 4.4} Q ${x} ${y - 6.4} ${x - r} ${y - 4.4} Z`, colour.main);
+  ink.shape(`M ${x + 3} ${y - 2.7} Q ${x + 7} ${y - 2.8} ${x + r} ${y - 2} L ${x + r} ${y - 4.4} Q ${x + 7} ${y - 5.2} ${x + 3} ${y - 5.1} Z`, colour.dark);
+  ink.shape(`M ${x - 2.4} ${y} L ${x - 2.4} ${y - 4} Q ${x} ${y - 7.4} ${x + 2.4} ${y - 4} L ${x + 2.4} ${y} Z`, BARK.door);
+  ink.ellipse(x, y - h + 0.4, 2.2, 0.8, BARK.door);
+  ink.circle(x, y - h - 1.4, 1.4, accent);
+}
+
+function woodlandBuilding(ink: Ink, x: number, y: number, slot: number, level: number, colour: Colour, accent: string): void {
+  if (slot === 0) {
+    if (level >= 4) councilLodge(ink, x, y, colour, accent);
+    else tipi(ink, x, y, 7, 17, colour, accent, true);
+  } else if (slot === 2) {
+    longhouse(ink, x, y, colour);   // slot 2 first stands at level 2
+  } else {
+    tipi(ink, x, y, slot === 5 ? 4.8 : 5.4, slot === 5 ? 11.5 : 13, colour, accent, false);
+  }
+}
+
 function banner(ink: Ink, colour: Colour, accent: string): void {
   const px = 12;
   ink.line(px, -12, px, -38, WOOD_DARK, 1.4);
@@ -745,6 +816,8 @@ export function CityMark(p: {
     if (p.faction === 'spartans') {
       if (slot === 0) spartanHall(ink, x, y, p.colour, accent);
       else spartanHouse(ink, x, y, slot, p.colour);
+    } else if (p.faction === 'woodland') {
+      woodlandBuilding(ink, x, y, slot, p.level, p.colour, accent);
     } else if (slot === 0) {
       tent(ink, x, y, 9, 8, p.colour, accent, true);
     } else {
