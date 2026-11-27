@@ -307,6 +307,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       panel = (
         <TilePanel
           terrain={tile.terrain} resource={tile.resource} building={tile.building} road={tile.road} harvested={tile.harvested}
+          village={tile.village} treasure={tile.treasure}
           commands={tileCommands(selection.at, state, ix)} onCommand={onCommand}
         />
       );

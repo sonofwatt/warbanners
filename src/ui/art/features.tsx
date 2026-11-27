@@ -580,17 +580,79 @@ export function Road(p: { links: readonly number[]; wear?: number; edgeWear?: re
 
 const HUT: HouseColours = { front: '#E6D5B0', side: '#C9B68E', roof: '#9A8878', roofSide: '#7E6E60' };
 
+/** The village art's scale, and where its bonfire burns (board units, the stones' centre): between the two huts. */
+const VILLAGE_SCALE = 1.15;
+const FIRE_AT = { x: 2.6, y: 3 } as const;
+export const VILLAGE_FIRE = { x: FIRE_AT.x * VILLAGE_SCALE, y: FIRE_AT.y * VILLAGE_SCALE } as const;
+
+/** The bonfire's flames: an orange tongue with a yellow heart, at (x, y), the foot of the flames. */
+function flames(ink: Ink, x: number, y: number): void {
+  ink.shape(`M ${x - 2} ${y} Q ${x - 2.2} ${y - 3.4} ${x - 0.2} ${y - 7} Q ${x + 0.6} ${y - 4.2} ${x + 1.4} ${y - 4.6} Q ${x + 2.4} ${y - 2.4} ${x + 2} ${y} Z`, '#FF8A1F');
+  ink.shape(`M ${x - 1} ${y} Q ${x - 1.1} ${y - 2.4} ${x + 0.1} ${y - 4.4} Q ${x + 0.5} ${y - 2.6} ${x + 1.1} ${y - 2.4} Q ${x + 1.4} ${y - 1.2} ${x + 1.1} ${y} Z`, '#FFDF6A');
+  ink.ellipse(x + 0.05, y - 0.9, 0.7, 1.1, '#FFF6C8');
+}
+
+/** A small bonfire: a ring of stones round the ash, two crossed logs, flames, and a thin wisp of smoke above. */
+function bonfire(x: number, y: number): ReactElement {
+  const back = new Ink(VILLAGE_SCALE), front = new Ink(VILLAGE_SCALE), smoke = new Ink(VILLAGE_SCALE);
+  const stones = 8;
+  back.ellipse(x, y, 2.8, 1.4, '#5A4E44');
+  for (let i = 0; i < stones; i++) {
+    const a = (i / stones) * Math.PI * 2 + 0.2;
+    const sx = x + 3 * Math.cos(a), sy = y + 1.6 * Math.sin(a);
+    (Math.sin(a) < 0 ? back : front).ellipse(sx, sy, 1, 0.75, i % 2 === 0 ? '#A49C90' : '#857D72');
+  }
+  back.line(x - 2.2, y + 0.5, x + 2, y - 1, '#7A4F2A', 1.1);
+  back.line(x - 2, y - 1, x + 2.2, y + 0.5, '#8C5D35', 1.1);
+  flames(back, x, y);
+  smoke.stroke(`M ${x + 0.1} ${y - 8} Q ${x - 1.2} ${y - 10.5} ${x + 0.5} ${y - 12.5} Q ${x + 2} ${y - 14.5} ${x + 1} ${y - 16.5}`, '#D9D5CE', 0.8);
+  return (
+    <g data-bonfire="true">
+      {back.done()}
+      {front.done()}
+      <g opacity={0.7}>{smoke.done()}</g>
+    </g>
+  );
+}
+
 export function Village(): ReactElement {
-  const ink = new Ink(1.15);
-  house(ink, -7, -1, 11, 7, HUT, 10);
-  ink.rect(-8.5, -5, 3, 4, '#6B5A48');
-  house(ink, 7, 6, 10, 6, HUT, 9);
-  ink.rect(5.6, 2.4, 2.8, 3.6, '#6B5A48');
-  // A woodpile of three short logs between the huts.
-  ink.circle(-1, 8, 1.6, '#C49A5E');
-  ink.circle(-4, 8, 1.6, '#C49A5E');
-  ink.circle(-2.5, 5.6, 1.6, '#C49A5E');
-  return ink.done();
+  // The huts stand apart, the bonfire burning in the open ground between them; the woodpile at the front left.
+  const back = new Ink(VILLAGE_SCALE), front = new Ink(VILLAGE_SCALE);
+  house(back, -11, -2, 11, 7, HUT, 10);
+  back.rect(-12.5, -6, 3, 4, '#6B5A48');
+  house(front, 12, 7, 10, 6, HUT, 9);
+  front.rect(10.6, 3.4, 2.8, 3.6, '#6B5A48');
+  // A woodpile of three short logs.
+  front.circle(-5, 8.5, 1.6, '#C49A5E');
+  front.circle(-8, 8.5, 1.6, '#C49A5E');
+  front.circle(-6.5, 6.1, 1.6, '#C49A5E');
+  return (
+    <g>
+      {back.done()}
+      {bonfire(FIRE_AT.x, FIRE_AT.y)}
+      {front.done()}
+    </g>
+  );
+}
+
+/**
+ * The bonfire's light on the SVG board after dark (`strength` 0 to 1, sky.ts fire): a soft warm pool round the fire,
+ * drawn over the time of day's grade, and the flames again at full brightness, so the fire glows in the dark.
+ */
+export function FireGlow({ strength }: { strength: number }): ReactElement | null {
+  if (strength <= 0) return null;
+  const s = Math.min(1, strength);
+  const { x, y } = VILLAGE_FIRE;
+  const fl = new Ink(VILLAGE_SCALE);
+  flames(fl, FIRE_AT.x, FIRE_AT.y);
+  return (
+    <g data-fire-glow={s.toFixed(2)} pointerEvents="none">
+      <ellipse cx={x} cy={y} rx={17} ry={8.5} fill="#FF8A2E" fillOpacity={0.16 * s} />
+      <ellipse cx={x} cy={y} rx={10.5} ry={5.2} fill="#FF9838" fillOpacity={0.2 * s} />
+      <ellipse cx={x} cy={y - 0.5} rx={5} ry={2.8} fill="#FFC060" fillOpacity={0.3 * s} />
+      <g opacity={s}>{fl.done()}</g>
+    </g>
+  );
 }
 
 export function Treasure(): ReactElement {

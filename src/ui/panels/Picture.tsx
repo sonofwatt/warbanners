@@ -31,8 +31,10 @@ export function CityPicture({ faction, level, capital, walls }: { faction: Facti
   );
 }
 
-export function TilePicture({ terrain, resource, building, harvested = false }: { terrain: Terrain; resource: Resource | null; building: BuildingId | null; harvested?: boolean }): ReactElement {
-  const tile: Tile = { terrain, resource, building, harvested, road: false, village: false, treasure: false, cityId: null };
+export function TilePicture({ terrain, resource, building, harvested = false, village = false, treasure = false }: {
+  terrain: Terrain; resource: Resource | null; building: BuildingId | null; harvested?: boolean; village?: boolean; treasure?: boolean;
+}): ReactElement {
+  const tile: Tile = { terrain, resource, building, harvested, road: false, village, treasure, cityId: null };
   return (
     <OnTile ground={groundFor(tile, false)}>
       <TileArt k="0,0" tile={tile} />
