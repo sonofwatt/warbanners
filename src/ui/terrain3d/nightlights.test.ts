@@ -27,7 +27,7 @@ const { skyLight } = await import('./sky');
 const { DAYLIGHT_ROUNDS } = await import('./daylight');
 const { MAX_SPILLS, pieceSpill, townPlan, townSpills, villagePlan } = await import('./townLayout');
 const { windowSpills } = await import('./buildingLayout');
-const { LAMP_REACH, lampAngle, lampLight, lampSplit, lanternHang } = await import('./units/lantern');
+const { LAMP_REACH, lampAngle, lampLight, lampShape, lampSplit, lanternHang } = await import('./units/lantern');
 const { carriesLantern } = await import('./unitsInput');
 const { createUnits3d } = await import('./units/units3d');
 
@@ -98,19 +98,56 @@ test('the windows\' light is laid only on cities and villages, in world space ro
   }
 });
 
-test('a lantern throws 60 percent of its light ahead, 20 to each side and none behind', () => {
+test('a lantern throws about 60 percent of its light ahead, 20 to each side and none behind, in one smooth gradient', () => {
   const split = lampSplit(0.05);
-  expect(split.ahead).toBeCloseTo(0.6, 2);
-  expect(split.left).toBeCloseTo(0.2, 2);
-  expect(split.right).toBeCloseTo(0.2, 2);
+  expect(split.ahead).toBeGreaterThan(0.57); expect(split.ahead).toBeLessThan(0.65);
+  expect(split.left).toBeCloseTo(split.right, 3);
+  expect(split.left).toBeGreaterThan(0.17); expect(split.left).toBeLessThan(0.22);
   expect(split.behind).toBe(0);
-  // Brightest at the feet and ahead; falling off with distance and angle; nothing past its reach.
+  // Falling off with distance and angle; nothing past its reach or behind.
   expect(lampLight(0.01, 0)).toBeCloseTo(1, 2);
   expect(lampLight(5, 0)).toBeGreaterThan(lampLight(0, 5));
   expect(lampLight(0, 5)).toBeGreaterThan(0);
   expect(lampLight(-5, 0)).toBe(0);
   expect(lampLight(LAMP_REACH, 0)).toBe(0);
-  for (let a = 0; a < Math.PI; a += 0.05) expect(lampAngle(a + 0.05)).toBeLessThanOrEqual(lampAngle(a) + 1e-12);
+  // No zones: the weight falls steadily from the aim, with no flat stretch and no step anywhere.
+  for (let a = 0; a < 2.3; a += 0.05) {
+    expect(lampAngle(a + 0.05)).toBeLessThan(lampAngle(a));
+    expect(lampAngle(a) - lampAngle(a + 0.05)).toBeLessThan(0.06);
+  }
+});
+
+test('the ground right under a lantern is dark, so its light lies in a crescent out in front', () => {
+  for (const t of ['warrior', 'horseman', 'catapult'] as const) {
+    const sh = lampShape(t);
+    expect(lampLight(0.2, 0, sh), t).toBeLessThan(0.02);
+    expect(lampLight(sh.core, 0, sh), t).toBeCloseTo(1, 2);
+    expect(lampLight(sh.core, 0, sh), t).toBeGreaterThan(lampLight(sh.core * 0.5, 0, sh));
+  }
+  // The higher lanterns leave the larger dark spot.
+  expect(lampShape('horseman').core).toBeGreaterThan(lampShape('catapult').core);
+  expect(lampShape('catapult').core).toBeGreaterThan(lampShape('warrior').core);
+});
+
+test('a rider\'s horse blocks its lantern on the horse\'s side, and the trebuchet throws its light out sideways', () => {
+  const horse = lampShape('horseman');
+  // The rider aims out toward the lantern's side; across the horse (the far side, past the heading) it is dark.
+  expect(horse.aim).toBeGreaterThan(0.3);
+  const heading = (d: number, side: number): [number, number] => {
+    // A point `d` ahead along the unit's heading and `side` across it, in the lantern's aimed frame.
+    const c = Math.cos(horse.aim), s = Math.sin(horse.aim);
+    return [d * c + side * s, -d * s + side * c];
+  };
+  expect(lampLight(...heading(0, -10), horse)).toBe(0); // straight across the horse
+  expect(lampLight(...heading(-3, -8), horse)).toBe(0);
+  expect(lampLight(...heading(0, 10), horse)).toBeGreaterThan(0.2); // out on the lantern's side
+  expect(lampLight(...heading(10, 2), horse)).toBeGreaterThan(0.2); // ahead of the horse
+  const rider = lampSplit(0.05, horse);
+  expect(rider.right).toBeLessThan(0.05);
+  expect(rider.left).toBeGreaterThan(rider.right * 4);
+  const cat = lampShape('catapult');
+  expect(cat.aim).toBeCloseTo(Math.PI / 2, 5);
+  expect(lampShape('warrior')).toEqual({ aim: 0, core: lampShape('warrior').core, cut: 0 });
 });
 
 test('every unit carries a lantern, the Scout included', () => {

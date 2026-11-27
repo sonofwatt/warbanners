@@ -12,7 +12,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { coloured } from '../geom';
-import { LAMP_REACH, LANTERN_GLSL, lanternHang } from './lantern';
+import { LAMP_REACH, LANTERN_GLSL, lampShape, lanternHang } from './lantern';
 import { castShadow } from '../daylight';
 import type { Material } from 'three';
 import type { GlUnit } from '../unitsInput';
@@ -131,17 +131,18 @@ function lanternGeometry(): BufferGeometry {
   return g;
 }
 
-// The lanterns' light on the ground: one quad per lit lantern, laid on the ground about the unit's feet and turned to
-// its heading, all in one mesh (one draw call for every unit), rewritten each frame (a few floats a unit). The
-// fragment shader shapes the light (units/lantern.ts lampLight: 60 percent ahead, 20 either side, none behind).
+// The lanterns' light on the ground: one quad per lit lantern, laid on the ground about the point under the lantern
+// and turned the way it shines (units/lantern.ts lampShape), all in one mesh (one draw call for every unit),
+// rewritten each frame (a few floats a unit). The fragment shader shapes the light (units/lantern.ts lampLight: a
+// smooth gradient brightest ahead, dark under the lantern, none behind and none where the unit's body blocks it).
 /** The halo's radius round a lit lantern (world units). */
 const HALO = 6;
 // Each lantern also has a soft halo round the lantern itself (aKind 1), a quad facing the camera.
 const poolVert = /* glsl */ `
-attribute vec3 aCentre; attribute vec2 aHead; attribute vec2 aCorner; attribute float aBright; attribute float aKind;
-varying vec2 vLocal; varying float vBright; varying float vKind;
+attribute vec3 aCentre; attribute vec2 aHead; attribute vec2 aCorner; attribute float aBright; attribute float aKind; attribute vec2 aShape;
+varying vec2 vLocal; varying float vBright; varying float vKind; varying vec2 vShape;
 void main() {
-  vLocal = aCorner; vBright = aBright; vKind = aKind;
+  vLocal = aCorner; vBright = aBright; vKind = aKind; vShape = aShape;
   if (aKind > 0.5) {
     vec4 mv = viewMatrix * vec4(aCentre, 1.0);
     mv.xy += aCorner * ${HALO.toFixed(2)};
@@ -155,7 +156,7 @@ void main() {
 const poolFrag = /* glsl */ `
 ${LANTERN_GLSL}
 uniform float uLight;
-varying vec2 vLocal; varying float vBright; varying float vKind;
+varying vec2 vLocal; varying float vBright; varying float vKind; varying vec2 vShape;
 void main() {
   if (vKind > 0.5) {
     float d = length(vLocal);
@@ -164,7 +165,7 @@ void main() {
     gl_FragColor = vec4(1.0, 0.80, 0.45, clamp(0.9 * uLight * vBright * n * n, 0.0, 1.0));
     return;
   }
-  float l = lampLight(vLocal);
+  float l = lampLight(vLocal, vShape);
   if (l <= 0.0) discard;
   gl_FragColor = vec4(1.0, 0.70, 0.34, clamp(1.25 * uLight * vBright * l, 0.0, 0.9));
 }`;
@@ -334,6 +335,7 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     g.setAttribute('aCorner', new Float32BufferAttribute(corner, 2));
     g.setAttribute('aKind', new Float32BufferAttribute(kind, 1));
     g.setAttribute('aBright', new Float32BufferAttribute(new Float32Array(cap * 8), 1));
+    g.setAttribute('aShape', new Float32BufferAttribute(new Float32Array(cap * 16), 2));
     g.setIndex(index);
     return g;
   }
@@ -357,23 +359,28 @@ export function createUnits3d(canvas: HTMLCanvasElement, shared: Record<string, 
     }
     const g = pools.geometry;
     const c = g.attributes.aCentre!.array as Float32Array, h = g.attributes.aHead!.array as Float32Array, b = g.attributes.aBright!.array as Float32Array;
+    const sh = g.attributes.aShape!.array as Float32Array;
     lampList.length = 0;
     lit.forEach((p, i) => {
-      // The light falls from the figure's feet (its body's place), ahead along the way its front leads.
-      const x = p.group.position.x + p.body.position.x, z = p.group.position.z + p.body.position.z;
-      const hx = Math.sin(p.heading), hz = Math.cos(p.heading);
-      const fl = lanternFlicker(flickT, flickLevel, (p.unit.id % 2) as 0 | 1);
+      // The light falls about the point under the lantern, aimed the way it shines: the heading turned toward the
+      // lantern's side by its shape's aim (a rider's out to its side, the trebuchet's straight out sideways).
       p.lamp!.getWorldPosition(lampAt);
+      const shape = lampShape(p.unit.type);
+      const aim = p.heading + shape.aim;
+      const hx = Math.sin(aim), hz = Math.cos(aim);
+      const fl = lanternFlicker(flickT, flickLevel, (p.unit.id % 2) as 0 | 1);
       for (let k = 0; k < 8; k++) {
-        if (k < 4) c.set([x, CAST_PLANE + 0.05, z], 24 * i + 3 * k);
+        if (k < 4) c.set([lampAt.x, CAST_PLANE + 0.05, lampAt.z], 24 * i + 3 * k);
         else c.set([lampAt.x, lampAt.y, lampAt.z], 24 * i + 3 * k);
         h.set([hx, hz], 16 * i + 2 * k);
+        sh.set([shape.core, shape.cut], 16 * i + 2 * k);
         b[8 * i + k] = fl;
       }
       lampList.push({ x: lampAt.x, y: lampAt.y, z: lampAt.z, d: Math.hypot(lampAt.x - cx, lampAt.z - cz) });
     });
     g.attributes.aCentre!.needsUpdate = true;
     g.attributes.aHead!.needsUpdate = true;
+    g.attributes.aShape!.needsUpdate = true;
     g.attributes.aBright!.needsUpdate = true;
     g.setDrawRange(0, lit.length * 12);
     lampList.sort((a, z2) => a.d - z2.d);
