@@ -1,4 +1,4 @@
-// Shots of Gritty's 3D Hoplite and Catapult (scripts/hoplite3d-shots.ts drives it in Chromium through Vite's dev server).
+// Shots of Gritty's 3D figures (scripts/gritty3d-shots.ts drives it in Chromium through Vite's dev server).
 // Not part of the app: it draws the figures straight from units3d on a plain overcast ground with hex outlines,
 // exactly as the board hands them over (GlUnit with `gritty` and `wear`).
 import { Color, ColorManagement, Vector3 } from 'three';
@@ -95,5 +95,5 @@ function sheet(cells: readonly Cell[], scale: number, perRow: number, o: { brigh
   u.draw({ cx: view.cx, cy: view.cy, scale: view.scale }, { w: view.w, h: view.h }, 1);
 }
 
-Object.assign(window, { hopliteSheet: sheet });
+Object.assign(window, { grittySheet: sheet });
 document.body.dataset.ready = '1';

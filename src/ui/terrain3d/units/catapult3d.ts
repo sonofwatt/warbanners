@@ -34,8 +34,6 @@ const MUD = '#3A3226';
 const SCUFF = '#A88E66';
 /** Bare wood where a blow has split the timber: pale against the weathered surface. */
 const BARE = '#B3916A';
-const FLAME = '#E8742A';
-const FLAME_HOT = '#F6C35A';
 
 const ARM = 'arm';
 const STONE_PIECE = 'stone';
