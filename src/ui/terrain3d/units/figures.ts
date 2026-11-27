@@ -1,4 +1,4 @@
-// The 17 unit figures in 3D, one builder each, from the SVG figures' own shapes and coordinates (art/units.tsx and
+// The 22 unit figures in 3D, one builder each, from the SVG figures' own shapes and coordinates (art/units.tsx and
 // art/factionUnits.tsx): x as on screen, heights through H(svgY) so every part lands where the SVG draws it.
 // Every builder takes the owner's look and a Wear and returns one model. The game passes CLEAN: wear is for Gritty
 // mode, which is not on main, so on main the wear branches are never taken (they stay so Gritty can switch them on).
@@ -869,6 +869,218 @@ function camp(k: Kit, { look: c, wear: w }: FigureOpts): typeof WIDE {
   return WIDE;
 }
 
+// ---- the Woodland Nations (rules 11) ----
+// Chunky toy figures from the SVG figures (art/woodlandUnits.tsx): buckskin leggings and moccasins, the owner's
+// colour on the shirt, shawl, tunic or sash so the sides read apart, and the faction's own forest green, red ochre
+// and bone. Everyday Woodlands dress of our own design: no headdresses, pipes or sacred objects.
+
+const BUCK = '#C79A66';
+const BUCK_DARK = '#A07445';
+const MOCCASIN = '#8A6038';
+const BLACK_HAIR = '#2B211C';
+const FUR_DARK = '#5C3D23';
+const FOREST = '#2F5D3A';
+const FOREST_DARK = '#22452B';
+const OCHRE = '#A4452C';
+const BONE = '#E9E1CF';
+const TRADE_BLUE = '#2F5E9E';
+const BRASS = '#D2A63C';
+const CLAY = '#B5653A';
+const CLAY_DARK = '#8F4E2C';
+const SMOKE = '#C9CDD2';
+const GREY_HAIR = '#B9B4AD';
+const IRON = '#5E646B';
+const ROPE = '#C2A170';
+
+/** Buckskin leggings and moccasins, as the crouch's pieces (the shins tip forward, the feet stay on the ground). */
+function leggings(k: Kit): void {
+  legsAndBoots(k, () => {
+    for (const s of [-1, 1]) k.rod([s * 2.8, 2.2, 0], [s * 2.8, TUNIC.y0 + 1.5, 0], 1.9, s < 0 ? BUCK : BUCK_DARK, { seg: 6 });
+  }, () => {
+    for (const s of [-1, 1]) k.box([s * 3, 1.1, 0.8], [3.9, 2.2, 4.8], MOCCASIN);
+  });
+}
+
+/** A breechcloth in the owner's colour hanging front and back below a sash. */
+function breechcloth(k: Kit, c: Look, sash: string): void {
+  k.slab([-2.6, 0, 2.6, 0, 2.2, -6.2, -2.2, -6.2], 0.6, c.main, [0, H(-6.2), 5.0], [0.12, 0, 0]);
+  k.slab([-2.6, 0, 2.6, 0, 2.2, -5.6, -2.2, -5.6], 0.6, c.dark, [0, H(-6.2), -4.6], [-0.12, 0, 0]);
+  k.frustum([0, 0, 0], H(-5.2), H(-7.8), 6.6, 6.4, sash, { sz: 0.72 });
+}
+
+/** Long straight black hair over the top and back of a head. */
+function longHair(k: Kit, hd: { c: V3; r: number }): void {
+  k.dome([hd.c[0], hd.c[1] + 0.5, hd.c[2] - 0.3], hd.r + 0.35, BLACK_HAIR, { to: 0.95, seg: 10 });
+  k.box([hd.c[0], hd.c[1] - 2.6, hd.c[2] - 3.4], [11.6, 9, 2.4], BLACK_HAIR);
+}
+
+function skirmisher(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
+  turned(k, STAND_YAW, () => {
+    // The short bow slung across the back.
+    k.rod([-6, H(-27), -4.6], [-10.6, H(-16), -4.8], 0.8, WOOD_DARK, { seg: 5 });
+    k.rod([-10.6, H(-16), -4.8], [-6, H(-5), -4.6], 0.8, WOOD_DARK, { seg: 5 });
+    k.rod([-6, H(-27), -4.4], [-6, H(-5), -4.4], 0.25, STRING, { seg: 3, hull: 0.5 });
+    leggings(k);
+    // A bare chest and a broad sash from the right shoulder to the left hip in the owner's colour.
+    k.frustum([0, 0, 0], H(-5.4), TUNIC.y1, 6.4, 5.4, SKIN, { sz: TUNIC.sz });
+    breechcloth(k, c, c.dark);
+    k.rod([4.4, H(-16.8), 0.6], [-5.6, H(-6.4), 1.2], 1.4, c.main, { seg: 5, hull: 0.7 });
+    const hd = head(k, 0, -22.4);
+    longHair(k, hd);
+    k.frustum([0, 0, 0], hd.c[1] + 2.4, hd.c[1] + 3.8, hd.r + 0.2, hd.r - 0.1, c.dark, { seg: 14, sz: 1 });
+    // One feather at the back of the head, tipped in ochre.
+    k.slab([0, 0, 0.9, 4.4, 0.3, 8.6, -0.9, 4.4], 0.5, BONE, [-3.2, hd.c[1] + 3.4, -4.4], [0, 0.3, 0.5]);
+    k.ball([-6.1, hd.c[1] + 10.6, -4.6], 0.8, OCHRE, { detail: 0, hull: 0 });
+    faceWear(k, hd, w);
+    // The ball-headed club, held forward: dark wood, an ochre grip.
+    arm(k, [5.4, H(-15.6), 0], [8.2, H(-9.6), 3.4], SKIN);
+    k.pivot(WEAPON, [8.2, H(-9.6), 3.4], () => {
+      k.rod([8.2, H(-9.6), 3.4], [13.4, H(-21), 3.4], 0.75, WOOD_DARK, { seg: 5 });
+      k.rod([9.6, H(-12.8), 3.4], [11.2, H(-16.4), 3.4], 0.95, OCHRE, { seg: 5 });
+      k.ball([14, H(-22.6), 3.4], 2.8, WOOD_DARK, { detail: 1, gloss: 0.15 });
+    }, { axis: TIP_FORWARD });
+    feetBlood(k, w);
+  });
+  return NARROW;
+}
+
+function woodlandHunter(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
+  turned(k, STAND_YAW, () => {
+    // The quiver on the back, three fletched arrows over the right shoulder.
+    k.box([6.4, H(-19.4), -4.2], [3.8, 15, 3.4], FUR_DARK, { rot: [0.15, 0, -0.3] });
+    for (const [x, z] of [[3.8, -3.4], [5.6, -4.2], [7.4, -3.8]] as const) {
+      k.rod([x, H(-26), z], [x - 0.8, H(-31.4), z - 0.3], 0.35, WOOD, { seg: 4, hull: 0.5 });
+      k.slab([0, 0, 1.2, 1.6, 0, 3, -1.2, 1.6], 0.5, OCHRE, [x - 0.9, H(-31.8), z - 0.3], [0, 0, 0.15]);
+    }
+    leggings(k);
+    standingBody(k, c, w, { legs: false, hem: BUCK_DARK });
+    // The fur mantle over the shoulders.
+    k.frustum([0, 0, 0], H(-13), H(-17.8), 7.6, 5.6, FUR, { sz: 0.8 });
+    const hd = head(k, 0, -21.8, 5.8);
+    // A green-brown hood, open at the face, falling to the shoulders.
+    k.ball([hd.c[0], hd.c[1] + 0.2, hd.c[2] - 2.4], 6.6, FOREST_DARK, { detail: 1 });
+    k.dome([hd.c[0], hd.c[1] + 0.6, hd.c[2] - 0.2], 6.9, FOREST, { to: 0.9, seg: 12 });
+    faceWear(k, hd, w, 1);
+    // The long bow held upright in the left hand, taller than the hunter; the drawing arm and the arrow strike as an
+    // archer's do (units/strike.ts), and the whole of it is slung onto the back in a crouch.
+    k.pivot(BOW, [-5.2, H(-15.6), 0.6], () => {
+      const b = bow(k, [-12, H(-36), 3.6], [-17.4, H(-16), 3.8], [-12, H(4), 3.6], false);
+      const nock: V3 = [-1.4, H(-15), 4.4];
+      k.rod(b.top, nock, 0.3, STRING, { seg: 3, hull: 0.5 });
+      k.rod(nock, b.bottom, 0.3, STRING, { seg: 3, hull: 0.5 });
+      arm(k, [-5.2, H(-15.6), 0.6], [-16.4, H(-15), 3.8], c.main);
+      k.pivot(WEAPON, [5.2, H(-15.6), 0.6], () => arm(k, [5.2, H(-15.6), 0.6], [-1, H(-15), 5.0], c.main), { axis: DRAW_BACK, fwd: [-1, 0, 0] });
+      k.pivot(ARROW, [5.2, H(-15.6), 0.6], () => {
+        k.rod([-0.6, H(-15), 4.4], [-18.6, H(-15), 4.4], 0.42, WOOD, { seg: 4 });
+        k.rod([-18.6, H(-15), 4.4], [-20, H(-15), 4.4], 0.95, STEEL_DARK, { r1: 0.05, seg: 4 });
+        k.slab([0, 0, 2.4, 1.4, 2.4, -1.4], 0.4, OCHRE, [-1, H(-15), 4.4], [0, 0, 0]);
+      }, { fwd: [-1, 0, 0] });
+    });
+    feetBlood(k, w);
+  });
+  return NARROW;
+}
+
+function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
+  turned(k, STAND_YAW, () => {
+    leggings(k);
+    // Ochre garters below the knees.
+    for (const s of [-1, 1]) k.frustum([s * 2.8, 0, 0], H(-0.8), H(-1.8), 2.1, 2.1, OCHRE, { seg: 8 });
+    // The trade-cloth shirt in the owner's colour with a blue trade-cloth hem, an ochre sash and breechcloth.
+    standingBody(k, c, w, { legs: false, hem: TRADE_BLUE });
+    k.frustum([0, 0, 0], H(-5.2), H(-7.8), 7.2, 7.0, OCHRE, { sz: 0.72 });
+    k.slab([-2.6, 0, 2.6, 0, 2.2, -6.2, -2.2, -6.2], 0.6, OCHRE, [0, H(-6.2), 5.2], [0.12, 0, 0]);
+    // The shirt open at the chest over a band of tattooed downward triangles (our own pattern).
+    const chest = tunicSurf(0.3);
+    k.decal([-2.6, H(-16.6), 2.6, H(-16.6), 1.6, H(-11.6), -1.6, H(-11.6)], SKIN, chest);
+    for (const x of [-1.6, 0, 1.6]) k.decal([x - 0.7, H(-15.4), x + 0.7, H(-15.4), x, H(-14.2)], '#2F3A4A', chest);
+    // A powder-horn strap across the body, the horn at the hip.
+    k.rod([-5.4, H(-16.4), 2.6], [5.2, H(-8.4), 3.8], 0.5, BUCK_DARK, { seg: 4, hull: 0.6 });
+    k.rod([5.4, H(-8.8), 4], [8.4, H(-6), 3.4], 1.1, BONE, { r1: 0.3, seg: 6 });
+    // The head: shaved, a tall scalplock gathered at the crown and falling back, a silver trade earring.
+    const hd = head(k, 0, -27.4, 6.8);
+    k.ball([hd.c[0] + 0.4, hd.c[1] + 6.6, hd.c[2] - 0.6], 1.7, OCHRE, { detail: 0 });
+    k.rod([hd.c[0] + 0.4, hd.c[1] + 7, hd.c[2] - 0.8], [hd.c[0] + 2, hd.c[1] + 10.6, hd.c[2] - 3.4], 1.5, BLACK_HAIR, { r1: 1.2, seg: 6 });
+    k.rod([hd.c[0] + 2, hd.c[1] + 10.6, hd.c[2] - 3.4], [hd.c[0] + 5.6, hd.c[1] + 1, hd.c[2] - 6.8], 1.2, BLACK_HAIR, { r1: 0.5, seg: 6 });
+    k.ball(onView(hd.c, hd.r, -hd.r * 0.96, -hd.r * 0.25, 0.4), 0.8, STEEL, { detail: 0, gloss: 0.5, hull: 0 });
+    faceWear(k, hd, w);
+    // The gunstock club held low in the right hand, blade forward: dark wood, brass tacks, a steel spike.
+    arm(k, [5.8, H(-16.4), 0], [9.8, H(-7.6), 3.8], c.dark);
+    k.pivot(WEAPON, [9.8, H(-7.6), 3.8], () => {
+      k.rod([9.6, H(-6.6), 3.8], [15.6, H(-17.8), 3.8], 1.1, WOOD_DARK, { r1: 1.3, seg: 5 });
+      k.rod([15.6, H(-17.8), 3.8], [18.4, H(-24), 3.8], 1.3, WOOD_DARK, { r1: 0.9, seg: 5 });
+      for (const t of [0.2, 0.42, 0.64, 0.86]) k.ball([9.6 + 6 * t, H(-6.6 - 11.2 * t), 5.0], 0.5, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
+      k.slab([0, 0, 5.4, 1.6, 0.6, 1.4], 0.7, STEEL, [14.4, H(-15.2), 3.8], [0, 0, 0]);
+    }, { axis: TIP_FORWARD });
+    arm(k, [-5.8, H(-16.4), 0], [-8.2, H(-7.8), 2.4], c.main);
+    feetBlood(k, w);
+  });
+  return NARROW;
+}
+
+function smokeKeeper(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
+  turned(k, STAND_YAW, () => {
+    // A long buckskin wrap to the ankles over moccasins.
+    legsAndBoots(k, () => {
+      for (const s of [-1, 1]) k.rod([s * 2.4, 2.2, 0], [s * 2.4, TUNIC.y0 + 1, 0], 1.6, BUCK_DARK, { seg: 6 });
+    }, () => {
+      for (const s of [-1, 1]) k.box([s * 2.6, 1.1, 0.8], [3.6, 2.2, 4.6], MOCCASIN);
+    });
+    k.frustum([0, 0, 0], H(1), H(-12), 6.8, 5.8, BUCK, { sz: 0.72 });
+    k.frustum([0, 0, 0], H(-11), TUNIC.y1, 6, 5.4, BUCK, { sz: TUNIC.sz });
+    // The fringed shawl over the shoulders in the owner's colour, an ochre stripe, a bone fringe.
+    k.frustum([0, 0, 0], H(-6.6), H(-18), 8.6, 5.8, c.main, { sz: 0.8 });
+    k.frustum([0, 0, 0], H(-11), H(-12.4), 8.0, 7.6, OCHRE, { sz: 0.8 });
+    k.frustum([0, 0, 0], H(-5), H(-6.7), 8.8, 8.6, BONE, { sz: 0.8, open: true });
+    // Grey hair in two long braids, and an older face.
+    const hd = head(k, 0, -23);
+    k.dome([hd.c[0], hd.c[1] + 0.5, hd.c[2] - 0.3], hd.r + 0.35, GREY_HAIR, { to: 0.92, seg: 10 });
+    for (const s of [-1, 1]) k.rod([s * 5.8, hd.c[1] - 1.6, -0.6], [s * 6.4, H(-12.6), 1.2], 1.0, GREY_HAIR, { seg: 5 });
+    faceWear(k, hd, w);
+    // The clay bowl held out in both hands, smoke rising and drifting.
+    arm(k, [-5.4, H(-16), 0], [6, H(-11.6), 5.6], c.main);
+    arm(k, [5.4, H(-16), 0], [12.6, H(-11.4), 4.4], c.dark);
+    k.frustum([9.4, 0, 5], H(-10.2), H(-12.6), 2.6, 4.2, CLAY, { seg: 10 });
+    k.frustum([9.4, 0, 5], H(-12.6), H(-12.9), 4.2, 3.6, CLAY_DARK, { seg: 10 });
+    for (const [x, y, z, r] of [[8.4, -15, 5, 1.9], [10.6, -18.4, 4.6, 2.3], [9.2, -22, 4.2, 1.9], [11.6, -25.2, 3.8, 1.5], [10.4, -28.2, 3.4, 1.1]] as const) {
+      k.ball([x, H(y), z], r, SMOKE, { detail: 1, hull: 0 });
+    }
+    feetBlood(k, w);
+  });
+  return NARROW;
+}
+
+function trapper(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
+  turned(k, STAND_YAW, () => {
+    // The hide pack on the back, fur along its top.
+    k.box([-2.6, H(-14.6), -6.4], [8, 11, 4.2], BUCK_DARK, { rot: [0.08, 0, 0] });
+    k.box([-2.6, H(-20.2), -6.2], [8.4, 2.4, 4.6], FUR);
+    leggings(k);
+    standingBody(k, c, w, { legs: false, hem: BUCK_DARK });
+    k.rod([-5.4, H(-16.6), 2.8], [5.4, H(-7.6), 3.8], 0.7, BUCK_DARK, { seg: 4, hull: 0.6 });
+    // Coiled rope over the shoulder.
+    k.frustum([3.6, 0, 4.2], H(-10.4), H(-11.6), 3.8, 3.8, ROPE, { seg: 12, open: true });
+    k.frustum([3.6, 0, 4.2], H(-12), H(-13.2), 3.4, 3.4, ROPE, { seg: 12, open: true });
+    // The small iron trap at the belt: a ring and two jaws.
+    k.frustum([-2, 0, 5.6], H(-4.8), H(-5.6), 2.2, 2.2, IRON, { seg: 10, open: true });
+    k.slab([-2.4, 0, 2.4, 0, 1.6, 1.8, -1.6, 1.8], 0.5, IRON, [-2, H(-6.2), 6.4], [0, 0, 0]);
+    const hd = head(k, 0, -22.6);
+    // The fur hat, round and deep, with a tail hanging at the back.
+    k.dome([hd.c[0], hd.c[1] + 0.9, hd.c[2]], hd.r + 1.0, FUR, { to: 0.85, seg: 12 });
+    k.frustum([0, 0, 0], hd.c[1] + 1.4, hd.c[1] + 3.6, hd.r + 1.4, hd.r + 1.2, FUR_DARK, { seg: 14, sz: 1 });
+    k.rod([hd.c[0] - 2, hd.c[1] + 1, hd.c[2] - 5.6], [hd.c[0] - 4, hd.c[1] - 7, hd.c[2] - 6.4], 1.6, FUR_DARK, { r1: 0.7, seg: 6 });
+    faceWear(k, hd, w);
+    // A walking staff in the left hand.
+    k.pivot(WEAPON, [-9.6, H(-11.6), 3], () => {
+      k.rod([-9.4, H(-24), 3], [-11, H(3.6), 3], 0.8, WOOD_DARK, { seg: 5 });
+    }, { axis: TIP_FORWARD });
+    arm(k, [-5.4, H(-15.6), 0], [-9.6, H(-11.6), 3], c.main);
+    arm(k, [5.4, H(-15.6), 0], [7, H(-8.4), 2.6], c.dark);
+    feetBlood(k, w);
+  });
+  return NARROW;
+}
+
 /** The hero's pennant: a swallowtail on a short staff rising from behind the left shoulder. */
 export function heroMark(k: Kit, accent: string): void {
   turned(k, STAND_YAW, () => {
@@ -886,8 +1098,7 @@ export function heroMark(k: Kit, accent: string): void {
 export const FIGURES: Record<UnitType, (k: Kit, o: FigureOpts) => { rx: number; rz: number; x: number }> = {
   warrior, spearman, swordsman, defender, archer, horseman, knight, catapult, sellsword,
   hoplite, kingsGuard, piper, scout, horseArcher, khansGuard, skyCaller, camp,
-  // stand-in until Tasks 15 and 16: the Woodland figures reuse existing ones
-  skirmisher: warrior, trapper: warrior, woodlandHunter: archer, warChief: swordsman, smokeKeeper: piper,
+  skirmisher, woodlandHunter, warChief, smokeKeeper, trapper,
 };
 
 /** Build one figure: the fill and hull geometry (feet on y 0 at the origin) and its shadow's size. */

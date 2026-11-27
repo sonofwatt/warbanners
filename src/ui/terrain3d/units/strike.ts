@@ -16,7 +16,8 @@ export type ReactKind = 'block' | 'flinch';
 const KINDS: Record<string, StrikeKind> = {
   warrior: 'swing', swordsman: 'swing', sellsword: 'swing',
   spearman: 'thrust', hoplite: 'thrust', kingsGuard: 'thrust', horseman: 'thrust', knight: 'thrust', scout: 'thrust',
-  archer: 'bow', horseArcher: 'bow',
+  archer: 'bow', horseArcher: 'bow', woodlandHunter: 'bow',
+  skirmisher: 'swing', warChief: 'swing',   // rules 11: the club and the gunstock club
   defender: 'bash',
   catapult: 'sling',
   khansGuard: 'rear', skyCaller: 'rear',

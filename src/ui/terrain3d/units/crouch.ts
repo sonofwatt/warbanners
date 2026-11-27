@@ -62,6 +62,12 @@ function foot(pieces: Record<string, PieceGuard>, o: { drop?: number; lean?: num
     },
   };
 }
+/** rules 11: a weapon slung onto the back (turned to lie along the back, moved behind the body). */
+const SLUNG: PieceGuard = { angle: 0.95, axis: Z, shift: [-9.4, 5.2, -7.6] };
+/** A squat on the balls of the feet: lower than a guard, the knees far forward, little lean. */
+const SQUAT = { drop: 10, knees: 1.45, lean: 0.06, toes: 1.2 };
+/** Crouched low with the arms round the knees: the lowest, leaning in over them. */
+const HUDDLE = { drop: 11, knees: 1.5, lean: 0.24, toes: 2.4 };
 /** A spear held upright: it slides up through the hand so its butt stays on the ground, and leans out a little. */
 const spearUp = (drop: number, out: number, slide = 0): PieceGuard => ({ angle: -out, axis: Z, shift: [slide, drop - 0.6, 0] });
 
@@ -124,9 +130,14 @@ const GUARDS: Record<UnitType, Guard> = {
   // Siege and the camp: a small settle, nothing more.
   catapult: { drop: 0, lean: 0, squash: 0.05, idle: 0.45, arm: -0.45, pieces: {} },
   camp: { drop: 0, lean: 0, squash: 0.04, idle: 0.45, arm: 0, pieces: {} },
-  // stand-in until Tasks 15 and 16
-  skirmisher: foot({}), trapper: foot({}), woodlandHunter: foot({ [BOW]: { angle: 0.85, axis: Z, shift: [3.0, -1.0, 2.0] } }),
-  warChief: foot({}), smokeKeeper: foot({}),
+  // rules 11, the Woodland Nations (David): the War Chief, the Skirmisher and the Hunter sling the weapon onto the back
+  // and squat on the balls of their feet (low, the knees well forward, the heels up: no toes pushed out); the Smoke
+  // Keeper and the Trapper crouch low with their arms round their knees, what they hold drawn in.
+  warChief: foot({ [WEAPON]: SLUNG }, SQUAT),
+  skirmisher: foot({ [WEAPON]: SLUNG }, SQUAT),
+  woodlandHunter: foot({ [BOW]: { angle: -0.55, axis: Z, shift: [8.6, 1.6, -8.4] } }, SQUAT),
+  smokeKeeper: foot({}, HUDDLE),
+  trapper: foot({ [WEAPON]: { angle: 0.5, axis: Z, shift: [3.2, 0, 1.4] } }, HUDDLE),
 };
 
 export function guardOf(type: UnitType): Guard {

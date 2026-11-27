@@ -56,7 +56,7 @@ const FRONTS: Record<UnitType, Fronts> = {
   catapult: { move: STAND_YAW * 0.6 - HALF, aim: STAND_YAW * 0.6 - HALF },
   // The camp rolls pole first (+x).
   camp: { move: HALF + STAND_YAW * 0.6, aim: HALF + STAND_YAW * 0.6 },
-  // stand-in until Tasks 15 and 16
+  // rules 11
   skirmisher: stand, trapper: stand, warChief: stand, smokeKeeper: stand,
   woodlandHunter: { move: STAND_YAW, aim: STAND_YAW - HALF },
 };
