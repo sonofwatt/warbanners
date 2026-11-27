@@ -208,6 +208,8 @@ export interface SteppeFaceOpts {
   bare?: boolean;
   /** A thin beard on the chin, longer than the tuft. */
   beard?: boolean;
+  /** Bare-headed, long loose hair of this colour instead of the shaved crown (a shaman). */
+  long?: string;
 }
 
 export const STEPPE_SKIN = '#D9A273';
@@ -242,10 +244,22 @@ export function steppeFace(k: Kit, w: Wear, o: SteppeFaceOpts = {}, c: V3 = HEAD
     k.rod(low, back, 0.5 * f, hair, { seg: 4 });
     k.ball(low, 0.6 * f, GT.LEATHER_DARK, { detail: 0, hull: 0 });
   }
-  if (o.bare) {
+  if (o.bare && o.long) {
+    // Long loose hair over the crown and down the back.
+    k.dome([c[0], c[1] + 0.6 * f, c[2] - 0.4 * f], r * 1.16, o.long, { to: 1.1, seg: 10, hull: 0.8 });
+    // Combed back from the brow in strands, a parting down the middle.
+    const R = r * 1.16 + 0.06, cy = c[1] + 0.6 * f, cz = c[2] - 0.4 * f;
+    const hs: Surface = (x, y) => {
+      const dx = x - c[0], dy = y - cy, dz = Math.sqrt(Math.max(0.3, R * R - dx * dx - dy * dy));
+      return { p: [x, y, cz + dz], n: [dx / R, dy / R, dz / R] };
+    };
+    const strand = mix(o.long, '#000000', 0.3);
+    for (const x of [-2.6, -1.3, 0, 1.3, 2.6]) k.line([c[0] + x * 0.3, cy + R * 0.98, c[0] + x * 0.75, cy + R * 0.75, c[0] + x * 1.15, cy + R * 0.42], x === 0 ? 0.3 : 0.2, strand, hs);
+    k.slab([-3.6, 0, 3.6, 0, 4.0, -6.6, 2.0, -5.6, 0.4, -7.4, -1.6, -5.8, -3.8, -6.8], 1.0, o.long, [c[0], c[1] + 1.0 * f, c[2] - 3.0 * f], [0.15, 0, 0], { hull: 0.6 });
+  } else if (o.bare) {
     // The shaved crown, dark with stubble, and the forelock left long over the brow.
     k.dome([c[0], c[1] + 0.5 * f, c[2] - 0.3 * f], r * 1.14, mix(skin, hair, 0.42), { to: 1.05, seg: 10, hull: 0.8 });
-    k.slab([-0.9, 0.4, 0.9, 0.4, 0.6, -2.2, 0, -2.9, -0.6, -2.0], 0.6, hair, [c[0] + 0.2, c[1] + 4.0 * f, c[2] + 2.9 * f], [-0.75, 0, 0.1], { hull: 0.5 });
+    k.slab([-0.7, 0.3, 0.7, 0.3, 0.5, -1.3, 0, -1.8, -0.5, -1.2], 0.55, hair, [c[0] + 0.2, c[1] + 4.3 * f, c[2] + 2.0 * f], [-0.35, 0, 0.1], { hull: 0.5 });
   }
 }
 
