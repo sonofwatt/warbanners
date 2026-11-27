@@ -11,12 +11,28 @@ import type { WarBannerProps } from './banner';
 const banner = (p: Partial<WarBannerProps>) => (
   <WarBanner type="warrior" colour={playerColour('spartans')} hp={10} maxHp={10} spent={false} fresh={false} taunted={false} blinded={false} {...p} />
 );
-/** The banner row's reach either side: taunted and blinded beside a 5-pip banner on the left, the glint and a draught on the right. */
-const REACH = 34;
+/**
+ * The banner row's reach either side: taunted and blinded beside a 5-pip banner on the left, the glint and a draught
+ * on the right. The emblem badge (2026-11-26) made the banner 7 units wider than the glyph slot did, 3.5 a side.
+ */
+const REACH = 37.5;
 /** The banner row, top to bottom: the banner with its edge, and every mark and badge on it. */
 const ROW_TOP = -50, ROW_BOTTOM = -38;
 
-const html = (el: ReactElement) => renderToStaticMarkup(<svg>{el}</svg>);
+/** The markup without the banner's emblem badge, whose shapes are drawn in the emblem's own units and moved there. */
+function withoutBadge(s: string): string {
+  const from = s.indexOf('<g data-glyph');
+  if (from < 0) return s;
+  const tag = /<g[\s>]|<\/g>/g;
+  tag.lastIndex = from;
+  let depth = 0;
+  for (let m = tag.exec(s); m !== null; m = tag.exec(s)) {
+    depth += m[0] === '</g>' ? -1 : 1;
+    if (depth === 0) return s.slice(0, from) + s.slice(m.index + 4);
+  }
+  throw new Error('unbalanced markup');
+}
+const html = (el: ReactElement) => withoutBadge(renderToStaticMarkup(<svg>{el}</svg>));
 
 /** Every point a shape reaches, read from its attributes. Paths may use only absolute M, L, Q, C and Z. */
 function extents(markup: string): { x: number; y: number; where: string }[] {
