@@ -998,7 +998,7 @@ function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     k.rod([-5.4, H(-16.4), 2.6], [5.2, H(-8.4), 3.8], 0.5, BUCK_DARK, { seg: 4, hull: 0.6 });
     k.rod([5.4, H(-8.8), 4], [8.4, H(-6), 3.4], 1.1, BONE, { r1: 0.3, seg: 6 });
     // The head: shaved, a tall scalplock gathered at the crown and falling back, a silver trade earring.
-    const hd = head(k, 0, -27.4, 6.8);
+    const hd = head(k, 0, -23, 6.8);
     k.ball([hd.c[0] + 0.4, hd.c[1] + 6.6, hd.c[2] - 0.6], 1.7, OCHRE, { detail: 0 });
     k.rod([hd.c[0] + 0.4, hd.c[1] + 7, hd.c[2] - 0.8], [hd.c[0] + 2, hd.c[1] + 10.6, hd.c[2] - 3.4], 1.5, BLACK_HAIR, { r1: 1.2, seg: 6 });
     k.rod([hd.c[0] + 2, hd.c[1] + 10.6, hd.c[2] - 3.4], [hd.c[0] + 5.6, hd.c[1] + 1, hd.c[2] - 6.8], 1.2, BLACK_HAIR, { r1: 0.5, seg: 6 });
