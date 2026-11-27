@@ -10,8 +10,8 @@ import { hunkerDef } from './hunker';
 import { cityAt, hasTrait, isEnterable, removeUnit, tileAt, unitAt, unitById } from './state';
 import { canClimb, maxMp, mountainStep } from './movement';
 import { canSeeUnit, unitSight, visibleTiles } from './vision';
-import { bowShot, forestEyeReach, isHidden, normalRange } from './woodland';
-import type { Action, Handler, MatchState, Unit } from './types';
+import { bowShot, chargeTile, forestEyeReach, isHidden, normalRange } from './woodland';
+import type { Action, GameEvent, Handler, MatchState, Unit } from './types';
 
 // rules 2: terrain cover, or the city value when the unit stands in its owner's city
 export function coverAt(s: MatchState, defender: Unit): number {
@@ -47,11 +47,15 @@ function phalanxMates(s: MatchState, u: Unit): number {
     && distance(here, parseKey(n.pos)) === 1).length;
 }
 
+// Base defence plus Hardy and the myth touch: no shields (rules 11: what a Dash-strike's charge meets).
+function bareDefenceOf(s: MatchState, u: Unit): number {
+  return UNITS[u.type].def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0)
+    + (mythTouched(s, u) ? CONFIG.heroes.mythDef : 0);
+}
+
 // Base defence plus Hardy and the myth touch, plus the phalanx bonus: each adjacent friendly phalanx unit, up to the cap.
 export function defenceOf(s: MatchState, u: Unit): number {
-  const base = UNITS[u.type].def + (u.heroTraits.includes('hardy') ? CONFIG.heroes.hardyDef : 0)
-    + (mythTouched(s, u) ? CONFIG.heroes.mythDef : 0);
-  return base + Math.min(CONFIG.phalanxMax, phalanxMates(s, u) * CONFIG.phalanxBonus);
+  return bareDefenceOf(s, u) + Math.min(CONFIG.phalanxMax, phalanxMates(s, u) * CONFIG.phalanxBonus);
 }
 
 // rules 7, phalanx brace: a phalanx unit with at least CONFIG.brace.mates friendly phalanx units beside it.
@@ -86,13 +90,16 @@ export function momentumShort(s: MatchState, target: Unit, attacker: Unit): numb
 // cover, less 1 per missing point of momentum (rules 7), never below 1. The attack itself and every estimate use it.
 // Last, the long shot cut (rules 8) for a shot beyond the attacker's normal range (from a mountain or by forest eye).
 // rules 11: a bow shot works the formula at the bow's attack (bowAtk plus the attack bonuses effAtk carries over the
-// type's attack, at the same health) and does bowShare of it, rounded, at least 1. An ambush (the caller judges it with
-// `ambushes` before any damage) adds ambushAtk to the attack the formula uses.
-export function strikeDamage(s: MatchState, target: Unit, attacker: Unit, effAtk: number, ambush = false): number {
+// type's attack, at the same health) and does `share` of it (bowShare, or dashArrowShare for a Dash-strike's arrow),
+// rounded, at least 1. An ambush (the caller judges it with `ambushes` before any damage) adds ambushAtk to the attack
+// the formula uses.
+export function strikeDamage(
+  s: MatchState, target: Unit, attacker: Unit, effAtk: number, ambush = false, share: number = CONFIG.woodland.bowShare,
+): number {
   const bow = bowShot(s, attacker, target);
   const atk = bow ? effAtk - (UNITS[attacker.type].atk - CONFIG.woodland.bowAtk) * healthFactor(attacker) : effAtk;
   const raw = damageFor(atk + (ambush ? CONFIG.woodland.ambushAtk : 0), guardOf(s, target, attacker), coverAt(s, target));
-  const full = bow ? Math.max(1, Math.round(raw * CONFIG.woodland.bowShare)) : raw;
+  const full = bow ? Math.max(1, Math.round(raw * share)) : raw;
   const dmg = Math.max(1, full - momentumShort(s, target, attacker));
   return longShot(s, attacker, target) ? Math.max(1, Math.round(dmg * CONFIG.mountain.longShotScale)) : dmg;
 }
@@ -163,12 +170,81 @@ export function attackTargets(s: MatchState, unitId: number): HexKey[] {
   return (phalanx.length > 0 ? phalanx : legal).map((t) => t.pos).sort();
 }
 
+// rules 11, Dash-strike: tiles of attackTargets at distance exactly 2 that this dashStrike unit, its owner knowing
+// Archery, can Dash-strike now: there must be a charge tile.
+export function dashTargets(s: MatchState, unitId: number): HexKey[] {
+  const u = unitById(s, unitId);
+  if (u === undefined || !hasTrait(u, 'dashStrike') || s.players[u.owner]?.techs.includes('archery') !== true) return [];
+  const from = parseKey(u.pos);
+  return attackTargets(s, unitId)
+    .filter((k) => distance(from, parseKey(k)) === 2 && chargeTile(s, u, k) !== null);
+}
+
+// rules 11, Dash-strike: the arrow (dashArrowShare of a bow shot against the full guard, the only part an ambush helps;
+// no counter), then, if the target lives, the charge against its defence without shields (no phalanx, hunker or brace)
+// and a counter of dashCounterShare, less agile and Watchful. The attacker never leaves its tile.
+function dashStrike(s: MatchState, attacker: Unit, targetKey: HexKey, ev: GameEvent[]): string | null {
+  if (!dashTargets(s, attacker.id).includes(targetKey)) return 'cannot dash-strike there';
+  const target = unitAt(s, targetKey)!;
+  ev.push({ type: 'dashStrike', unit: attacker.id, target: target.id, via: chargeTile(s, attacker, targetKey)! });
+  const effAtk = attackOf(s, attacker) * healthFactor(attacker);
+  const ambush = ambushes(s, attacker, target);
+  const arrow = strikeDamage(s, target, attacker, effAtk, ambush, CONFIG.woodland.dashArrowShare);
+  target.hp -= arrow;
+  ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage: arrow, counter: 0 });
+
+  let targetDied = target.hp <= 0;
+  let counter = 0;
+  if (!targetDied) {
+    const charge = damageFor(effAtk, bareDefenceOf(s, target), coverAt(s, target));
+    target.hp -= charge;
+    targetDied = target.hp <= 0;
+    if (!targetDied && attackOf(s, target) > 0 && !hasTrait(target, 'siege')) {
+      const f = hasTrait(target, 'steadfast') ? CONFIG.steadfastFactor : CONFIG.counterFactor;
+      const normal = damageFor(attackOf(s, target) * f * healthFactor(target), defenceOf(s, attacker), 1);
+      counter = Math.max(1, Math.round(CONFIG.woodland.dashCounterShare * normal));
+      if (attacker.heroTraits.includes('watchful')) counter = Math.max(1, counter - CONFIG.heroes.agilityCut);
+      if (hasTrait(attacker, 'agile')) counter = Math.max(1, counter - CONFIG.heroes.agilityCut);
+    }
+    ev.push({ type: 'attacked', unit: attacker.id, target: target.id, damage: charge, counter });
+  }
+  if (targetDied) {
+    removeUnit(s, target.id);
+    ev.push({ type: 'died', unit: target.id });
+  }
+  let attackerDied = false;
+  if (counter > 0) {
+    attacker.hp -= counter;
+    if (attacker.hp <= 0) {
+      removeUnit(s, attacker.id);
+      ev.push({ type: 'died', unit: attacker.id });
+      attackerDied = true;
+    }
+  }
+
+  // Deeds (rules 4) as for an attack: fight (plus the kill) for a living attacker, survive for each unit that lived
+  // through a hit, and a kill for the target whose counter killed the attacker. No march: the charge is not a move.
+  const credits: Credits = new Map();
+  const heroes = CONFIG.heroes;
+  if (!attackerDied) credit(credits, attacker, 'fight', heroes.fightPerAttack + (targetDied ? heroes.fightPerKill : 0));
+  if (!targetDied && !target.fresh) credit(credits, target, 'survive', 1);
+  if (counter > 0 && !attackerDied && !attacker.fresh) credit(credits, attacker, 'survive', 1);
+  if (attackerDied) credit(credits, target, 'fight', heroes.fightPerKill);
+  applyCredits(s, credits, ev);
+  if (attackerDied) return null;
+  attacker.attacks -= 1;
+  attacker.acted = true;
+  attacker.mp = 0;
+  return null;
+}
+
 export const attackHandler: Handler<Extract<Action, { type: 'attack' }>> = (s, a, ev) => {
   if (typeof a.unit !== 'number' || typeof a.target !== 'string') return 'bad attack';
   const attacker = unitById(s, a.unit);
   if (attacker === undefined) return 'no such unit';
   if (attacker.owner !== s.current) return 'not your unit';
   if (attacker.attacks <= 0) return 'no attacks left';
+  if (a.dash === true) return dashStrike(s, attacker, a.target, ev);
   if (!attackTargets(s, attacker.id).includes(a.target)) return 'cannot attack that tile';
   const target = unitAt(s, a.target)!;
   const tileKey = target.pos;

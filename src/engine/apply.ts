@@ -15,7 +15,7 @@ import { TECHS } from './data/techs';
 import { UNITS } from './data/units';
 import { key, neighbors, parseKey } from './hex';
 import { abilityTargets } from './abilities';
-import { attackTargets, lureApplies } from './combat';
+import { attackTargets, dashTargets, lureApplies } from './combat';
 import { reachable } from './movement';
 import { createMatch, hasTrait, tileAt, unitAt } from './state';
 import { canResearch } from './tech';
@@ -97,8 +97,10 @@ export function legalActions(s: MatchState): Action[] {
   for (const u of [...s.units].sort((x, y) => x.id - y.id)) {
     if (u.owner !== me) continue;
     for (const to of Object.keys(reachable(s, u.id)).sort()) out.push({ type: 'move', unit: u.id, to });
+    const dashes = dashTargets(s, u.id);
     for (const target of attackTargets(s, u.id)) {
       out.push({ type: 'attack', unit: u.id, target });
+      if (dashes.includes(target)) out.push({ type: 'attack', unit: u.id, target, dash: true });   // rules 11
       // An attack asking for a lure where none can apply is also accepted (the lure is ignored), but it is
       // the same move as the plain attack, so the lure variant is listed only where lureApplies.
       const victim = unitAt(s, target);

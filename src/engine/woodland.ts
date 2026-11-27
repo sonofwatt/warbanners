@@ -2,7 +2,8 @@
 import { CONFIG } from './data/config';
 import { FACTIONS } from './data/factions';
 import { UNITS } from './data/units';
-import { distance, parseKey } from './hex';
+import { DIRS, add, distance, key, parseKey } from './hex';
+import type { HexKey } from './hex';
 import type { MatchState, Unit } from './types';
 
 // A unit veiled by a Smoke Keeper stays hidden through the stamp in `veilUntil`, whatever it stands on.
@@ -37,4 +38,23 @@ export function forestEyeReach(s: Pick<MatchState, 'tiles'>, u: Unit): number {
 // rules 11, bow: a bow unit attacking or striking back from 2 tiles or more shoots rather than fights in melee.
 export function bowShot(_s: unknown, attacker: Unit, target: Unit): boolean {
   return traitOf(attacker, 'bow') && distance(parseKey(attacker.pos), parseKey(target.pos)) >= 2;
+}
+
+// rules 11, Dash-strike: the tile the charge runs through, the first in direction order next to both the attacker and
+// the target that is enterable, not a mountain, explored by the attacker's owner and free of units; null if none.
+// Asked of the real state it is the truth; asked of a believed state it is the player's own guess.
+export function chargeTile(s: Pick<MatchState, 'tiles' | 'units' | 'players'>, attacker: Unit, targetPos: HexKey): HexKey | null {
+  const from = parseKey(attacker.pos);
+  const to = parseKey(targetPos);
+  const explored = s.players[attacker.owner]?.explored ?? [];
+  for (const d of DIRS) {
+    const h = add(from, d);
+    if (distance(h, to) !== 1) continue;
+    const k = key(h);
+    const terrain = s.tiles[k]?.terrain;
+    if (terrain === undefined || terrain === 'water' || terrain === 'mountain') continue;
+    if (!explored.includes(k) || s.units.some((u) => u.pos === k)) continue;
+    return k;
+  }
+  return null;
 }

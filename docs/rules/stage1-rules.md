@@ -595,6 +595,33 @@ Formula names as section 10: `damageFor(a, d, cover)` and the health factor `hf`
   Skirmisher does 7 and the bow strikes back for 1. A Hunter's shot at 3 from a forest does 5 (6 when it
   is an ambush). A Skirmisher's shot at 3 from a mountain does 3.
 
+### 15.7 Dash-strike
+
+The Skirmisher's Dash-strike is an attack, and uses its attack for the turn like any other. It needs `archery`.
+
+- **Target.** An enemy unit it may attack at distance exactly 2.
+- **Charge tile.** A tile next to both the Skirmisher and the target that holds no unit, can be entered, is no
+  mountain, and is explored by the Skirmisher's player. The first such tile in direction order is used; with
+  none, the Dash-strike is not legal. No unit ever stands on it: it is only a path. The screen offers the strike
+  from what the player knows, so a tile held by an unseen unit looks free; the strike is then refused with the
+  notice "Something unseen blocks the way".
+- **The arrow.** `max(1, round(0.33 * damageFor((4 + bonus) * hf + ambush, guard, cover)))`, against the full
+  guard (phalanx, hunker, brace). No counter. Ambush (section 15.6) adds its +1 here only. If the arrow kills,
+  the strike ends.
+- **The charge.** An ordinary melee hit, `damageFor((5 + bonus) * hf, bare, cover)`, where `bare` is the
+  target's defence with Hardy and the myth touch but without its phalanx, hunker and brace bonuses (the
+  shields went up to meet the arrow). Terrain and city cover still apply.
+- **The counter.** If the target lives, has attack above 0 and is no siege engine, it strikes back at
+  `max(1, round(0.33 * counter))`, `counter` the section 10 counter (steadfast included); then agile and
+  Watchful each take 1 off, never below 1.
+- **The return.** The Skirmisher stays on its own tile, even after a kill, and has no movement left. An enemy
+  snare on the charge tile is not sprung.
+- **Deeds.** One Fight deed, +2 for a kill, as for an attack; no March.
+- Worked numbers (fields, full health): against a Hoplite with two Hoplites beside it, the arrow does
+  `round(0.33 * damageFor(4, 7, 1)) = 1`, the charge `damageFor(5, 5, 1) = 6` (Hoplite on 8 of 15), and the
+  counter is `round(0.33 * 6) = 2`, less 1 for agile, so 1. A plain melee attack on the same Hoplite does 5 and
+  takes 6 back.
+
 ## Rules 7 changes
 
 - Connected cities: the first time roads join a city to its owner's capital, both

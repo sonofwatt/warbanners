@@ -102,7 +102,7 @@ export interface MatchSettings {
 
 export type Action =
   | { type: 'move'; unit: number; to: HexKey }
-  | { type: 'attack'; unit: number; target: HexKey; lure?: boolean }
+  | { type: 'attack'; unit: number; target: HexKey; lure?: boolean; dash?: boolean }   // rules 11: dash, a Dash-strike
   | { type: 'ability'; unit: number; ability: AbilityId; target: HexKey }
   | { type: 'capture'; unit: number }
   | { type: 'claimTreasure'; unit: number }
@@ -124,6 +124,7 @@ export type GameEvent =
   | { type: 'moved'; unit: number; from: HexKey; to: HexKey }
   | { type: 'attacked'; unit: number; target: number; damage: number; counter: number }
   | { type: 'splashed'; target: number; damage: number }
+  | { type: 'dashStrike'; unit: number; target: number; via: HexKey }  // rules 11: a Dash-strike begins; its two `attacked` events follow
   | { type: 'died'; unit: number }
   | { type: 'advanced'; unit: number; from: HexKey; to: HexKey }   // a melee killer steps into the tile
   | { type: 'momentum'; unit: number; spent: number; left: number } // rules 7: the momentum a chain unit paid for a kill
