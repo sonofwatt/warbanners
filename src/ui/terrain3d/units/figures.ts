@@ -981,6 +981,10 @@ function woodlandHunter(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW
   return NARROW;
 }
 
+/** The War Chief's club in 3D: turned about the hand toward the viewer (radians about y) and 10% larger than in 2D. */
+const CLUB_YAW = 0.6;
+const CLUB_SCALE = 1.1;
+
 function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
   turned(k, STAND_YAW, () => {
     leggings(k);
@@ -1012,9 +1016,17 @@ function warChief(k: Kit, { look: c, wear: w }: FigureOpts): typeof NARROW {
     // of the lighter wood, so it reads brown in the light, an iron spike at the bend and brass tacks down its face.
     arm(k, [5.8, H(-16.4), 0], [9.8, H(-7.6), 3.8], c.dark);
     k.pivot(WEAPON, [9.8, H(-7.6), 3.8], () => {
-      k.slab(GUNSTOCK.flatMap(([x, y]) => [x, H(y)]), 1.6, WOOD, [0, 0, 3.8]);
-      k.slab(GUNSTOCK_SPIKE.flatMap(([x, y]) => [x, H(y)]), 1.0, SPIKE_IRON, [0, 0, 3.8], [0, 0, 0], { gloss: 0.3 });
-      for (const [x, y, r] of GUNSTOCK_TACKS) k.ball([x, H(y), 4.6 + r * 0.3], r * 0.85, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
+      // The board turned about the hand toward the viewer, in line with the body, and drawn 10% larger than the 2D one.
+      const grip: V3 = [9.8, H(-7.6), 3.8];
+      const local = ([x, y]: readonly [number, number]): [number, number] => [(x - grip[0]) * CLUB_SCALE, (H(y) - grip[1]) * CLUB_SCALE];
+      const rot: V3 = [0, CLUB_YAW, 0];
+      k.slab(GUNSTOCK.flatMap(local), 1.6 * CLUB_SCALE, WOOD, grip, rot);
+      k.slab(GUNSTOCK_SPIKE.flatMap(local), 1.0 * CLUB_SCALE, SPIKE_IRON, grip, rot, { gloss: 0.3 });
+      for (const [x, y, r] of GUNSTOCK_TACKS) {
+        const [lx, ly] = local([x, y]), lz = (0.8 + r * 0.3) * CLUB_SCALE;
+        const at: V3 = [grip[0] + lx * Math.cos(CLUB_YAW) + lz * Math.sin(CLUB_YAW), grip[1] + ly, grip[2] - lx * Math.sin(CLUB_YAW) + lz * Math.cos(CLUB_YAW)];
+        k.ball(at, r * 0.85 * CLUB_SCALE, BRASS, { detail: 0, gloss: 0.6, hull: 0 });
+      }
     }, { axis: TIP_FORWARD });
     arm(k, [-5.8, H(-16.4), 0], [-8.2, H(-7.8), 2.4], c.main);
     feetBlood(k, w);
