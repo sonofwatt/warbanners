@@ -7,11 +7,21 @@ import { join } from 'node:path';
 import { newRecord } from '../src/app/record';
 import type { MatchRecord } from '../src/app/record';
 import { writeSave } from '../src/app/saves';
-import { createMatch, hashState, key, parseKey, range } from '../src/engine';
-import { DIRS } from '../src/engine/hex';
-import type { HexKey } from '../src/engine';
-import { addUnit, setTile } from '../src/engine/testkit';
+import { UNITS, createMatch, freshDeeds, hashState, key, neighbors, parseKey, range } from '../src/engine';
+import type { HexKey, MatchState, PlayerId, Unit, UnitTypeId } from '../src/engine';
 import { cameraStill, frames, openApp, tapTile } from '../src/browser/harness';
+
+// Scripts reach the engine only through its index (src/boundaries.test.ts): a unit ready to act, from the data.
+function addUnit(s: MatchState, type: UnitTypeId, owner: PlayerId, q: number, r: number): Unit {
+  const u: Unit = {
+    id: s.nextUnitId++, type, owner, pos: `${q},${r}`, hp: UNITS[type].hp, mp: 2 * UNITS[type].move, bonusMp: 0,
+    attacks: UNITS[type].atk === 0 ? 0 : 1, home: null, enteredTurn: 0, moved: false, acted: false, rested: false,
+    taunted: false, blinded: false, lure: null, fresh: false, deeds: freshDeeds(), heroTraits: [], item: null,
+    hunkered: false, momentum: 0, turnEnded: false, itemTurn: null,
+  };
+  s.units.push(u);
+  return u;
+}
 
 const out = process.argv[2] ?? 'docs/superpowers/plans/shots/bar-smoke';
 mkdirSync(out, { recursive: true });
@@ -20,6 +30,8 @@ const s = createMatch({ seed: 7, factions: ['woodland', 'mongols'] });
 const capital = parseKey(s.cities.find((c) => c.owner === 0)!.pos);
 const taken = new Set<HexKey>(s.units.map((u) => u.pos));
 const land = (k: HexKey): boolean => s.tiles[k] !== undefined && s.tiles[k]!.terrain !== 'water' && s.tiles[k]!.terrain !== 'mountain';
+// The six steps round a tile, from the engine's own neighbours.
+const DIRS = neighbors({ q: 0, r: 0 });
 const free = (k: HexKey): boolean => land(k) && !taken.has(k) && s.cities.every((c) => c.pos !== k);
 // The Horseman, with two tiles in a row ahead of it made forest.
 let rider: { at: HexKey; a: HexKey; b: HexKey } | null = null;
@@ -30,7 +42,7 @@ for (const h of range(capital, 2)) {
   }
 }
 if (rider === null) throw new Error('no room for the rider');
-for (const k of [rider.a, rider.b]) { const p = parseKey(k); setTile(s, p.q, p.r, { terrain: 'forest' }); taken.add(k); }
+for (const k of [rider.a, rider.b]) { s.tiles[k] = { ...s.tiles[k]!, terrain: 'forest', resource: null }; taken.add(k); }
 const rp = parseKey(rider.at);
 const horseman = addUnit(s, 'horseman', 0, rp.q, rp.r);
 taken.add(rider.at);
