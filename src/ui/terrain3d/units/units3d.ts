@@ -114,7 +114,7 @@ const SHADOW_ALPHA = 0.18;
 const wearOf = (u: { gritty?: boolean; wear?: GlUnit['wear'] }): Wear => (u.gritty === true && u.wear !== undefined ? u.wear : CLEAN);
 /** What a figure looks like: equal keys share one built figure. Gritty and each wear look are figures of their own. */
 const lookKey = (type: string, look: GlUnit['look'], hero: boolean, gritty = false, wear: Wear = CLEAN): string =>
-  `${type}|${look.main}|${look.dark}|${look.accent}|${hero ? 'h' : ''}|${gritty ? `g${wear.stage}${wear.blood}${wear.scarred === true ? 's' : ''}` : ''}`;
+  `${type}|${look.main}|${look.dark}|${look.accent}|${look.faction ?? ''}|${hero ? 'h' : ''}|${gritty ? `g${wear.stage}${wear.blood}${wear.scarred === true ? 's' : ''}` : ''}`;
 
 /**
  * A moving piece of a figure (the trebuchet's arm, a weapon, a shield, an arrow, the legs, a rider): its group,

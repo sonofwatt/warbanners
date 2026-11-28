@@ -106,7 +106,7 @@ export function livePose(g: Element, factions: readonly FactionId[]): { at: Map<
     const p = hexToBoard(k);
     falls.push({
       key: `${el.getAttribute('data-fall-key') ?? ''}@${k}`, type: el.getAttribute('data-fall') as UnitFall['type'],
-      look: { ...playerColour(faction), accent: ACCENT[faction] },
+      look: { ...playerColour(faction), accent: ACCENT[faction], faction },
       x: p.x, y: p.y, angle: liveTransform(el)?.angle ?? 0, alpha: Math.min(1, alpha),
     });
   });

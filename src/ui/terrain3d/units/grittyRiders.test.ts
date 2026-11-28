@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { ALL_TYPES, buildFigure, MOUNT_YAW, RIDER, RIDER_YAW, WEAPON, ARROW } from './figures';
 import type { UnitType } from './figures';
 import { CLEAN } from './parts';
-import type { Wear } from './parts';
+import type { Look, Wear } from './parts';
 import * as R from './grittyRider';
 import { grittyMedievalKnight } from './grittyRiders';
 import { Kit } from './kit';
@@ -24,7 +24,7 @@ const LOOKS: Wear[] = [
 
 const positions = (f: { fill: { attributes: { position?: { array: ArrayLike<number> } } } }): number[] => Array.from(f.fill.attributes.position!.array);
 const all = (f: ReturnType<typeof buildFigure>): number[] => [...positions(f), ...Object.values(f.pieces).flatMap((pc) => Array.from(pc.fill.attributes.position!.array))];
-const gritty = (t: UnitType, wear: Wear, look = RED) => buildFigure(t, { look, wear, gritty: true });
+const gritty = (t: UnitType, wear: Wear, look: Look = RED) => buildFigure(t, { look, wear, gritty: true });
 const sig = (f: ReturnType<typeof buildFigure>): string => `${f.triangles}|${all(f).reduce((a, v, i) => a + v * ((i % 7) + 1), 0).toFixed(3)}`;
 
 describe("Gritty's riders", () => {
@@ -110,5 +110,24 @@ describe('the saved medieval knight', () => {
   test('inside the triangle budget at every wear look, and the same twice', () => {
     for (const w of LOOKS) expect(build(w).triangles, JSON.stringify(w)).toBeLessThanOrEqual(BUDGET);
     for (const w of LOOKS) expect(Array.from(build(w).fill.attributes.position!.array)).toEqual(Array.from(build(w).fill.attributes.position!.array));
+  });
+});
+
+// The Knight dresses by its faction: a Spartan in bronze, or a Mongol lancer when the Mongols build it.
+describe("the Knight by faction", () => {
+  const SPARTAN = { ...RED, faction: 'spartans' as const }, MONGOL = { ...BLUE, faction: 'mongols' as const };
+  test('the Mongols get their own Knight; no faction, or the Spartans, the bronze one', () => {
+    const spartanInBlue = positions(gritty('knight', CLEAN, { ...BLUE, faction: 'spartans' }));
+    expect(positions(gritty('knight', CLEAN, { ...BLUE }))).toEqual(spartanInBlue);
+    expect(positions(gritty('knight', CLEAN, MONGOL))).not.toEqual(spartanInBlue);
+    expect(positions(gritty('knight', CLEAN, SPARTAN))).toEqual(positions(gritty('knight', CLEAN, RED)));
+  });
+  test('Bright never reads the faction', () => {
+    expect(positions(buildFigure('knight', { look: MONGOL, wear: CLEAN }))).toEqual(positions(buildFigure('knight', { look: BLUE, wear: CLEAN })));
+  });
+  test.each([['spartans', SPARTAN], ['mongols', MONGOL]] as const)('%s: inside the budget at every wear look, and the same twice', (_n, look) => {
+    for (const w of LOOKS) expect(gritty('knight', w, look).triangles, JSON.stringify(w)).toBeLessThanOrEqual(BUDGET);
+    expect(gritty('knight', CLEAN, look).triangles).toBeLessThanOrEqual(CLEAN_BUDGET);
+    for (const w of LOOKS) expect(all(gritty('knight', w, look))).toEqual(all(gritty('knight', w, look)));
   });
 });

@@ -23,11 +23,11 @@ test('the figures are the scene units, where the svg draws them, in their owner 
   for (const [i, u] of units.entries()) {
     expect(u.type).toBe(svg[i]!.unit.type);
     expect({ x: u.x, y: u.y }).toEqual(svg[i]!.at);
-    expect(u.look).toEqual({ ...playerColour('spartans'), accent: ACCENT.spartans });
+    expect(u.look).toEqual({ ...playerColour('spartans'), accent: ACCENT.spartans, faction: 'spartans' });
   }
   const blue = glUnitsOf(scene(base, 1), ['spartans', 'mongols']).units;
   expect(blue.length).toBeGreaterThan(0);
-  for (const u of blue) expect(u.look).toEqual({ ...playerColour('mongols'), accent: ACCENT.mongols });
+  for (const u of blue) expect(u.look).toEqual({ ...playerColour('mongols'), accent: ACCENT.mongols, faction: 'mongols' });
 });
 
 test('a unit the viewer cannot see is not a figure: fog hides it from the 3D scene as from the svg', () => {

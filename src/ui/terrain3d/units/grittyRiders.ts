@@ -580,7 +580,7 @@ function spartanHorseNeck(k: Kit, w: Wear): void {
   if (worn(w, 2)) k.decal(ell(0, 0, 0.45, 0.35, 6), mix(GT.AGED, '#000000', 0.4), (x, y) => { const q = loftPoint(HEAD_RINGS, 0.5, 0.5, 0.45); return { p: [q[0] + x, q[1] + y, q[2]], n: [0, 0.3, 1] }; });
 }
 
-export function grittyKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
+export function grittySpartanKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
   turned(k, MOUNT_YAW, () => {
     grittyHorse(k, DARK_BAY, { cloth: c.main, trim: c.accent, metal: GT.GOLD_EDGE }, w, { neck: () => spartanHorseNeck(k, w) });
     // The bronze chest plate across the horse's breast, gold along its top.
@@ -1038,4 +1038,234 @@ function callerHorseNeck(k: Kit, c: Look, w: Wear): void {
     const p = loftPoint(NECK_RINGS, t, 0.5, 1.0);
     k.slab([0, 0, 0.7, 0, 0.9, -3.6, 0.3, -3.0, -0.1, -3.8], 0.25, t < 0.5 ? c.main : STRING_G, p, [0, 0, -0.3], { hull: 0.4 });
   }
+}
+
+// ---- the Mongol knight: a heavy lancer in studded armour on a chestnut (the Knight when the Mongols build it) ----
+
+/** A chestnut with a flaxen mane, unlike the horse archer's dun and the Khan's guard's black. */
+const CHESTNUT_G: Coat = { coat: '#8A5230', shade: '#683B21', mane: '#CDAE7A', hoof: '#3A2E24', points: '#5A331C' };
+const IRON_M = '#9CA1A7';
+const IRON_M_DARK = '#60656C';
+const MAIL_M = '#767B82';
+/** The studded coat's dark leather and its brass rivet heads. */
+const KUYAK = '#3F3027';
+const STUD = '#C6A35C';
+/** The horse's leather lamellar. */
+const HIDE_LAM = '#5E4331';
+const WICKER = '#B49B66';
+const WICKER_DARK = '#76613D';
+const TAIL_HAIR = '#1B1411';
+
+/** A surface just outside the chest apron (peytral), x running round the horse's breast from flank to flank. */
+const apronSurf = (off: number): Surface => (x, y) => {
+  const a = x / 4.4;
+  return { p: [8.4 + Math.cos(a) * (3.6 + off), y, Math.sin(a) * (5.05 + off)], n: [Math.cos(a), 0, Math.sin(a)] };
+};
+
+/** The horse's chest apron: leather lamellae laced in the owner's colour; battered, a plate hangs torn from its hem. */
+function mongolApron(k: Kit, c: Look, w: Wear): void {
+  const lace = vivid(c.main), edge = mix(HIDE_LAM, '#000000', 0.4);
+  peytral(k, HIDE_LAM, w, { top: 18.6, hem: (i) => (worn(w, 3) && i === 2 ? 12.4 : 10.8), gloss: 0.25, hull: 0.7 });
+  const s = apronSurf(0.08);
+  const rows = [18.2, 16.6, 15.0, 13.4, 11.8];
+  for (let r = 0; r < rows.length; r++) {
+    const y = rows[r]!;
+    k.line([-6.3, y, -2.1, y, 2.1, y, 6.3, y], 0.42, lace, s);
+    if (r + 1 < rows.length) for (let x = -6.3 + (r % 2 ? 1.05 : 2.1); x < 6.0; x += 2.1) k.line([x, y - 0.2, x, rows[r + 1]! + 0.2], 0.16, edge, s);
+  }
+  k.line([-6.4, 18.5, 6.4, 18.5], 0.45, IRON_M, s);
+  if (worn(w, 1)) dirt(k, s, 1.6, 12.6, 3.0, HIDE_LAM);
+  if (worn(w, 2)) { scratches(k, s, [[-2.4, 17.2, -0.6, 15.6]], '#B79C80', 0.25); dent(k, s, 2.8, 15.8, 0.6, HIDE_LAM); }
+  if (w.blood >= 1) smear(k, s, -1.2, 16.0, 0.15, -1, 3.4, 1.2);
+  if (w.blood >= 2) smear(k, s, 3.6, 14.6, -0.2, -1, 3.0, 1.1);
+}
+
+/** The horse's iron face plate down its brow (gone once broken). */
+function mongolHorseNeck(k: Kit, w: Wear): void {
+  if (helmBroken(w)) return;
+  loftSheet(k, HEAD_RINGS, { t0: 0.18, t1: 0.8, far: -1.0, cols: 3, rows: 3, near: () => 1.45, lift: () => 0.3, colour: () => IRON_M, gloss: 0.5, hull: 0.6 });
+  metalEdge(k, [loftPoint(HEAD_RINGS, 0.18, 0, 0.48), loftPoint(HEAD_RINGS, 0.8, 0, 0.48)], 0.22, IRON_M_DARK);
+  // A tuft of dyed horsehair on the brow.
+  const p = loftPoint(HEAD_RINGS, 0.16, 0, 0.4);
+  k.rod(p, [p[0] - 3.2, p[1] + 1.4, p[2]], 0.5, TAIL_HAIR, { r1: 1.0, seg: 5, hull: 0.5 });
+  if (worn(w, 2)) k.decal(ell(0, 0, 0.45, 0.35, 6), IRON_M_DARK, (x, y) => { const q = loftPoint(HEAD_RINGS, 0.5, 0.5, 0.45); return { p: [q[0] + x, q[1] + y, q[2]], n: [0, 0.3, 1] }; });
+}
+
+/**
+ * The armour: a deel in the owner's colour under a coat of dark leather studded with brass rivets (the plates riveted
+ * inside it), a round polished mirror of steel on the chest, round iron shoulder guards, a leather belt.
+ */
+function mongolArmour(k: Kit, c: Look, w: Wear): void {
+  lapSkirt(k, KUYAK, { y0: 18.0, y1: 21.8, r0: 6.1, r1: 4.6 });
+  torso(k, KUYAK, { grow: 1.06, gloss: 0.2 });
+  const f = torsoFront(0.27, 1.06);
+  const MC: [number, number] = [-2.3, 28.2], MR = 1.55;
+  // Rivets in rows, round the mirror; and the coat's front seam.
+  for (let r = 0; r < 5; r++) {
+    const y = 22.8 + r * 1.75;
+    for (let x = -4.0 + (r % 2) * 0.8; x <= 4.1; x += 1.6) {
+      if (Math.hypot(x - MC[0], y - MC[1]) < MR + 0.7) continue;
+      k.decal(ell(x, y, 0.34, 0.34, 4, Math.PI / 4), STUD, f);
+    }
+  }
+  k.line([0, 22.0, 0, 24.0], 0.3, mix(KUYAK, '#000000', 0.4), f);
+  // The collar and the cuffs of the deel in the owner's colour, the coat's edge in brass.
+  k.frustum([0, 0, 0.1], 30.4, 32.1, 4.0, 3.0, c.main, { sz: 0.9, seg: 9 });
+  k.frustum([0, 0, 0], 21.0, 22.2, 4.5, 4.4, GT.LEATHER_DARK, { sz: 0.8, seg: 10, open: true, hull: 0.5 });
+  k.box([0, 21.6, 3.75], [1.5, 1.2, 0.5], STUD, { gloss: 0.6, hull: 0.4 });
+  // The mirror: a shallow steel dome in a brass ring.
+  const mp = f(MC[0], MC[1]).p;
+  k.frame([mp[0], mp[1], mp[2] - 0.1], [0, 0, 0], () => {
+    k.decal(ell(0, 0, MR + 0.3, MR + 0.3, 10), STUD, (x, y) => ({ p: [x, y, 0.12], n: [0, 0, 1] }));
+    k.frame([0, 0, 0.15], [Math.PI / 2, 0, 0], () => k.dome([0, 0, 0], MR, '#DDE2E7', { seg: 8, s: [1, 0.45, 1], gloss: 0.85, hull: 0.4 }));
+    const ms: Surface = (x, y) => ({ p: [x, y, 0.15 + MR * 0.45 * Math.sqrt(Math.max(0, 1 - (x * x + y * y) / (MR * MR)))], n: [0, 0, 1] });
+    if (worn(w, 1)) scratches(k, ms, [[-1.2, 1.0, 0.2, 0.2]], '#8E959C', 0.18);
+    if (worn(w, 2)) dent(k, ms, 0.7, -0.6, 0.45, '#D3D8DD');
+    if (worn(w, 3)) crack(k, ms, [-1.4, -1.0, -0.2, -0.2, 0.4, 1.2], 0.18);
+  });
+  // Round iron shoulder guards, brass rimmed.
+  for (const sd of [1, -1]) {
+    const pts: V3[] = [[sd * 3.0, 31.2, 1.6], [sd * 6.0, 31.0, 1.0], [sd * 7.0, 27.4, 1.3], [sd * 4.6, 26.8, 2.5]];
+    plate(k, pts, IRON_M, [sd * 4.6, 29.0, -1.4], { gloss: 0.45, hull: 0.6 });
+    metalEdge(k, [pts[2]!, pts[3]!], 0.22, STUD);
+  }
+  if (worn(w, 1)) dirt(k, f, 2.6, 23.2, 2.6, KUYAK);
+  if (worn(w, 2)) scratches(k, f, [[-3.6, 28.8, -2.0, 27.4]], '#8A7A68', 0.25);
+  if (w.blood >= 1) smear(k, f, -2.6, 29.2, 0.15, -1, 3.6, 1.3);
+  if (w.blood >= 2) smear(k, f, 2.8, 25.8, -0.2, -1, 3.4, 1.2);
+}
+
+/**
+ * A round shield of woven wicker for a rider, in its own frame (face toward +z): a spiral of withies round a disc in
+ * the owner's colour and an iron boss. Battered, a broken withy; broken (and since), a piece torn from its edge.
+ */
+function wickerShield(k: Kit, c: Look, w: Wear): void {
+  const R = 3.9, D = 0.3, split = helmBroken(w);
+  const ring: number[] = [];
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2, cut = split && i >= 1 && i <= 3;
+    const r = (R + 0.3) * (cut ? [0.74, 0.62, 0.8][i - 1]! : 1);
+    ring.push(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  k.slab(ring, 0.5, WICKER_DARK, [0, 0, 0], [0, 0, 0]);
+  k.frame([0, 0, 0.2], [Math.PI / 2, 0, 0], () => k.dome([0, 0, 0], R, WICKER, { seg: 10, s: [1, D, 1], hull: 0.5 }));
+  const face: Surface = (x, y) => {
+    const q = Math.max(0, 1 - (x * x + y * y) / (R * R)), z = 0.2 + R * D * Math.sqrt(q);
+    return { p: [x, y, z], n: [x / R * D, y / R * D, 1] };
+  };
+  k.decal(ell(0, 0, 1.55, 1.55, 10), vivid(c.main), face);
+  // The withies: a spiral out from the disc to the rim (stopping short of the torn piece).
+  const sp: number[] = [];
+  for (let i = 0; i <= 22; i++) {
+    const t = i / 22, a = t * Math.PI * 2 * 2.6, r = 1.75 + t * (R - 2.0);
+    if (split && r > 2.6 && ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) > 0.2 && ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) < 1.9) break;
+    sp.push(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  k.line(sp, 0.24, WICKER_DARK, face);
+  k.ball([0, 0, 0.2 + R * D], 0.75, IRON_M, { detail: 0, gloss: 0.5, s: [1, 1, 0.6] });
+  if (split) tornEdge(k, [[3.6, 1.0, 0.4], [2.6, 1.6, 0.6], [2.3, 2.6, 0.5], [1.3, 3.2, 0.4]], 0.22);
+  if (worn(w, 1)) dirt(k, face, -1.6, -2.2, 1.6, WICKER);
+  if (worn(w, 2)) dent(k, face, 1.6, -1.4, 0.5, WICKER);
+  if (worn(w, 3)) crack(k, face, [-2.8, 0.6, -2.0, 1.4, -1.0, 1.2], 0.24);
+  if (w.blood >= 1) smear(k, face, 1.0, 1.4, 0.1, -1, 2.4, 0.9);
+}
+
+/**
+ * The helm: a tall iron bowl with a brass brow band and a peak over the eyes, a finial with a tassel of horsehair dyed
+ * the owner's colour, a mail aventail round the sides and back. Battered, the tassel is shorn; broken (and since), the
+ * finial is torn off and the near side of the aventail is gone.
+ */
+function mongolHelm(k: Kit, c: Look, w: Wear): void {
+  const h = HEAD_C, broken = helmBroken(w), L = 0.8;
+  const R = HEAD_R * 1.16, SY = 1.5;
+  k.dome([h[0], h[1] + 1.2 + L, h[2] - 0.4], R, IRON_M, { to: 1.25, seg: 10, gloss: 0.5, s: [1, SY, 1] });
+  k.frustum([h[0], 0, h[2] - 0.4], h[1] + 1.7 + L, h[1] + 2.6 + L, HEAD_R * 1.23, HEAD_R * 1.19, STUD, { seg: 10, gloss: 0.55, hull: 0.6 });
+  // The peak, jutting over the brow.
+  k.slab([-2.5, 0, 2.5, 0, 1.8, 1.7, -1.8, 1.7], 0.3, IRON_M_DARK, [h[0], h[1] + 2.0 + L, h[2] + 3.9], [1.2, 0, 0], { gloss: 0.4, hull: 0.5 });
+  // The aventail.
+  const arc: [number, number] = broken ? [Math.PI * 0.75, Math.PI * 0.9] : [Math.PI * 0.42, Math.PI * 1.16];
+  k.frustum([h[0], 0, h[2] - 0.6], h[1] - 4.8, h[1] + 2.0 + L, HEAD_R * 1.5, HEAD_R * 1.21, MAIL_M, { seg: 12, arc, gloss: 0.3, hull: 0.6 });
+  const peak = h[1] + 1.2 + L + R * SY;
+  if (broken) {
+    k.rod([h[0], peak - 0.4, h[2] - 0.4], [h[0] + 0.3, peak + 0.5, h[2] - 0.4], 0.6, IRON_M, { r1: 0.3, seg: 5 });
+    tornEdge(k, [[h[0] - 4.2, h[1] + 3.6, h[2] + 0.4], [h[0] - 3.7, h[1] + 4.8, h[2] + 0.6], [h[0] - 3.1, h[1] + 4.1, h[2] + 1.6], [h[0] - 2.4, h[1] + 5.2, h[2] + 1.9]], 0.24);
+  } else {
+    // The finial: a brass knob on a short iron spike, the tassel falling back from it.
+    k.rod([h[0], peak - 0.6, h[2] - 0.4], [h[0], peak + 2.0, h[2] - 0.4], 0.5, IRON_M, { r1: 0.12, seg: 5, gloss: 0.5 });
+    k.ball([h[0], peak + 0.4, h[2] - 0.4], 0.75, STUD, { detail: 0, gloss: 0.6 });
+    const tuft = worn(w, 3) ? 0.5 : 1, dye = vivid(c.main);
+    const ring: V3 = [h[0], peak + 0.9, h[2] - 0.5], swell: V3 = [h[0] + 1.9 * tuft, peak + 1.1, h[2] - 1.3 * tuft];
+    const tail: V3 = [h[0] + 3.4 * tuft, peak + 0.8 - 4.4 * tuft, h[2] - 2.4 * tuft];
+    k.rod(ring, swell, 0.6, dye, { r1: 1.3, seg: 6, caps: false });
+    k.rod(swell, tail, 1.3, dye, { r1: worn(w, 3) ? 0.9 : 0.3, seg: 6 });
+  }
+  const sv = (x: number, y: number): { p: V3; n: V3 } => {
+    const r = R + 0.06, dx = x - h[0], dy = (y - h[1] - 1.2 - L) / SY;
+    const dz = Math.sqrt(Math.max(0.3, r * r - dx * dx - dy * dy));
+    return { p: [x, y, h[2] - 0.4 + dz], n: [dx / r, dy / r, dz / r] };
+  };
+  if (worn(w, 1)) scratches(k, sv, [[h[0] + 1.0, h[1] + 6.0, h[0] + 2.6, h[1] + 5.0]], '#D6D8DA', 0.25);
+  if (worn(w, 2)) dent(k, sv, h[0] - 1.8, h[1] + 5.2, 0.6, IRON_M);
+}
+
+/** The lance: a hooked iron head, a tuft of black horsehair and a swallowtail pennant in the owner's colour below it. */
+function mongolLance(k: Kit, c: Look, w: Wear, butt: V3, tip: V3, grip: V3): void {
+  const ax = new Vector3(...tip).sub(new Vector3(...butt)).normalize();
+  const snapped = worn(w, 4);
+  spear(k, butt, tip, 5.0, { nick: worn(w, 2), snap: snapped ? 0.55 : undefined, blood: w.blood }, 0.85, '#6E4C30');
+  const at = (d: number): Vector3 => new Vector3(...tip).addScaledVector(ax, -d);
+  // An iron ferrule at the butt and a leather grip.
+  const fe = new Vector3(...butt).addScaledVector(ax, -1.0);
+  k.rod(butt, [fe.x, fe.y, fe.z], 0.95, IRON_M_DARK, { r1: 0.6, seg: 5 });
+  for (const t of [-1.6, 1.4]) {
+    const a = new Vector3(...grip).addScaledVector(ax, t), b = new Vector3(...grip).addScaledVector(ax, t + 0.8);
+    k.rod([a.x, a.y, a.z], [b.x, b.y, b.z], 0.98, GT.LEATHER_DARK, { seg: 6, hull: 0, caps: false });
+  }
+  if (snapped) return;
+  // The hook, back from the head's socket.
+  const up = new Vector3(0, 1, 0).addScaledVector(ax, -ax.y).normalize();
+  const hb = at(5.4), ht = hb.clone().addScaledVector(up, 1.6).addScaledVector(ax, -0.9);
+  k.rod([hb.x, hb.y, hb.z], [ht.x, ht.y, ht.z], 0.32, IRON_M, { r1: 0.12, seg: 4, gloss: 0.5 });
+  // The tuft, hanging from a ring below the hook.
+  const tb = at(6.4);
+  k.rod([tb.x, tb.y, tb.z], [tb.x - 1.2, tb.y - 3.2, tb.z], 0.75, TAIL_HAIR, { r1: 0.25, seg: 5, hull: 0.5 });
+  // The pennant, laced to the shaft below the tuft and flying back along it; battered, its tails are torn short.
+  const pb = at(7.2), th = Math.atan2(ax.y, ax.x), torn = worn(w, 3);
+  const tail = torn ? [-3.6, -2.4, -2.6, -1.4, -3.9, -0.8] : [-6.6, -3.2, -4.0, -1.7, -6.8, -0.7];
+  k.frame([pb.x, pb.y, pb.z], [0, 0, th], () => k.slab([0, 0.3, 0, -2.9, ...tail, -0.6, 0.3], 0.22, vivid(c.main), [0, 0, 0], [-0.9, 0, 0], { hull: 0.5 }));
+}
+
+export function grittyMongolKnight(k: Kit, { look: c, wear: w }: RiderOpts): Shadow {
+  turned(k, MOUNT_YAW, () => {
+    grittyHorse(k, CHESTNUT_G, { cloth: c.main, trim: c.accent, metal: IRON_M }, w, { neck: () => mongolHorseNeck(k, w) });
+    mongolApron(k, c, w);
+    riderLegs(k, { thigh: c.main, boot: FELT_BOOT, upturned: true, iron: IRON_M }, w);
+  });
+  turned(k, RIDER_YAW, () => {
+    k.pivot(RIDER, SEAT, () => {
+      mongolArmour(k, c, w);
+      neck(k, STEPPE_SKIN);
+      // The left hand on the reins with the shield on its forearm, the right couching the lance.
+      riderArm(k, [-4.4, 30.2, 0.1], [-5.8, 26.2, 1.8], [-2.8, 23.8, 4.4], { sleeve: c.main, cuff: c.accent });
+      k.frame([-6.5, 25.0, 3.2], [0.12, -0.8, 0.05], () => wickerShield(k, c, w));
+      fist(k, [-1.9, 23.6, 4.9], [1, 0, 0], [-0.2, 0.3, 1], 0.95, STEPPE_SKIN);
+      k.rod([-1.3, 23.4, 4.9], [1.7, 21.4, 2.8], 0.26, GT.LEATHER_DARK, { seg: 4, hull: 0 });
+      riderArm(k, [4.4, 30.2, 0.1], [5.6, 26.4, 3.0], [0.8, 27.0, 5.4], { sleeve: c.main, cuff: c.accent });
+      const butt: V3 = [-12, H(-8), 5.6], tip: V3 = [16.2, H(-32.4), 5.6], grip: V3 = [-1, H(-17.4), 5.6];
+      k.pivot(WEAPON, grip, () => {
+        const ax = new Vector3(...tip).sub(new Vector3(...butt)).normalize();
+        fist(k, grip, [ax.x, ax.y, ax.z], [0.2, 0.6, 0.8], 1.05, STEPPE_SKIN);
+        mongolLance(k, c, w, butt, tip, grip);
+      }, { axis: TIP_RIGHT, fwd: [1, 0, 0] });
+      steppeFace(k, w);
+      mongolHelm(k, c, w);
+    }, { axis: HUNCH });
+  });
+  hoofBlood(k, w);
+  return WIDE;
+}
+
+/** The Knight: either side can build it, so it dresses by its faction (a Spartan in bronze unless the Mongols own it). */
+export function grittyKnight(k: Kit, o: RiderOpts): Shadow {
+  return o.look.faction === 'mongols' ? grittyMongolKnight(k, o) : grittySpartanKnight(k, o);
 }

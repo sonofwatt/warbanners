@@ -19,7 +19,7 @@ const shared = {
   uVeilColor: { value: new Color('#1E2833') },
   uTime: { value: 0 },
 };
-const look = (f: FactionId): GlUnit['look'] => ({ ...playerColour(f), accent: ACCENT[f] });
+const look = (f: FactionId): GlUnit['look'] => ({ ...playerColour(f), accent: ACCENT[f], faction: f });
 const STEP = R * Math.sqrt(3);
 
 const ground = document.getElementById('ground') as HTMLCanvasElement;

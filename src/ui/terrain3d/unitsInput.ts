@@ -9,7 +9,7 @@ import type { SceneItem } from '../board/scene';
 export interface GlUnit {
   id: number;
   type: UnitTypeId;
-  look: { main: string; dark: string; accent: string };
+  look: { main: string; dark: string; accent: string; faction?: FactionId };
   hero: boolean;
   x: number;
   y: number;
@@ -45,7 +45,7 @@ export function glUnitsOf(items: readonly SceneItem[], factions: readonly Factio
     const faction = factions[u.owner];
     if (faction === undefined) continue; // the SVG draws nothing for it either
     units.push({
-      id: u.id, type: u.type, look: { ...playerColour(faction), accent: ACCENT[faction] }, hero: isHero(u),
+      id: u.id, type: u.type, look: { ...playerColour(faction), accent: ACCENT[faction], faction }, hero: isHero(u),
       x: it.at.x, y: it.at.y,
       spent: it.mine && it.spent,
       hunkered: u.hunkered,

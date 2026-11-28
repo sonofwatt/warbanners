@@ -5,6 +5,7 @@
 import { Vector3 } from 'three';
 import { COS_E, flat, ground, H, Kit, mix, onFrustum, SQUASH } from './kit';
 import type { Poly, Surface, V3 } from './kit';
+import type { FactionId } from '../../../engine';
 
 // ---- palette: the SVG figures' colours (art/palette.ts, art/units.tsx, art/factionUnits.tsx) ----
 
@@ -51,7 +52,11 @@ export const SCAR_DARK = '#A8735B';
 export const CRACK = '#26231F';
 export const DIRT = '#3D3A34';
 
-export interface Look { main: string; dark: string; accent: string }
+/**
+ * The owner's colours, and its faction where a figure dresses by it (a unit either side can build, such as the Gritty
+ * Knight); the Bright figures never read the faction.
+ */
+export interface Look { main: string; dark: string; accent: string; faction?: FactionId }
 
 /**
  * How worn a figure looks (Gritty only): stage 0 clean, 1 scuffed, 2 dented, 3 battered, 4 broken; blood 0 none,
