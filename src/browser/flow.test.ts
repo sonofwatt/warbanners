@@ -277,8 +277,8 @@ describe.runIf(process.env.BROWSER === '1')('the whole game in a browser', () =>
       await tapTile(page, '-2,5');
       await page.locator('.selection').waitFor();
       await expectTidy(page, 'match with a unit selected');
-      // The unit's card holds the bar's place until it is let go.
-      expect(await page.getByTestId('end-turn').count()).toBe(0);
+      // The unit's card sits on the bar: End turn stays in sight.
+      await expectEndTurnUncovered(page);
       await deselect(page);
       await expectEndTurnUncovered(page);
 

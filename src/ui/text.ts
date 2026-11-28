@@ -309,6 +309,8 @@ const ui = {
   harvestedBlurb: 'Already harvested, so it gives no more growth by itself, but it can still be built on.',
   mountainBlurb: `${climbLine()}Stepping onto or off a mountain takes a unit's whole turn. From up here ranged units (${rangedNames()}) shoot ${tilesWord(CONFIG.mountain.rangeBonus)} farther, for ${longShotPercent()}% of the damage at the farthest tile, every unit sees ${tilesWord(CONFIG.mountainSightBonus)} farther, and attacks on it do less damage.`,
   hunker: 'Hunker', unhunker: 'Unhunker', hunkered: 'Hunkered', braced: 'Braced',
+  veiledWord: 'Veiled', veiled: 'Veiled', veiledBlurb: (turns: string) => `Hidden in smoke ${turns}, even off a forest. It ends when this unit attacks.`,
+  veiledThisTurn: 'until the end of this turn', veiledNextTurn: 'until the end of your next turn',
   bracedBlurb: `Locked shields with ${CONFIG.brace.mates} or more Hoplites beside it: +${CONFIG.brace.def} defence against a Knight or Khan's Guard, and a rider pays ${CONFIG.momentum.bracedPrice} momentum to kill it.`,
   // rules 8: the heal comes at the end of the hunkered unit's turn and a drink keeps the hunker; each switch off reads as rules 7
   hunkeredBlurb: `Dug in: +${CONFIG.hunker.def} defence when attacked, and it heals ${CONFIG.hunker.healAtTurnEnd ? 'at the end of each of its turns' : 'at the start of its next turn'}, ${CONFIG.hunker.restBonus} more than a rest (a little even with an enemy beside it), and ${CONFIG.hunker.abilityHealBonus} more from a Heal. It ends when the unit moves or acts${CONFIG.hunker.drinkKeepsHunker ? '; drinking a draught does not end it' : ' or drinks a draught'}.`,

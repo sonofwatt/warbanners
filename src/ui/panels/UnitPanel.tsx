@@ -14,6 +14,7 @@ export interface UnitPanelProps {
   rangeCause?: RangeCause;                        // what adds to the unit's range where it stands (rangeCauseOf)
   look?: Look;                                    // the owner's colours in this match (seatLook)
   braced?: boolean;                              // rules 7: a Hoplite with enough Hoplite mates beside it
+  veiled?: 'this' | 'next' | null;               // rules 11: the viewer's own unit in a Smoke Keeper's smoke, to the end of which turn
   thresholds: Record<DeedId, number> | null;     // null for a unit the viewer does not own: its deeds stay hidden
   commands: Command[]; onCommand: (c: Command) => void;
 }
@@ -33,7 +34,7 @@ export function rangeCauseOf(s: MatchState, u: Unit, viewer?: PlayerId): RangeCa
 }
 
 // An enemy unit gets the same card with an empty command list.
-export function UnitPanel({ unit, faction, look, stats, rangeCause = null, myth, braced = false, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
+export function UnitPanel({ unit, faction, look, stats, rangeCause = null, myth, braced = false, veiled = null, thresholds, commands, onCommand }: UnitPanelProps): ReactElement {
   const type = unit.type;
   const def = UNITS[type];
   // rules 8: relay riding, a faction rule rather than a trait (mounted units only, where the faction says so)
@@ -81,6 +82,11 @@ export function UnitPanel({ unit, faction, look, stats, rangeCause = null, myth,
       {unit.hunkered ? (
         <ul className="traits hunkered" aria-label={T.ui.hunkered}>
           <li><strong>{T.ui.hunkered}</strong><span>{T.ui.hunkeredBlurb}</span></li>
+        </ul>
+      ) : null}
+      {veiled !== null ? (
+        <ul className="traits veiled" aria-label={T.ui.veiled} data-testid="veiled">
+          <li><strong>{T.ui.veiled}</strong><span>{T.ui.veiledBlurb(veiled === 'next' ? T.ui.veiledNextTurn : T.ui.veiledThisTurn)}</span></li>
         </ul>
       ) : null}
       {braced ? (

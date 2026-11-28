@@ -167,6 +167,13 @@ describe.runIf(process.env.BROWSER === '1')('the selected city\'s land', () => {
         }
         // Each city glows alone: the two lands share no tile.
         expect(lands['-2,5']!.filter((k) => lands[SECOND]!.includes(k))).toEqual([]);
+        // A tile of a city's land, tapped, outlines that city's land too.
+        const units = await page.evaluate(() => [...document.querySelectorAll('[data-unit][data-at]')].map((e) => e.getAttribute('data-at')!));
+        const plain = lands[SECOND]!.find((k) => k !== SECOND && !units.includes(k))!;
+        await deselect(page);
+        await tapTile(page, plain);
+        await page.locator('.selection .tile-panel').waitFor();
+        await expect.poll(() => glowing(page), { message: 'a tile of its land selected' }).toEqual(lands[SECOND]);
         await deselect(page);
         await expect.poll(() => glowing(page)).toEqual([]);
       } finally {

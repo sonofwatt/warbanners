@@ -1,10 +1,10 @@
-import { playerView } from '../../engine';
+import { isVeiled, playerView } from '../../engine';
 import { hexesBetween, slideMs3d } from './motion';
 import { T } from '../text';
 import type { GameEvent, HexKey, MatchState, PlayerId, UnitTypeId } from '../../engine';
 
 export type Effect =
-  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find'; delay: number; ms?: number }
+  | { kind: 'number'; at: HexKey; text: string; tone: 'hurt' | 'heal' | 'gold' | 'hero' | 'find' | 'smoke'; delay: number; ms?: number }
   // A melee or ranged attack: the attacker leans from its tile toward the target's. `target` is the unit attacked,
   // `counter` whether it struck back (the 3D look plays the exchange; the svg shows the lunge and the numbers).
   // `via` (rules 11, a Dash-strike's charge): the attacker runs to that tile, strikes and runs back (DASH_MS).
@@ -13,7 +13,9 @@ export type Effect =
   // delay lets an advance wait for the blow that cleared the tile; it takes no slot, so it moves no other effect.
   | { kind: 'move'; unit: number; unitType: UnitTypeId; from: HexKey; to: HexKey; delay: number }
   | { kind: 'fall'; unit: number; unitType: UnitTypeId; owner: PlayerId; at: HexKey; delay: number }
-  | { kind: 'burst'; at: HexKey; tone: 'build' | 'capture' | 'level' | 'treasure'; delay: number };
+  | { kind: 'burst'; at: HexKey; tone: 'build' | 'capture' | 'level' | 'treasure'; delay: number }
+  // rules 11: a Smoke Keeper's smoke, a grey cloud swelling over a unit it veiled. Shown to the smoke's owner only.
+  | { kind: 'smoke'; at: HexKey; delay: number };
 
 export const EFFECT_MS = 450;
 export const MAX_TOTAL_MS = 1200;
@@ -22,7 +24,10 @@ export const DASH_MS = 600;
 /** What a claimed treasure gave stays up three times as long as other effects, so it can be read. */
 export const TREASURE_TEXT_MS = EFFECT_MS * 3;
 /** How long one effect plays: its own time, or EFFECT_MS. */
-export const effectMs = (f: Effect): number => (f.kind === 'number' ? f.ms ?? EFFECT_MS : f.kind === 'lunge' && f.via !== undefined ? DASH_MS : EFFECT_MS);
+/** A smoke cloud swells and hangs a while before it thins, so the player sees who it hid. */
+export const SMOKE_MS = 1100;
+/** How long one effect plays: its own time, or EFFECT_MS. */
+export const effectMs = (f: Effect): number => (f.kind === 'number' ? f.ms ?? EFFECT_MS : f.kind === 'smoke' ? SMOKE_MS : f.kind === 'lunge' && f.via !== undefined ? DASH_MS : EFFECT_MS);
 const STEP_MS = 120;
 const COUNTER_MS = 150;
 
@@ -168,6 +173,18 @@ export function effectsFor(
         break;
       }
       case 'ability': {
+        if (e.ability === 'smoke') {
+          // Each friend the smoke veiled gets a cloud, and a word over the tile aimed at. The other side sees nothing:
+          // the smoke is what hides them.
+          const keeper = after.units.find((u) => u.id === e.unit) ?? before.units.find((u) => u.id === e.unit);
+          if (keeper === undefined || keeper.owner !== viewer) break;
+          const was = new Map(before.units.map((u) => [u.id, u.veilUntil]));
+          for (const u of after.units) {
+            if (u.owner === viewer && isVeiled(after, u) && was.get(u.id) !== u.veilUntil) mine.push({ kind: 'smoke', at: u.pos, delay });
+          }
+          mine.push({ kind: 'number', at: e.target, text: T.ui.veiledWord, tone: 'smoke', delay: delay + 200, ms: SMOKE_MS - 200 });
+          break;
+        }
         if (e.ability !== 'heal') break;
         const was = before.units.find((u) => u.pos === e.target);
         const now = was && after.units.find((u) => u.id === was.id);

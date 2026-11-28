@@ -14,6 +14,10 @@ export function prefersReducedMotion(): boolean {
 
 const LUNGE = 11; // how far, in board units, an attacker leans toward its target
 const BURST_R = 12;
+/** rules 11: the smoke cloud's puffs round a unit, [x, y, r] from the tile's centre (the figure stands up from it). */
+const SMOKE_PUFFS: readonly (readonly [number, number, number])[] = [
+  [-11, -4, 9], [10, -5, 9], [0, -12, 11], [-7, -22, 9], [8, -24, 10], [0, -2, 10],
+];
 
 const r2 = (n: number): number => Math.round(n * 100) / 100;
 const place = (k: HexKey): string => {
@@ -121,6 +125,13 @@ export function Effects(p: { effects: readonly Effect[]; factions: readonly Fact
           body = (
             <g className="fx-fall" style={style} onAnimationEnd={end(i)} data-fall={f.unitType} data-fall-owner={f.owner} data-fall-at={f.at} data-fall-key={i}>
               {FIGURES[f.unitType]({ colour: seatColour(p.factions, f.owner), accent: seatAccent(p.factions, f.owner) })}
+            </g>
+          );
+        } else if (f.kind === 'smoke') {
+          // rules 11: a few soft grey puffs round the unit, swelling together into one cloud and thinning away.
+          body = (
+            <g className="fx-cloud" style={style} onAnimationEnd={end(i)} data-smoke-at={f.at}>
+              {SMOKE_PUFFS.map(([x, y, r], j) => <circle key={j} cx={x} cy={y} r={r} />)}
             </g>
           );
         } else {

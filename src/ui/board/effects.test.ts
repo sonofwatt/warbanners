@@ -373,3 +373,19 @@ test('the AI waits no longer for a move whose start the viewer did not see than 
   expect(visibleBefore.has('-3,0') || visible.has('-3,0')).toBe(false);
   expect(watchMs(events, s, after, 0, true)).toBe(EFFECT_MS);
 });
+
+test('rules 11: a smoke shows a cloud over each friend it veiled and the word on the tile aimed at, to its owner only', () => {
+  const s = blankMatch({ factions: ['woodland', 'mongols'] });
+  const keeper = addUnit(s, 'smokeKeeper', 0, 0, 0);
+  addUnit(s, 'skirmisher', 0, 1, 0);
+  addUnit(s, 'warrior', 0, 2, 0);
+  const r = applyAction(s, { type: 'ability', unit: keeper.id, ability: 'smoke', target: '1,0' });
+  if (!r.ok) throw new Error(r.reason);
+  const all = new Set(Object.keys(r.state.tiles));
+  const ids = everyone(s, r.state);
+  const fx = effectsFor(r.events, s, r.state, all, ids, 0);
+  // The Keeper on 0,0, the Skirmisher on 1,0 and the Warrior on 2,0: all on or next to 1,0.
+  expect(fx.filter((f) => f.kind === 'smoke').map((f) => f.at).sort()).toEqual(['0,0', '1,0', '2,0']);
+  expect(fx.find((f) => f.kind === 'number')).toMatchObject({ at: '1,0', text: T.ui.veiledWord, tone: 'smoke' });
+  expect(effectsFor(r.events, s, r.state, all, ids, 1)).toEqual([]);
+});

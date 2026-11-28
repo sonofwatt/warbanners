@@ -6,8 +6,9 @@ import { T } from '../text';
 // The selection card lies over the board, so opening, changing or closing it never resizes the board's slot (which
 // would move the board). In portrait it is a card pulled up from the bottom: it opens showing only its top (the
 // `.card-peek` part of the panel: the title, the numbers, the actions, a city's row of units), and the player pulls
-// it up by its handle or its top to see the rest, or taps the handle. A new selection opens it collapsed again. In
-// landscape it is the side column, whole, as before.
+// it up by its handle or its top to see the rest, or taps the handle. Pulled down past its collapsed height, it
+// slides down out of sight and closes, which ends the selection (`onClose`). A new selection opens it collapsed
+// again. In landscape it is the side column, whole, as before.
 
 /** The landscape layout with the side column (theme.css uses the same query). */
 export const SIDE_QUERY = '(orientation: landscape) and (min-width: 560px)';
@@ -17,6 +18,8 @@ export const SHEET_MAX = 0.7;
 const PULL_START_PX = 6;
 /** A pull this far settles the card the way it went; a shorter one settles to the nearer end. */
 const PULL_DECIDES_PX = 36;
+/** A pull down this far below the collapsed card closes it; a shorter one slides it back up. */
+export const CLOSE_PULL_PX = 56;
 
 export interface SheetApi {
   /** What the card covers of the board's slot (`slot`, a client rect): its collapsed height in portrait, its width in landscape. */
@@ -59,10 +62,12 @@ function measure(el: HTMLElement): Sizes {
   return { collapsed: Math.round(Math.min(top, expanded)), expanded };
 }
 
-export function SelectionSheet({ resetKey, apiRef, onCover, children }: {
+export function SelectionSheet({ resetKey, apiRef, onCover, onClose, children }: {
   resetKey: string;
   apiRef: MutableRefObject<SheetApi | null>;
   onCover: () => void;
+  /** Called when the card is pulled down and away (portrait only). */
+  onClose?: () => void;
   children: ReactNode;
 }): ReactElement {
   const side = useSide();
@@ -126,13 +131,21 @@ export function SelectionSheet({ resetKey, apiRef, onCover, children }: {
   }, [collapsed, side, onCover]);
 
   const canPull = !side && sizes !== null && sizes.expanded > sizes.collapsed + 1;
-  const height = sizes === null ? undefined : drag ?? (open && canPull ? sizes.expanded : sizes.collapsed);
+  const canClose = !side && sizes !== null && onClose !== undefined;
+  const canDrag = canPull || canClose;
+  // While dragged, how tall the card would be; below its collapsed height (a pull to close) it keeps that height
+  // and slides down by the difference instead, so its top part stays whole as it goes.
+  const lowest = canClose ? 0 : sizes?.collapsed ?? 0;
+  const highest = sizes === null ? 0 : canPull ? sizes.expanded : sizes.collapsed;
+  const dragged = (h: number): number => Math.min(highest, Math.max(lowest, h));
+  const height = sizes === null ? undefined : drag !== null ? Math.max(drag, sizes.collapsed) : open && canPull ? sizes.expanded : sizes.collapsed;
+  const slide = sizes !== null && drag !== null && drag < sizes.collapsed ? sizes.collapsed - drag : 0;
 
   // The pull: a press on the handle or the card's top that moves up or down follows the finger, then settles.
   const press = useRef<{ id: number; y: number; x: number; h: number; pulling: boolean } | null>(null);
   const swallowClick = useRef(false);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>): void => {
-    if (!canPull || sizes === null || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (!canDrag || sizes === null || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const t = e.target as Element;
     if (t.closest('.sheet-handle') === null && t.closest('.card-peek') === null) return;
     press.current = { id: e.pointerId, y: e.clientY, x: e.clientX, h: ref.current?.getBoundingClientRect().height ?? sizes.collapsed, pulling: false };
@@ -146,7 +159,7 @@ export function SelectionSheet({ resetKey, apiRef, onCover, children }: {
       p.pulling = true;
       ref.current?.setPointerCapture?.(e.pointerId);
     }
-    setDrag(Math.min(sizes.expanded, Math.max(sizes.collapsed, p.h + dy)));
+    setDrag(dragged(p.h + dy));
   };
   const settle = (e: ReactPointerEvent<HTMLElement>): void => {
     const p = press.current;
@@ -156,8 +169,13 @@ export function SelectionSheet({ resetKey, apiRef, onCover, children }: {
     swallowClick.current = true;
     setTimeout(() => { swallowClick.current = false; }, 0);
     const moved = p.y - e.clientY;
-    const now = Math.min(sizes.expanded, Math.max(sizes.collapsed, p.h + moved));
-    const up = moved > PULL_DECIDES_PX ? true : moved < -PULL_DECIDES_PX ? false : now - sizes.collapsed > sizes.expanded - now;
+    const now = dragged(p.h + moved);
+    if (canClose && now <= sizes.collapsed - CLOSE_PULL_PX) {
+      setDrag(null);
+      onClose?.();
+      return;
+    }
+    const up = canPull && (moved > PULL_DECIDES_PX ? true : moved < -PULL_DECIDES_PX ? false : now - sizes.collapsed > sizes.expanded - now);
     setOpen(up);
     setDrag(null);
     if (!up) ref.current?.scrollTo?.({ top: 0 });
@@ -171,14 +189,14 @@ export function SelectionSheet({ resetKey, apiRef, onCover, children }: {
   const cls = ['selection', side ? '' : 'pull', open && canPull ? 'open' : '', drag !== null ? 'dragging' : ''].filter(Boolean).join(' ');
   return (
     <aside
-      ref={ref} className={cls} data-testid="selection" data-sheet={side ? 'side' : open && canPull ? 'expanded' : 'collapsed'} data-ready={ready ? 'true' : undefined}
-      style={height === undefined || side ? undefined : ({ '--sheet-h': `${height}px` } as CSSProperties)}
+      ref={ref} className={cls} data-testid="selection" data-selection={resetKey} data-sheet={side ? 'side' : open && canPull ? 'expanded' : 'collapsed'} data-ready={ready ? 'true' : undefined}
+      style={height === undefined || side ? undefined : ({ '--sheet-h': `${height}px`, ...(slide > 0 ? { transform: `translateY(${slide}px)` } : {}) } as CSSProperties)}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={settle} onPointerCancel={settle}
       onClickCapture={(e) => { if (swallowClick.current) { e.stopPropagation(); e.preventDefault(); swallowClick.current = false; } }}
     >
       {side ? null : (
         <button
-          type="button" className="sheet-handle" data-testid="sheet-handle" aria-expanded={open && canPull} disabled={!canPull}
+          type="button" className="sheet-handle" data-testid="sheet-handle" aria-expanded={open && canPull} disabled={!canDrag} data-pull={canPull ? undefined : 'close'}
           aria-label={open && canPull ? T.ui.sheetLess : T.ui.sheetMore} onClick={toggle}
         >
           <span aria-hidden="true" />

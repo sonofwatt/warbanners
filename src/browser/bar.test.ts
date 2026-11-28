@@ -4,7 +4,7 @@ import { T } from '../ui/text';
 import { cameraStill, frames, openApp, tapTile } from './harness';
 
 // The turn buttons sit in a bar along the bottom of the screen: Tech, Next unit (with how many units can still act)
-// and End turn, each the shape of End turn. A selection's card takes the bar's place, and deselecting brings it back,
+// and End turn, each the shape of End turn. A unit's card sits on the bar; a city's or a tile's card takes its place, and deselecting brings it back,
 // neither moving the board. End turn stays neutral while a unit can act and lights up once none can. The Menu button
 // sits at the far left of the top bar, before the player's name. Seed 7: Player 1's Scout (unit 0) on the capital
 // at -2,5 can move to 0,3, its whole move. Set SHOT_DIR to save pictures.
@@ -67,16 +67,17 @@ describe.runIf(process.env.BROWSER === '1')('the bar of turn buttons', () => {
         await page.screenshot({ path: `${SHOTS}/topbar-412x915.png`, clip: { x: 0, y: 0, width: 412, height: 110 } });
       }
 
-      // Select the Scout: its card takes the bar's place. Once it is in sight, the swap moves nothing.
+      // Select the Scout: its card sits on the bar, which stays, so Next unit can go on through the units.
       await tapTile(page, '-2,5');
       await page.locator('.selection .unit-panel').waitFor();
-      await expect.poll(() => bar.count()).toBe(0);
+      expect(await bar.count()).toBe(1);
       await cameraStill(page);
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/unit-selected-card-412x915.png` });
       const cam = await camera(page);
       // Unit, city, nothing: the bar comes back; then the Scout again: the card again. The board never moves.
       await tapTile(page, '-2,5');
       await page.locator('.selection .city-panel').waitFor();
+      await expect.poll(() => bar.count(), { message: 'a city\'s card takes the bar\'s place' }).toBe(0);
       await cameraStill(page);
       const camCity = await camera(page); // the city's taller top may bring the tile up once
       await tapTile(page, '-2,5');

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import {
-  isHidden, DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, rewardOptions, statsOf, thresholdOf, unitCapacity, unitsOf,
+  isHidden, isVeiled, DEEDS, blockadeOf, growthNeeded, isBraced, isConnected, mythTouched, playerIncome, playerView, cityIncome, rewardOptions, statsOf, thresholdOf, unitCapacity, unitsOf,
 } from '../../engine';
 import type { DeedId, FactionId, HexKey, MatchState, PlayerId, PlayerView, TechId } from '../../engine';
 import { roundOf } from '../../app/record';
@@ -118,6 +118,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   const last = useApp((s) => s.last);
   const run = useApp((s) => s.run);
   const tap = useApp((s) => s.tap);
+  const select = useApp((s) => s.select);
   const nextUnit = useApp((s) => s.nextUnit);
   const arm = useApp((s) => s.arm);
   const goHome = useApp((s) => s.goHome);
@@ -159,9 +160,13 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     const api = sheetApi.current, slot = slotRef.current, bar = barRef.current;
     if (slot === null) return NO_INSETS;
     const s = slot.getBoundingClientRect();
-    if (api !== null) return api.cover(s);
-    if (bar !== null) return { ...NO_INSETS, bottom: Math.max(0, Math.min(s.height, s.bottom - bar.getBoundingClientRect().top)) };
-    return NO_INSETS;
+    const barCover = bar === null ? 0 : Math.max(0, Math.min(s.height, s.bottom - bar.getBoundingClientRect().top));
+    if (api !== null) {
+      // A unit's card sits on the bar (portrait) or beside it (landscape): both cover the board.
+      const c = api.cover(s);
+      return { ...c, bottom: Math.min(s.height, c.bottom + barCover) };
+    }
+    return { ...NO_INSETS, bottom: barCover };
   }, []);
   const onCover = useCallback((): void => setCoverN((n) => n + 1), []);
 
@@ -241,8 +246,9 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
     focusHeld.current = turnFocus(focusHeld.current, `${roundOf(state)}:${viewer}`, data.focus ?? '0,0');
   }
   const selectedUnit = selection.kind === 'unit' ? selection.id : null;
-  // While a city is selected (either player's), its land is outlined on the board.
-  const cityLand = selection.kind === 'city' ? selection.id : null;
+  // While a city is selected (either player's), or a tile of its land, its land is outlined on the board.
+  const landOf = selection.kind === 'tile' ? data?.view.tiles[selection.at]?.cityId ?? null : null;
+  const cityLand = selection.kind === 'city' ? selection.id : landOf;
   // The tile of the turn report line being looked at is ringed, so it can be found when the board's edge stops the
   // view short of centring it.
   const peekAt = peek !== null ? digest[peek]?.at : undefined;
@@ -276,10 +282,11 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
       // enemy's card cannot tell of a hero or a helper beside it that the viewer has not seen.
       const believed = shownState(state, viewer);
       const myth = mythTouched(believed, u);
+      const veil = u.owner === viewer && isVeiled(state, u) ? (u.veilUntil! > state.stamp ? 'next' as const : 'this' as const) : null;
       const thresholds = u.owner === viewer
         ? Object.fromEntries(DEEDS.map((d) => [d, thresholdOf(state, u, d)])) as Record<DeedId, number> : null;
       panel = (
-        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} rangeCause={rangeCauseOf(believed, u, viewer)} myth={myth} braced={isBraced(believed, u)} thresholds={thresholds}
+        <UnitPanel unit={u} faction={owner} look={seatLook(data.factions, u.owner)} stats={statsOf(believed, u)} rangeCause={rangeCauseOf(believed, u, viewer)} myth={myth} braced={isBraced(believed, u)} veiled={veil} thresholds={thresholds}
           commands={commands} onCommand={onCommand} />
       );
     }
@@ -320,6 +327,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
   // Something is shown in the side column (landscape) or over the bottom of the board (portrait). The board's slot
   // keeps its size either way: the panel lies over it.
   const side = sheet !== 'none' || panel !== null;
+  const cardShown = panel !== null && sheet === 'none';
   const selectionKey = selection.kind === 'unit' ? `unit:${selection.id}` : selection.kind === 'city' ? `city:${selection.id}`
     : selection.kind === 'tile' ? `tile:${selection.at}` : 'none';
   const toggleSound = (): void => { setMuted(soundOn); setSoundOn(!soundOn); };
@@ -401,10 +409,12 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
           {notice !== null && MATCH_NOTICES.has(notice) ? <NoticeLine notice={notice} onDismiss={dismissNotice} /> : null}
         </div>
       ) : null}
-      {/* The bottom of the screen: the selection's card while something is selected, else the turn buttons. */}
-      {panel !== null && sheet === 'none' ? (
-        <SelectionSheet resetKey={selectionKey} apiRef={sheetApi} onCover={onCover}>{panel}</SelectionSheet>
-      ) : (
+      {/* The bottom of the screen: the selection's card while something is selected, and the turn buttons while
+          nothing is, or under a unit's card, so Next unit can go on through the units that can still act. */}
+      {cardShown ? (
+        <SelectionSheet resetKey={selectionKey} apiRef={sheetApi} onCover={onCover} onClose={() => select({ kind: 'none' })}>{panel}</SelectionSheet>
+      ) : null}
+      {!cardShown || selection.kind === 'unit' ? (
           <ActionBar
             barRef={barRef} colour={seat.main} dark={seat.dark} faction={player.faction}
             unitsToAct={ix.activeUnits.length} techReady={ix.research.length > 0} endDisabled={locked || aiBusy || waiting}
@@ -412,7 +422,7 @@ export function Match({ openSheet = 'none' }: { openSheet?: Sheet } = {}): React
             onOpenTech={() => { setTechFocus(null); setSheet(sheet === 'tech' ? 'none' : 'tech'); }}
             onEndTurn={() => { if (sheet === 'tech') setSheet('none'); run({ type: 'endTurn' }); }}
           />
-      )}
+      ) : null}
       {sheet === 'tech' ? (
         <TechSheet rows={techRows(state, ix)} focus={techFocus} onResearch={(t: TechId) => run({ type: 'research', tech: t })} onClose={() => setSheet('none')} />
       ) : null}

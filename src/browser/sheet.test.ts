@@ -1,5 +1,10 @@
 import type { Page } from 'playwright';
 import { describe, expect, test } from 'vitest';
+import { newRecord } from '../app/record';
+import type { MatchRecord } from '../app/record';
+import { writeSave } from '../app/saves';
+import { createMatch, hashState, key, neighbors, parseKey } from '../engine';
+import { addUnit } from '../engine/testkit';
 import { cameraStill, frames, openApp } from './harness';
 
 // In portrait the selection card is pulled up from the bottom. It opens collapsed, showing only its top: the name,
@@ -115,8 +120,8 @@ describe.runIf(process.env.BROWSER === '1')('the pull-up selection card', () => 
       await pull(page, mid(await box(page, '[data-testid="sheet-handle"]')), 260);
       expect(await state(page)).toBe('collapsed');
       expect(await camera(page)).toBe(cam);
-      // A pull down from collapsed does nothing: the card and the selection stay.
-      await pull(page, mid(await box(page, '[data-testid="sheet-handle"]')), 200);
+      // A short pull down from collapsed slides back: the card and the selection stay.
+      await pull(page, mid(await box(page, '[data-testid="sheet-handle"]')), 30);
       expect(await state(page)).toBe('collapsed');
       expect(await page.locator('.selection .unit-panel').count()).toBe(1);
       expect((await box(page, '[data-testid="selection"]')).height).toBeCloseTo(collapsed.height, 0);
@@ -133,6 +138,58 @@ describe.runIf(process.env.BROWSER === '1')('the pull-up selection card', () => 
 
       await settled(page);
       expect(await state(page)).toBe('collapsed');
+
+      // A longer pull down from the card's top slides it away and ends the selection; the turn buttons stay.
+      await pull(page, mid(await box(page, '.selection .card-head h2')), 200);
+      await expect.poll(() => page.locator('.selection').count()).toBe(0);
+      await page.getByTestId('action-bar').waitFor();
+    } finally {
+      await close();
+    }
+  }, 90_000);
+
+  test('a unit\'s card sits on the turn buttons, so Next unit goes on through the units', async () => {
+    // Seed 7 with a Warrior beside the capital, so two units can act.
+    const match = createMatch({ seed: 7, factions: ['spartans', 'mongols'] });
+    const capital = match.cities.find((c) => c.owner === 0)!.pos;
+    const free = neighbors(parseKey(capital)).map(key).find((k) => match.tiles[k] !== undefined && match.tiles[k]!.terrain !== 'water' && match.tiles[k]!.terrain !== 'mountain' && !match.units.some((u) => u.pos === k))!;
+    const at = parseKey(free);
+    addUnit(match, 'warrior', 0, at.q, at.r);
+    const settings = { seed: 7, factions: ['spartans', 'mongols'] as ['spartans', 'mongols'] };
+    const record: MatchRecord = { ...newRecord('two', settings, ['Ann', 'Ben'], 1_000_000), snapshot: { count: 0, hash: hashState(match), state: match } };
+    const map = new Map<string, string>();
+    expect(writeSave({ getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, removeItem: (k) => { map.delete(k); } }, record, match).saved).toBe(true);
+    const entries = [...map.entries()];
+    const { page, close } = await openApp('', {
+      width: 412, height: 915,
+      beforeOpen: (c) => {
+        void c.addInitScript((items: [string, string][]) => {
+          try { for (const [k, v] of items) if (localStorage.getItem(k) === null) localStorage.setItem(k, v); } catch { /* Continue is missing then */ }
+        }, entries);
+      },
+    });
+    try {
+      await page.getByTestId('continue').tap();
+      await page.getByTestId('ready').tap();
+      await page.getByTestId('match').waitFor();
+      await page.locator('[data-unit]').first().waitFor({ state: 'attached' });
+      await cameraStill(page);
+      await page.getByTestId('next-unit').tap();
+      await page.locator('.selection .unit-panel').waitFor();
+      await settled(page);
+      const card = await box(page, '[data-testid="selection"]');
+      const bar = await box(page, '[data-testid="action-bar"]');
+      expect(card.y + card.height, 'the card ends where the bar begins').toBeLessThanOrEqual(bar.y + 1);
+      expect(bar.y + bar.height).toBeCloseTo(915, 0);
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/unit-with-bar-412x915.png` });
+      const first = await sheet(page).getAttribute('data-selection');
+      await page.getByTestId('next-unit').tap();
+      await expect.poll(() => sheet(page).getAttribute('data-selection')).not.toBe(first);
+      expect(await state(page)).toBe('collapsed');
+      // Nothing selected: the bar alone.
+      const slot = await box(page, '[data-testid="board-slot"]');
+      await page.touchscreen.tap(slot.x + 20, slot.y + 20);
+      await expect.poll(() => page.locator('.selection').count()).toBe(0);
     } finally {
       await close();
     }
